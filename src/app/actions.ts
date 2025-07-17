@@ -221,6 +221,56 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     }
 }
 
+type StaffDashboardStats = {
+    personalStockCount: number;
+    pendingTransfersCount: number;
+    monthlyWasteReports: number;
+};
+
+export async function getStaffDashboardStats(staffId: string): Promise<StaffDashboardStats> {
+    try {
+        const now = new Date();
+        const startOfCurrentMonth = startOfMonth(now);
+
+        // 1. Get personal stock count
+        const personalStockQuery = collection(db, 'staff', staffId, 'personal_stock');
+        const personalStockSnapshot = await getDocs(personalStockQuery);
+        const personalStockCount = personalStockSnapshot.docs.reduce((sum, doc) => sum + doc.data().stock, 0);
+
+        // 2. Get pending transfers count
+        const pendingTransfersQuery = query(
+            collection(db, 'transfers'),
+            where('to_staff_id', '==', staffId),
+            where('status', '==', 'pending')
+        );
+        const pendingTransfersSnapshot = await getDocs(pendingTransfersQuery);
+        const pendingTransfersCount = pendingTransfersSnapshot.size;
+
+        // 3. Get waste reports count for the month
+        const wasteLogsQuery = query(
+            collection(db, 'waste_logs'),
+            where('staffId', '==', staffId),
+            where('date', '>=', Timestamp.fromDate(startOfCurrentMonth))
+        );
+        const wasteLogsSnapshot = await getDocs(wasteLogsQuery);
+        const monthlyWasteReports = wasteLogsSnapshot.size;
+
+        return {
+            personalStockCount,
+            pendingTransfersCount,
+            monthlyWasteReports,
+        };
+
+    } catch (error) {
+        console.error("Error fetching staff dashboard stats:", error);
+        return {
+            personalStockCount: 0,
+            pendingTransfersCount: 0,
+            monthlyWasteReports: 0,
+        };
+    }
+}
+
 
 export type SalesRun = {
     id: string;
