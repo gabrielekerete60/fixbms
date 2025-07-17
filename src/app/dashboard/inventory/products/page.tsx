@@ -62,6 +62,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { DateRange } from "react-day-picker";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 type Product = {
   id: string;
@@ -85,8 +89,7 @@ const getStatusBadge = (stock: number) => {
 };
 
 
-function ProductDialog({ product, onSave, categories, children }: { product?: Product | null, onSave: (p: Omit<Product, 'id'>) => void, categories: string[], children: React.ReactNode }) {
-    const [isOpen, setIsOpen] = useState(false);
+function ProductDialog({ product, onSave, onOpenChange, categories }: { product: Product | null, onSave: (p: Omit<Product, 'id'>) => void, onOpenChange: (open: boolean) => void, categories: string[] }) {
     const [name, setName] = useState("");
     const [category, setCategory] = useState("");
     const [costPrice, setCostPrice] = useState(0);
@@ -104,27 +107,34 @@ function ProductDialog({ product, onSave, categories, children }: { product?: Pr
             "data-ai-hint": product?.['data-ai-hint'] || "product image"
         };
         onSave(newProductData);
-        setIsOpen(false);
+        onOpenChange(false);
     }
 
     useEffect(() => {
-        if (isOpen) {
-            setName(product?.name || "");
-            setCategory(product?.category || categories[0] || "");
-            setCostPrice(product?.costPrice || 0);
-            setPrice(product?.price || 0);
-            setStock(product?.stock || 0);
+        if (product) {
+            setName(product.name);
+            setCategory(product.category);
+            setCostPrice(product.costPrice || 0);
+            setPrice(product.price);
+            setStock(product.stock);
+        } else {
+            setName("");
+            setCategory(categories[0] || "");
+            setCostPrice(0);
+            setPrice(0);
+            setStock(0);
         }
-    }, [isOpen, product, categories]);
+    }, [product, categories]);
+    
+    const isOpen = product !== null;
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>{children}</DialogTrigger>
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>{product ? "Edit Product" : "Add New Product"}</DialogTitle>
+                    <DialogTitle>{product?.id ? "Edit Product" : "Add New Product"}</DialogTitle>
                     <DialogDescription>
-                        {product ? "Update the details of this product." : "Fill in the details for the new product."}
+                        {product?.id ? "Update the details of this product." : "Fill in the details for the new product."}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -159,7 +169,8 @@ function ProductDialog({ product, onSave, categories, children }: { product?: Pr
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button onClick={handleSubmit}>{product ? "Save Changes" : "Create Product"}</Button>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit}>{product?.id ? "Save Changes" : "Create Product"}</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -176,7 +187,7 @@ function ExportDialog({ children, onExport }: { children: React.ReactNode, onExp
         <DialogHeader>
           <DialogTitle>Export Products</DialogTitle>
           <DialogDescription>
-            Select your export options. All current products will be included in the CSV file.
+            All current products will be included in the CSV file.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -194,8 +205,6 @@ export default function ProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
   const fetchProducts = async () => {
@@ -226,7 +235,7 @@ export default function ProductsPage() {
 
   const handleSaveProduct = async (productData: Omit<Product, 'id'>) => {
     try {
-        if (editingProduct) {
+        if (editingProduct && editingProduct.id) {
             const productRef = doc(db, "products", editingProduct.id);
             await updateDoc(productRef, productData);
             toast({ title: "Success", description: "Product updated successfully." });
@@ -235,11 +244,11 @@ export default function ProductsPage() {
             toast({ title: "Success", description: "Product created successfully." });
         }
         fetchProducts();
-        setEditingProduct(null);
-        setIsProductDialogOpen(false);
     } catch (error) {
         console.error("Error saving product:", error);
         toast({ variant: "destructive", title: "Error", description: "Could not save product." });
+    } finally {
+        setEditingProduct(null);
     }
   };
   
@@ -253,25 +262,9 @@ export default function ProductsPage() {
         console.error("Error deleting product:", error);
         toast({ variant: "destructive", title: "Error", description: "Could not delete product." });
     } finally {
-        setIsDeleteDialogOpen(false);
         setProductToDelete(null);
     }
   };
-  
-  const openDeleteDialog = (product: Product) => {
-    setProductToDelete(product);
-    setIsDeleteDialogOpen(true);
-  }
-
-  const openEditDialog = (product: Product) => {
-    setEditingProduct(product);
-    setIsProductDialogOpen(true);
-  }
-  
-  const openAddDialog = () => {
-    setEditingProduct(null);
-    setIsProductDialogOpen(true);
-  }
 
   const handleExport = () => {
     const headers = ["ID", "Name", "Category", "Cost Price", "Selling Price", "Stock"];
@@ -318,7 +311,7 @@ export default function ProductsPage() {
                 Export
             </Button>
            </ExportDialog>
-          <Button onClick={openAddDialog}>
+          <Button onClick={() => setEditingProduct({} as Product)}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Product
           </Button>
         </div>
@@ -326,12 +319,9 @@ export default function ProductsPage() {
        <ProductDialog 
             product={editingProduct} 
             onSave={handleSaveProduct}
+            onOpenChange={() => setEditingProduct(null)}
             categories={categories}
-            key={isProductDialogOpen.toString() + (editingProduct?.id || 'new')}
-        >
-        {/* This is a controlled dialog, the trigger is handled programmatically */}
-        <></>
-      </ProductDialog>
+        />
 
       <Tabs defaultValue="products">
         <TabsList>
@@ -417,10 +407,10 @@ export default function ProductsPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onSelect={() => openEditDialog(product)}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setEditingProduct(product)}>Edit</DropdownMenuItem>
                                 <DropdownMenuItem>View Logs</DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive" onSelect={() => openDeleteDialog(product)}>
+                                <DropdownMenuItem className="text-destructive" onSelect={() => setProductToDelete(product)}>
                                     Delete
                                 </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -454,7 +444,7 @@ export default function ProductsPage() {
             </Card>
         </TabsContent>
       </Tabs>
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={productToDelete !== null} onOpenChange={(open) => !open && setProductToDelete(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
