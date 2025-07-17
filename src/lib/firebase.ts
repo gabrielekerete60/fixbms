@@ -19,6 +19,7 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
+// In a browser environment, initialize analytics
 if (typeof window !== 'undefined') {
   isSupported().then((supported) => {
     if (supported) {
