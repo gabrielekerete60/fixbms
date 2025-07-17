@@ -173,7 +173,7 @@ export default function CommunicationPage() {
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-semibold">{announcement.staffName}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        {announcement.timestamp?.toDate ? format(announcement.timestamp.toDate(), 'PPp') : ''}
+                                                        {announcement.timestamp ? format(new Date(announcement.timestamp), 'PPp') : ''}
                                                     </p>
                                                 </div>
                                                 <p className="text-sm">{announcement.message}</p>

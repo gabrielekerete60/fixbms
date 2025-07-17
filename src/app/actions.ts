@@ -464,14 +464,24 @@ export type Announcement = {
     staffId: string;
     staffName: string;
     message: string;
-    timestamp: Timestamp;
+    timestamp: string; // Changed from Timestamp to string
 }
 
 export async function getAnnouncements(): Promise<Announcement[]> {
     try {
         const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement));
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            const timestamp = data.timestamp as Timestamp;
+            return { 
+                id: doc.id,
+                staffId: data.staffId,
+                staffName: data.staffName,
+                message: data.message,
+                timestamp: timestamp.toDate().toISOString(), // Convert to string
+            } as Announcement
+        });
     } catch (error) {
         console.error("Error fetching announcements:", error);
         return [];
