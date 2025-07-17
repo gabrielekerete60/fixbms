@@ -1,7 +1,7 @@
 
 "use server";
 
-import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, startOfMonth, endOfMonth } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 type LoginResult = {
@@ -137,5 +137,83 @@ export async function handleInitiateTransfer(data: any): Promise<InitiateTransfe
     } catch (error) {
         console.error("Transfer initiation error:", error);
         return { success: false, error: "Failed to initiate transfer." };
+    }
+}
+
+
+type DashboardStats = {
+    revenue: number;
+    customers: number;
+    sales: number;
+    activeOrders: number;
+    weeklyRevenue: { day: string, revenue: number }[];
+};
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+    try {
+        const now = new Date();
+        const startOfCurrentMonth = startOfMonth(now);
+        const endOfCurrentMonth = endOfMonth(now);
+
+        // Revenue, Sales, Active Orders
+        const ordersQuery = query(collection(db, "orders"), where("date", ">=", startOfCurrentMonth.toISOString()), where("date", "<=", endOfCurrentMonth.toISOString()));
+        const ordersSnapshot = await getDocs(ordersQuery);
+        
+        let revenue = 0;
+        let activeOrders = 0;
+        ordersSnapshot.forEach(doc => {
+            const order = doc.data();
+            revenue += order.total;
+            if (order.status === 'Pending') {
+                activeOrders++;
+            }
+        });
+
+        // New Customers
+        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfCurrentMonth), where("joinedDate", "<=", endOfCurrentMonth));
+        const customersSnapshot = await getDocs(customersQuery);
+
+
+        // Weekly Revenue for chart
+        const weeklyRevenueData: { [key: string]: number } = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 };
+        const today = new Date();
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Monday as start of week
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const weeklyOrdersQuery = query(collection(db, "orders"), where("date", ">=", startOfWeek.toISOString()));
+        const weeklyOrdersSnapshot = await getDocs(weeklyOrdersQuery);
+        
+        weeklyOrdersSnapshot.forEach(doc => {
+            const order = doc.data();
+            const orderDate = new Date(order.date);
+            const dayOfWeek = orderDate.toLocaleString('en-US', { weekday: 'short' }); // Mon, Tue, etc.
+            if (dayOfWeek in weeklyRevenueData) {
+                weeklyRevenueData[dayOfWeek] += order.total;
+            }
+        });
+        
+        const weeklyRevenue = Object.entries(weeklyRevenueData).map(([day, revenue]) => ({ day, revenue }));
+        
+        return {
+            revenue,
+            customers: customersSnapshot.size,
+            sales: ordersSnapshot.size,
+            activeOrders,
+            weeklyRevenue,
+        };
+    } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
+        // Return zeroed-out data on error
+        return {
+            revenue: 0,
+            customers: 0,
+            sales: 0,
+            activeOrders: 0,
+            weeklyRevenue: [
+                { day: 'Mon', revenue: 0 }, { day: 'Tue', revenue: 0 }, { day: 'Wed', revenue: 0 },
+                { day: 'Thu', revenue: 0 }, { day: 'Fri', revenue: 0 }, { day: 'Sat', revenue: 0 }, { day: 'Sun', revenue: 0 },
+            ]
+        };
     }
 }

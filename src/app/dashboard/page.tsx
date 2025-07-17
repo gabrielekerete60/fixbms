@@ -1,3 +1,4 @@
+
 import {
   Activity,
   ArrowUpRight,
@@ -21,8 +22,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RevenueChart } from '@/components/revenue-chart';
+import { getDashboardStats } from '../actions';
 
-export default function Dashboard() {
+export default async function Dashboard() {
+  const stats = await getDashboardStats();
+
   return (
     <>
       <div className="flex items-center">
@@ -37,9 +41,9 @@ export default function Dashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₦3,675.00</div>
+            <div className="text-2xl font-bold">₦{stats.revenue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              +100.0% from last month
+              {/* +100.0% from last month */}
             </p>
           </CardContent>
         </Card>
@@ -51,9 +55,9 @@ export default function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+0</div>
+            <div className="text-2xl font-bold">+{stats.customers}</div>
             <p className="text-xs text-muted-foreground">
-              No change from last month
+               New customers this month
             </p>
           </CardContent>
         </Card>
@@ -63,9 +67,9 @@ export default function Dashboard() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+4</div>
+            <div className="text-2xl font-bold">+{stats.sales}</div>
             <p className="text-xs text-muted-foreground">
-              +100.0% from last month
+              Sales made this month
             </p>
           </CardContent>
         </Card>
@@ -75,9 +79,9 @@ export default function Dashboard() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">5</div>
+            <div className="text-2xl font-bold">{stats.activeOrders}</div>
             <p className="text-xs text-muted-foreground">
-              Currently pending or processing
+              Currently pending orders
             </p>
           </CardContent>
         </Card>
@@ -93,7 +97,7 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <RevenueChart />
+            <RevenueChart data={stats.weeklyRevenue} />
           </CardContent>
         </Card>
         <Card>

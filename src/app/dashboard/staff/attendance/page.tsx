@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { CheckCircle, Users, Loader2 } from "lucide-react";
 import {
   Card,
@@ -56,72 +56,79 @@ export default function AttendancePage() {
     day: "numeric",
   });
 
-  useEffect(() => {
-    const fetchAttendance = async () => {
-        setIsLoading(true);
+  const fetchAttendance = useCallback(async () => {
+    setIsLoading(true);
+    
+    try {
+        const staffSnapshot = await getDocs(query(collection(db, 'staff'), where('role', '!=', 'Developer')));
+        const staffMap = new Map(staffSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+
+        // Fetch today's attendance
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const tomorrowStart = new Date(todayStart);
+        tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+        const todayQuery = query(
+            collection(db, "attendance"),
+            where("clock_in_time", ">=", Timestamp.fromDate(todayStart)),
+            where("clock_in_time", "<", Timestamp.fromDate(tomorrowStart))
+        );
+        const todayAttendanceSnapshot = await getDocs(todayQuery);
+        const todayRecords = todayAttendanceSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                staff_name: staffMap.get(data.staff_id) || 'Unknown Staff'
+            } as AttendanceRecord
+        });
+        setPresentStaff(todayRecords);
+
+        // Fetch this week's attendance for the chart
+        const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
+        const weekQuery = query(
+            collection(db, "attendance"),
+            where("clock_in_time", ">=", Timestamp.fromDate(weekStart))
+        );
+        const weekAttendanceSnapshot = await getDocs(weekQuery);
         
-        try {
-            const staffSnapshot = await getDocs(query(collection(db, 'staff'), where('role', '!=', 'Developer')));
-            const staffMap = new Map(staffSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+        const attendanceByStaff: { [staffId: string]: Set<string> } = {};
 
-            // Fetch today's attendance
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
-            const tomorrowStart = new Date(todayStart);
-            tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+        weekAttendanceSnapshot.docs.forEach(doc => {
+            const record = doc.data();
+            const date = record.clock_in_time.toDate().toISOString().split('T')[0];
+            if (!attendanceByStaff[record.staff_id]) {
+                attendanceByStaff[record.staff_id] = new Set();
+            }
+            attendanceByStaff[record.staff_id].add(date);
+        });
+        
+        const chartData = Array.from(staffMap.entries())
+            .map(([staffId, name]) => ({
+                name: name.split(' ')[0], // Use first name for chart
+                days: attendanceByStaff[staffId]?.size || 0,
+            }));
 
-            const todayQuery = query(
-                collection(db, "attendance"),
-                where("clock_in_time", ">=", Timestamp.fromDate(todayStart)),
-                where("clock_in_time", "<", Timestamp.fromDate(tomorrowStart))
-            );
-            const todayAttendanceSnapshot = await getDocs(todayQuery);
-            const todayRecords = todayAttendanceSnapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    ...data,
-                    staff_name: staffMap.get(data.staff_id) || 'Unknown Staff'
-                } as AttendanceRecord
-            });
-            setPresentStaff(todayRecords);
+        setWeeklyData(chartData);
 
-            // Fetch this week's attendance for the chart
-            const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
-            const weekQuery = query(
-                collection(db, "attendance"),
-                where("clock_in_time", ">=", Timestamp.fromDate(weekStart))
-            );
-            const weekAttendanceSnapshot = await getDocs(weekQuery);
-            
-            const attendanceByStaff: { [staffId: string]: Set<string> } = {};
-
-            weekAttendanceSnapshot.docs.forEach(doc => {
-                const record = doc.data();
-                const date = record.clock_in_time.toDate().toISOString().split('T')[0];
-                if (!attendanceByStaff[record.staff_id]) {
-                    attendanceByStaff[record.staff_id] = new Set();
-                }
-                attendanceByStaff[record.staff_id].add(date);
-            });
-            
-            const chartData = Array.from(staffMap.entries())
-                .map(([staffId, name]) => ({
-                    name: name.split(' ')[0], // Use first name for chart
-                    days: attendanceByStaff[staffId]?.size || 0,
-                }));
-
-            setWeeklyData(chartData);
-
-        } catch (error) {
-            console.error("Error fetching attendance: ", error);
-        } finally {
-            setIsLoading(false);
-        }
+    } catch (error) {
+        console.error("Error fetching attendance: ", error);
+    } finally {
+        setIsLoading(false);
     }
-
-    fetchAttendance();
   }, []);
+
+  useEffect(() => {
+    fetchAttendance();
+    window.addEventListener('attendanceChanged', fetchAttendance);
+    window.addEventListener('focus', fetchAttendance);
+    
+    return () => {
+        window.removeEventListener('attendanceChanged', fetchAttendance);
+        window.removeEventListener('focus', fetchAttendance);
+    }
+  }, [fetchAttendance]);
 
   return (
     <div className="flex flex-col gap-6">

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
@@ -7,15 +8,9 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart';
 
-const chartData = [
-  { day: 'Mon', revenue: 500 },
-  { day: 'Tue', revenue: 1200 },
-  { day: 'Wed', revenue: 800 },
-  { day: 'Thu', revenue: 1500 },
-  { day: 'Fri', revenue: 2100 },
-  { day: 'Sat', revenue: 3800 },
-  { day: 'Sun', revenue: 3200 },
-];
+type RevenueChartProps = {
+    data: { day: string; revenue: number }[];
+}
 
 const chartConfig = {
   revenue: {
@@ -24,10 +19,10 @@ const chartConfig = {
   },
 };
 
-export function RevenueChart() {
+export function RevenueChart({ data }: RevenueChartProps) {
     return (
         <ChartContainer config={chartConfig} className="h-[250px] w-full">
-            <BarChart data={chartData}>
+            <BarChart data={data}>
             <CartesianGrid vertical={false} />
             <XAxis
                 dataKey="day"

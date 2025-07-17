@@ -228,6 +228,8 @@ export default function DashboardLayout({
         toast({ variant: 'destructive', title: "Error", description: result.error });
       }
     }
+    // Dispatch a custom event to notify other components
+    window.dispatchEvent(new CustomEvent('attendanceChanged'));
     setIsClocking(false);
   };
 
