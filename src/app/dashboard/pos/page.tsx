@@ -46,8 +46,13 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, addDoc, writeBatch, doc, runTransaction, increment } from "firebase/firestore";
+import { collection, getDocs, addDoc, writeBatch, doc, runTransaction, increment, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { usePaystackPayment } from "react-paystack";
+
+// IMPORTANT: Add your Paystack public key to your environment variables
+// Create a .env.local file in the root of your project and add:
+// NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 type Product = {
   id: string;
@@ -84,7 +89,6 @@ type User = {
   staff_id: string;
 };
 
-
 export default function POSPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -95,8 +99,6 @@ export default function POSPage() {
   const [activeTab, setActiveTab] = useState('All');
   const [customerType, setCustomerType] = useState<'walk-in' | 'registered'>('walk-in');
   const [customerName, setCustomerName] = useState('');
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [isConfirmCashOpen, setIsConfirmCashOpen] = useState(false);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
 
@@ -314,18 +316,34 @@ export default function POSPage() {
     }
   }
 
-  const handleCardPayment = async () => {
+  const paystackConfig = {
+      reference: new Date().getTime().toString(),
+      email: "customer@example.com", // Paystack requires an email.
+      amount: total * 100, // Amount in kobo
+      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+  };
+
+  const initializePayment = usePaystackPayment(paystackConfig);
+
+  const onPaystackSuccess = async () => {
     const completed = await completeOrder('Card');
     if (completed) {
-      setIsConfirmCashOpen(false);
       setIsReceiptOpen(true);
       toast({
-        title: "Order Completed",
-        description: "The order has been successfully processed.",
+        title: "Payment Successful",
+        description: "The order has been completed.",
       });
     }
-  }
-  
+  };
+
+  const onPaystackClose = () => {
+    toast({
+      variant: "destructive",
+      title: "Payment Cancelled",
+      description: "The payment process was cancelled.",
+    });
+  };
+
   const handlePrintReceipt = () => {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
@@ -585,51 +603,14 @@ export default function POSPage() {
                     </AlertDialogContent>
                 </AlertDialog>
             </div>
-             <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0} onClick={() => setIsCheckoutOpen(true)}>
-                Checkout
+             <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !paystackConfig.publicKey} onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
+                <CreditCard className="mr-2"/> Checkout
              </Button>
         </CardFooter>
       </Card>
       </div>
 
        {/* ---- DIALOGS ---- */}
-
-       {/* Checkout Dialog */}
-        <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Complete Payment</DialogTitle>
-                    <DialogDescription>
-                        Select a payment method to complete the transaction for <strong>₦{total.toFixed(2)}</strong>.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="grid grid-cols-1 gap-4 py-4">
-                    <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => { setIsCheckoutOpen(false); setIsConfirmCashOpen(true); }}>
-                        <CreditCard className="w-8 h-8"/>
-                        <span>Pay with Card / POS</span>
-                    </Button>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCheckoutOpen(false)}>Cancel</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-
-        {/* Confirm Cash Received Dialog */}
-         <AlertDialog open={isConfirmCashOpen} onOpenChange={setIsConfirmCashOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Have you received the total amount of <strong>₦{total.toFixed(2)}</strong> in cash or via the POS terminal?
-                </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>No, Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleCardPayment}>Yes, I have</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
 
         {/* Receipt Dialog */}
         {lastCompletedOrder && (
@@ -697,3 +678,4 @@ export default function POSPage() {
      </>
   );
 }
+
