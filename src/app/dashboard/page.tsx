@@ -4,7 +4,7 @@ import {
   ArrowUpRight,
   CreditCard,
   DollarSign,
-  Users,
+  MoreHorizontal,
 } from 'lucide-react';
 import {
   Card,
@@ -23,6 +23,15 @@ import {
 } from '@/components/ui/table';
 import { RevenueChart } from '@/components/revenue-chart';
 import { getDashboardStats } from '../actions';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 
 export default async function Dashboard() {
   const stats = await getDashboardStats();
@@ -38,7 +47,17 @@ export default async function Dashboard() {
             <CardTitle className="text-sm font-medium">
               Revenue (Monthly)
             </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-4 w-4 text-muted-foreground">
+                        <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem>View Details</DropdownMenuItem>
+                    <DropdownMenuItem>Download Report</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₦{stats.revenue.toLocaleString()}</div>
@@ -52,7 +71,17 @@ export default async function Dashboard() {
             <CardTitle className="text-sm font-medium">
               Customers (Monthly)
             </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-4 w-4 text-muted-foreground">
+                        <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem>View Details</DropdownMenuItem>
+                    <DropdownMenuItem>Download Report</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">+{stats.customers}</div>
@@ -64,7 +93,17 @@ export default async function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Sales (Monthly)</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-4 w-4 text-muted-foreground">
+                        <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem>View Details</DropdownMenuItem>
+                    <DropdownMenuItem>Download Report</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">+{stats.sales}</div>
@@ -76,7 +115,16 @@ export default async function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Orders</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-4 w-4 text-muted-foreground">
+                        <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem>View Details</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.activeOrders}</div>
