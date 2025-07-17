@@ -20,7 +20,7 @@ import {
   TableFooter
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, ChevronsUp } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, ChevronsUp, Calendar as CalendarIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,16 +49,16 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useRouter } from "next/navigation";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DateRange } from "react-day-picker";
 
 
 type Ingredient = {
@@ -180,70 +180,15 @@ function IngredientDialog({
     );
 }
 
-function RequestStockDialog({
-  isOpen,
-  onOpenChange,
-  ingredients
-}: {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  ingredients: Ingredient[];
-}) {
-    const { toast } = useToast();
-    const handleSubmit = () => {
-        // Placeholder for future implementation
-        toast({ title: 'Request Sent', description: 'Your stock increase request has been sent for approval.' });
-        onOpenChange(false);
-    }
-    return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Request Stock Increase</DialogTitle>
-                    <DialogDescription>
-                        Send a request to an accountant to confirm new stock and set its cost.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="ingredient">Ingredient</Label>
-                        <Select>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select an ingredient" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {ingredients.map(ing => (
-                                    <SelectItem key={ing.id} value={ing.id}>{ing.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="quantity">Quantity Received</Label>
-                        <Input id="quantity" type="number" step="0.001" placeholder="0.000" />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="notes">Notes (Optional)</Label>
-                        <Textarea id="notes" placeholder="e.g., From supplier X, Invoice #123" />
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleSubmit}>Send Request</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
 export default function IngredientsPage() {
     const { toast } = useToast();
+    const router = useRouter();
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingIngredient, setEditingIngredient] = useState<Partial<Ingredient> | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [isRequestStockDialogOpen, setIsRequestStockDialogOpen] = useState(false);
     const [ingredientToDelete, setIngredientToDelete] = useState<Ingredient | null>(null);
+    const [date, setDate] = useState<DateRange | undefined>();
 
     const fetchIngredients = async () => {
         setIsLoading(true);
@@ -321,8 +266,8 @@ export default function IngredientsPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold font-headline">Ingredients</h1>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => setIsRequestStockDialogOpen(true)}>
-                        <ChevronsUp className="mr-2 h-4 w-4" /> Request Stock Increase
+                    <Button variant="outline" onClick={() => router.push('/dashboard/inventory/suppliers')}>
+                        <ChevronsUp className="mr-2 h-4 w-4" /> Increase Stock
                     </Button>
                     <Button onClick={openAddDialog}>
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Ingredient
@@ -336,83 +281,154 @@ export default function IngredientsPage() {
                 onSave={handleSaveIngredient}
                 ingredient={editingIngredient}
             />
-
-            <RequestStockDialog 
-                isOpen={isRequestStockDialogOpen}
-                onOpenChange={setIsRequestStockDialogOpen}
-                ingredients={ingredients}
-            />
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Manage Ingredients</CardTitle>
-                    <CardDescription>
-                        A list of all ingredients for your bakery's recipes.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Ingredient</TableHead>
-                                <TableHead>Stock</TableHead>
-                                <TableHead>Cost/Unit</TableHead>
-                                <TableHead>Total Cost</TableHead>
-                                <TableHead>Expiry</TableHead>
-                                <TableHead><span className="sr-only">Actions</span></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center">
-                                        <Loader2 className="mx-auto h-8 w-8 animate-spin" />
-                                    </TableCell>
-                                </TableRow>
-                            ) : ingredientsWithTotal.length > 0 ? (
-                                ingredientsWithTotal.map(ingredient => (
-                                    <TableRow key={ingredient.id}>
-                                        <TableCell className="font-medium">{ingredient.name}</TableCell>
-                                        <TableCell>{ingredient.stock.toFixed(3)} {ingredient.unit}</TableCell>
-                                        <TableCell>₦{ingredient.costPerUnit.toFixed(2)}</TableCell>
-                                        <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>
-                                        <TableCell>{ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
-                                        <TableCell>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button aria-haspopup="true" size="icon" variant="ghost">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                        <span className="sr-only">Toggle menu</span>
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                    <DropdownMenuItem onSelect={() => openEditDialog(ingredient)}>Edit</DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem className="text-destructive" onSelect={() => setIngredientToDelete(ingredient)}>Delete</DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+            
+            <Tabs defaultValue="current-stock">
+                <TabsList>
+                    <TabsTrigger value="current-stock">Current Stock</TabsTrigger>
+                    <TabsTrigger value="stock-logs">Stock Logs</TabsTrigger>
+                </TabsList>
+                <TabsContent value="current-stock">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Manage Ingredients</CardTitle>
+                            <CardDescription>
+                                A list of all ingredients for your bakery's recipes.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Ingredient</TableHead>
+                                        <TableHead>Stock</TableHead>
+                                        <TableHead>Cost/Unit</TableHead>
+                                        <TableHead>Total Cost</TableHead>
+                                        <TableHead>Expiry</TableHead>
+                                        <TableHead><span className="sr-only">Actions</span></TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="h-24 text-center">
+                                                <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : ingredientsWithTotal.length > 0 ? (
+                                        ingredientsWithTotal.map(ingredient => (
+                                            <TableRow key={ingredient.id}>
+                                                <TableCell className="font-medium">{ingredient.name}</TableCell>
+                                                <TableCell>{ingredient.stock.toFixed(3)} {ingredient.unit}</TableCell>
+                                                <TableCell>₦{ingredient.costPerUnit.toFixed(2)}</TableCell>
+                                                <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>
+                                                <TableCell>{ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
+                                                <TableCell>
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button aria-haspopup="true" size="icon" variant="ghost">
+                                                                <MoreHorizontal className="h-4 w-4" />
+                                                                <span className="sr-only">Toggle menu</span>
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                            <DropdownMenuItem onSelect={() => openEditDialog(ingredient)}>Edit</DropdownMenuItem>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem className="text-destructive" onSelect={() => setIngredientToDelete(ingredient)}>Delete</DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="h-24 text-center">
+                                                No ingredients found.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                                <TableFooter>
+                                    <TableRow>
+                                        <TableCell colSpan={3} className="font-bold text-right">Grand Total</TableCell>
+                                        <TableCell className="font-bold">₦{grandTotalCost.toFixed(2)}</TableCell>
+                                        <TableCell colSpan={2}></TableCell>
+                                    </TableRow>
+                                </TableFooter>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="stock-logs">
+                    <Card>
+                        <CardHeader>
+                             <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle>Ingredient Stock Logs</CardTitle>
+                                    <CardDescription>A history of all stock movements.</CardDescription>
+                                </div>
+                                 <Popover>
+                                    <PopoverTrigger asChild>
+                                    <Button
+                                        id="date"
+                                        variant={"outline"}
+                                        className={cn(
+                                        "w-[260px] justify-start text-left font-normal",
+                                        !date && "text-muted-foreground"
+                                        )}
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {date?.from ? (
+                                        date.to ? (
+                                            <>
+                                            {format(date.from, "LLL dd, y")} -{" "}
+                                            {format(date.to, "LLL dd, y")}
+                                            </>
+                                        ) : (
+                                            format(date.from, "LLL dd, y")
+                                        )
+                                        ) : (
+                                        <span>Pick a date range</span>
+                                        )}
+                                    </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="end">
+                                    <Calendar
+                                        initialFocus
+                                        mode="range"
+                                        defaultMonth={date?.from}
+                                        selected={date}
+                                        onSelect={setDate}
+                                        numberOfMonths={2}
+                                    />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Ingredient / Recipe</TableHead>
+                                        <TableHead>Change</TableHead>
+                                        <TableHead>New Level</TableHead>
+                                        <TableHead>Reason</TableHead>
+                                        <TableHead>Notes</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                                            Stock log functionality is coming soon.
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center">
-                                        No ingredients found.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                         <TableFooter>
-                            <TableRow>
-                                <TableCell colSpan={3} className="font-bold text-right">Grand Total</TableCell>
-                                <TableCell className="font-bold">₦{grandTotalCost.toFixed(2)}</TableCell>
-                                <TableCell colSpan={2}></TableCell>
-                            </TableRow>
-                        </TableFooter>
-                    </Table>
-                </CardContent>
-            </Card>
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
 
             <AlertDialog open={!!ingredientToDelete} onOpenChange={(open) => !open && setIngredientToDelete(null)}>
                 <AlertDialogContent>

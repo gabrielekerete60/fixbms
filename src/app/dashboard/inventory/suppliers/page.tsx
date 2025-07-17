@@ -47,9 +47,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, query, where, orderBy, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Supplier = {
   id: string;
@@ -62,6 +64,27 @@ type Supplier = {
   amountPaid: number;
 };
 
+type Ingredient = {
+    id: string;
+    name: string;
+    unit: string;
+    costPerUnit: number;
+}
+
+type SupplyLog = {
+    id: string;
+    supplierId: string;
+    supplierName: string;
+    ingredientId: string;
+    ingredientName: string;
+    quantity: number;
+    unit: string;
+    costPerUnit: number;
+    totalCost: number;
+    date: string;
+    invoiceNumber?: string;
+}
+
 function SupplierDialog({
   isOpen,
   onOpenChange,
@@ -71,7 +94,7 @@ function SupplierDialog({
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: Omit<Supplier, 'id'>) => void;
-  supplier: Supplier | null;
+  supplier: Partial<Supplier> | null;
 }) {
     const { toast } = useToast();
     const [name, setName] = useState("");
@@ -84,13 +107,13 @@ function SupplierDialog({
 
     useEffect(() => {
         if (supplier) {
-            setName(supplier.name);
-            setContactPerson(supplier.contactPerson);
-            setPhone(supplier.phone);
-            setEmail(supplier.email);
-            setAddress(supplier.address);
-            setAmountOwed(supplier.amountOwed);
-            setAmountPaid(supplier.amountPaid);
+            setName(supplier.name || "");
+            setContactPerson(supplier.contactPerson || "");
+            setPhone(supplier.phone || "");
+            setEmail(supplier.email || "");
+            setAddress(supplier.address || "");
+            setAmountOwed(supplier.amountOwed || 0);
+            setAmountPaid(supplier.amountPaid || 0);
         } else {
             setName("");
             setContactPerson("");
@@ -107,7 +130,7 @@ function SupplierDialog({
             toast({ variant: 'destructive', title: 'Error', description: 'Supplier name and contact person are required.' });
             return;
         }
-        onSave({ name, contactPerson, phone, email, address, amountOwed, amountPaid });
+        onSave({ name, contactPerson, phone, email, address, amountOwed: Number(amountOwed), amountPaid: Number(amountPaid) });
         onOpenChange(false);
     };
 
@@ -115,9 +138,9 @@ function SupplierDialog({
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                    <DialogTitle>{supplier ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
+                    <DialogTitle>{supplier?.id ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
                     <DialogDescription>
-                        {supplier ? 'Update the details of this supplier.' : 'Fill in the details for the new supplier.'}
+                        {supplier?.id ? 'Update the details of this supplier.' : 'Fill in the details for the new supplier.'}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
@@ -152,20 +175,250 @@ function SupplierDialog({
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleSubmit}>{supplier ? 'Save Changes' : 'Create Supplier'}</Button>
+                    <Button onClick={handleSubmit}>{supplier?.id ? 'Save Changes' : 'Create Supplier'}</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     );
 }
 
+function SupplyLogDialog({
+    isOpen,
+    onOpenChange,
+    onSave,
+    supplier,
+    ingredients,
+} : {
+    isOpen: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSave: (log: Omit<SupplyLog, 'id' | 'supplierName'>) => void;
+    supplier: Supplier;
+    ingredients: Ingredient[];
+}) {
+    const [ingredientId, setIngredientId] = useState("");
+    const [quantity, setQuantity] = useState(0);
+    const [costPerUnit, setCostPerUnit] = useState(0);
+    const [invoiceNumber, setInvoiceNumber] = useState("");
+    const { toast } = useToast();
+
+    const selectedIngredient = useMemo(() => ingredients.find(i => i.id === ingredientId), [ingredientId, ingredients]);
+    
+    useEffect(() => {
+        if(selectedIngredient) {
+            setCostPerUnit(selectedIngredient.costPerUnit || 0);
+        }
+    }, [selectedIngredient]);
+    
+    const handleSubmit = () => {
+        if (!ingredientId || !quantity || !costPerUnit) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fill all required fields.'});
+            return;
+        }
+        
+        const totalCost = quantity * costPerUnit;
+
+        onSave({
+            supplierId: supplier.id,
+            ingredientId,
+            ingredientName: selectedIngredient?.name || '',
+            quantity,
+            unit: selectedIngredient?.unit || '',
+            costPerUnit,
+            totalCost,
+            date: new Date().toISOString(),
+            invoiceNumber
+        });
+        onOpenChange(false);
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Add Supply Log for {supplier.name}</DialogTitle>
+                    <DialogDescription>Record a new delivery of ingredients from this supplier.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="ingredient">Ingredient</Label>
+                        <Select value={ingredientId} onValueChange={setIngredientId}>
+                            <SelectTrigger><SelectValue placeholder="Select an ingredient"/></SelectTrigger>
+                            <SelectContent>
+                                {ingredients.map(ing => (
+                                    <SelectItem key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     <div className="grid gap-2">
+                        <Label htmlFor="quantity">Quantity Received</Label>
+                        <Input id="quantity" type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
+                    </div>
+                     <div className="grid gap-2">
+                        <Label htmlFor="costPerUnit">Cost Per Unit (₦)</Label>
+                        <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(Number(e.target.value))} />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="invoiceNumber">Invoice Number (Optional)</Label>
+                        <Input id="invoiceNumber" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit}>Save Log & Update Stock</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function SupplierDetail({ supplier, onBack, onRefresh }: { supplier: Supplier, onBack: () => void, onRefresh: () => void }) {
+    const { toast } = useToast();
+    const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+    const [supplyLogs, setSupplyLogs] = useState<SupplyLog[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
+
+    useEffect(() => {
+        const fetchRelatedData = async () => {
+            setIsLoading(true);
+            try {
+                const ingredientsCollection = collection(db, "ingredients");
+                const ingredientSnapshot = await getDocs(ingredientsCollection);
+                setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[]);
+                
+                const logsQuery = query(collection(db, 'supply_logs'), where('supplierId', '==', supplier.id), orderBy('date', 'desc'));
+                const logsSnapshot = await getDocs(logsQuery);
+                setSupplyLogs(logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SupplyLog[]);
+
+            } catch (error) {
+                console.error("Error fetching related data:", error);
+                toast({ variant: "destructive", title: "Error", description: "Could not fetch data." });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchRelatedData();
+    }, [supplier.id, toast]);
+
+    const handleSaveLog = async (logData: Omit<SupplyLog, 'id' | 'supplierName'>) => {
+        try {
+            const batch = writeBatch(db);
+
+            // 1. Create new supply log
+            const logRef = doc(collection(db, 'supply_logs'));
+            batch.set(logRef, { ...logData, supplierName: supplier.name });
+
+            // 2. Update ingredient stock
+            const ingredientRef = doc(db, 'ingredients', logData.ingredientId);
+            batch.update(ingredientRef, { stock: increment(logData.quantity) });
+
+            // 3. Update supplier amount owed
+            const supplierRef = doc(db, 'suppliers', supplier.id);
+            batch.update(supplierRef, { amountOwed: increment(logData.totalCost) });
+
+            await batch.commit();
+
+            toast({ title: "Success", description: "Supply log saved and stock updated."});
+            onRefresh(); // Refresh the whole list to show new balance
+            onBack(); // Go back to the main list
+        } catch(error) {
+            console.error("Error saving supply log:", error);
+            toast({ variant: "destructive", title: "Error", description: "Failed to save supply log." });
+        }
+    }
+    
+    return (
+        <div className="space-y-4">
+            <Button variant="outline" onClick={onBack}>&larr; Back to Suppliers</Button>
+            <Card>
+                <CardHeader>
+                    <CardTitle>{supplier.name}</CardTitle>
+                    <CardDescription>{supplier.contactPerson} - {supplier.phone}</CardDescription>
+                </CardHeader>
+            </Card>
+            
+            <SupplyLogDialog 
+                isOpen={isLogDialogOpen}
+                onOpenChange={setIsLogDialogOpen}
+                onSave={handleSaveLog}
+                supplier={supplier}
+                ingredients={ingredients}
+            />
+
+            <Tabs defaultValue="logs">
+                 <div className="flex justify-between items-center">
+                    <TabsList>
+                        <TabsTrigger value="logs">Supply Log</TabsTrigger>
+                        <TabsTrigger value="details">Details</TabsTrigger>
+                    </TabsList>
+                     <Button onClick={() => setIsLogDialogOpen(true)}>
+                        <PlusCircle className="mr-2 h-4 w-4"/> Add Supply Log
+                    </Button>
+                </div>
+                <TabsContent value="logs">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Supply Log</CardTitle>
+                            <CardDescription>History of all supplies delivered by {supplier.name}.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Ingredient</TableHead>
+                                        <TableHead>Quantity</TableHead>
+                                        <TableHead>Total Cost</TableHead>
+                                        <TableHead>Invoice #</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                    ) : supplyLogs.length > 0 ? (
+                                        supplyLogs.map(log => (
+                                            <TableRow key={log.id}>
+                                                <TableCell>{new Date(log.date).toLocaleDateString()}</TableCell>
+                                                <TableCell>{log.ingredientName}</TableCell>
+                                                <TableCell>{log.quantity.toFixed(2)} {log.unit}</TableCell>
+                                                <TableCell>₦{log.totalCost.toFixed(2)}</TableCell>
+                                                <TableCell>{log.invoiceNumber || 'N/A'}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                         <TableRow><TableCell colSpan={5} className="h-24 text-center">No supply logs found.</TableCell></TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="details">
+                     <Card>
+                        <CardHeader><CardTitle>Supplier Details</CardTitle></CardHeader>
+                        <CardContent className="space-y-2">
+                             <p><strong>Email:</strong> {supplier.email}</p>
+                             <p><strong>Address:</strong> {supplier.address}</p>
+                             <p><strong>Amount Owed:</strong> ₦{supplier.amountOwed.toFixed(2)}</p>
+                             <p><strong>Amount Paid:</strong> ₦{supplier.amountPaid.toFixed(2)}</p>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
+        </div>
+    )
+}
+
+
 export default function SuppliersPage() {
     const { toast } = useToast();
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+    const [editingSupplier, setEditingSupplier] = useState<Partial<Supplier> | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
+    const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
 
     const fetchSuppliers = async () => {
         setIsLoading(true);
@@ -188,7 +441,7 @@ export default function SuppliersPage() {
 
     const handleSaveSupplier = async (supplierData: Omit<Supplier, 'id'>) => {
         try {
-            if (editingSupplier) {
+            if (editingSupplier && editingSupplier.id) {
                 const ref = doc(db, "suppliers", editingSupplier.id);
                 await updateDoc(ref, supplierData);
                 toast({ title: "Success", description: "Supplier updated successfully." });
@@ -218,7 +471,7 @@ export default function SuppliersPage() {
     };
     
     const openAddDialog = () => {
-        setEditingSupplier(null);
+        setEditingSupplier({});
         setIsDialogOpen(true);
     };
 
@@ -233,6 +486,10 @@ export default function SuppliersPage() {
             amountRemaining: s.amountOwed - s.amountPaid,
         }));
     }, [suppliers]);
+
+    if (selectedSupplier) {
+        return <SupplierDetail supplier={selectedSupplier} onBack={() => setSelectedSupplier(null)} onRefresh={fetchSuppliers}/>;
+    }
 
     return (
         <div className="flex flex-col gap-4">
@@ -254,7 +511,7 @@ export default function SuppliersPage() {
                 <CardHeader>
                     <CardTitle>All Suppliers</CardTitle>
                     <CardDescription>
-                        Manage your suppliers and their balances.
+                        Manage your suppliers and their balances. Click a supplier to view logs.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -279,7 +536,7 @@ export default function SuppliersPage() {
                                 </TableRow>
                             ) : suppliersWithBalance.length > 0 ? (
                                 suppliersWithBalance.map(supplier => (
-                                    <TableRow key={supplier.id}>
+                                    <TableRow key={supplier.id} className="cursor-pointer" onClick={() => setSelectedSupplier(supplier)}>
                                         <TableCell className="font-medium">{supplier.name}</TableCell>
                                         <TableCell>{supplier.contactPerson}</TableCell>
                                         <TableCell>{supplier.phone}</TableCell>
@@ -290,7 +547,7 @@ export default function SuppliersPage() {
                                         </TableCell>
                                         <TableCell>
                                             <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
+                                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                                     <Button aria-haspopup="true" size="icon" variant="ghost">
                                                         <MoreHorizontal className="h-4 w-4" />
                                                         <span className="sr-only">Toggle menu</span>
