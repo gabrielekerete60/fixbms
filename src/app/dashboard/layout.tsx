@@ -247,7 +247,7 @@ export default function DashboardLayout({
     {
       icon: Package, label: "Inventory", sublinks: [
         { href: "/dashboard/inventory/products", label: "Products", icon: Cookie },
-        { href: "/dashboard/inventory/recipes", label: "Recipes &amp; Production", icon: ClipboardList },
+        { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList },
         { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot },
         { href: "/dashboard/inventory/suppliers", label: "Suppliers" },
         { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks },
