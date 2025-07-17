@@ -33,6 +33,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -101,7 +102,7 @@ const getStatusVariant = (status: string) => {
     }
 }
 
-function CreatePromotionDialog({ onSave, products, promotion, children }: { onSave: (promo: Omit<Promotion, 'id'>) => void, products: Product[], promotion?: Promotion | null, children: React.ReactNode }) {
+function CreatePromotionDialog({ onSave, products, promotion, children }: { onSave: (promo: Omit<Promotion, 'id' | 'status'>) => void, products: Product[], promotion?: Promotion | null, children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -125,16 +126,13 @@ function CreatePromotionDialog({ onSave, products, promotion, children }: { onSa
     }
   }, [isOpen, promotion]);
 
-  const getStatus = (): "Active" | "Expired" | "Scheduled" => {
-    const now = new Date();
-    const start = startDate ? new Date(startDate) : null;
-    const end = endDate ? new Date(endDate) : null;
-    if (end && end < now) return "Expired";
-    if (start && start > now) return "Scheduled";
-    return "Active";
-  }
 
   const handleSubmit = () => {
+    if (!name || !code || !startDate || !endDate) {
+        // Basic validation
+        alert("Please fill all required fields.");
+        return;
+    }
     const promoData = {
       name,
       description,
@@ -143,7 +141,6 @@ function CreatePromotionDialog({ onSave, products, promotion, children }: { onSa
       value,
       startDate: startDate?.toISOString() || "",
       endDate: endDate?.toISOString() || "",
-      status: getStatus(),
       applicableProducts
     }
     onSave(promoData);
@@ -264,7 +261,16 @@ export default function PromotionsPage() {
       try {
         const promotionsCollection = collection(db, "promotions");
         const promotionSnapshot = await getDocs(promotionsCollection);
-        const promotionsList = promotionSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Promotion[];
+        const promotionsList = promotionSnapshot.docs.map(doc => {
+            const data = doc.data();
+            const now = new Date();
+            const start = new Date(data.startDate);
+            const end = new Date(data.endDate);
+            let status: "Active" | "Expired" | "Scheduled" = "Active";
+            if (end < now) status = "Expired";
+            else if (start > now) status = "Scheduled";
+            return { id: doc.id, ...data, status } as Promotion
+        });
         setPromotionsData(promotionsList);
 
         const productsCollection = collection(db, "products");
@@ -291,13 +297,14 @@ export default function PromotionsPage() {
     fetchPromotions();
   }, [toast]);
   
-  const handleSavePromotion = async (promoData: Omit<Promotion, 'id'>) => {
+  const handleSavePromotion = async (promoData: Omit<Promotion, 'id' | 'status'>) => {
     try {
+        const dataToSave = { ...promoData };
         if (editingPromotion) {
-            await updateDoc(doc(db, "promotions", editingPromotion.id), promoData);
+            await updateDoc(doc(db, "promotions", editingPromotion.id), dataToSave);
             toast({ title: "Success", description: "Promotion updated." });
         } else {
-            await addDoc(collection(db, "promotions"), promoData);
+            await addDoc(collection(db, "promotions"), dataToSave);
             toast({ title: "Success", description: "Promotion created." });
         }
         fetchPromotions();
@@ -332,7 +339,9 @@ export default function PromotionsPage() {
     return promotionsData.filter(promo => {
         const startDate = new Date(promo.startDate);
         const endDate = new Date(promo.endDate);
-        const dateMatch = !date?.from || (startDate <= (date.to || date.from) && endDate >= date.from);
+        endDate.setHours(23, 59, 59, 999); // Include the whole end day
+
+        const dateMatch = !date || (!date.from || endDate >= date.from) && (!date.to || startDate <= date.to);
         const searchMatch = !searchTerm || promo.name.toLowerCase().includes(searchTerm.toLowerCase()) || promo.code.toLowerCase().includes(searchTerm.toLowerCase());
         const statusMatch = statusFilter.length === 0 || statusFilter.includes(promo.status);
         return dateMatch && searchMatch && statusMatch;
@@ -377,55 +386,63 @@ export default function PromotionsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredPromotions.map((promo) => (
-            <TableRow key={promo.id}>
-               <TableCell>
-                    <Checkbox aria-label={`Select promotion ${promo.name}`} />
-                </TableCell>
-              <TableCell className="font-medium">{promo.name}</TableCell>
-              <TableCell>
-                <Badge variant="outline">{promo.code}</Badge>
-              </TableCell>
-               <TableCell className="capitalize">{promo.type.replace('_', ' ')}</TableCell>
-                <TableCell>
-                    {promo.type === 'percentage' && `${promo.value}%`}
-                    {promo.type === 'fixed_amount' && `₦${promo.value}`}
-                    {promo.type === 'free_item' && 'N/A'}
-                </TableCell>
-              <TableCell>{new Date(promo.startDate).toLocaleDateString()}</TableCell>
-               <TableCell>{new Date(promo.endDate).toLocaleDateString()}</TableCell>
-              <TableCell>
-                <Badge variant={getStatusVariant(promo.status)}>
-                    {promo.status}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <CreatePromotionDialog promotion={editingPromotion} onSave={handleSavePromotion} products={productsData}>
-                    <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                        aria-haspopup="true"
-                        size="icon"
-                        variant="ghost"
-                        >
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Toggle menu</span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onSelect={() => setEditingPromotion(promo)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive" onSelect={() => openDeleteDialog(promo)}>
-                        Delete
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                    </DropdownMenu>
-                </CreatePromotionDialog>
-              </TableCell>
-            </TableRow>
-          ))}
+            {filteredPromotions.length === 0 ? (
+                <TableRow>
+                    <TableCell colSpan={9} className="h-24 text-center">
+                        No promotions found for this filter.
+                    </TableCell>
+                </TableRow>
+            ) : (
+                filteredPromotions.map((promo) => (
+                    <TableRow key={promo.id}>
+                    <TableCell>
+                            <Checkbox aria-label={`Select promotion ${promo.name}`} />
+                        </TableCell>
+                    <TableCell className="font-medium">{promo.name}</TableCell>
+                    <TableCell>
+                        <Badge variant="outline">{promo.code}</Badge>
+                    </TableCell>
+                    <TableCell className="capitalize">{promo.type.replace('_', ' ')}</TableCell>
+                        <TableCell>
+                            {promo.type === 'percentage' && `${promo.value}%`}
+                            {promo.type === 'fixed_amount' && `₦${promo.value}`}
+                            {promo.type === 'free_item' && 'N/A'}
+                        </TableCell>
+                    <TableCell>{new Date(promo.startDate).toLocaleDateString()}</TableCell>
+                    <TableCell>{new Date(promo.endDate).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                        <Badge variant={getStatusVariant(promo.status)}>
+                            {promo.status}
+                        </Badge>
+                    </TableCell>
+                    <TableCell>
+                        <CreatePromotionDialog promotion={editingPromotion} onSave={handleSavePromotion} products={productsData}>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                    aria-haspopup="true"
+                                    size="icon"
+                                    variant="ghost"
+                                    >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">Toggle menu</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuItem onSelect={() => setEditingPromotion(promo)}>Edit</DropdownMenuItem>
+                                    <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem className="text-destructive" onSelect={() => openDeleteDialog(promo)}>
+                                    Delete
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </CreatePromotionDialog>
+                    </TableCell>
+                    </TableRow>
+                ))
+            )}
         </TableBody>
       </Table>
     );
