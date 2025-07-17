@@ -218,3 +218,35 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         };
     }
 }
+
+
+export type SalesRun = {
+    id: string;
+    date: Timestamp;
+    status: 'pending' | 'completed' | 'cancelled';
+    items: { productId: string; productName: string; quantity: number }[];
+    notes?: string;
+    from_staff_name?: string; // Who initiated it
+};
+
+export async function getSalesRuns(staffId: string): Promise<{active: SalesRun[], completed: SalesRun[]}> {
+    try {
+        const q = query(
+            collection(db, 'transfers'), 
+            where('is_sales_run', '==', true),
+            where('to_staff_id', '==', staffId),
+            orderBy('date', 'desc')
+        );
+
+        const querySnapshot = await getDocs(q);
+        const runs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SalesRun));
+        
+        const active = runs.filter(run => run.status === 'pending');
+        const completed = runs.filter(run => run.status !== 'pending');
+
+        return { active, completed };
+    } catch (error) {
+        console.error("Error fetching sales runs:", error);
+        return { active: [], completed: [] };
+    }
+}

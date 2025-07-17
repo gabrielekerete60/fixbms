@@ -268,7 +268,7 @@ export default function DashboardLayout({
         { href: "/dashboard/staff/payroll", label: "Payroll" },
       ]
     },
-    { href: "#", icon: Car, label: "Deliveries" },
+    { href: "/dashboard/deliveries", icon: Car, label: "Deliveries" },
     { href: "#", icon: Wallet, label: "Accounting" },
     { href: "#", icon: GanttChartSquare, label: "AI Analytics" },
     { href: "#", icon: HelpingHand, label: "Communication" },
