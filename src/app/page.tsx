@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,9 +16,38 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import { handleLogin } from "./actions";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsLoading(true);
+
+    const formData = new FormData(event.currentTarget);
+    const result = await handleLogin(formData);
+
+    if (result.success) {
+      toast({
+        title: "Login Successful",
+        description: "Welcome back!",
+      });
+      router.push("/dashboard");
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Login Failed",
+        description: result.error,
+      });
+    }
+    
+    setIsLoading(false);
+  };
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background transition-colors duration-500">
@@ -28,15 +58,15 @@ export default function LoginPage() {
           <CardDescription className="font-body">Welcome back! Please log in.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form>
+          <form id="login-form" onSubmit={handleSubmit}>
             <div className="grid w-full items-center gap-4">
               <div className="flex flex-col space-y-1.5">
-                <Label htmlFor="staff-id" className="font-headline text-primary-foreground/80">Staff ID</Label>
-                <Input id="staff-id" placeholder="Your 6-character ID" maxLength={6} className="transition-all duration-300 focus:bg-background" />
+                <Label htmlFor="staff_id" className="font-headline text-primary-foreground/80">Staff ID</Label>
+                <Input id="staff_id" name="staff_id" placeholder="Your 6-character ID" maxLength={6} className="transition-all duration-300 focus:bg-background" required />
               </div>
               <div className="flex flex-col space-y-1.5 relative">
                 <Label htmlFor="password" className="font-headline text-primary-foreground/80">Password</Label>
-                <Input id="password" type={showPassword ? "text" : "password"} placeholder="Your password" className="transition-all duration-300 focus:bg-background"/>
+                <Input id="password" name="password" type={showPassword ? "text" : "password"} placeholder="Your password" className="transition-all duration-300 focus:bg-background" required/>
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -47,14 +77,17 @@ export default function LoginPage() {
                 </button>
               </div>
               <div className="flex items-center space-x-2">
-                <Checkbox id="remember-me" />
+                <Checkbox id="remember-me" name="remember-me" />
                 <Label htmlFor="remember-me" className="text-sm font-normal font-body">Remember me</Label>
               </div>
             </div>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
-          <Button className="w-full font-headline">Login</Button>
+          <Button type="submit" form="login-form" className="w-full font-headline" disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Login
+          </Button>
           <p className="text-xs text-center text-muted-foreground">
             Need to set up the database?{" "}
             <Link href="/seed" className="underline hover:text-primary transition-colors">
