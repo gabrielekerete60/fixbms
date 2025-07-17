@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
+import { useReactToPrint } from 'react-to-print';
 
 type CartItem = {
   id: string;
@@ -75,78 +76,71 @@ type CompletedOrder = {
 }
 
 function Receipt({ order }: { order: CompletedOrder }) {
-   const handlePrintReceipt = () => {
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      const receiptHtml = document.getElementById(`receipt-${order.id}`)?.innerHTML;
-      if (receiptHtml) {
-        printWindow.document.write(`<html><head><title>Receipt ${order.id}</title>`);
-        printWindow.document.write('<style>body { font-family: sans-serif; } table { width: 100%; border-collapse: collapse; } th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .mt-4 { margin-top: 16px; } .mb-4 { margin-bottom: 16px; } .space-y-1 > * + * { margin-top: 4px; } .flex { display: flex; } .justify-between { justify-content: space-between; }</style>');
-        printWindow.document.write('</head><body>');
-        printWindow.document.write(receiptHtml);
-        printWindow.document.write('</body></html>');
-        printWindow.document.close();
-        printWindow.print();
-      }
-    }
-  }
+   const componentRef = useRef(null);
+
+   const handlePrint = useReactToPrint({
+      content: () => componentRef.current,
+      documentTitle: `Receipt-${order.id}`,
+   });
 
   return (
     <DialogContent className="sm:max-w-md">
-      <div id={`receipt-${order.id}`}>
-        <DialogHeader>
-          <DialogTitle className="font-headline text-2xl text-center">BMS</DialogTitle>
-          <DialogDescription className="text-center">
-              Sale Receipt
-          </DialogDescription>
-        </DialogHeader>
-        <div className="py-4 space-y-4">
-            <div className="text-sm text-muted-foreground">
-                <p><strong>Order ID:</strong> {order.id}</p>
-                <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
-                <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
-                <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
-            </div>
-            <Separator />
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead className="text-center">Qty</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {order.items.map((item, index) => (
-                    <TableRow key={item.id || index}>
-                        <TableCell>{item.name}</TableCell>
-                        <TableCell className="text-center">{item.quantity}</TableCell>
-                        <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
-                    </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-                <Separator />
-                <div className="w-full space-y-1 text-sm pr-2">
-                <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span className="font-medium">₦{order.subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tax (7.5%)</span>
-                    <span className="font-medium">₦{order.tax.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-base mt-1">
-                    <span>Total</span>
-                    <span>₦{order.total.toFixed(2)}</span>
-                </div>
-            </div>
-            <Separator />
-            <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
+      <div ref={componentRef} className="print:p-8">
+        <div id={`receipt-${order.id}`}>
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl text-center">BMS</DialogTitle>
+            <DialogDescription className="text-center">
+                Sale Receipt
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+              <div className="text-sm text-muted-foreground">
+                  <p><strong>Order ID:</strong> {order.id}</p>
+                  <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
+                  <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
+                  <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
+              </div>
+              <Separator />
+              <Table>
+                  <TableHeader>
+                      <TableRow>
+                      <TableHead>Item</TableHead>
+                      <TableHead className="text-center">Qty</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                      {order.items.map((item, index) => (
+                      <TableRow key={item.id || index}>
+                          <TableCell>{item.name}</TableCell>
+                          <TableCell className="text-center">{item.quantity}</TableCell>
+                          <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
+                      </TableRow>
+                      ))}
+                  </TableBody>
+              </Table>
+                  <Separator />
+                  <div className="w-full space-y-1 text-sm pr-2">
+                  <div className="flex justify-between">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span className="font-medium">₦{order.subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tax (7.5%)</span>
+                      <span className="font-medium">₦{order.tax.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-base mt-1">
+                      <span>Total</span>
+                      <span>₦{order.total.toFixed(2)}</span>
+                  </div>
+              </div>
+              <Separator />
+              <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
+          </div>
         </div>
       </div>
-      <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={handlePrintReceipt}><Printer className="mr-2 h-4 w-4"/> Print</Button>
+      <div className="flex justify-end gap-2 print:hidden">
+          <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print</Button>
       </div>
     </DialogContent>
   );
@@ -166,24 +160,32 @@ const getStatusVariant = (status?: string) => {
     }
 }
 
-function OrdersTable({ orders, onSelectOne, selectedOrders }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, selectedOrders: string[] }) {
+function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean }) {
+    const handlePrintReceipt = (orderId: string) => {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        const receiptHtml = document.getElementById(`receipt-${orderId}`)?.innerHTML;
+        const styles = Array.from(document.styleSheets).map(s => s.href ? `<link rel="stylesheet" href="${s.href}">` : '').join('');
+        if (receiptHtml) {
+          printWindow.document.write(`<html><head><title>Receipt ${orderId}</title>${styles}</head><body><div class="p-8">${receiptHtml}</div></body></html>`);
+          printWindow.document.close();
+          // Timeout to allow styles to load
+          setTimeout(() => printWindow.print(), 500);
+        }
+      }
+    }
+    
     return (
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead padding="checkbox">
+                    <TableCell padding="checkbox">
                        <Checkbox
-                            checked={selectedOrders.length > 0 && selectedOrders.length === orders.length}
-                            onCheckedChange={(checked) => {
-                                if(checked) {
-                                    orders.forEach(o => onSelectOne(o.id, true));
-                                } else {
-                                     orders.forEach(o => onSelectOne(o.id, false));
-                                }
-                            }}
+                            checked={allOrdersSelected}
+                            onCheckedChange={(checked) => onSelectAll(checked as boolean)}
                             aria-label="Select all"
                         />
-                    </TableHead>
+                    </TableCell>
                     <TableHead>Order ID</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Customer</TableHead>
@@ -203,7 +205,7 @@ function OrdersTable({ orders, onSelectOne, selectedOrders }: { orders: Complete
                     </TableRow>
                 ) : (
                     orders.map((order) => (
-                        <TableRow key={order.id} data-state={selectedOrders.includes(order.id) && "selected"}>
+                        <TableRow key={order.id} data-state={selectedOrders.includes(order.id) ? "selected" : undefined}>
                             <TableCell padding="checkbox">
                                 <Checkbox
                                     checked={selectedOrders.includes(order.id)}
@@ -242,7 +244,7 @@ function OrdersTable({ orders, onSelectOne, selectedOrders }: { orders: Complete
                                                     <span>View Details</span>
                                                 </DropdownMenuItem>
                                              </DialogTrigger>
-                                             <DropdownMenuItem>
+                                             <DropdownMenuItem onClick={() => handlePrintReceipt(order.id)}>
                                                 <Printer className="mr-2 h-4 w-4" />
                                                 <span>Print Receipt</span>
                                             </DropdownMenuItem>
@@ -265,6 +267,15 @@ export default function RegularOrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const selectedOrdersRef = useRef<HTMLDivElement>(null);
+
+  const handlePrintSelected = useReactToPrint({
+      content: () => selectedOrdersRef.current,
+      documentTitle: 'Selected-Orders',
+  });
+
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -290,14 +301,12 @@ export default function RegularOrdersPage() {
 
   const filteredOrders = useMemo(() => {
     return allOrders.filter(order => {
-      if (!date?.from) return true;
       const orderDate = new Date(order.date);
-      if (date.to) {
-        return orderDate >= date.from && orderDate <= date.to;
-      }
-      return orderDate.toDateString() === date.from.toDateString();
+      const dateMatch = !date?.from || (orderDate >= date.from && (!date.to || orderDate <= date.to));
+      const searchMatch = !searchTerm || order.id.toLowerCase().includes(searchTerm.toLowerCase()) || order.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
+      return dateMatch && searchMatch;
     });
-  }, [allOrders, date]);
+  }, [allOrders, date, searchTerm]);
 
   const handleSelectOne = (orderId: string, checked: boolean) => {
     setSelectedOrders(prev => {
@@ -308,11 +317,19 @@ export default function RegularOrdersPage() {
         }
     });
   }
+  
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedOrders(filteredOrders.map(o => o.id));
+    } else {
+      setSelectedOrders([]);
+    }
+  }
 
   const ordersByStatus = (status: CompletedOrder['status']) => filteredOrders.filter(o => o.status === status);
   const TABS = ['All Orders', 'Completed', 'Pending', 'Cancelled'];
 
-  const renderContent = () => {
+  const renderContent = (orders: CompletedOrder[]) => {
     if (isLoading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -321,21 +338,18 @@ export default function RegularOrdersPage() {
       );
     }
     return (
-      <>
-        <TabsContent value="All Orders">
-          <OrdersTable orders={filteredOrders} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
-        </TabsContent>
-        <TabsContent value="Completed">
-          <OrdersTable orders={ordersByStatus('Completed')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
-        </TabsContent>
-        <TabsContent value="Pending">
-          <OrdersTable orders={ordersByStatus('Pending')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
-        </TabsContent>
-        <TabsContent value="Cancelled">
-          <OrdersTable orders={ordersByStatus('Cancelled')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
-        </TabsContent>
-      </>
+      <OrdersTable 
+        orders={orders} 
+        onSelectOne={handleSelectOne}
+        onSelectAll={handleSelectAll}
+        selectedOrders={selectedOrders}
+        allOrdersSelected={selectedOrders.length > 0 && selectedOrders.length === orders.length}
+      />
     );
+  };
+  
+  const getSelectedOrdersData = () => {
+    return allOrders.filter(order => selectedOrders.includes(order.id));
   };
 
   return (
@@ -351,7 +365,7 @@ export default function RegularOrdersPage() {
                         <div className="flex items-center gap-2 flex-1">
                              <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                                <Input placeholder="Search by Order ID or customer..." className="pl-10 w-64" />
+                                <Input placeholder="Search by Order ID or customer..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
                             <Popover>
                                 <PopoverTrigger asChild>
@@ -389,28 +403,24 @@ export default function RegularOrdersPage() {
                                 />
                                 </PopoverContent>
                             </Popover>
-                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="ml-auto">
-                                    <ListFilter className="mr-2 h-4 w-4" />
-                                    Filter by Status
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Status</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuCheckboxItem checked>Completed</DropdownMenuCheckboxItem>
-                                    <DropdownMenuCheckboxItem>Pending</DropdownMenuCheckboxItem>
-                                    <DropdownMenuCheckboxItem>Cancelled</DropdownMenuCheckboxItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                            <Button variant="outline" disabled={selectedOrders.length === 0}><Printer className="mr-2"/> Print Selected</Button>
+                            <Button variant="outline" disabled={selectedOrders.length === 0} onClick={handlePrintSelected}><Printer className="mr-2"/> Print Selected</Button>
                             <Button variant="outline"><FileDown className="mr-2"/> Export</Button>
                         </div>
                     </div>
                 </CardHeader>
                 <CardContent>
-                    {renderContent()}
+                    <TabsContent value="All Orders">
+                      {renderContent(filteredOrders)}
+                    </TabsContent>
+                    <TabsContent value="Completed">
+                      {renderContent(ordersByStatus('Completed'))}
+                    </TabsContent>
+                    <TabsContent value="Pending">
+                      {renderContent(ordersByStatus('Pending'))}
+                    </TabsContent>
+                    <TabsContent value="Cancelled">
+                      {renderContent(ordersByStatus('Cancelled'))}
+                    </TabsContent>
                 </CardContent>
                 <CardFooter>
                     <div className="text-xs text-muted-foreground">
@@ -419,8 +429,37 @@ export default function RegularOrdersPage() {
                 </CardFooter>
             </Card>
         </Tabs>
+        <div className="hidden">
+           <div ref={selectedOrdersRef} className="p-8">
+                <h1 className="text-2xl font-bold mb-4">Selected Orders</h1>
+                {getSelectedOrdersData().map(order => (
+                    <div key={order.id} className="mb-8 p-4 border rounded-lg page-break-before:always">
+                        <h2 className="text-xl font-semibold mb-2">Order ID: {order.id.substring(0,7)}...</h2>
+                        <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
+                        <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
+                        <p><strong>Status:</strong> {order.status}</p>
+                        <Separator className="my-4" />
+                        <h3 className="font-bold mb-2">Items</h3>
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Qty</TableHead><TableHead className="text-right">Price</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {order.items.map(item => (
+                                    <TableRow key={item.id}><TableCell>{item.name}</TableCell><TableCell>{item.quantity}</TableCell><TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell></TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                         <Separator className="my-4" />
+                        <div className="flex justify-end">
+                            <div className="w-1/3 space-y-2">
+                                <div className="flex justify-between"><span>Subtotal:</span><span>₦{order.subtotal.toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Tax:</span><span>₦{order.tax.toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Total:</span><span>₦{order.total.toFixed(2)}</span></div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
     </div>
   )
 }
-
-    

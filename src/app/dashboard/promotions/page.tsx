@@ -1,15 +1,15 @@
 
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   FileDown,
   PlusCircle,
   Search,
-  ListFilter,
   MoreHorizontal,
   Calendar as CalendarIcon,
   Loader2,
 } from "lucide-react";
+import Select from "react-select";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/table";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -60,15 +59,16 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
+  Select as ShadSelect,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 type Promotion = {
     id: string;
@@ -80,6 +80,12 @@ type Promotion = {
     startDate: string;
     endDate: string;
     status: "Active" | "Expired" | "Scheduled";
+    applicableProducts?: { value: string, label: string }[];
+};
+
+type Product = {
+  id: string;
+  name: string;
 }
 
 const getStatusVariant = (status: string) => {
@@ -95,136 +101,253 @@ const getStatusVariant = (status: string) => {
     }
 }
 
-function CreatePromotionDialog() {
+function CreatePromotionDialog({ onSave, products, promotion, children }: { onSave: (promo: Omit<Promotion, 'id'>) => void, products: Product[], promotion?: Promotion | null, children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [code, setCode] = useState("");
+  const [type, setType] = useState("percentage");
+  const [value, setValue] = useState<number | null>(0);
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
+  const [applicableProducts, setApplicableProducts] = useState<{ value: string, label: string }[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setName(promotion?.name || "");
+      setDescription(promotion?.description || "");
+      setCode(promotion?.code || "");
+      setType(promotion?.type || "percentage");
+      setValue(promotion?.value || 0);
+      setStartDate(promotion?.startDate ? new Date(promotion.startDate) : undefined);
+      setEndDate(promotion?.endDate ? new Date(promotion.endDate) : undefined);
+      setApplicableProducts(promotion?.applicableProducts || []);
+    }
+  }, [isOpen, promotion]);
+
+  const getStatus = (): "Active" | "Expired" | "Scheduled" => {
+    const now = new Date();
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+    if (end && end < now) return "Expired";
+    if (start && start > now) return "Scheduled";
+    return "Active";
+  }
+
+  const handleSubmit = () => {
+    const promoData = {
+      name,
+      description,
+      code,
+      type,
+      value,
+      startDate: startDate?.toISOString() || "",
+      endDate: endDate?.toISOString() || "",
+      status: getStatus(),
+      applicableProducts
+    }
+    onSave(promoData);
+    setIsOpen(false);
+  }
+
+  const productOptions = products.map(p => ({ value: p.id, label: p.name }));
+
   return (
-    <DialogContent className="sm:max-w-[600px]">
-      <DialogHeader>
-        <DialogTitle>Add New Promotion</DialogTitle>
-        <DialogDescription>
-          Fill in the details for the customer promotion.
-        </DialogDescription>
-      </DialogHeader>
-      <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-6">
-        <div className="grid gap-2">
-          <Label htmlFor="promotion-name">Promotion Name</Label>
-          <Input id="promotion-name" placeholder="e.g. Summer Sale" />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="description">Description</Label>
-          <Textarea id="description" placeholder="Describe the promotion" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>{promotion ? "Edit Promotion" : "Add New Promotion"}</DialogTitle>
+          <DialogDescription>
+            Fill in the details for the customer promotion.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-6">
           <div className="grid gap-2">
-            <Label htmlFor="promo-code">Promo Code</Label>
-            <Input id="promo-code" placeholder="e.g. SUMMER25" />
+            <Label htmlFor="promotion-name">Promotion Name</Label>
+            <Input id="promotion-name" placeholder="e.g. Summer Sale" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="type">Type</Label>
-             <Select>
-              <SelectTrigger>
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="percentage">Percentage Discount</SelectItem>
-                <SelectItem value="fixed_amount">Fixed Amount Discount</SelectItem>
-                <SelectItem value="free_item">Free Item</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="description">Description</Label>
+            <Textarea id="description" placeholder="Describe the promotion" value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="promo-code">Promo Code</Label>
+              <Input id="promo-code" placeholder="e.g. SUMMER25" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="type">Type</Label>
+               <ShadSelect value={type} onValueChange={setType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">Percentage Discount</SelectItem>
+                  <SelectItem value="fixed_amount">Fixed Amount Discount</SelectItem>
+                  <SelectItem value="free_item">Free Item</SelectItem>
+                </SelectContent>
+              </ShadSelect>
+            </div>
+          </div>
+           <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="value">Value</Label>
+              <Input id="value" type="number" placeholder="0" value={value ?? ""} onChange={(e) => setValue(e.target.value ? parseFloat(e.target.value) : null)} />
+            </div>
+            <div className="grid gap-2">
+                <Label htmlFor="applicable-products">Applicable Products</Label>
+                 <Select
+                    isMulti
+                    options={productOptions}
+                    value={applicableProducts}
+                    onChange={(selected) => setApplicableProducts(selected as any)}
+                    placeholder="Select products... (leave empty for all)"
+                />
+            </div>
+          </div>
+           <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>Start Date</Label>
+               <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant={"outline"} className={cn("justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
+                </PopoverContent>
+              </Popover>
+            </div>
+             <div className="grid gap-2">
+              <Label>End Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant={"outline"} className={cn("justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
         </div>
-         <div className="grid grid-cols-2 gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="value">Value</Label>
-            <Input id="value" type="number" placeholder="0" />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="usage-limit">Usage Limit</Label>
-             <Input id="usage-limit" type="number" placeholder="0 for unlimited" />
-          </div>
-        </div>
-         <div className="grid gap-2">
-          <Label htmlFor="timezone">Timezone</Label>
-          <Select>
-            <SelectTrigger>
-              <SelectValue placeholder="All Timezones" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="africa/lagos">Africa/Lagos (WAT)</SelectItem>
-              {/* Add other timezones as needed */}
-            </SelectContent>
-          </Select>
-        </div>
-         <div className="grid grid-cols-2 gap-4">
-          <div className="grid gap-2">
-            <Label>Start Date</Label>
-             <Popover>
-              <PopoverTrigger asChild>
-                <Button variant={"outline"} className={cn("justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
-              </PopoverContent>
-            </Popover>
-          </div>
-           <div className="grid gap-2">
-            <Label>End Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant={"outline"} className={cn("justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {endDate ? format(endDate, "PPP") : <span>Pick a date</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-        <div className="grid gap-2">
-          <Label>Applicable Products</Label>
-          <Input placeholder="Select products this applies to. Leave empty for all." />
-        </div>
-      </div>
-      <DialogFooter>
-        <Button type="submit">Create Promotion</Button>
-      </DialogFooter>
-    </DialogContent>
+        <DialogFooter>
+          <Button onClick={handleSubmit}>{promotion ? "Save Changes" : "Create Promotion"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 export default function PromotionsPage() {
   const { toast } = useToast();
   const [promotionsData, setPromotionsData] = useState<Promotion[]>([]);
+  const [productsData, setProductsData] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [date, setDate] = useState<DateRange | undefined>();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  
+  const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [promotionToDelete, setPromotionToDelete] = useState<Promotion | null>(null);
 
-  useEffect(() => {
-    const fetchPromotions = async () => {
+
+  const fetchPromotions = async () => {
       setIsLoading(true);
       try {
         const promotionsCollection = collection(db, "promotions");
         const promotionSnapshot = await getDocs(promotionsCollection);
         const promotionsList = promotionSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Promotion[];
         setPromotionsData(promotionsList);
+
+        const productsCollection = collection(db, "products");
+        const productSnapshot = await getDocs(productsCollection);
+        const productsList = productSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          name: doc.data().name,
+        })) as Product[];
+        setProductsData(productsList);
+
       } catch (error) {
-        console.error("Error fetching promotions:", error);
+        console.error("Error fetching data:", error);
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Could not fetch promotions from the database.",
+          description: "Could not fetch data from the database.",
         });
       } finally {
         setIsLoading(false);
       }
     };
+
+  useEffect(() => {
     fetchPromotions();
   }, [toast]);
+  
+  const handleSavePromotion = async (promoData: Omit<Promotion, 'id'>) => {
+    try {
+        if (editingPromotion) {
+            await updateDoc(doc(db, "promotions", editingPromotion.id), promoData);
+            toast({ title: "Success", description: "Promotion updated." });
+        } else {
+            await addDoc(collection(db, "promotions"), promoData);
+            toast({ title: "Success", description: "Promotion created." });
+        }
+        fetchPromotions();
+        setEditingPromotion(null);
+    } catch (error) {
+        console.error("Error saving promotion:", error);
+        toast({ variant: "destructive", title: "Error", description: "Failed to save promotion." });
+    }
+  };
+
+  const handleDeletePromotion = async () => {
+    if (!promotionToDelete) return;
+    try {
+        await deleteDoc(doc(db, "promotions", promotionToDelete.id));
+        toast({ title: "Success", description: "Promotion deleted." });
+        fetchPromotions();
+    } catch (error) {
+        console.error("Error deleting promotion:", error);
+        toast({ variant: "destructive", title: "Error", description: "Failed to delete promotion." });
+    } finally {
+        setIsDeleteDialogOpen(false);
+        setPromotionToDelete(null);
+    }
+  };
+
+  const openDeleteDialog = (promo: Promotion) => {
+    setPromotionToDelete(promo);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const filteredPromotions = useMemo(() => {
+    return promotionsData.filter(promo => {
+        const startDate = new Date(promo.startDate);
+        const endDate = new Date(promo.endDate);
+        const dateMatch = !date?.from || (startDate <= (date.to || date.from) && endDate >= date.from);
+        const searchMatch = !searchTerm || promo.name.toLowerCase().includes(searchTerm.toLowerCase()) || promo.code.toLowerCase().includes(searchTerm.toLowerCase());
+        const statusMatch = statusFilter.length === 0 || statusFilter.includes(promo.status);
+        return dateMatch && searchMatch && statusMatch;
+    });
+  }, [promotionsData, date, searchTerm, statusFilter]);
+  
+  const handleStatusFilterChange = (status: string, checked: boolean) => {
+    setStatusFilter(prev => {
+        if (checked) {
+            return [...prev, status];
+        } else {
+            return prev.filter(s => s !== status);
+        }
+    });
+  }
 
   const renderContent = () => {
     if (isLoading) {
@@ -254,7 +377,7 @@ export default function PromotionsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {promotionsData.map((promo) => (
+          {filteredPromotions.map((promo) => (
             <TableRow key={promo.id}>
                <TableCell>
                     <Checkbox aria-label={`Select promotion ${promo.name}`} />
@@ -277,27 +400,29 @@ export default function PromotionsPage() {
                 </Badge>
               </TableCell>
               <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      aria-haspopup="true"
-                      size="icon"
-                      variant="ghost"
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                      <span className="sr-only">Toggle menu</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuItem>Edit</DropdownMenuItem>
-                    <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive">
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <CreatePromotionDialog promotion={editingPromotion} onSave={handleSavePromotion} products={productsData}>
+                    <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                        aria-haspopup="true"
+                        size="icon"
+                        variant="ghost"
+                        >
+                        <MoreHorizontal className="h-4 w-4" />
+                        <span className="sr-only">Toggle menu</span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onSelect={() => setEditingPromotion(promo)}>Edit</DropdownMenuItem>
+                        <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive" onSelect={() => openDeleteDialog(promo)}>
+                        Delete
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                    </DropdownMenu>
+                </CreatePromotionDialog>
               </TableCell>
             </TableRow>
           ))}
@@ -310,14 +435,11 @@ export default function PromotionsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold font-headline">Promotions</h1>
-         <Dialog>
-            <DialogTrigger asChild>
-                <Button>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Create New Promotion
-                </Button>
-            </DialogTrigger>
-            <CreatePromotionDialog />
-        </Dialog>
+         <CreatePromotionDialog onSave={handleSavePromotion} products={productsData}>
+            <Button>
+                <PlusCircle className="mr-2 h-4 w-4" /> Create New Promotion
+            </Button>
+        </CreatePromotionDialog>
       </div>
 
       <Tabs defaultValue="promotions">
@@ -335,7 +457,7 @@ export default function PromotionsPage() {
               <div className="flex items-center justify-between gap-4 pt-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input placeholder="Search by name or code..." className="pl-10" />
+                  <Input placeholder="Search by name or code..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 </div>
                 <div className="flex items-center gap-2">
                     <Popover>
@@ -377,18 +499,15 @@ export default function PromotionsPage() {
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="ml-auto">
-                            <ListFilter className="mr-2 h-4 w-4" />
-                            Filter by Status
+                              Status
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Status</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuCheckboxItem checked>
-                            Active
-                            </DropdownMenuCheckboxItem>
-                            <DropdownMenuCheckboxItem>Scheduled</DropdownMenuCheckboxItem>
-                            <DropdownMenuCheckboxItem>Expired</DropdownMenuCheckboxItem>
+                            <DropdownMenuCheckboxItem checked={statusFilter.includes('Active')} onCheckedChange={(c) => handleStatusFilterChange('Active', c as boolean)}>Active</DropdownMenuCheckboxItem>
+                            <DropdownMenuCheckboxItem checked={statusFilter.includes('Scheduled')} onCheckedChange={(c) => handleStatusFilterChange('Scheduled', c as boolean)}>Scheduled</DropdownMenuCheckboxItem>
+                            <DropdownMenuCheckboxItem checked={statusFilter.includes('Expired')} onCheckedChange={(c) => handleStatusFilterChange('Expired', c as boolean)}>Expired</DropdownMenuCheckboxItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                     <Button variant="outline">
@@ -414,6 +533,20 @@ export default function PromotionsPage() {
             </Card>
         </TabsContent>
       </Tabs>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will permanently delete the promotion "{promotionToDelete?.name}". This action cannot be undone.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeletePromotion}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
