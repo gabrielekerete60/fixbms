@@ -49,9 +49,8 @@ export default function LoginPage() {
       });
        // Clear any previous session info on failed login
       localStorage.removeItem('loggedInUser');
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (
@@ -113,5 +112,3 @@ export default function LoginPage() {
     </main>
   );
 }
-
-    

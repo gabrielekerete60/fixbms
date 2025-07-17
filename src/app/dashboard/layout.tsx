@@ -245,13 +245,13 @@ export default function DashboardLayout({
         ]
       },
       {
-        icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant'], sublinks: [
-          { href: "/dashboard/inventory/products", label: "Products", icon: Cookie },
-          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList },
-          { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot },
-          { href: "/dashboard/inventory/suppliers", label: "Suppliers" },
-          { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks },
-          { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", icon: Archive },
+        icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Delivery Staff', 'Showroom Staff'], sublinks: [
+          { href: "/dashboard/inventory/products", label: "Products", icon: Cookie, roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant'] },
+          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList, roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper'] },
+          { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot, roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant'] },
+          { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant'] },
+          { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker'] },
+          { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", icon: Archive, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant'] },
         ]
       },
       {
@@ -394,5 +394,3 @@ export default function DashboardLayout({
     </div>
   );
 }
-
-    
