@@ -1,7 +1,8 @@
 
 "use client";
 
-import { CheckCircle, Users } from "lucide-react";
+import { useState, useEffect } from "react";
+import { CheckCircle, Users, Loader2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -19,6 +20,9 @@ import {
 } from "@/components/ui/table";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { format } from "date-fns";
 
 const chartData = [
   { name: "Chris", days: 4 },
@@ -39,13 +43,66 @@ const chartConfig = {
   },
 };
 
+type Staff = {
+    staff_id: string;
+    name: string;
+}
+
+type AttendanceRecord = {
+    id: string;
+    staff_id: string;
+    staff_name: string;
+    clock_in_time: Timestamp;
+    clock_out_time: Timestamp | null;
+}
+
 export default function AttendancePage() {
+  const [presentStaff, setPresentStaff] = useState<AttendanceRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+        setIsLoading(true);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const tomorrowStart = new Date(todayStart);
+        tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+        try {
+            const staffSnapshot = await getDocs(collection(db, 'staff'));
+            const staffMap = new Map(staffSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+
+            const q = query(
+                collection(db, "attendance"),
+                where("clock_in_time", ">=", Timestamp.fromDate(todayStart)),
+                where("clock_in_time", "<", Timestamp.fromDate(tomorrowStart))
+            );
+            const attendanceSnapshot = await getDocs(q);
+            const records = attendanceSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    staff_name: staffMap.get(data.staff_id) || 'Unknown Staff'
+                } as AttendanceRecord
+            });
+            setPresentStaff(records);
+        } catch (error) {
+            console.error("Error fetching attendance: ", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    fetchAttendance();
+  }, []);
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,11 +129,29 @@ export default function AttendancePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center">
-                    No staff have clocked in yet today.
-                  </TableCell>
-                </TableRow>
+                {isLoading ? (
+                     <TableRow>
+                        <TableCell colSpan={3} className="h-24 text-center">
+                            <Loader2 className="h-8 w-8 animate-spin" />
+                        </TableCell>
+                    </TableRow>
+                ) : presentStaff.length > 0 ? (
+                    presentStaff.map(record => (
+                        <TableRow key={record.id}>
+                            <TableCell>{record.staff_name}</TableCell>
+                            <TableCell>{format(record.clock_in_time.toDate(), 'p')}</TableCell>
+                            <TableCell>
+                                {record.clock_out_time ? format(record.clock_out_time.toDate(), 'p') : 'Still clocked in'}
+                            </TableCell>
+                        </TableRow>
+                    ))
+                ) : (
+                    <TableRow>
+                        <TableCell colSpan={3} className="h-24 text-center">
+                            No staff have clocked in yet today.
+                        </TableCell>
+                    </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -89,7 +164,7 @@ export default function AttendancePage() {
               Weekly Attendance
             </CardTitle>
             <CardDescription>
-              Number of days each staff member clocked in this week.
+              Number of days each staff member clocked in this week. (Feature coming soon)
             </CardDescription>
           </CardHeader>
           <CardContent>

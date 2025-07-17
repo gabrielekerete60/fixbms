@@ -30,6 +30,7 @@ import {
   Wrench,
   Trash,
   Hourglass,
+  Loader2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -46,9 +47,15 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
+import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
+import { handleInitiateTransfer } from "@/app/actions";
+import { Badge } from "@/components/ui/badge";
 
 type TransferItem = {
   productId: string;
+  productName: string;
   quantity: number;
 };
 
@@ -62,29 +69,57 @@ type Product = {
   name: string;
 };
 
+type Transfer = {
+    id: string;
+    to_staff_id: string;
+    to_staff_name: string;
+    items: TransferItem[];
+    date: Timestamp;
+    status: 'pending' | 'completed' | 'cancelled';
+}
+
 export default function StockControlPage() {
+  const { toast } = useToast();
   const [transferTo, setTransferTo] = useState("");
   const [isSalesRun, setIsSalesRun] = useState(false);
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<TransferItem[]>([
+  const [items, setItems] = useState<Partial<TransferItem>[]>([
     { productId: "", quantity: 1 },
   ]);
-  const [initiatedTransfers, setInitiatedTransfers] = useState<any[]>([]);
+  
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [initiatedTransfers, setInitiatedTransfers] = useState<Transfer[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mock data - in a real app, this would come from Firestore
-  const staff: StaffMember[] = [
-    { staff_id: "400004", name: "Mfon Staff" },
-    { staff_id: "400005", name: "Akan Staff" },
-    { staff_id: "500006", name: "Blessing Baker" },
-  ];
 
-  const products: Product[] = [
-    { id: "prod_1", name: "Family Loaf" },
-    { id: "prod_2", name: "Burger Loaf" },
-    { id: "prod_3", name: "Jumbo Loaf" },
-    { id: "prod_4", name: "Round Loaf" },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+        setIsLoading(true);
+        try {
+            const staffQuery = query(collection(db, "staff"), where("role", "in", ["Showroom Staff", "Delivery Staff", "Manager"]));
+            const staffSnapshot = await getDocs(staffQuery);
+            setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name })));
+
+            const productsSnapshot = await getDocs(collection(db, "products"));
+            setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+
+            const transfersQuery = query(collection(db, "transfers"), orderBy("date", "desc"));
+            const transfersSnapshot = await getDocs(transfersQuery);
+            setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer)));
+
+        } catch (error) {
+            console.error("Error fetching data:", error);
+            toast({ variant: "destructive", title: "Error", description: "Failed to load necessary data." });
+        } finally {
+            setIsLoading(false);
+        }
+    }
+    fetchData();
+  }, [toast]);
+
 
   const handleItemChange = (
     index: number,
@@ -92,10 +127,14 @@ export default function StockControlPage() {
     value: string | number
   ) => {
     const newItems = [...items];
+    const item = newItems[index];
+
     if (field === "productId") {
-      newItems[index].productId = value as string;
+      const product = products.find(p => p.id === value);
+      item.productId = value as string;
+      item.productName = product?.name;
     } else {
-      newItems[index].quantity = Number(value);
+      item.quantity = Number(value);
     }
     setItems(newItems);
   };
@@ -108,17 +147,42 @@ export default function StockControlPage() {
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = () => {
-    // Logic to submit transfer would go here
-    console.log({ transferTo, isSalesRun, notes, items });
-    // Add to initiated transfers list for demo
-    const newTransfer = {
-      date: new Date().toISOString(),
-      to: staff.find(s => s.staff_id === transferTo)?.name || 'Unknown',
-      items: items.reduce((sum, item) => sum + item.quantity, 0),
-      status: 'pending'
-    };
-    setInitiatedTransfers([newTransfer, ...initiatedTransfers]);
+  const handleSubmit = async () => {
+    if (!transferTo || items.some(i => !i.productId || !i.quantity)) {
+        toast({ variant: "destructive", title: "Error", description: "Please select a staff member and fill all item fields."});
+        return;
+    }
+
+    setIsSubmitting(true);
+    const staffMember = staff.find(s => s.staff_id === transferTo);
+    
+    const transferData = {
+        to_staff_id: transferTo,
+        to_staff_name: staffMember?.name || 'Unknown',
+        is_sales_run: isSalesRun,
+        notes: notes,
+        items: items as TransferItem[],
+    }
+
+    const result = await handleInitiateTransfer(transferData);
+
+    if (result.success) {
+        toast({ title: "Success", description: "Transfer initiated successfully." });
+        // Reset form
+        setTransferTo("");
+        setIsSalesRun(false);
+        setNotes("");
+        setItems([{ productId: "", quantity: 1 }]);
+        // Refetch transfers
+        const transfersQuery = query(collection(db, "transfers"), orderBy("date", "desc"));
+        const transfersSnapshot = await getDocs(transfersQuery);
+        setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer)));
+
+    } else {
+        toast({ variant: "destructive", title: "Error", description: result.error });
+    }
+
+    setIsSubmitting(false);
   };
 
   return (
@@ -142,7 +206,11 @@ export default function StockControlPage() {
           </TabsTrigger>
           <TabsTrigger value="pending-transfers" className="relative">
             <Hourglass className="mr-2 h-4 w-4" /> Pending Transfers
-            <div className="absolute top-1 right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">1</div>
+            {initiatedTransfers.filter(t => t.status === 'pending').length > 0 && (
+                 <div className="absolute top-1 right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {initiatedTransfers.filter(t => t.status === 'pending').length}
+                </div>
+            )}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="initiate-transfer">
@@ -158,7 +226,7 @@ export default function StockControlPage() {
               <div className="grid md:grid-cols-2 gap-6">
                  <div className="space-y-2">
                     <Label htmlFor="transfer-to">Transfer to</Label>
-                    <Select value={transferTo} onValueChange={setTransferTo}>
+                    <Select value={transferTo} onValueChange={setTransferTo} disabled={isLoading}>
                       <SelectTrigger id="transfer-to">
                         <SelectValue placeholder="Select a staff member" />
                       </SelectTrigger>
@@ -202,6 +270,7 @@ export default function StockControlPage() {
                         onValueChange={(value) =>
                           handleItemChange(index, "productId", value)
                         }
+                        disabled={isLoading}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select a product" />
@@ -217,7 +286,7 @@ export default function StockControlPage() {
                       <Input
                         type="number"
                         placeholder="Qty"
-                        value={item.quantity}
+                        value={item.quantity || ''}
                         onChange={(e) =>
                           handleItemChange(index, "quantity", e.target.value)
                         }
@@ -246,7 +315,10 @@ export default function StockControlPage() {
                  <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
               <div className="flex justify-end">
-                <Button onClick={handleSubmit}>Submit Transfer</Button>
+                <Button onClick={handleSubmit} disabled={isSubmitting || isLoading}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    Submit Transfer
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -309,12 +381,18 @@ export default function StockControlPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {initiatedTransfers.length > 0 ? (
-                        initiatedTransfers.map((transfer, index) => (
-                             <TableRow key={index}>
-                                <TableCell>{new Date(transfer.date).toLocaleString()}</TableCell>
-                                <TableCell>{transfer.to}</TableCell>
-                                <TableCell>{transfer.items}</TableCell>
+                    {isLoading ? (
+                         <TableRow>
+                            <TableCell colSpan={4} className="h-24 text-center">
+                                <Loader2 className="h-8 w-8 animate-spin"/>
+                            </TableCell>
+                        </TableRow>
+                    ) : initiatedTransfers.length > 0 ? (
+                        initiatedTransfers.map((transfer) => (
+                             <TableRow key={transfer.id}>
+                                <TableCell>{transfer.date ? format(transfer.date.toDate(), 'PPpp') : 'N/A'}</TableCell>
+                                <TableCell>{transfer.to_staff_name}</TableCell>
+                                <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
                                 <TableCell><Badge variant="secondary">{transfer.status}</Badge></TableCell>
                             </TableRow>
                         ))

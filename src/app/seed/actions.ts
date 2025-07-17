@@ -11,33 +11,30 @@ type ActionResult = {
 
 const seedData = {
   products: [
-      // Breads
       { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 50, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300 },
       { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 30, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250 },
       { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 25, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500 },
       { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 40, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280 },
-      // Drinks
       { id: "prod_5", name: "Coca-Cola (50cl)", price: 300.00, stock: 100, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200 },
       { id: "prod_6", name: "Bottled Water (75cl)", price: 200.00, stock: 150, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100 },
       { id: "prod_7", name: "Pepsi (50cl)", price: 300.00, stock: 90, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'pepsi can', costPrice: 200 },
       { id: "prod_8", name: "Sprite (50cl)", price: 300.00, stock: 0, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'sprite can', costPrice: 200 },
   ],
   staff: [
-    { staff_id: '100001', name: 'Chris Manager', email: 'chris.manager@example.com', password: 'ManagerPass1!', role: 'Manager', is_active: true, pay_type: 'Salary', pay_rate: 350000 },
-    { staff_id: '200002', name: 'Vic Supervisor', email: 'vic.supervisor@example.com', password: 'SupervisorPass1!', role: 'Supervisor', is_active: true, pay_type: 'Salary', pay_rate: 250000 },
-    { staff_id: '300003', name: 'Favour Accountant', email: 'favour.accountant@example.com', password: 'AccountantPass1!', role: 'Accountant', is_active: true, pay_type: 'Salary', pay_rate: 200000 },
-    { staff_id: '400004', name: 'Mfon Staff', email: 'mfon.staff@example.com', password: 'StaffPass1!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 80000 },
-    { staff_id: '400005', name: 'Akan Staff', email: 'akan.staff@example.com', password: 'StaffPass1!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 80000 },
-    { staff_id: '500006', name: 'Blessing Baker', email: 'blessing.baker@example.com', password: 'BakerPass1!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 150000 },
-    { staff_id: '600007', name: 'John Cleaner', email: 'john.cleaner@example.com', password: 'CleanerPass1!', role: 'Cleaner', is_active: true, pay_type: 'Salary', pay_rate: 60000 },
-    { staff_id: '700008', name: 'David Storekeeper', email: 'david.storekeeper@example.com', password: 'StorekeeperPass1!', role: 'Storekeeper', is_active: true, pay_type: 'Salary', pay_rate: 100000 },
-    { staff_id: '000000', name: 'Gabriel Developer', email: 'gabriel.dev@example.com', password: 'DevPassword1!', role: 'Developer', is_active: true, pay_type: 'Salary', pay_rate: 500000 },
+    { staff_id: '100001', name: 'Chris Manager', email: 'chris.manager@example.com', password: 'ManagerPass1!', role: 'Manager', is_active: true, pay_type: 'Salary', pay_rate: 350000, bank_name: "GTBank", account_number: "0123456789", timezone: "Africa/Lagos" },
+    { staff_id: '200002', name: 'Vic Supervisor', email: 'vic.supervisor@example.com', password: 'SupervisorPass1!', role: 'Supervisor', is_active: true, pay_type: 'Salary', pay_rate: 250000, bank_name: "First Bank", account_number: "1234567890", timezone: "Africa/Lagos" },
+    { staff_id: '300003', name: 'Favour Accountant', email: 'favour.accountant@example.com', password: 'AccountantPass1!', role: 'Accountant', is_active: true, pay_type: 'Salary', pay_rate: 200000, bank_name: "UBA", account_number: "2345678901", timezone: "Africa/Lagos" },
+    { staff_id: '400004', name: 'Mfon Staff', email: 'mfon.staff@example.com', password: 'StaffPass1!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "Zenith Bank", account_number: "3456789012", timezone: "Africa/Lagos" },
+    { staff_id: '400005', name: 'Akan Staff', email: 'akan.staff@example.com', password: 'StaffPass1!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "Access Bank", account_number: "4567890123", timezone: "Africa/Lagos" },
+    { staff_id: '500006', name: 'Blessing Baker', email: 'blessing.baker@example.com', password: 'BakerPass1!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 150000, bank_name: "Wema Bank", account_number: "5678901234", timezone: "Africa/Lagos" },
+    { staff_id: '600007', name: 'John Cleaner', email: 'john.cleaner@example.com', password: 'CleanerPass1!', role: 'Cleaner', is_active: false, pay_type: 'Hourly', pay_rate: 500, bank_name: "FCMB", account_number: "6789012345", timezone: "Africa/Lagos" },
+    { staff_id: '700008', name: 'David Storekeeper', email: 'david.storekeeper@example.com', password: 'StorekeeperPass1!', role: 'Storekeeper', is_active: true, pay_type: 'Salary', pay_rate: 100000, bank_name: "Stanbic IBTC", account_number: "7890123456", timezone: "Africa/Lagos" },
+    { staff_id: '000000', name: 'Gabriel Developer', email: 'gabriel.dev@example.com', password: 'DevPassword1!', role: 'Developer', is_active: true, pay_type: 'Salary', pay_rate: 500000, bank_name: "Kuda Bank", account_number: "8901234567", timezone: "Africa/Lagos" },
   ],
   promotions: [
     { id: "promo_1", name: "Weekend Special", description: "10% off all bread items", type: "percentage", value: 10, code: "WEEKEND10", startDate: "2024-01-01", endDate: "2024-12-31", applicableProducts: [] },
     { id: "promo_2", name: "Free Drink", description: "Buy any 2 loaves, get a free drink", type: "free_item", value: null, code: "DRINKUP", startDate: "2024-05-01", endDate: "2024-05-31", applicableProducts: [] },
     { id: "promo_3", name: "Jumbo Discount", description: "₦100 off Jumbo Loaf", type: "fixed_amount", value: 100, code: "JUMBO100", startDate: "2024-06-01", endDate: "2024-06-30", applicableProducts: [{ value: 'prod_3', label: 'Jumbo Loaf' }] },
-    { id: "promo_4", name: "New Customer", description: "15% off first order", type: "percentage", value: 15, code: "NEW15", startDate: "2024-07-01", endDate: "2024-07-31", applicableProducts: [] }
   ],
   suppliers: [
     { id: "sup_1", name: "Flour Mills of Nigeria", contactPerson: "Mr. Adebayo", phone: "08012345678", email: "sales@fmnplc.com", address: "Apapa, Lagos", amountOwed: 500000, amountPaid: 450000 },
@@ -52,10 +49,10 @@ const seedData = {
         productId: "prod_1",
         productName: "Family Loaf",
         ingredients: [
-            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 500, unit: "g" },
-            { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 10, unit: "g" },
-            { ingredientId: "ing_2", ingredientName: "Granulated Sugar", quantity: 20, unit: "g" },
-            { ingredientId: "ing_7", ingredientName: "Salt", quantity: 5, unit: "g" },
+            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 0.5, unit: "kg" },
+            { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.01, unit: "kg" },
+            { ingredientId: "ing_2", ingredientName: "Granulated Sugar", quantity: 0.02, unit: "kg" },
+            { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.005, unit: "kg" },
         ]
      }
   ],
@@ -87,9 +84,39 @@ const seedData = {
       { id: 'cust_2', name: 'Ngozi Okoro', phone: '09087654321', email: 'n.okoro@example.com', address: '45, Lekki Phase 1', joinedDate: '2023-02-20T11:30:00Z', totalSpent: 75000 },
       { id: 'cust_3', name: 'Chinedu Eze', phone: '07011223344', email: 'c.eze@example.com', address: '78, Surulere, Lagos', joinedDate: '2023-03-10T09:00:00Z', totalSpent: 250000 },
   ],
+   orders: [
+    {
+      id: "ord_1",
+      items: [{ id: "prod_1", name: "Family Loaf", price: 550, quantity: 2 }],
+      subtotal: 1100,
+      tax: 82.5,
+      total: 1182.5,
+      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+      paymentMethod: 'Card',
+      customerName: 'Adebisi Onyeka',
+      status: 'Completed',
+    },
+    {
+      id: "ord_2",
+      items: [
+        { id: "prod_3", name: "Jumbo Loaf", price: 900, quantity: 1 },
+        { id: "prod_5", name: "Coca-Cola (50cl)", price: 300, quantity: 2 },
+      ],
+      subtotal: 1500,
+      tax: 112.5,
+      total: 1612.5,
+      date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+      paymentMethod: 'Card',
+      customerName: 'Ngozi Okoro',
+      status: 'Completed',
+    },
+  ],
   supply_logs: [
-    // Placeholder for future seeded logs if needed
-  ]
+    { id: 'log_1', supplierId: 'sup_1', supplierName: 'Flour Mills of Nigeria', ingredientId: 'ing_1', ingredientName: 'All-Purpose Flour', quantity: 20, unit: 'kg', costPerUnit: 500, totalCost: 10000, date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), invoiceNumber: 'FMN-123' },
+    { id: 'log_2', supplierId: 'sup_2', supplierName: 'Dangote Sugar', ingredientId: 'ing_2', ingredientName: 'Granulated Sugar', quantity: 10, unit: 'kg', costPerUnit: 800, totalCost: 8000, date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), invoiceNumber: 'DAN-456' }
+  ],
+  attendance: [],
+  transfers: [],
 };
 
 export async function seedDatabase(): Promise<ActionResult> {
@@ -113,16 +140,6 @@ export async function seedDatabase(): Promise<ActionResult> {
         }
     }
 
-    // We will create empty collections so they exist, but not seed any orders.
-    // This is a placeholder for where completed data will go.
-    const collectionsToEnsure = ["orders"];
-    for (const coll of collectionsToEnsure) {
-        const emptyDocRef = doc(collection(db, coll));
-        batch.set(emptyDocRef, { placeholder: true });
-        batch.delete(emptyDocRef); // Delete it right away, just to ensure the collection path is created if it doesn't exist.
-    }
-
-
     await batch.commit();
 
     console.log("Database seeded successfully.");
@@ -138,18 +155,15 @@ export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
     const collectionsToClear = Object.keys(seedData);
-    collectionsToClear.push('orders');
     
-    const batch = writeBatch(db);
-
     for (const collectionName of collectionsToClear) {
-      // It's safe to try to clear a collection even if it doesn't exist.
+      const batch = writeBatch(db);
       const querySnapshot = await getDocs(collection(db, collectionName));
       querySnapshot.forEach((doc) => {
         batch.delete(doc.ref);
       });
+      await batch.commit();
     }
-    await batch.commit();
     
     console.log("Database cleared successfully.");
     return { success: true };
@@ -160,5 +174,3 @@ export async function clearDatabase(): Promise<ActionResult> {
     return { success: false, error: `Failed to clear database: ${errorMessage}` };
   }
 }
-
-    

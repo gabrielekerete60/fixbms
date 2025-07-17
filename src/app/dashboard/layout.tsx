@@ -29,6 +29,7 @@ import {
   ListChecks,
   LogOut,
   LogIn,
+  Loader2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -58,10 +59,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { getAttendanceStatus, handleClockIn, handleClockOut } from '../actions';
 
 type User = {
   name: string;
   role: string;
+  staff_id: string;
 };
 
 function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string }) {
@@ -121,14 +124,30 @@ export default function DashboardLayout({
   const [time, setTime] = useState('');
   const [user, setUser] = useState<User | null>(null);
   const [isClockedIn, setIsClockedIn] = useState(false);
+  const [attendanceId, setAttendanceId] = useState<string | null>(null);
+  const [isClocking, setIsClocking] = useState(true);
 
   useEffect(() => {
-    // Check for user session on mount
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      const parsedUser = JSON.parse(storedUser);
+      setUser(parsedUser);
+      
+      const checkAttendance = async () => {
+        setIsClocking(true);
+        const status = await getAttendanceStatus(parsedUser.staff_id);
+        if (status) {
+          setIsClockedIn(true);
+          setAttendanceId(status.attendanceId);
+        } else {
+          setIsClockedIn(false);
+          setAttendanceId(null);
+        }
+        setIsClocking(false);
+      };
+      checkAttendance();
+
     } else {
-      // If no user, redirect to login
       router.push('/');
     }
   }, [router]);
@@ -141,7 +160,6 @@ export default function DashboardLayout({
   }, []);
 
   const handleLogout = () => {
-    // Clear user session from localStorage
     localStorage.removeItem('loggedInUser');
     toast({
       title: "Logged Out",
@@ -150,13 +168,31 @@ export default function DashboardLayout({
     router.push("/");
   };
   
-  const handleClockInOut = () => {
-    // In a real app, you would make an API call here to record the time
-    setIsClockedIn(!isClockedIn);
-    toast({
-      title: isClockedIn ? "Clocked Out" : "Clocked In",
-      description: `You have successfully ${isClockedIn ? 'clocked out' : 'clocked in'}.`,
-    });
+  const handleClockInOut = async () => {
+    if (!user) return;
+    setIsClocking(true);
+    if (isClockedIn) {
+      if (attendanceId) {
+        const result = await handleClockOut(attendanceId);
+        if (result.success) {
+          setIsClockedIn(false);
+          setAttendanceId(null);
+          toast({ title: "Clocked Out", description: "You have successfully clocked out." });
+        } else {
+          toast({ variant: 'destructive', title: "Error", description: result.error });
+        }
+      }
+    } else {
+      const result = await handleClockIn(user.staff_id);
+      if (result.success && result.attendanceId) {
+        setIsClockedIn(true);
+        setAttendanceId(result.attendanceId);
+        toast({ title: "Clocked In", description: "You have successfully clocked in." });
+      } else {
+        toast({ variant: 'destructive', title: "Error", description: result.error });
+      }
+    }
+    setIsClocking(false);
   };
 
 
@@ -203,7 +239,6 @@ export default function DashboardLayout({
   ];
 
   if (!user) {
-    // Render a loading state or null while redirecting
     return null;
   }
 
@@ -223,9 +258,9 @@ export default function DashboardLayout({
           <div className="mt-auto p-4 border-t">
             <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
                 <span><Clock className="inline h-4 w-4 mr-1" />{time}</span>
-                <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut}>
-                    {isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>}
-                    {isClockedIn ? 'Clock Out' : 'Clock In'}
+                <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut} disabled={isClocking}>
+                    {isClocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>)}
+                    {isClocking ? 'Loading...' : (isClockedIn ? 'Clock Out' : 'Clock In')}
                 </Button>
             </div>
             <Card>
@@ -269,7 +304,6 @@ export default function DashboardLayout({
               </SheetContent>
             </Sheet>
           <div className="w-full flex-1">
-            {/* Can add a search bar here if needed */}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
