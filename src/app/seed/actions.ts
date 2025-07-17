@@ -1,8 +1,7 @@
 "use server";
 
-// This is a placeholder for where you would import your db instance
-// import { db } from "@/lib/firebase";
-// import { collection, getDocs, writeBatch, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, writeBatch, doc } from "firebase/firestore";
 
 type ActionResult = {
   success: boolean;
@@ -26,25 +25,19 @@ const seedData = {
 export async function seedDatabase(): Promise<ActionResult> {
   console.log("Attempting to seed database...");
   try {
-    //
-    // Firestore seeding logic would go here.
-    // Example:
-    // const batch = writeBatch(db);
-    //
-    // seedData.products.forEach((product) => {
-    //   const docRef = doc(db, "products", product.id);
-    //   batch.set(docRef, product);
-    // });
-    //
-    // seedData.staff.forEach((staffMember) => {
-    //   const docRef = doc(db, "staff", staffMember.id);
-    //   batch.set(docRef, staffMember);
-    // });
-    //
-    // await batch.commit();
-
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const batch = writeBatch(db);
+    
+    seedData.products.forEach((product) => {
+      const docRef = doc(db, "products", product.id);
+      batch.set(docRef, product);
+    });
+    
+    seedData.staff.forEach((staffMember) => {
+      const docRef = doc(db, "staff", staffMember.id);
+      batch.set(docRef, staffMember);
+    });
+    
+    await batch.commit();
 
     console.log("Database seeded successfully.");
     return { success: true };
@@ -58,28 +51,21 @@ export async function seedDatabase(): Promise<ActionResult> {
 export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
-    // Firestore clearing logic would go here.
-    // This is a complex operation and should be handled with care.
-    // You might need a Cloud Function for recursive deletion of subcollections.
-    // A simplified example for clearing top-level collections:
-    
-    // const collectionsToClear = ['products', 'staff'];
-    // const batch = writeBatch(db);
+    const collectionsToClear = ['products', 'staff'];
+    const batch = writeBatch(db);
 
-    // for (const collectionName of collectionsToClear) {
-    //   const querySnapshot = await getDocs(collection(db, collectionName));
-    //   querySnapshot.forEach((doc) => {
-    //     batch.delete(doc.ref);
-    //   });
-    // }
-    // await batch.commit();
-
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    for (const collectionName of collectionsToClear) {
+      const querySnapshot = await getDocs(collection(db, collectionName));
+      querySnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+    }
+    await batch.commit();
     
     console.log("Database cleared successfully.");
     return { success: true };
-  } catch (error) {
+  } catch (error)
+ {
     console.error("Error clearing database:", error);
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
     return { success: false, error: `Failed to clear database: ${errorMessage}` };
