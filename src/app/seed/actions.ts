@@ -178,7 +178,8 @@ const seedData = {
       timestamp: Timestamp.fromDate(new Date("2024-07-28T15:00:00")),
       status: "new"
     }
-  ]
+  ],
+  waste_logs: []
 };
 
 export async function seedDatabase(): Promise<ActionResult> {

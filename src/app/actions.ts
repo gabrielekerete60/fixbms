@@ -127,17 +127,12 @@ type InitiateTransferResult = {
     error?: string;
 }
 
-export async function handleInitiateTransfer(data: any): Promise<InitiateTransferResult> {
+export async function handleInitiateTransfer(data: any, user: { staff_id: string, name: string }): Promise<InitiateTransferResult> {
     try {
-        const userStr = localStorage.getItem('loggedInUser');
-        if (!userStr) {
-             return { success: false, error: "Could not identify initiator." };
-        }
-        const user = JSON.parse(userStr);
-
         await addDoc(collection(db, "transfers"), {
             ...data,
             from_staff_id: user.staff_id,
+            from_staff_name: user.name,
             date: serverTimestamp(),
             status: 'pending'
         });
@@ -534,6 +529,43 @@ export async function submitReport(data: ReportSubmission): Promise<{ success: b
     } catch (error) {
         console.error("Error submitting report:", error);
         return { success: false, error: "Failed to submit report." };
+    }
+}
+
+type ReportWasteData = {
+    productId: string;
+    productName: string;
+    quantity: number;
+    reason: string;
+    notes?: string;
+};
+
+export async function handleReportWaste(data: ReportWasteData, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+    if (!data.productId || !data.quantity || !data.reason) {
+        return { success: false, error: "Please fill out all required fields." };
+    }
+    
+    const batch = writeBatch(db);
+    try {
+        // 1. Decrement product stock
+        const productRef = doc(db, 'products', data.productId);
+        batch.update(productRef, { stock: increment(-data.quantity) });
+
+        // 2. Create a waste log entry
+        const wasteLogRef = doc(collection(db, 'waste_logs'));
+        batch.set(wasteLogRef, {
+            ...data,
+            staffId: user.staff_id,
+            staffName: user.name,
+            date: serverTimestamp()
+        });
+
+        await batch.commit();
+        return { success: true };
+
+    } catch (error) {
+        console.error("Error reporting waste:", error);
+        return { success: false, error: "Failed to report waste." };
     }
 }
     

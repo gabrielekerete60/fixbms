@@ -50,8 +50,14 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
+
+type User = {
+    name: string;
+    role: string;
+    staff_id: string;
+};
 
 type TransferItem = {
   productId: string;
@@ -75,13 +81,118 @@ type Transfer = {
     id: string;
     to_staff_id: string;
     to_staff_name: string;
+    from_staff_name: string;
     items: TransferItem[];
     date: Timestamp;
     status: 'pending' | 'completed' | 'cancelled';
 }
 
+function ReportWasteTab({ products, user, onWasteReported }: { products: Product[], user: User | null, onWasteReported: () => void }) {
+    const { toast } = useToast();
+    const [productId, setProductId] = useState("");
+    const [quantity, setQuantity] = useState<number | string>(1);
+    const [reason, setReason] = useState("");
+    const [notes, setNotes] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const selectedProduct = useMemo(() => products.find(p => p.id === productId), [productId, products]);
+
+    const handleSubmit = async () => {
+        if (!productId || !quantity || !reason || !user) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fill all required fields.' });
+            return;
+        }
+
+        if (selectedProduct && Number(quantity) > selectedProduct.stock) {
+            toast({ variant: 'destructive', title: 'Error', description: `Cannot report more waste than available stock (${selectedProduct.stock}).` });
+            return;
+        }
+
+        setIsSubmitting(true);
+        const result = await handleReportWaste({
+            productId,
+            productName: selectedProduct?.name || 'Unknown Product',
+            quantity: Number(quantity),
+            reason,
+            notes
+        }, user);
+
+        if (result.success) {
+            toast({ title: 'Success', description: 'Waste reported successfully. Inventory has been updated.' });
+            setProductId("");
+            setQuantity(1);
+            setReason("");
+            setNotes("");
+            onWasteReported(); // Callback to refresh product list
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Report Spoiled or Damaged Stock</CardTitle>
+                <CardDescription>
+                    Use this form to report any items that are no longer sellable. This will deduct the items from the main inventory.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                 <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <Label htmlFor="waste-product">Product</Label>
+                        <Select value={productId} onValueChange={setProductId}>
+                            <SelectTrigger id="waste-product">
+                                <SelectValue placeholder="Select a product" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {products.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                    {p.name} (Stock: {p.stock})
+                                </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="waste-quantity">Quantity Wasted</Label>
+                        <Input id="waste-quantity" type="number" min="1" value={quantity} onChange={e => setQuantity(Number(e.target.value))} />
+                    </div>
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="waste-reason">Reason for Waste</Label>
+                    <Select value={reason} onValueChange={setReason}>
+                        <SelectTrigger id="waste-reason">
+                            <SelectValue placeholder="Select a reason" />
+                        </SelectTrigger>
+                        <SelectContent>
+                           <SelectItem value="Spoiled">Spoiled / Expired</SelectItem>
+                           <SelectItem value="Damaged">Damaged</SelectItem>
+                           <SelectItem value="Burnt">Burnt (Production)</SelectItem>
+                           <SelectItem value="Error">Error (Mistake)</SelectItem>
+                           <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="waste-notes">Additional Notes (Optional)</Label>
+                    <Textarea id="waste-notes" value={notes} onChange={e => setNotes(e.target.value)} />
+                </div>
+                <div className="flex justify-end">
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Submit Report
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function StockControlPage() {
   const { toast } = useToast();
+  const [user, setUser] = useState<User | null>(null);
   const [transferTo, setTransferTo] = useState("");
   const [isSalesRun, setIsSalesRun] = useState(false);
   const [isSalesRunDisabled, setIsSalesRunDisabled] = useState(false);
@@ -97,9 +208,7 @@ export default function StockControlPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchPageData = async () => {
         setIsLoading(true);
         try {
             const staffQuery = query(collection(db, "staff"), where("role", "in", ["Showroom Staff", "Delivery Staff", "Manager"]));
@@ -109,7 +218,23 @@ export default function StockControlPage() {
             const productsSnapshot = await getDocs(collection(db, "products"));
             setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
 
-            const transfersQuery = query(collection(db, "transfers"), orderBy("date", "desc"));
+            // Fetch transfers based on user role
+            const userStr = localStorage.getItem('loggedInUser');
+            if (!userStr) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
+                return;
+            }
+            const currentUser = JSON.parse(userStr);
+            setUser(currentUser);
+
+            let transfersQuery;
+            if (currentUser.role === 'Manager' || currentUser.role === 'Supervisor' || currentUser.role === 'Storekeeper') {
+                // Admins see all transfers
+                 transfersQuery = query(collection(db, "transfers"), orderBy("date", "desc"));
+            } else {
+                // Other staff see transfers initiated by them
+                 transfersQuery = query(collection(db, "transfers"), where('from_staff_id', '==', currentUser.staff_id), orderBy("date", "desc"));
+            }
             const transfersSnapshot = await getDocs(transfersQuery);
             setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer)));
 
@@ -119,8 +244,10 @@ export default function StockControlPage() {
         } finally {
             setIsLoading(false);
         }
-    }
-    fetchData();
+    };
+
+  useEffect(() => {
+    fetchPageData();
   }, [toast]);
 
   const handleTransferToChange = (staffId: string) => {
@@ -179,7 +306,7 @@ export default function StockControlPage() {
   };
 
   const handleSubmit = async () => {
-    if (!transferTo || items.some(i => !i.productId || !i.quantity)) {
+    if (!transferTo || items.some(i => !i.productId || !i.quantity) || !user) {
         toast({ variant: "destructive", title: "Error", description: "Please select a staff member and fill all item fields."});
         return;
     }
@@ -208,22 +335,15 @@ export default function StockControlPage() {
         items: items as TransferItem[],
     }
 
-    const result = await handleInitiateTransfer(transferData);
+    const result = await handleInitiateTransfer(transferData, user);
 
     if (result.success) {
         toast({ title: "Success", description: "Transfer initiated successfully." });
-        // Reset form
         setTransferTo("");
         setIsSalesRun(false);
         setNotes("");
         setItems([{ productId: "", quantity: 1 }]);
-        // Refetch transfers and products (for stock update)
-        const transfersQuery = query(collection(db, "transfers"), orderBy("date", "desc"));
-        const transfersSnapshot = await getDocs(transfersQuery);
-        setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer)));
-
-        const productsSnapshot = await getDocs(collection(db, "products"));
-        setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
+        fetchPageData(); // Refetch all data
 
     } else {
         toast({ variant: "destructive", title: "Error", description: result.error });
@@ -232,6 +352,10 @@ export default function StockControlPage() {
     setIsSubmitting(false);
   };
 
+  const pendingTransfers = useMemo(() => initiatedTransfers.filter(t => t.status === 'pending'), [initiatedTransfers]);
+  const userRole = user?.role;
+  const canInitiateTransfer = userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper';
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
@@ -239,9 +363,11 @@ export default function StockControlPage() {
       </div>
       <Tabs defaultValue="initiate-transfer">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="initiate-transfer">
-            <Send className="mr-2 h-4 w-4" /> Initiate Transfer
-          </TabsTrigger>
+            {canInitiateTransfer && (
+                <TabsTrigger value="initiate-transfer">
+                    <Send className="mr-2 h-4 w-4" /> Initiate Transfer
+                </TabsTrigger>
+            )}
           <TabsTrigger value="prod-requests">
             <Wrench className="mr-2 h-4 w-4" /> Prod Requests
           </TabsTrigger>
@@ -253,132 +379,137 @@ export default function StockControlPage() {
           </TabsTrigger>
           <TabsTrigger value="pending-transfers" className="relative">
             <Hourglass className="mr-2 h-4 w-4" /> Pending Transfers
-            {initiatedTransfers.filter(t => t.status === 'pending').length > 0 && (
+            {pendingTransfers.length > 0 && (
                  <div className="absolute top-1 right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {initiatedTransfers.filter(t => t.status === 'pending').length}
+                    {pendingTransfers.length}
                 </div>
             )}
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="initiate-transfer">
-          <Card>
-            <CardHeader>
-              <CardTitle>Transfer Stock to Sales Floor</CardTitle>
-              <CardDescription>
-                Initiate a transfer of finished products from the main store to a
-                sales staff member.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                 <div className="space-y-2">
-                    <Label htmlFor="transfer-to">Transfer to</Label>
-                    <Select value={transferTo} onValueChange={handleTransferToChange} disabled={isLoading}>
-                      <SelectTrigger id="transfer-to">
-                        <SelectValue placeholder="Select a staff member" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {staff.map((s) => (
-                          <SelectItem key={s.staff_id} value={s.staff_id}>
-                            {s.name} ({s.role})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                 </div>
-                 <div className="flex items-end pb-2">
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="sales-run" checked={isSalesRun} onCheckedChange={(checked) => setIsSalesRun(checked as boolean)} disabled={isSalesRunDisabled}/>
-                        <div className="grid gap-1.5 leading-none">
-                            <label
-                            htmlFor="sales-run"
-                            className={cn("text-sm font-medium leading-none", isSalesRunDisabled ? "text-muted-foreground" : "peer-disabled:cursor-not-allowed peer-disabled:opacity-70")}
-                            >
-                            This is for a sales run
-                            </label>
-                            <p className="text-sm text-muted-foreground">
-                            The recipient will manage sales for these items.
-                            </p>
-                        </div>
-                    </div>
-                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Items to Transfer</Label>
-                <div className="space-y-2">
-                  {items.map((item, index) => (
-                    <div
-                      key={index}
-                      className="grid grid-cols-[1fr_120px_auto] gap-2 items-center"
-                    >
-                      <Select
-                        value={item.productId}
-                        onValueChange={(value) =>
-                          handleItemChange(index, "productId", value)
-                        }
-                        disabled={isLoading}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a product" />
+         {canInitiateTransfer && (
+            <TabsContent value="initiate-transfer">
+            <Card>
+                <CardHeader>
+                <CardTitle>Transfer Stock to Sales Floor</CardTitle>
+                <CardDescription>
+                    Initiate a transfer of finished products from the main store to a
+                    sales staff member.
+                </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <Label htmlFor="transfer-to">Transfer to</Label>
+                        <Select value={transferTo} onValueChange={handleTransferToChange} disabled={isLoading}>
+                        <SelectTrigger id="transfer-to">
+                            <SelectValue placeholder="Select a staff member" />
                         </SelectTrigger>
                         <SelectContent>
-                          {products.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name} (Stock: {p.stock})
+                            {staff.map((s) => (
+                            <SelectItem key={s.staff_id} value={s.staff_id}>
+                                {s.name} ({s.role})
                             </SelectItem>
-                          ))}
+                            ))}
                         </SelectContent>
-                      </Select>
-                      <Input
-                        type="number"
-                        placeholder="Qty"
-                        min="1"
-                        value={item.quantity || ''}
-                        onChange={(e) =>
-                          handleItemChange(index, "quantity", e.target.value)
-                        }
-                      />
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => handleRemoveItem(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                        </Select>
                     </div>
-                  ))}
+                    <div className="flex items-end pb-2">
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="sales-run" checked={isSalesRun} onCheckedChange={(checked) => setIsSalesRun(checked as boolean)} disabled={isSalesRunDisabled}/>
+                            <div className="grid gap-1.5 leading-none">
+                                <label
+                                htmlFor="sales-run"
+                                className={cn("text-sm font-medium leading-none", isSalesRunDisabled ? "text-muted-foreground" : "peer-disabled:cursor-not-allowed peer-disabled:opacity-70")}
+                                >
+                                This is for a sales run
+                                </label>
+                                <p className="text-sm text-muted-foreground">
+                                The recipient will manage sales for these items.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={handleAddItem}
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Item
-                </Button>
-              </div>
-              <div className="space-y-2">
-                 <Label htmlFor="notes">Notes (Optional)</Label>
-                 <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handleSubmit} disabled={isSubmitting || isLoading}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                    Submit Transfer
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
+                <div className="space-y-2">
+                    <Label>Items to Transfer</Label>
+                    <div className="space-y-2">
+                    {items.map((item, index) => (
+                        <div
+                        key={index}
+                        className="grid grid-cols-[1fr_120px_auto] gap-2 items-center"
+                        >
+                        <Select
+                            value={item.productId}
+                            onValueChange={(value) =>
+                            handleItemChange(index, "productId", value)
+                            }
+                            disabled={isLoading}
+                        >
+                            <SelectTrigger>
+                            <SelectValue placeholder="Select a product" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            {products.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                {p.name} (Stock: {p.stock})
+                                </SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <Input
+                            type="number"
+                            placeholder="Qty"
+                            min="1"
+                            value={item.quantity || ''}
+                            onChange={(e) =>
+                            handleItemChange(index, "quantity", e.target.value)
+                            }
+                        />
+                        <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => handleRemoveItem(index)}
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                        </div>
+                    ))}
+                    </div>
+                    <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={handleAddItem}
+                    >
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+                    </Button>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="notes">Notes (Optional)</Label>
+                    <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                </div>
+                <div className="flex justify-end">
+                    <Button onClick={handleSubmit} disabled={isSubmitting || isLoading}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Submit Transfer
+                    </Button>
+                </div>
+                </CardContent>
+            </Card>
+            </TabsContent>
+         )}
+         <TabsContent value="report-waste">
+            <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
+         </TabsContent>
       </Tabs>
 
       <Card>
         <CardHeader>
             <div className="flex justify-between items-center">
                 <div>
-                    <CardTitle>My Initiated Transfers</CardTitle>
-                    <CardDescription>A log of transfers you have initiated.</CardDescription>
+                    <CardTitle>My Stock Movement Log</CardTitle>
+                    <CardDescription>A log of transfers you have initiated or received.</CardDescription>
                 </div>
                 <Popover>
                     <PopoverTrigger asChild>
@@ -423,6 +554,7 @@ export default function StockControlPage() {
                 <TableHeader>
                     <TableRow>
                         <TableHead>Date</TableHead>
+                        <TableHead>From</TableHead>
                         <TableHead>To</TableHead>
                         <TableHead>Items</TableHead>
                         <TableHead>Status</TableHead>
@@ -431,7 +563,7 @@ export default function StockControlPage() {
                 <TableBody>
                     {isLoading ? (
                          <TableRow>
-                            <TableCell colSpan={4} className="h-24 text-center">
+                            <TableCell colSpan={5} className="h-24 text-center">
                                 <Loader2 className="h-8 w-8 animate-spin"/>
                             </TableCell>
                         </TableRow>
@@ -439,6 +571,7 @@ export default function StockControlPage() {
                         initiatedTransfers.map((transfer) => (
                              <TableRow key={transfer.id}>
                                 <TableCell>{transfer.date ? format(transfer.date.toDate(), 'PPpp') : 'N/A'}</TableCell>
+                                <TableCell>{transfer.from_staff_name}</TableCell>
                                 <TableCell>{transfer.to_staff_name}</TableCell>
                                 <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
                                 <TableCell><Badge variant="secondary">{transfer.status}</Badge></TableCell>
@@ -446,7 +579,7 @@ export default function StockControlPage() {
                         ))
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={4} className="h-24 text-center">No transfers initiated yet.</TableCell>
+                            <TableCell colSpan={5} className="h-24 text-center">No stock movements recorded yet.</TableCell>
                         </TableRow>
                     )}
                 </TableBody>
