@@ -22,7 +22,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { format, subDays, startOfWeek } from "date-fns";
+import { format, startOfWeek } from "date-fns";
 
 const chartConfig = {
   days: {
@@ -61,7 +61,7 @@ export default function AttendancePage() {
         setIsLoading(true);
         
         try {
-            const staffSnapshot = await getDocs(collection(db, 'staff'));
+            const staffSnapshot = await getDocs(query(collection(db, 'staff'), where('role', '!=', 'Developer')));
             const staffMap = new Map(staffSnapshot.docs.map(doc => [doc.id, doc.data().name]));
 
             // Fetch today's attendance
@@ -106,7 +106,6 @@ export default function AttendancePage() {
             });
             
             const chartData = Array.from(staffMap.entries())
-                .filter(([id, name]) => name !== 'Gabriel Developer')
                 .map(([staffId, name]) => ({
                     name: name.split(' ')[0], // Use first name for chart
                     days: attendanceByStaff[staffId]?.size || 0,
@@ -211,6 +210,7 @@ export default function AttendancePage() {
                             axisLine={false}
                             tickMargin={10}
                             allowDecimals={false}
+                            domain={[0, 5]}
                          />
                         <ChartTooltip
                         cursor={false}
