@@ -81,6 +81,9 @@ const seedData = {
     { id: "sup_os_2", name: "Bread Wrappers", stock: 1000, unit: 'pcs', costPerUnit: 10.00, category: "Packaging" },
     { id: "sup_os_3", name: "Shopping Bags", stock: 500, unit: 'pcs', costPerUnit: 20.00, category: "Packaging" },
     { id: "sup_os_4", name: "Disinfectant", stock: 5, unit: 'L', costPerUnit: 5000.00, category: "Cleaning" },
+  ],
+  supply_logs: [
+    // Placeholder for future seeded logs if needed
   ]
 };
 
@@ -131,11 +134,15 @@ export async function seedDatabase(): Promise<ActionResult> {
         batch.set(docRef, supply);
     });
 
-    // We will create an empty "orders" collection so it exists, but not seed any orders.
-    // This is a placeholder for where completed orders will go.
-    const emptyOrderRef = doc(collection(db, "orders"));
-    batch.set(emptyOrderRef, { placeholder: true });
-    batch.delete(emptyOrderRef); // Delete it right away, just to ensure the collection path is created if it doesn't exist.
+    // We will create empty collections so they exist, but not seed any orders/logs.
+    // This is a placeholder for where completed data will go.
+    const collectionsToEnsure = ["orders", "supply_logs"];
+    for (const coll of collectionsToEnsure) {
+        const emptyDocRef = doc(collection(db, coll));
+        batch.set(emptyDocRef, { placeholder: true });
+        batch.delete(emptyDocRef); // Delete it right away, just to ensure the collection path is created if it doesn't exist.
+    }
+
 
     await batch.commit();
 
@@ -151,7 +158,7 @@ export async function seedDatabase(): Promise<ActionResult> {
 export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
-    const collectionsToClear = ['products', 'staff', 'promotions', 'orders', 'suppliers', 'recipes', 'ingredients', 'other_supplies'];
+    const collectionsToClear = ['products', 'staff', 'promotions', 'orders', 'suppliers', 'recipes', 'ingredients', 'other_supplies', 'supply_logs'];
     const batch = writeBatch(db);
 
     for (const collectionName of collectionsToClear) {

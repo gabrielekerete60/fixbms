@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -278,6 +278,7 @@ function SupplierDetail({ supplier, onBack, onRefresh }: { supplier: Supplier, o
     const [supplyLogs, setSupplyLogs] = useState<SupplyLog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
 
     useEffect(() => {
         const fetchRelatedData = async () => {
@@ -300,6 +301,13 @@ function SupplierDetail({ supplier, onBack, onRefresh }: { supplier: Supplier, o
         };
         fetchRelatedData();
     }, [supplier.id, toast]);
+
+    const filteredLogs = useMemo(() => {
+        return supplyLogs.filter(log => 
+            log.ingredientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            log.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [supplyLogs, searchTerm]);
 
     const handleSaveLog = async (logData: Omit<SupplyLog, 'id' | 'supplierName'>) => {
         try {
@@ -359,8 +367,16 @@ function SupplierDetail({ supplier, onBack, onRefresh }: { supplier: Supplier, o
                 <TabsContent value="logs">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Supply Log</CardTitle>
-                            <CardDescription>History of all supplies delivered by {supplier.name}.</CardDescription>
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <CardTitle>Supply Log</CardTitle>
+                                    <CardDescription>History of all supplies delivered by {supplier.name}.</CardDescription>
+                                </div>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                    <Input placeholder="Search logs..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <Table>
@@ -376,8 +392,8 @@ function SupplierDetail({ supplier, onBack, onRefresh }: { supplier: Supplier, o
                                 <TableBody>
                                     {isLoading ? (
                                         <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                    ) : supplyLogs.length > 0 ? (
-                                        supplyLogs.map(log => (
+                                    ) : filteredLogs.length > 0 ? (
+                                        filteredLogs.map(log => (
                                             <TableRow key={log.id}>
                                                 <TableCell>{new Date(log.date).toLocaleDateString()}</TableCell>
                                                 <TableCell>{log.ingredientName}</TableCell>
