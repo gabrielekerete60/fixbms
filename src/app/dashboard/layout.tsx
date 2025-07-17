@@ -178,8 +178,8 @@ export default function DashboardLayout({
      {
       icon: Users2, label: "Staff", sublinks: [
         { href: "/dashboard/staff/management", label: "Staff Management" },
-        { href: "#", label: "Attendance" },
-        { href: "#", label: "Payroll" },
+        { href: "/dashboard/staff/attendance", label: "Attendance" },
+        { href: "/dashboard/staff/payroll", label: "Payroll" },
       ]
     },
     { href: "#", icon: Car, label: "Deliveries" },

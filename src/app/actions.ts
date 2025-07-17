@@ -1,3 +1,4 @@
+
 "use server";
 
 import { doc, getDoc } from "firebase/firestore";
@@ -38,7 +39,7 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
     }
     
     if (!userData.is_active) {
-        return { success: false, error: "This account is inactive." };
+        return { success: false, error: "Invalid Staff ID or password." };
     }
 
     // In a real app, you would create a session here (e.g., using cookies or JWTs)

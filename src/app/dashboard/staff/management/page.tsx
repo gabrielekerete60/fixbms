@@ -67,8 +67,12 @@ type Staff = {
   email: string;
   role: string;
   is_active: boolean;
-  salary: number;
+  pay_type: 'Salary' | 'Hourly';
+  pay_rate: number;
   password?: string;
+  timezone?: string;
+  bank_name?: string;
+  account_number?: string;
 };
 
 const getStatusVariant = (status: boolean) => {
@@ -90,21 +94,40 @@ function StaffDialog({
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [role, setRole] = useState("");
-    const [salary, setSalary] = useState(0);
+    const [payType, setPayType] = useState<Staff['pay_type']>('Salary');
+    const [payRate, setPayRate] = useState(0);
+    const [password, setPassword] = useState("");
+    const [timezone, setTimezone] = useState("Africa/Lagos");
+    const [bankName, setBankName] = useState("");
+    const [accountNumber, setAccountNumber] = useState("");
     const [isActive, setIsActive] = useState(true);
+
+    const availableRoles = [
+        "Manager", "Supervisor", "Accountant", "Showroom Staff", "Delivery Staff", "Baker", "Cleaner", "Storekeeper"
+    ];
 
     useEffect(() => {
         if (staff) {
             setName(staff.name || "");
             setEmail(staff.email || "");
             setRole(staff.role || "");
-            setSalary(staff.salary || 0);
+            setPayType(staff.pay_type || "Salary");
+            setPayRate(staff.pay_rate || 0);
+            setPassword(staff.password || "");
+            setTimezone(staff.timezone || "Africa/Lagos");
+            setBankName(staff.bank_name || "");
+            setAccountNumber(staff.account_number || "");
             setIsActive(staff.is_active === undefined ? true : staff.is_active);
         } else {
             setName("");
             setEmail("");
             setRole("");
-            setSalary(0);
+            setPayType("Salary");
+            setPayRate(0);
+            setPassword("");
+            setTimezone("Africa/Lagos");
+            setBankName("");
+            setAccountNumber("");
             setIsActive(true);
         }
     }, [staff]);
@@ -114,12 +137,23 @@ function StaffDialog({
             toast({ variant: 'destructive', title: 'Error', description: 'Staff name, email and role are required.' });
             return;
         }
+        if (!staff?.staff_id && !password) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Password is required for new staff members.' });
+            return;
+        }
+
         onSave({ 
             name, 
             email,
             role, 
-            salary: Number(salary),
-            is_active: isActive
+            pay_type: payType,
+            pay_rate: Number(payRate),
+            // Only include password if it has been set, to avoid overwriting with empty string
+            ...(password && { password }),
+            timezone,
+            bank_name: bankName,
+            account_number: accountNumber,
+            is_active: isActive,
         });
         onOpenChange(false);
     };
@@ -128,34 +162,75 @@ function StaffDialog({
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                    <DialogTitle>{staff?.staff_id ? 'Edit Staff Member' : 'Add New Staff Member'}</DialogTitle>
+                    <DialogTitle>{staff?.staff_id ? `Edit ${staff.name}` : 'Add New Staff Member'}</DialogTitle>
                     <DialogDescription>
-                        {staff?.staff_id ? 'Update the details of this staff member.' : 'Fill in the details for the new staff member.'}
+                        {staff?.staff_id ? 'Update the details for this staff member.' : 'Fill in the details for the new staff member.'}
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
+                <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="name" className="text-right">Name</Label>
+                        <Label htmlFor="name" className="text-right">Full Name</Label>
                         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="email" className="text-right">Email</Label>
+                        <Label htmlFor="email" className="text-right">Email Address</Label>
                         <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="col-span-3" />
                     </div>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="role" className="text-right">Role</Label>
-                        <Input id="role" value={role} onChange={(e) => setRole(e.target.value)} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="salary" className="text-right">Salary (₦/mo)</Label>
-                        <Input id="salary" type="number" value={salary} onChange={(e) => setSalary(parseFloat(e.target.value))} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="is_active" className="text-right">Status</Label>
-                        <div className="col-span-3 flex items-center space-x-2">
-                             <Checkbox id="is_active" checked={isActive} onCheckedChange={(checked) => setIsActive(checked as boolean)} />
-                             <label htmlFor="is_active" className="text-sm font-medium leading-none">Active</label>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="role">Role</Label>
+                            <Select value={role} onValueChange={setRole}>
+                                <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
+                                <SelectContent>
+                                    {availableRoles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
                         </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="pay_type">Pay Type</Label>
+                            <Select value={payType} onValueChange={(v) => setPayType(v as Staff['pay_type'])}>
+                                <SelectTrigger><SelectValue placeholder="Select pay type" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Salary">Salary</SelectItem>
+                                    <SelectItem value="Hourly">Hourly</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="pay_rate">Pay Rate (NGN)</Label>
+                        <Input id="pay_rate" type="number" value={payRate} onChange={(e) => setPayRate(parseFloat(e.target.value))} />
+                         <p className="text-xs text-muted-foreground px-1">Enter hourly rate or monthly salary based on pay type.</p>
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="password">Password</Label>
+                        <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={staff?.staff_id ? "Leave blank to keep unchanged" : "Set initial password"} />
+                    </div>
+                     <div className="grid gap-2">
+                        <Label htmlFor="timezone">Timezone</Label>
+                        <Select value={timezone} onValueChange={setTimezone}>
+                            <SelectTrigger><SelectValue placeholder="Select timezone" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Africa/Lagos">Africa/Lagos</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2 pt-2">
+                        <h3 className="font-medium">Bank Details (for Payroll)</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="bank_name">Bank Name</Label>
+                                <Input id="bank_name" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="account_number">Account Number</Label>
+                                <Input id="account_number" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+                            </div>
+                        </div>
+                    </div>
+                     <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox id="is_active" checked={isActive} onCheckedChange={(checked) => setIsActive(checked as boolean)} />
+                        <label htmlFor="is_active" className="text-sm font-medium leading-none">Is Active</label>
                     </div>
                 </div>
                 <DialogFooter>
@@ -180,7 +255,9 @@ export default function StaffManagementPage() {
         try {
             const staffCollection = collection(db, "staff");
             const snapshot = await getDocs(staffCollection);
-            const list = snapshot.docs.map(doc => ({ staff_id: doc.id, ...doc.data() })) as Staff[];
+            const list = snapshot.docs
+                .map(doc => ({ staff_id: doc.id, ...doc.data() }))
+                .filter(staff => staff.role !== 'Developer') as Staff[];
             setStaffList(list);
         } catch (error) {
             console.error("Error fetching staff:", error);
@@ -203,8 +280,10 @@ export default function StaffManagementPage() {
             } else {
                 // Generate a new staff ID
                 const newId = (Math.floor(Math.random() * 900000) + 100000).toString();
-                const dataToSave = { ...staffData, staff_id: newId, password: "password" }; // Default password
-                await addDoc(collection(db, "staff"), dataToSave);
+                // Firestore doesn't store the ID in the document data by default,
+                // so we write to a doc with a specific ID.
+                const newStaffRef = doc(db, "staff", newId);
+                await updateDoc(newStaffRef, staffData);
                 toast({ title: "Success", description: "Staff member created successfully." });
             }
             fetchStaff();
@@ -300,7 +379,7 @@ export default function StaffManagementPage() {
                                                 {staff.is_active ? 'Active' : 'Inactive'}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell>₦{staff.salary.toLocaleString()}/mo</TableCell>
+                                        <TableCell>₦{staff.pay_rate.toLocaleString()}/{staff.pay_type === 'Salary' ? 'mo' : 'hr'}</TableCell>
                                         <TableCell>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
