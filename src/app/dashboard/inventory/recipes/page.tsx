@@ -63,6 +63,8 @@ type Product = {
 type Ingredient = {
     id: string;
     name: string;
+    costPerUnit: number;
+    unit: string;
 }
 
 type RecipeIngredient = {
@@ -246,7 +248,7 @@ export default function RecipesPage() {
 
             const ingredientsCollection = collection(db, "ingredients");
             const ingredientSnapshot = await getDocs(ingredientsCollection);
-            const ingredientsList = ingredientSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name })) as Ingredient[];
+            const ingredientsList = ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[];
             setIngredients(ingredientsList);
 
         } catch (error) {
@@ -260,6 +262,26 @@ export default function RecipesPage() {
     useEffect(() => {
         fetchAllData();
     }, []);
+
+    const recipesWithCost = useMemo(() => {
+        const ingredientsMap = new Map(ingredients.map(i => [i.id, i]));
+        return recipes.map(recipe => {
+            const cost = recipe.ingredients.reduce((acc, currentIng) => {
+                const ingredientData = ingredientsMap.get(currentIng.ingredientId);
+                if (!ingredientData) return acc;
+                // This is a naive conversion, a proper system would have unit conversion rates
+                let quantityInBaseUnit = currentIng.quantity;
+                if (ingredientData.unit.toLowerCase() === 'kg' && currentIng.unit.toLowerCase() === 'g') {
+                    quantityInBaseUnit = currentIng.quantity / 1000;
+                } else if (ingredientData.unit.toLowerCase() === 'l' && currentIng.unit.toLowerCase() === 'ml') {
+                     quantityInBaseUnit = currentIng.quantity / 1000;
+                }
+                
+                return acc + (ingredientData.costPerUnit * quantityInBaseUnit);
+            }, 0);
+            return { ...recipe, cost };
+        });
+    }, [recipes, ingredients]);
 
     const handleSaveRecipe = async (recipeData: Omit<Recipe, 'id'>) => {
         try {
@@ -356,22 +378,24 @@ export default function RecipesPage() {
                                         <TableHead>Recipe Name</TableHead>
                                         <TableHead>Makes Product</TableHead>
                                         <TableHead>No. of Ingredients</TableHead>
+                                        <TableHead>Total Recipe Cost</TableHead>
                                         <TableHead><span className="sr-only">Actions</span></TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {isLoading ? (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="h-24 text-center">
+                                            <TableCell colSpan={5} className="h-24 text-center">
                                                 <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                                             </TableCell>
                                         </TableRow>
-                                    ) : recipes.length > 0 ? (
-                                        recipes.map(recipe => (
+                                    ) : recipesWithCost.length > 0 ? (
+                                        recipesWithCost.map(recipe => (
                                             <TableRow key={recipe.id}>
                                                 <TableCell className="font-medium">{recipe.name}</TableCell>
                                                 <TableCell>{recipe.productName}</TableCell>
                                                 <TableCell>{recipe.ingredients.length} items</TableCell>
+                                                <TableCell>₦{recipe.cost.toFixed(2)}</TableCell>
                                                 <TableCell>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
@@ -392,7 +416,7 @@ export default function RecipesPage() {
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="h-24 text-center">
+                                            <TableCell colSpan={5} className="h-24 text-center">
                                                 No recipes found. Create one to get started.
                                             </TableCell>
                                         </TableRow>

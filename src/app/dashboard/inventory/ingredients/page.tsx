@@ -8,6 +8,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter
 } from "@/components/ui/card";
 import {
   Table,
@@ -16,9 +17,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, ChevronsUp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +49,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
@@ -55,6 +58,8 @@ import { CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 type Ingredient = {
   id: string;
@@ -130,7 +135,7 @@ function IngredientDialog({
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="stock" className="text-right">Stock</Label>
-                        <Input id="stock" type="number" value={stock} onChange={(e) => setStock(parseFloat(e.target.value))} className="col-span-3" />
+                        <Input id="stock" type="number" step="0.001" value={stock} onChange={(e) => setStock(parseFloat(e.target.value))} className="col-span-3" />
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="unit" className="text-right">Unit</Label>
@@ -175,12 +180,69 @@ function IngredientDialog({
     );
 }
 
+function RequestStockDialog({
+  isOpen,
+  onOpenChange,
+  ingredients
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  ingredients: Ingredient[];
+}) {
+    const { toast } = useToast();
+    const handleSubmit = () => {
+        // Placeholder for future implementation
+        toast({ title: 'Request Sent', description: 'Your stock increase request has been sent for approval.' });
+        onOpenChange(false);
+    }
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Request Stock Increase</DialogTitle>
+                    <DialogDescription>
+                        Send a request to an accountant to confirm new stock and set its cost.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="ingredient">Ingredient</Label>
+                        <Select>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select an ingredient" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {ingredients.map(ing => (
+                                    <SelectItem key={ing.id} value={ing.id}>{ing.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="quantity">Quantity Received</Label>
+                        <Input id="quantity" type="number" step="0.001" placeholder="0.000" />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="notes">Notes (Optional)</Label>
+                        <Textarea id="notes" placeholder="e.g., From supplier X, Invoice #123" />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit}>Send Request</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function IngredientsPage() {
     const { toast } = useToast();
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingIngredient, setEditingIngredient] = useState<Partial<Ingredient> | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isRequestStockDialogOpen, setIsRequestStockDialogOpen] = useState(false);
     const [ingredientToDelete, setIngredientToDelete] = useState<Ingredient | null>(null);
 
     const fetchIngredients = async () => {
@@ -243,13 +305,29 @@ export default function IngredientsPage() {
         setIsDialogOpen(true);
     };
 
+    const ingredientsWithTotal = useMemo(() => {
+        return ingredients.map(ing => ({
+            ...ing,
+            totalCost: ing.stock * ing.costPerUnit,
+        }))
+    }, [ingredients]);
+    
+    const grandTotalCost = useMemo(() => {
+        return ingredientsWithTotal.reduce((acc, ing) => acc + ing.totalCost, 0);
+    }, [ingredientsWithTotal]);
+
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold font-headline">Ingredients</h1>
-                <Button onClick={openAddDialog}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Ingredient
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => setIsRequestStockDialogOpen(true)}>
+                        <ChevronsUp className="mr-2 h-4 w-4" /> Request Stock Increase
+                    </Button>
+                    <Button onClick={openAddDialog}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Ingredient
+                    </Button>
+                </div>
             </div>
 
             <IngredientDialog
@@ -257,6 +335,12 @@ export default function IngredientsPage() {
                 onOpenChange={setIsDialogOpen}
                 onSave={handleSaveIngredient}
                 ingredient={editingIngredient}
+            />
+
+            <RequestStockDialog 
+                isOpen={isRequestStockDialogOpen}
+                onOpenChange={setIsRequestStockDialogOpen}
+                ingredients={ingredients}
             />
 
             <Card>
@@ -273,6 +357,7 @@ export default function IngredientsPage() {
                                 <TableHead>Ingredient</TableHead>
                                 <TableHead>Stock</TableHead>
                                 <TableHead>Cost/Unit</TableHead>
+                                <TableHead>Total Cost</TableHead>
                                 <TableHead>Expiry</TableHead>
                                 <TableHead><span className="sr-only">Actions</span></TableHead>
                             </TableRow>
@@ -280,16 +365,17 @@ export default function IngredientsPage() {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">
+                                    <TableCell colSpan={6} className="h-24 text-center">
                                         <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                                     </TableCell>
                                 </TableRow>
-                            ) : ingredients.length > 0 ? (
-                                ingredients.map(ingredient => (
+                            ) : ingredientsWithTotal.length > 0 ? (
+                                ingredientsWithTotal.map(ingredient => (
                                     <TableRow key={ingredient.id}>
                                         <TableCell className="font-medium">{ingredient.name}</TableCell>
-                                        <TableCell>{ingredient.stock.toFixed(2)} {ingredient.unit}</TableCell>
+                                        <TableCell>{ingredient.stock.toFixed(3)} {ingredient.unit}</TableCell>
                                         <TableCell>₦{ingredient.costPerUnit.toFixed(2)}</TableCell>
+                                        <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>
                                         <TableCell>{ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
                                         <TableCell>
                                             <DropdownMenu>
@@ -302,7 +388,6 @@ export default function IngredientsPage() {
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                     <DropdownMenuItem onSelect={() => openEditDialog(ingredient)}>Edit</DropdownMenuItem>
-                                                    <DropdownMenuItem>Adjust Stock</DropdownMenuItem>
                                                     <DropdownMenuSeparator />
                                                     <DropdownMenuItem className="text-destructive" onSelect={() => setIngredientToDelete(ingredient)}>Delete</DropdownMenuItem>
                                                 </DropdownMenuContent>
@@ -312,12 +397,19 @@ export default function IngredientsPage() {
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">
+                                    <TableCell colSpan={6} className="h-24 text-center">
                                         No ingredients found.
                                     </TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
+                         <TableFooter>
+                            <TableRow>
+                                <TableCell colSpan={3} className="font-bold text-right">Grand Total</TableCell>
+                                <TableCell className="font-bold">₦{grandTotalCost.toFixed(2)}</TableCell>
+                                <TableCell colSpan={2}></TableCell>
+                            </TableRow>
+                        </TableFooter>
                     </Table>
                 </CardContent>
             </Card>
