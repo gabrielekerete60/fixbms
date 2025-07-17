@@ -38,6 +38,20 @@ const seedData = {
     { id: "promo_2", name: "Free Drink", description: "Buy any 2 loaves, get a free drink", type: "free_item", value: null, code: "DRINKUP", startDate: "2024-05-01", endDate: "2024-05-31", status: "Expired" },
     { id: "promo_3", name: "Jumbo Discount", description: "₦100 off Jumbo Loaf", type: "fixed_amount", value: 100, code: "JUMBO100", startDate: "2024-06-01", endDate: "2024-06-30", status: "Active" },
     { id: "promo_4", name: "New Customer", description: "15% off first order", type: "percentage", value: 15, code: "NEW15", startDate: "2024-07-01", endDate: "2024-07-31", status: "Scheduled" }
+  ],
+  suppliers: [
+    { id: "sup_1", name: "Flour Mills of Nigeria", contactPerson: "Mr. Adebayo", phone: "08012345678", email: "sales@fmnplc.com", address: "Apapa, Lagos", amountOwed: 500000, amountPaid: 450000 },
+    { id: "sup_2", name: "Dangote Sugar", contactPerson: "Hajiya Bello", phone: "08087654321", email: "sugar@dangote.com", address: "Ikeja, Lagos", amountOwed: 250000, amountPaid: 250000 },
+    { id: "sup_3", name: "Local Yeast Supplier", contactPerson: "Mama Chichi", phone: "07011223344", email: "chichisyeast@email.com", address: "Uyo Main Market", amountOwed: 50000, amountPaid: 20000 },
+  ],
+  recipes: [
+     { id: "rec_1", name: "Standard Family Loaf", description: "The recipe for our signature family loaf.", ingredients: [
+        { productId: "prod_1", productName: "Flour", quantity: 500, unit: "g" },
+        { productId: "prod_2", productName: "Yeast", quantity: 10, unit: "g" },
+        { productId: "prod_3", productName: "Sugar", quantity: 20, unit: "g" },
+        { productId: "prod_4", productName: "Salt", quantity: 5, unit: "g" },
+        { productId: "prod_6", productName: "Water", quantity: 300, unit: "ml" },
+     ] }
   ]
 };
 
@@ -46,21 +60,36 @@ export async function seedDatabase(): Promise<ActionResult> {
   try {
     const batch = writeBatch(db);
     
+    // Seed Products
     seedData.products.forEach((product) => {
       const docRef = doc(db, "products", product.id);
       batch.set(docRef, product);
     });
     
+    // Seed Staff
     seedData.staff.forEach((staffMember) => {
       const docRef = doc(db, "staff", staffMember.staff_id);
       batch.set(docRef, staffMember);
     });
 
+    // Seed Promotions
     seedData.promotions.forEach((promotion) => {
         const docRef = doc(db, "promotions", promotion.id);
         batch.set(docRef, promotion);
     });
     
+    // Seed Suppliers
+    seedData.suppliers.forEach((supplier) => {
+      const docRef = doc(db, "suppliers", supplier.id);
+      batch.set(docRef, supplier);
+    });
+
+    // Seed Recipes
+    seedData.recipes.forEach((recipe) => {
+      const docRef = doc(db, "recipes", recipe.id);
+      batch.set(docRef, recipe);
+    });
+
     // We will create an empty "orders" collection so it exists, but not seed any orders.
     // This is a placeholder for where completed orders will go.
     const emptyOrderRef = doc(collection(db, "orders"));
@@ -81,7 +110,7 @@ export async function seedDatabase(): Promise<ActionResult> {
 export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
-    const collectionsToClear = ['products', 'staff', 'promotions', 'orders'];
+    const collectionsToClear = ['products', 'staff', 'promotions', 'orders', 'suppliers', 'recipes'];
     const batch = writeBatch(db);
 
     for (const collectionName of collectionsToClear) {
