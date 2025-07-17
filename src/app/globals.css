@@ -4,33 +4,33 @@
 
 @layer base {
   :root {
-    --background: 60 56% 91%; /* Light Beige */
+    --background: 45 85% 95%; /* Lighter, creamier beige */
     --foreground: 25 25% 15%; /* Dark warm brown */
 
-    --card: 60 56% 94%;
+    --card: 35 100% 98%; /* Very light apricot */
     --card-foreground: 25 25% 15%;
 
-    --popover: 60 56% 94%;
+    --popover: 35 100% 98%;
     --popover-foreground: 25 25% 15%;
 
-    --primary: 340 48% 64%; /* Muted Rose */
-    --primary-foreground: 340 50% 10%;
+    --primary: 21 100% 77%; /* Soft Apricot */
+    --primary-foreground: 20 100% 20%;
 
-    --secondary: 24 100% 77%; /* Soft Apricot */
-    --secondary-foreground: 24 100% 20%;
+    --secondary: 340 60% 70%; /* Muted Rose */
+    --secondary-foreground: 340 50% 10%;
     
-    --muted: 60 30% 87%;
+    --muted: 45 60% 90%;
     --muted-foreground: 25 20% 35%;
 
-    --accent: 24 100% 77%; /* Soft Apricot */
-    --accent-foreground: 24 100% 20%;
+    --accent: 340 60% 70%; /* Muted Rose */
+    --accent-foreground: 340 50% 10%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 60 30% 84%;
-    --input: 60 30% 88%;
-    --ring: 340 48% 64%; /* Muted Rose */
+    --border: 30 80% 88%;
+    --input: 30 80% 92%;
+    --ring: 21 100% 77%; /* Soft Apricot */
 
     --radius: 0.5rem;
     --chart-1: 12 76% 61%;
@@ -42,32 +42,32 @@
  
   .dark {
     --background: 25 10% 10%; /* Dark Brown */
-    --foreground: 60 30% 92%; /* Light Beige-ish text */
+    --foreground: 45 30% 92%;
 
     --card: 25 10% 12%;
-    --card-foreground: 60 30% 92%;
+    --card-foreground: 45 30% 92%;
 
     --popover: 25 10% 12%;
-    --popover-foreground: 60 30% 92%;
+    --popover-foreground: 45 30% 92%;
 
-    --primary: 340 48% 64%; /* Muted Rose */
-    --primary-foreground: 340 50% 10%;
+    --primary: 21 100% 77%; /* Soft Apricot */
+    --primary-foreground: 20 100% 20%;
 
-    --secondary: 24 100% 77%; /* Soft Apricot */
-    --secondary-foreground: 24 100% 20%;
+    --secondary: 340 60% 70%; /* Muted Rose */
+    --secondary-foreground: 340 50% 10%;
     
     --muted: 25 10% 18%;
-    --muted-foreground: 60 20% 70%;
+    --muted-foreground: 45 20% 70%;
 
-    --accent: 24 100% 77%; /* Soft Apricot */
-    --accent-foreground: 24 100% 20%;
+    --accent: 340 60% 70%; /* Muted Rose */
+    --accent-foreground: 340 50% 10%;
 
     --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 25 10% 20%;
     --input: 25 10% 22%;
-    --ring: 340 48% 64%;
+    --ring: 21 100% 77%;
 
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;

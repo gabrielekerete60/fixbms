@@ -8,7 +8,6 @@ type ActionResult = {
   error?: string;
 };
 
-// Placeholder for seed data
 const seedData = {
   products: [
     { id: "prod_1", name: "Classic Sourdough", price: 8.50 },
@@ -16,8 +15,15 @@ const seedData = {
     { id: "prod_3", name: "Baguette", price: 5.00 },
   ],
   staff: [
-    { id: "123456", name: "Jane Doe", role: "Baker" },
-    { id: "654321", name: "John Smith", role: "Cashier" },
+    { staff_id: '000000', name: 'Gabriel Developer', password: 'DevPassword1!', role: 'developer', is_active: true, salary: 500000},
+    { staff_id: '100001', name: 'Chris Manager', password: 'ManagerPass1!', role: 'manager', is_active: true, salary: 350000},
+    { staff_id: '200002', name: 'Vic Supervisor', password: 'SupervisorPass1!', role: 'supervisor', is_active: true, salary: 250000},
+    { staff_id: '300003', name: 'Favour Accountant', password: '', role: 'accountant', is_active: true, salary: 200000},
+    { staff_id: '400004', name: 'Mfon Staff', password: 'StaffPass1!', role: 'showroom_staff', is_active: true, salary: 80000},
+    { staff_id: '400005', name: 'Akan Staff', password: 'StaffPass1!', role: 'delivery_staff', is_active: true, salary: 80000},
+    { staff_id: '500006', name: 'Blessing Baker', password: 'BakerPass1!', role: 'baker', is_active: true, salary: 150000},
+    { staff_id: '600007', name: 'John Cleaner', password: 'CleanerPass1!', role: 'cleaner', is_active: true, salary: 60000},
+    { staff_id: '700008', name: 'David Storekeeper', password: 'StorekeeperPass1!', role: 'storekeeper', is_active: true, salary: 100000},
   ]
 };
 
@@ -33,7 +39,7 @@ export async function seedDatabase(): Promise<ActionResult> {
     });
     
     seedData.staff.forEach((staffMember) => {
-      const docRef = doc(db, "staff", staffMember.id);
+      const docRef = doc(db, "staff", staffMember.staff_id);
       batch.set(docRef, staffMember);
     });
     
