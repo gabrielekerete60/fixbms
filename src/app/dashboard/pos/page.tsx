@@ -32,7 +32,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -78,6 +77,25 @@ type CompletedOrder = {
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
+
+function PaystackButton({ amount, email, onSucess, onClose }: { amount: number, email: string, onSucess: (ref: any) => void, onClose: () => void }) {
+    const paystackConfig = {
+        reference: (new Date()).getTime().toString(),
+        email: email,
+        amount: Math.round(amount * 100),
+        publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_48b78021e92f66d403c42ede714bffbb77959516',
+    };
+
+    const initializePayment = usePaystackPayment(paystackConfig);
+
+    return (
+        <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => initializePayment({onSuccess: onSucess, onClose: onClose})}>
+            <Wallet className="w-8 h-8"/>
+            <span>Pay with Paystack</span>
+        </Button>
+    )
+}
+
 
 export default function POSPage() {
   const { toast } = useToast();
@@ -245,15 +263,6 @@ export default function POSPage() {
     }
   }
 
-  const paystackConfig = {
-    reference: (new Date()).getTime().toString(),
-    email: "customer@example.com", // In a real app, get this from customer data
-    amount: Math.round(total * 100), // Amount in kobo
-    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_48b78021e92f66d403c42ede714bffbb77959516',
-  };
-
-  const initializePayment = usePaystackPayment(paystackConfig);
-
   const onPaystackSuccess = async (reference: any) => {
     console.log(reference);
     const completed = await completeOrder('Paystack');
@@ -275,11 +284,6 @@ export default function POSPage() {
       description: "The payment process was cancelled.",
     })
   };
-
-  const handlePaystackPayment = () => {
-    setIsCheckoutOpen(false);
-    initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose});
-  }
   
   const handlePrintReceipt = () => {
     window.print();
@@ -518,10 +522,12 @@ export default function POSPage() {
                         <CreditCard className="w-8 h-8"/>
                         <span>Pay with Card</span>
                     </Button>
-                    <Button variant="outline" className="h-20 flex-col gap-2" onClick={handlePaystackPayment}>
-                        <Wallet className="w-8 h-8"/>
-                        <span>Pay with Paystack</span>
-                    </Button>
+                    <PaystackButton
+                        amount={total}
+                        email={"customer@example.com"}
+                        onSucess={onPaystackSuccess}
+                        onClose={onPaystackClose}
+                    />
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsCheckoutOpen(false)}>Cancel</Button>
@@ -671,3 +677,5 @@ export default function POSPage() {
      </>
   );
 }
+
+    
