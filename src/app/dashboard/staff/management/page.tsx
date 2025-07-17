@@ -8,6 +8,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter
 } from "@/components/ui/card";
 import {
   Table,
@@ -247,12 +248,70 @@ function StaffDialog({
     );
 }
 
+function StaffDetailDialog({ staff, isOpen, onOpenChange }: { staff: Staff | null; isOpen: boolean; onOpenChange: (open: boolean) => void }) {
+    if (!staff) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{staff.name}</DialogTitle>
+                    <DialogDescription>{staff.role} - Staff ID: {staff.staff_id}</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="flex items-center gap-4">
+                        <Avatar className="h-16 w-16">
+                            <AvatarImage src={`https://placehold.co/64x64.png?text=${staff.name.charAt(0)}`} alt={staff.name} data-ai-hint="person face" />
+                            <AvatarFallback>{staff.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                        </Avatar>
+                        <div className="text-sm">
+                            <p><strong>Email:</strong> {staff.email}</p>
+                            <p><strong>Status:</strong> <Badge variant={getStatusVariant(staff.is_active)}>{staff.is_active ? 'Active' : 'Inactive'}</Badge></p>
+                            <p><strong>Timezone:</strong> {staff.timezone || 'Not set'}</p>
+                        </div>
+                    </div>
+                    
+                    <Card>
+                        <CardHeader className="p-4">
+                            <CardTitle className="text-base">Payment Information</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 pt-0 text-sm space-y-2">
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Pay Type:</span>
+                                <span>{staff.pay_type}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Pay Rate:</span>
+                                <span>₦{(staff.pay_rate || 0).toLocaleString()} / {staff.pay_type === 'Salary' ? 'month' : 'hour'}</span>
+                            </div>
+                             <div className="flex justify-between">
+                                <span className="text-muted-foreground">Bank Name:</span>
+                                <span>{staff.bank_name || 'Not set'}</span>
+                            </div>
+                             <div className="flex justify-between">
+                                <span className="text-muted-foreground">Account Number:</span>
+                                <span>{staff.account_number || 'Not set'}</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                </div>
+                <DialogFooter>
+                    <Button onClick={() => onOpenChange(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function StaffManagementPage() {
     const { toast } = useToast();
     const [staffList, setStaffList] = useState<Staff[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingStaff, setEditingStaff] = useState<Partial<Staff> | null>(null);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [viewingStaff, setViewingStaff] = useState<Staff | null>(null);
+    const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+    const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
     const [staffToDelete, setStaffToDelete] = useState<Staff | null>(null);
 
     const fetchStaff = async () => {
@@ -314,12 +373,17 @@ export default function StaffManagementPage() {
     
     const openAddDialog = () => {
         setEditingStaff({});
-        setIsDialogOpen(true);
+        setIsFormDialogOpen(true);
     };
 
     const openEditDialog = (staff: Staff) => {
         setEditingStaff(staff);
-        setIsDialogOpen(true);
+        setIsFormDialogOpen(true);
+    };
+    
+    const openDetailDialog = (staff: Staff) => {
+        setViewingStaff(staff);
+        setIsDetailDialogOpen(true);
     };
 
     return (
@@ -332,10 +396,16 @@ export default function StaffManagementPage() {
             </div>
 
             <StaffDialog
-                isOpen={isDialogOpen}
-                onOpenChange={setIsDialogOpen}
+                isOpen={isFormDialogOpen}
+                onOpenChange={setIsFormDialogOpen}
                 onSave={handleSaveStaff}
                 staff={editingStaff}
+            />
+
+            <StaffDetailDialog
+                staff={viewingStaff}
+                isOpen={isDetailDialogOpen}
+                onOpenChange={setIsDetailDialogOpen}
             />
 
             <Card className="flex-grow flex flex-col">
@@ -396,8 +466,8 @@ export default function StaffManagementPage() {
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                     <DropdownMenuItem onSelect={() => openEditDialog(staff)}>Edit</DropdownMenuItem>
-                                                    <DropdownMenuItem>View Details</DropdownMenuItem>
-                                                    <DropdownMenuItem>Pay Staff</DropdownMenuItem>
+                                                    <DropdownMenuItem onSelect={() => openDetailDialog(staff)}>View Details</DropdownMenuItem>
+                                                    <DropdownMenuItem disabled>Pay Staff</DropdownMenuItem>
                                                     <DropdownMenuSeparator />
                                                     <DropdownMenuItem className="text-destructive" onSelect={() => setStaffToDelete(staff)}>Delete</DropdownMenuItem>
                                                 </DropdownMenuContent>
@@ -434,5 +504,3 @@ export default function StaffManagementPage() {
         </div>
     );
 }
-
-    
