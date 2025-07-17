@@ -269,7 +269,6 @@ export default function POSPage() {
 
   const onPaystackClose = () => {
     console.log('closed');
-    setIsCheckoutOpen(true); // Re-open checkout if Paystack is closed
     toast({
       variant: 'destructive',
       title: "Payment Cancelled",
