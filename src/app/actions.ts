@@ -495,6 +495,35 @@ export async function postAnnouncement(message: string, user: { staff_id: string
         return { success: false, error: 'Failed to post announcement.' };
     }
 }
-    
 
+type ReportSubmission = {
+    subject: string;
+    reportType: string;
+    message: string;
+    user: { staff_id: string, name: string };
+};
+
+export async function submitReport(data: ReportSubmission): Promise<{ success: boolean; error?: string }> {
+    const { subject, reportType, message, user } = data;
+
+    if (!subject.trim() || !reportType || !message.trim()) {
+        return { success: false, error: "Please fill out all fields." };
+    }
+
+    try {
+        await addDoc(collection(db, 'reports'), {
+            subject,
+            reportType,
+            message,
+            staffId: user.staff_id,
+            staffName: user.name,
+            timestamp: serverTimestamp(),
+            status: 'new' // New, In Progress, Resolved
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error submitting report:", error);
+        return { success: false, error: "Failed to submit report." };
+    }
+}
     

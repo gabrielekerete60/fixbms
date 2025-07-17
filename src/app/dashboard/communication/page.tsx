@@ -9,13 +9,90 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { getAnnouncements, postAnnouncement, Announcement as AnnouncementType } from '@/app/actions';
+import { getAnnouncements, postAnnouncement, submitReport, Announcement as AnnouncementType } from '@/app/actions';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type User = {
     name: string;
     role: string;
     staff_id: string;
 };
+
+function ReportForm({ user, onReportSubmitted }: { user: User | null, onReportSubmitted: () => void }) {
+    const { toast } = useToast();
+    const [subject, setSubject] = useState('');
+    const [reportType, setReportType] = useState('');
+    const [message, setMessage] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!subject || !reportType || !message || !user) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all fields.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        const result = await submitReport({ subject, reportType, message, user });
+
+        if (result.success) {
+            toast({ title: 'Success', description: 'Your report has been submitted.' });
+            setSubject('');
+            setReportType('');
+            setMessage('');
+            onReportSubmitted();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Submit a Report</CardTitle>
+                <CardDescription>File a formal report for incidents, suggestions, or maintenance needs.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="subject">Subject</Label>
+                            <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g., Faulty Mixer in Kitchen" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="report-type">Report Type</Label>
+                            <Select value={reportType} onValueChange={setReportType}>
+                                <SelectTrigger id="report-type">
+                                    <SelectValue placeholder="Select a type..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Incident">Incident</SelectItem>
+                                    <SelectItem value="Suggestion">Suggestion</SelectItem>
+                                    <SelectItem value="Maintenance">Maintenance Request</SelectItem>
+                                    <SelectItem value="Complaint">Complaint</SelectItem>
+                                    <SelectItem value="Other">Other</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="message">Detailed Message</Label>
+                        <Textarea id="message" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Please provide as much detail as possible." rows={6} />
+                    </div>
+                    <div className="flex justify-end">
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Submit Report
+                        </Button>
+                    </div>
+                </form>
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function CommunicationPage() {
     const { toast } = useToast();
@@ -24,6 +101,7 @@ export default function CommunicationPage() {
     const [newMessage, setNewMessage] = useState('');
     const [isPosting, setIsPosting] = useState(false);
     const [user, setUser] = useState<User | null>(null);
+    const [activeTab, setActiveTab] = useState("announcements");
 
     useEffect(() => {
         const fetchAnnouncements = async () => {
@@ -63,7 +141,7 @@ export default function CommunicationPage() {
         <div className="flex flex-col gap-4">
             <h1 className="text-2xl font-bold font-headline">Communication Center</h1>
 
-            <Tabs defaultValue="announcements">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList>
                     <TabsTrigger value="announcements">Announcements</TabsTrigger>
                     <TabsTrigger value="submit-report">Submit a Report</TabsTrigger>
@@ -95,7 +173,7 @@ export default function CommunicationPage() {
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-semibold">{announcement.staffName}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        {format(announcement.timestamp.toDate(), 'PPp')}
+                                                        {announcement.timestamp?.toDate ? format(announcement.timestamp.toDate(), 'PPp') : ''}
                                                     </p>
                                                 </div>
                                                 <p className="text-sm">{announcement.message}</p>
@@ -131,20 +209,10 @@ export default function CommunicationPage() {
                         </CardContent>
                     </Card>
                 </TabsContent>
-                <TabsContent value="submit-report">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Submit a Report</CardTitle>
-                            <CardDescription>This feature is coming soon.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="flex items-center justify-center h-64 text-muted-foreground">
-                            <p>A form to submit reports to management will be available here.</p>
-                        </CardContent>
-                    </Card>
+                <TabsContent value="submit-report" className="mt-4">
+                    <ReportForm user={user} onReportSubmitted={() => setActiveTab("announcements")} />
                 </TabsContent>
             </Tabs>
         </div>
     );
 }
-
-    

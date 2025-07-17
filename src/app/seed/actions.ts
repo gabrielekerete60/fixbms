@@ -166,6 +166,18 @@ const seedData = {
       message: "We have a large custom cake order due this Friday. All hands on deck!",
       timestamp: Timestamp.fromDate(new Date("2024-07-30T10:00:00"))
     }
+  ],
+  reports: [
+    {
+      id: "rep_1",
+      subject: "Faulty Oven Door",
+      reportType: "Maintenance",
+      message: "The door on Oven #2 is not sealing properly. It's losing heat and affecting bake times.",
+      staffId: "500006",
+      staffName: "Blessing Baker",
+      timestamp: Timestamp.fromDate(new Date("2024-07-28T15:00:00")),
+      status: "new"
+    }
   ]
 };
 
@@ -244,5 +256,3 @@ export async function clearDatabase(): Promise<ActionResult> {
     return { success: false, error: `Failed to clear database: ${errorMessage}` };
   }
 }
-
-    
