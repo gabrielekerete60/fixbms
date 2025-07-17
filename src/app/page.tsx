@@ -4,7 +4,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, KeyRound, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,13 +65,15 @@ export default function LoginPage() {
         <CardContent>
           <form id="login-form" onSubmit={handleSubmit}>
             <div className="grid w-full items-center gap-4">
-              <div className="flex flex-col space-y-1.5">
+              <div className="flex flex-col space-y-1.5 relative">
                 <Label htmlFor="staff_id" className="font-headline text-primary-foreground/80">Staff ID</Label>
-                <Input id="staff_id" name="staff_id" placeholder="Your 6-character ID" maxLength={6} className="transition-all duration-300 focus:bg-background" required />
+                <User className="absolute left-3 top-8 h-5 w-5 text-muted-foreground" />
+                <Input id="staff_id" name="staff_id" placeholder="Your 6-character ID" maxLength={6} className="transition-all duration-300 focus:bg-background pl-10" required />
               </div>
               <div className="flex flex-col space-y-1.5 relative">
                 <Label htmlFor="password" className="font-headline text-primary-foreground/80">Password</Label>
-                <Input id="password" name="password" type={showPassword ? "text" : "password"} placeholder="Your password" className="transition-all duration-300 focus:bg-background" required/>
+                 <KeyRound className="absolute left-3 top-8 h-5 w-5 text-muted-foreground" />
+                <Input id="password" name="password" type={showPassword ? "text" : "password"} placeholder="Your password" className="transition-all duration-300 focus:bg-background pl-10" required/>
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}

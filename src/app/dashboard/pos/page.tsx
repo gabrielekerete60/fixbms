@@ -46,7 +46,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, addDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, writeBatch, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 type Product = {
@@ -92,24 +92,25 @@ export default function POSPage() {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
 
+  const fetchProducts = async () => {
+    try {
+      const productsCollection = collection(db, "products");
+      const productSnapshot = await getDocs(productsCollection);
+      const productsList = productSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[];
+      setProducts(productsList);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not fetch products from the database.",
+      });
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const productsCollection = collection(db, "products");
-        const productSnapshot = await getDocs(productsCollection);
-        const productsList = productSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[];
-        setProducts(productsList);
-      } catch (error) {
-        console.error("Error fetching products:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Could not fetch products from the database.",
-        });
-      } finally {
-        setIsLoadingProducts(false);
-      }
-    };
     fetchProducts();
   }, [toast]);
 
@@ -209,17 +210,37 @@ export default function POSPage() {
     };
   
     try {
-      // In a real app, this would also update stock levels in the database in a transaction.
-      const docRef = await addDoc(collection(db, "orders"), newOrderData);
+      const batch = writeBatch(db);
+      
+      // 1. Create the new order document
+      const orderRef = doc(collection(db, "orders"));
+      batch.set(orderRef, newOrderData);
+
+      // 2. Update stock for each item in the cart
+      cart.forEach(item => {
+        const productRef = doc(db, "products", item.id);
+        const productData = products.find(p => p.id === item.id);
+        if (productData) {
+          const newStock = productData.stock - item.quantity;
+          batch.update(productRef, { stock: newStock });
+        }
+      });
+      
+      // Commit the batch transaction
+      await batch.commit();
       
       const newOrder: CompletedOrder = {
-        id: docRef.id,
+        id: orderRef.id,
         ...newOrderData,
       };
       
       setLastCompletedOrder(newOrder);
       setCart([]);
       setCustomerName('');
+
+      // Refresh product list to show updated stock
+      fetchProducts();
+      
       return newOrder;
     } catch (error) {
       console.error("Error saving order:", error);

@@ -1,0 +1,352 @@
+
+"use client";
+
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { MoreHorizontal, PlusCircle, Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+type Staff = {
+  staff_id: string;
+  name: string;
+  email: string;
+  role: string;
+  is_active: boolean;
+  salary: number;
+  password?: string;
+};
+
+const getStatusVariant = (status: boolean) => {
+  return status ? "default" : "secondary";
+};
+
+function StaffDialog({
+  isOpen,
+  onOpenChange,
+  onSave,
+  staff
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (data: Omit<Staff, 'staff_id'>) => void;
+  staff: Partial<Staff> | null;
+}) {
+    const { toast } = useToast();
+    const [name, setName] = useState("");
+    const [email, setEmail] = useState("");
+    const [role, setRole] = useState("");
+    const [salary, setSalary] = useState(0);
+    const [isActive, setIsActive] = useState(true);
+
+    useEffect(() => {
+        if (staff) {
+            setName(staff.name || "");
+            setEmail(staff.email || "");
+            setRole(staff.role || "");
+            setSalary(staff.salary || 0);
+            setIsActive(staff.is_active === undefined ? true : staff.is_active);
+        } else {
+            setName("");
+            setEmail("");
+            setRole("");
+            setSalary(0);
+            setIsActive(true);
+        }
+    }, [staff]);
+
+    const handleSubmit = () => {
+        if (!name || !role || !email) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Staff name, email and role are required.' });
+            return;
+        }
+        onSave({ 
+            name, 
+            email,
+            role, 
+            salary: Number(salary),
+            is_active: isActive
+        });
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                    <DialogTitle>{staff?.staff_id ? 'Edit Staff Member' : 'Add New Staff Member'}</DialogTitle>
+                    <DialogDescription>
+                        {staff?.staff_id ? 'Update the details of this staff member.' : 'Fill in the details for the new staff member.'}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="name" className="text-right">Name</Label>
+                        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
+                    </div>
+                     <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="email" className="text-right">Email</Label>
+                        <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="col-span-3" />
+                    </div>
+                     <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="role" className="text-right">Role</Label>
+                        <Input id="role" value={role} onChange={(e) => setRole(e.target.value)} className="col-span-3" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="salary" className="text-right">Salary (₦/mo)</Label>
+                        <Input id="salary" type="number" value={salary} onChange={(e) => setSalary(parseFloat(e.target.value))} className="col-span-3" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="is_active" className="text-right">Status</Label>
+                        <div className="col-span-3 flex items-center space-x-2">
+                             <Checkbox id="is_active" checked={isActive} onCheckedChange={(checked) => setIsActive(checked as boolean)} />
+                             <label htmlFor="is_active" className="text-sm font-medium leading-none">Active</label>
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit}>{staff?.staff_id ? 'Save Changes' : 'Create Staff'}</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+export default function StaffManagementPage() {
+    const { toast } = useToast();
+    const [staffList, setStaffList] = useState<Staff[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [editingStaff, setEditingStaff] = useState<Partial<Staff> | null>(null);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [staffToDelete, setStaffToDelete] = useState<Staff | null>(null);
+
+    const fetchStaff = async () => {
+        setIsLoading(true);
+        try {
+            const staffCollection = collection(db, "staff");
+            const snapshot = await getDocs(staffCollection);
+            const list = snapshot.docs.map(doc => ({ staff_id: doc.id, ...doc.data() })) as Staff[];
+            setStaffList(list);
+        } catch (error) {
+            console.error("Error fetching staff:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch staff members." });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchStaff();
+    }, []);
+
+    const handleSaveStaff = async (staffData: Omit<Staff, 'staff_id'>) => {
+        try {
+            if (editingStaff && editingStaff.staff_id) {
+                const ref = doc(db, "staff", editingStaff.staff_id);
+                await updateDoc(ref, staffData);
+                toast({ title: "Success", description: "Staff member updated successfully." });
+            } else {
+                // Generate a new staff ID
+                const newId = (Math.floor(Math.random() * 900000) + 100000).toString();
+                const dataToSave = { ...staffData, staff_id: newId, password: "password" }; // Default password
+                await addDoc(collection(db, "staff"), dataToSave);
+                toast({ title: "Success", description: "Staff member created successfully." });
+            }
+            fetchStaff();
+        } catch (error) {
+            console.error("Error saving staff member:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not save staff member." });
+        }
+    };
+
+    const handleDeleteStaff = async () => {
+        if (!staffToDelete) return;
+        try {
+            await deleteDoc(doc(db, "staff", staffToDelete.staff_id));
+            toast({ title: "Success", description: "Staff member deleted successfully." });
+            fetchStaff();
+        } catch (error) {
+            console.error("Error deleting staff member:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not delete staff member." });
+        } finally {
+            setStaffToDelete(null);
+        }
+    };
+    
+    const openAddDialog = () => {
+        setEditingStaff({});
+        setIsDialogOpen(true);
+    };
+
+    const openEditDialog = (staff: Staff) => {
+        setEditingStaff(staff);
+        setIsDialogOpen(true);
+    };
+
+    return (
+        <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold font-headline">Staff</h1>
+                <Button onClick={openAddDialog}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Staff
+                </Button>
+            </div>
+
+            <StaffDialog
+                isOpen={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                onSave={handleSaveStaff}
+                staff={editingStaff}
+            />
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Manage Staff</CardTitle>
+                    <CardDescription>
+                        A list of all staff members in your bakery.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Staff Member</TableHead>
+                                <TableHead>Role</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Pay Rate</TableHead>
+                                <TableHead><span className="sr-only">Actions</span></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center">
+                                        <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+                                    </TableCell>
+                                </TableRow>
+                            ) : staffList.length > 0 ? (
+                                staffList.map(staff => (
+                                    <TableRow key={staff.staff_id}>
+                                        <TableCell className="font-medium">
+                                            <div className="flex items-center gap-3">
+                                                <Avatar>
+                                                    <AvatarImage src={`https://placehold.co/40x40.png?text=${staff.name.charAt(0)}`} alt={staff.name} data-ai-hint="person face" />
+                                                    <AvatarFallback>{staff.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <div className="font-semibold">{staff.name}</div>
+                                                    <div className="text-sm text-muted-foreground">{staff.email}</div>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>{staff.role}</TableCell>
+                                        <TableCell>
+                                            <Badge variant={getStatusVariant(staff.is_active)}>
+                                                {staff.is_active ? 'Active' : 'Inactive'}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>₦{staff.salary.toLocaleString()}/mo</TableCell>
+                                        <TableCell>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button aria-haspopup="true" size="icon" variant="ghost">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                        <span className="sr-only">Toggle menu</span>
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                    <DropdownMenuItem onSelect={() => openEditDialog(staff)}>Edit</DropdownMenuItem>
+                                                    <DropdownMenuItem>View Details</DropdownMenuItem>
+                                                    <DropdownMenuItem>Pay Staff</DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem className="text-destructive" onSelect={() => setStaffToDelete(staff)}>Delete</DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center">
+                                        No staff members found.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+            <AlertDialog open={!!staffToDelete} onOpenChange={(open) => !open && setStaffToDelete(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete the staff member "{staffToDelete?.name}". This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteStaff}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
+    );
+}

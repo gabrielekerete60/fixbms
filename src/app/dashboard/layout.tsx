@@ -177,7 +177,7 @@ export default function DashboardLayout({
     },
      {
       icon: Users2, label: "Staff", sublinks: [
-        { href: "#", label: "Staff Management" },
+        { href: "/dashboard/staff/management", label: "Staff Management" },
         { href: "#", label: "Attendance" },
         { href: "#", label: "Payroll" },
       ]
@@ -200,7 +200,7 @@ export default function DashboardLayout({
       <div className="hidden border-r bg-muted/40 md:block">
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-            <Link href="/" className="flex items-center gap-2 font-semibold">
+            <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
               <Pizza className="h-6 w-6 text-primary" />
               <span className="font-headline">BMS</span>
             </Link>
@@ -246,7 +246,7 @@ export default function DashboardLayout({
               </SheetTrigger>
               <SheetContent side="left" className="flex flex-col p-0">
                  <div className="flex h-14 shrink-0 items-center border-b px-4 lg:h-[60px]">
-                    <Link href="/" className="flex items-center gap-2 font-semibold">
+                    <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
                       <Pizza className="h-6 w-6 text-primary" />
                       <span className="font-headline">BMS</span>
                     </Link>
