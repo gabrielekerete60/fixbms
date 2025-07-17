@@ -170,7 +170,7 @@ export default function DashboardLayout({
     },
     {
       icon: Users, label: "Customers", sublinks: [
-        { href: "#", label: "Profiles" },
+        { href: "/dashboard/customers/profiles", label: "Profiles" },
         { href: "#", label: "Feedback" },
         { href: "#", label: "Loyalty Programs" },
       ]

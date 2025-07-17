@@ -82,6 +82,11 @@ const seedData = {
     { id: "sup_os_3", name: "Shopping Bags", stock: 500, unit: 'pcs', costPerUnit: 20.00, category: "Packaging" },
     { id: "sup_os_4", name: "Disinfectant", stock: 5, unit: 'L', costPerUnit: 5000.00, category: "Cleaning" },
   ],
+  customers: [
+      { id: 'cust_1', name: 'Adebisi Onyeka', phone: '08012345678', email: 'a.onyeka@example.com', address: '123, Allen Avenue, Ikeja', joinedDate: '2023-01-15T10:00:00Z', totalSpent: 150000 },
+      { id: 'cust_2', name: 'Ngozi Okoro', phone: '09087654321', email: 'n.okoro@example.com', address: '45, Lekki Phase 1', joinedDate: '2023-02-20T11:30:00Z', totalSpent: 75000 },
+      { id: 'cust_3', name: 'Chinedu Eze', phone: '07011223344', email: 'c.eze@example.com', address: '78, Surulere, Lagos', joinedDate: '2023-03-10T09:00:00Z', totalSpent: 250000 },
+  ],
   supply_logs: [
     // Placeholder for future seeded logs if needed
   ]
@@ -92,51 +97,25 @@ export async function seedDatabase(): Promise<ActionResult> {
   try {
     const batch = writeBatch(db);
     
-    // Seed Products
-    seedData.products.forEach((product) => {
-      const docRef = doc(db, "products", product.id);
-      batch.set(docRef, product);
-    });
-    
-    // Seed Staff
-    seedData.staff.forEach((staffMember) => {
-      const docRef = doc(db, "staff", staffMember.staff_id);
-      batch.set(docRef, staffMember);
-    });
+    for (const [collectionName, data] of Object.entries(seedData)) {
+        if (Array.isArray(data)) {
+            data.forEach((item) => {
+                let docRef;
+                if(item.id) {
+                    docRef = doc(db, collectionName, item.id);
+                } else if (item.staff_id) {
+                     docRef = doc(db, collectionName, item.staff_id);
+                } else {
+                    docRef = doc(collection(db, collectionName));
+                }
+                batch.set(docRef, item);
+            });
+        }
+    }
 
-    // Seed Promotions
-    seedData.promotions.forEach((promotion) => {
-        const docRef = doc(db, "promotions", promotion.id);
-        batch.set(docRef, promotion);
-    });
-    
-    // Seed Suppliers
-    seedData.suppliers.forEach((supplier) => {
-      const docRef = doc(db, "suppliers", supplier.id);
-      batch.set(docRef, supplier);
-    });
-
-    // Seed Recipes
-    seedData.recipes.forEach((recipe) => {
-      const docRef = doc(db, "recipes", recipe.id);
-      batch.set(docRef, recipe);
-    });
-
-    // Seed Ingredients
-    seedData.ingredients.forEach((ingredient) => {
-        const docRef = doc(db, "ingredients", ingredient.id);
-        batch.set(docRef, ingredient);
-    });
-    
-    // Seed Other Supplies
-    seedData.other_supplies.forEach((supply) => {
-        const docRef = doc(db, "other_supplies", supply.id);
-        batch.set(docRef, supply);
-    });
-
-    // We will create empty collections so they exist, but not seed any orders/logs.
+    // We will create empty collections so they exist, but not seed any orders.
     // This is a placeholder for where completed data will go.
-    const collectionsToEnsure = ["orders", "supply_logs"];
+    const collectionsToEnsure = ["orders"];
     for (const coll of collectionsToEnsure) {
         const emptyDocRef = doc(collection(db, coll));
         batch.set(emptyDocRef, { placeholder: true });
@@ -158,7 +137,9 @@ export async function seedDatabase(): Promise<ActionResult> {
 export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
-    const collectionsToClear = ['products', 'staff', 'promotions', 'orders', 'suppliers', 'recipes', 'ingredients', 'other_supplies', 'supply_logs'];
+    const collectionsToClear = Object.keys(seedData);
+    collectionsToClear.push('orders');
+    
     const batch = writeBatch(db);
 
     for (const collectionName of collectionsToClear) {

@@ -78,12 +78,11 @@ function IngredientDialog({
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: Omit<Ingredient, 'id'>) => void;
+  onSave: (data: Partial<Omit<Ingredient, 'id' | 'stock'>>) => void;
   ingredient: Partial<Ingredient> | null;
 }) {
     const { toast } = useToast();
     const [name, setName] = useState("");
-    const [stock, setStock] = useState(0);
     const [unit, setUnit] = useState("");
     const [costPerUnit, setCostPerUnit] = useState(0);
     const [expiryDate, setExpiryDate] = useState<Date | undefined>();
@@ -91,13 +90,11 @@ function IngredientDialog({
     useEffect(() => {
         if (ingredient) {
             setName(ingredient.name || "");
-            setStock(ingredient.stock || 0);
             setUnit(ingredient.unit || "");
             setCostPerUnit(ingredient.costPerUnit || 0);
             setExpiryDate(ingredient.expiryDate ? new Date(ingredient.expiryDate) : undefined);
         } else {
             setName("");
-            setStock(0);
             setUnit("");
             setCostPerUnit(0);
             setExpiryDate(undefined);
@@ -110,8 +107,7 @@ function IngredientDialog({
             return;
         }
         onSave({ 
-            name, 
-            stock: Number(stock), 
+            name,
             unit, 
             costPerUnit: Number(costPerUnit), 
             expiryDate: expiryDate ? expiryDate.toISOString() : null 
@@ -132,10 +128,6 @@ function IngredientDialog({
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="name" className="text-right">Name</Label>
                         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="stock" className="text-right">Stock</Label>
-                        <Input id="stock" type="number" step="0.001" value={stock} onChange={(e) => setStock(parseFloat(e.target.value))} className="col-span-3" />
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="unit" className="text-right">Unit</Label>
@@ -209,14 +201,15 @@ export default function IngredientsPage() {
         fetchIngredients();
     }, []);
 
-    const handleSaveIngredient = async (ingredientData: Omit<Ingredient, 'id'>) => {
+    const handleSaveIngredient = async (ingredientData: Partial<Omit<Ingredient, 'id' | 'stock'>>) => {
         try {
             if (editingIngredient && editingIngredient.id) {
                 const ref = doc(db, "ingredients", editingIngredient.id);
                 await updateDoc(ref, ingredientData);
                 toast({ title: "Success", description: "Ingredient updated successfully." });
             } else {
-                await addDoc(collection(db, "ingredients"), ingredientData);
+                const dataToSave = { ...ingredientData, stock: 0 }; // New ingredients start with 0 stock
+                await addDoc(collection(db, "ingredients"), dataToSave);
                 toast({ title: "Success", description: "Ingredient created successfully." });
             }
             fetchIngredients();
