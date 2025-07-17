@@ -52,12 +52,11 @@ type WeeklyAttendance = {
 }
 
 export default function AttendancePage() {
-  const [presentStaff, setPresentStaff] = useState<AttendanceRecord[]>([]);
+  const [todaysActivity, setTodaysActivity] = useState<AttendanceRecord[]>([]);
   const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
   const [weeklyData, setWeeklyData] = useState<WeeklyAttendance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [date, setDate] = useState<DateRange | undefined>();
-  const [logStatusFilter, setLogStatusFilter] = useState<"all" | "in" | "out">("all");
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -74,13 +73,14 @@ export default function AttendancePage() {
         const staffSnapshot = await getDocs(staffQuery);
         const staffMap = new Map(staffSnapshot.docs.map(doc => [doc.id, doc.data().name]));
 
-        // Fetch today's attendance for "Present Today" card
+        // Fetch today's attendance for "Today's Activity" card
         const todayStart = startOfDay(new Date());
+        const todayEnd = endOfDay(new Date());
         
         const todayQuery = query(
             collection(db, "attendance"),
             where("clock_in_time", ">=", Timestamp.fromDate(todayStart)),
-            where("clock_out_time", "==", null) // Only show those still clocked in
+            where("clock_in_time", "<=", Timestamp.fromDate(todayEnd))
         );
         const todayAttendanceSnapshot = await getDocs(todayQuery);
         const todayRecords = todayAttendanceSnapshot.docs.map(doc => {
@@ -91,7 +91,7 @@ export default function AttendancePage() {
                 staff_name: staffMap.get(data.staff_id) || 'Unknown Staff'
             } as AttendanceRecord
         });
-        setPresentStaff(todayRecords);
+        setTodaysActivity(todayRecords);
         
         // Fetch all attendance for logs
         const allAttendanceQuery = query(collection(db, 'attendance'), orderBy('clock_in_time', 'desc'));
@@ -142,25 +142,18 @@ export default function AttendancePage() {
   }, []);
 
   const filteredLogs = useMemo(() => {
-    let logs = allAttendance;
-
-    if (logStatusFilter === 'in') {
-      logs = logs.filter(log => log.clock_out_time === null);
-    } else if (logStatusFilter === 'out') {
-      logs = logs.filter(log => log.clock_out_time !== null);
+    if (!date?.from) {
+        return allAttendance;
     }
 
-    if (date?.from) {
-      const from = startOfDay(date.from);
-      const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
-      logs = logs.filter(log => {
-          const logDate = log.clock_in_time.toDate();
-          return logDate >= from && logDate <= to;
-      });
-    }
+    const from = startOfDay(date.from);
+    const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
     
-    return logs;
-  }, [allAttendance, date, logStatusFilter]);
+    return allAttendance.filter(log => {
+        const logDate = log.clock_in_time.toDate();
+        return logDate >= from && logDate <= to;
+    });
+  }, [allAttendance, date]);
 
   useEffect(() => {
     fetchAttendance();
@@ -188,10 +181,10 @@ export default function AttendancePage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                         <CheckCircle className="text-green-500" />
-                        Present Today
+                        Today's Activity
                         </CardTitle>
                         <CardDescription>
-                        Staff members currently clocked in on {today}.
+                        Staff members who have clocked in on {today}.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -200,26 +193,28 @@ export default function AttendancePage() {
                             <TableRow>
                             <TableHead>Staff Member</TableHead>
                             <TableHead>Clock-in Time</TableHead>
+                            <TableHead>Clock-out Time</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={2} className="h-24 text-center">
+                                    <TableCell colSpan={3} className="h-24 text-center">
                                         <Loader2 className="h-8 w-8 animate-spin" />
                                     </TableCell>
                                 </TableRow>
-                            ) : presentStaff.length > 0 ? (
-                                presentStaff.map(record => (
+                            ) : todaysActivity.length > 0 ? (
+                                todaysActivity.map(record => (
                                     <TableRow key={record.id}>
                                         <TableCell>{record.staff_name}</TableCell>
                                         <TableCell>{format(record.clock_in_time.toDate(), 'p')}</TableCell>
+                                        <TableCell>{record.clock_out_time ? format(record.clock_out_time.toDate(), 'p') : '--'}</TableCell>
                                     </TableRow>
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={2} className="h-24 text-center">
-                                        No staff are currently clocked in.
+                                    <TableCell colSpan={3} className="h-24 text-center">
+                                        No staff activity recorded today.
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -321,13 +316,6 @@ export default function AttendancePage() {
                                 </PopoverContent>
                             </Popover>
                         </div>
-                        <Tabs value={logStatusFilter} onValueChange={(value) => setLogStatusFilter(value as any)} className="mt-4">
-                            <TabsList>
-                                <TabsTrigger value="all">All</TabsTrigger>
-                                <TabsTrigger value="in">Clocked In</TabsTrigger>
-                                <TabsTrigger value="out">Clocked Out</TabsTrigger>
-                            </TabsList>
-                        </Tabs>
                     </CardHeader>
                     <CardContent>
                          <Table>
@@ -383,5 +371,3 @@ export default function AttendancePage() {
     </div>
   );
 }
-
-    
