@@ -4,7 +4,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, KeyRound, User } from "lucide-react";
+import { Eye, EyeOff, Loader2, KeyRound, User, Pizza } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,29 +59,36 @@ export default function LoginPage() {
       <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-primary/20 via-background to-secondary/20 -z-10" />
       <Card className="w-full max-w-sm shadow-2xl bg-card/80 backdrop-blur-sm border-primary/20">
         <CardHeader className="text-center">
+          <div className="mx-auto bg-primary/20 p-3 rounded-full mb-2">
+             <Pizza className="h-8 w-8 text-primary" />
+          </div>
           <CardTitle className="text-3xl font-headline text-primary">BMS</CardTitle>
           <CardDescription className="font-body">Welcome to the Bakery Management System. Please log in.</CardDescription>
         </CardHeader>
         <CardContent>
           <form id="login-form" onSubmit={handleSubmit}>
             <div className="grid w-full items-center gap-4">
-              <div className="flex flex-col space-y-1.5 relative">
-                <Label htmlFor="staff_id" className="font-headline text-primary-foreground/80">Staff ID</Label>
-                <User className="absolute left-3 top-8 h-5 w-5 text-muted-foreground" />
-                <Input id="staff_id" name="staff_id" placeholder="Your 6-character ID" maxLength={6} className="transition-all duration-300 focus:bg-background pl-10" required />
+              <div className="relative">
+                <Label htmlFor="staff_id" className="font-headline text-primary-foreground/80 block mb-1.5">Staff ID</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input id="staff_id" name="staff_id" placeholder="Your 6-character ID" maxLength={6} className="transition-all duration-300 focus:bg-background pl-10" required />
+                </div>
               </div>
-              <div className="flex flex-col space-y-1.5 relative">
-                <Label htmlFor="password" className="font-headline text-primary-foreground/80">Password</Label>
-                 <KeyRound className="absolute left-3 top-8 h-5 w-5 text-muted-foreground" />
-                <Input id="password" name="password" type={showPassword ? "text" : "password"} placeholder="Your password" className="transition-all duration-300 focus:bg-background pl-10" required/>
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-8 text-muted-foreground hover:text-primary transition-colors duration-300"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
+              <div className="relative">
+                <Label htmlFor="password" className="font-headline text-primary-foreground/80 block mb-1.5">Password</Label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input id="password" name="password" type={showPassword ? "text" : "password"} placeholder="Your password" className="transition-all duration-300 focus:bg-background pl-10" required/>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors duration-300"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
               <div className="flex items-center space-x-2">
                 <Checkbox id="remember-me" name="remember-me" />

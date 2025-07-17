@@ -27,6 +27,8 @@ import {
   Carrot,
   Archive,
   ListChecks,
+  LogOut,
+  LogIn,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -118,6 +120,7 @@ export default function DashboardLayout({
   const { toast } = useToast();
   const [time, setTime] = useState('');
   const [user, setUser] = useState<User | null>(null);
+  const [isClockedIn, setIsClockedIn] = useState(false);
 
   useEffect(() => {
     // Check for user session on mount
@@ -145,6 +148,15 @@ export default function DashboardLayout({
       description: "You have been successfully logged out.",
     });
     router.push("/");
+  };
+  
+  const handleClockInOut = () => {
+    // In a real app, you would make an API call here to record the time
+    setIsClockedIn(!isClockedIn);
+    toast({
+      title: isClockedIn ? "Clocked Out" : "Clocked In",
+      description: `You have successfully ${isClockedIn ? 'clocked out' : 'clocked in'}.`,
+    });
   };
 
 
@@ -210,10 +222,10 @@ export default function DashboardLayout({
           </div>
           <div className="mt-auto p-4 border-t">
             <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
-                <span>{time}</span>
-                <Button variant="outline" size="sm">
-                    <Clock className="mr-2 h-4 w-4" />
-                    Clock In
+                <span><Clock className="inline h-4 w-4 mr-1" />{time}</span>
+                <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut}>
+                    {isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>}
+                    {isClockedIn ? 'Clock Out' : 'Clock In'}
                 </Button>
             </div>
             <Card>
@@ -280,7 +292,8 @@ export default function DashboardLayout({
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background overflow-auto">
+        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background overflow-auto relative">
+          <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
           {children}
         </main>
       </div>
