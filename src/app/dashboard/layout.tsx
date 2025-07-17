@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -75,7 +74,7 @@ function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string 
       {navLinks.map((link) => 
         link.sublinks ? (
            <Collapsible key={link.label} className="grid gap-1" defaultOpen={link.sublinks.some(sub => pathname.startsWith(sub.href))}>
-            <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary [&[data-state=open]>svg:last-child]:rotate-90">
+            <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary [&[data-state=open]&gt;svg:last-child]:rotate-90">
               <div className="flex items-center gap-3">
                 <link.icon className="h-4 w-4" />
                 {link.label}
@@ -247,7 +246,7 @@ export default function DashboardLayout({
     {
       icon: Package, label: "Inventory", sublinks: [
         { href: "/dashboard/inventory/products", label: "Products", icon: Cookie },
-        { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList },
+        { href: "/dashboard/inventory/recipes", label: "Recipes &amp; Production", icon: ClipboardList },
         { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot },
         { href: "/dashboard/inventory/suppliers", label: "Suppliers" },
         { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks },
@@ -269,7 +268,7 @@ export default function DashboardLayout({
       ]
     },
     { href: "/dashboard/deliveries", icon: Car, label: "Deliveries" },
-    { href: "#", icon: Wallet, label: "Accounting" },
+    { href: "/dashboard/accounting", icon: Wallet, label: "Accounting" },
     { href: "#", icon: GanttChartSquare, label: "AI Analytics" },
     { href: "#", icon: HelpingHand, label: "Communication" },
     { href: "#", icon: BookOpen, label: "Documentation" },

@@ -1,15 +1,18 @@
-
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Package2 } from 'lucide-react';
+import { Loader2, Package2, Calendar as CalendarIcon } from 'lucide-react';
 import { getSalesRuns } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import type { SalesRun as SalesRunType } from '@/app/actions';
+import { DateRange } from 'react-day-picker';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { format, startOfDay, endOfDay } from 'date-fns';
 
 function EmptyState({ title, description }: { title: string, description: string }) {
     return (
@@ -44,6 +47,7 @@ export default function DeliveriesPage() {
     const [activeRuns, setActiveRuns] = useState<SalesRunType[]>([]);
     const [completedRuns, setCompletedRuns] = useState<SalesRunType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [date, setDate] = useState<DateRange | undefined>();
     const { toast } = useToast();
 
     const fetchRuns = useCallback(async () => {
@@ -84,6 +88,19 @@ export default function DeliveriesPage() {
         }
     }, [toast]);
 
+    const filteredCompletedRuns = useMemo(() => {
+        if (!date?.from) {
+            return completedRuns;
+        }
+        const from = startOfDay(date.from);
+        const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
+
+        return completedRuns.filter(run => {
+            const runDate = run.date.toDate();
+            return runDate >= from && runDate <= to;
+        });
+    }, [completedRuns, date]);
+
     useEffect(() => {
         fetchRuns();
     }, [fetchRuns]);
@@ -95,7 +112,7 @@ export default function DeliveriesPage() {
             <Tabs defaultValue="active">
                 <TabsList>
                     <TabsTrigger value="active">Active Runs ({activeRuns.length})</TabsTrigger>
-                    <TabsTrigger value="completed">Completed Runs ({completedRuns.length})</TabsTrigger>
+                    <TabsTrigger value="completed">Completed Runs ({filteredCompletedRuns.length})</TabsTrigger>
                 </TabsList>
                 <TabsContent value="active" className="mt-4">
                     {isLoading ? (
@@ -115,13 +132,51 @@ export default function DeliveriesPage() {
                     )}
                 </TabsContent>
                 <TabsContent value="completed" className="mt-4">
+                    <div className="flex justify-end mb-4">
+                         <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                id="date"
+                                variant={"outline"}
+                                className={cn(
+                                "w-[260px] justify-start text-left font-normal",
+                                !date && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {date?.from ? (
+                                date.to ? (
+                                    <>
+                                    {format(date.from, "LLL dd, y")} -{" "}
+                                    {format(date.to, "LLL dd, y")}
+                                    </>
+                                ) : (
+                                    format(date.from, "LLL dd, y")
+                                )
+                                ) : (
+                                <span>Filter by date</span>
+                                )}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="end">
+                            <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={date?.from}
+                                selected={date}
+                                onSelect={setDate}
+                                numberOfMonths={2}
+                            />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                     {isLoading ? (
                         <div className="flex justify-center items-center h-64">
                             <Loader2 className="h-8 w-8 animate-spin" />
                         </div>
-                    ) : completedRuns.length > 0 ? (
+                    ) : filteredCompletedRuns.length > 0 ? (
                          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {completedRuns.map(run => <RunCard key={run.id} run={run} />)}
+                            {filteredCompletedRuns.map(run => <RunCard key={run.id} run={run} />)}
                         </div>
                     ) : (
                        <Card>
@@ -135,5 +190,3 @@ export default function DeliveriesPage() {
         </div>
     );
 }
-
-    

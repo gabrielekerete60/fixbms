@@ -89,7 +89,7 @@ const seedData = {
    orders: [
     {
       id: "ord_1",
-      items: [{ id: "prod_1", name: "Family Loaf", price: 550, quantity: 2 }],
+      items: [{ id: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }],
       subtotal: 1100,
       tax: 82.5,
       total: 1182.5,
@@ -101,8 +101,8 @@ const seedData = {
     {
       id: "ord_2",
       items: [
-        { id: "prod_3", name: "Jumbo Loaf", price: 900, quantity: 1 },
-        { id: "prod_5", name: "Coca-Cola (50cl)", price: 300, quantity: 2 },
+        { id: "prod_3", name: "Jumbo Loaf", price: 900, quantity: 1, costPrice: 500 },
+        { id: "prod_5", name: "Coca-Cola (50cl)", price: 300, quantity: 2, costPrice: 200 },
       ],
       subtotal: 1500,
       tax: 112.5,
@@ -116,6 +116,11 @@ const seedData = {
   supply_logs: [
     { id: 'log_1', supplierId: 'sup_1', supplierName: 'Flour Mills of Nigeria', ingredientId: 'ing_1', ingredientName: 'All-Purpose Flour', quantity: 20, unit: 'kg', costPerUnit: 500, totalCost: 10000, date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), invoiceNumber: 'FMN-123' },
     { id: 'log_2', supplierId: 'sup_2', supplierName: 'Dangote Sugar', ingredientId: 'ing_2', ingredientName: 'Granulated Sugar', quantity: 10, unit: 'kg', costPerUnit: 800, totalCost: 8000, date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), invoiceNumber: 'DAN-456' }
+  ],
+  expenses: [
+    { id: 'exp_1', category: 'Utilities', description: 'Monthly electricity bill', amount: 50000, date: new Date(new Date().setDate(1)).toISOString() },
+    { id: 'exp_2', category: 'Logistics', description: 'Carriage Inward for flour delivery', amount: 7500, date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
+    { id: 'exp_3', category: 'Salaries', description: 'Monthly staff salaries', amount: 1210000, date: new Date(new Date().setDate(28)).toISOString() }
   ],
   attendance: [
     // Staff 100001 (Manager) - Attended 4 days this week

@@ -1,8 +1,7 @@
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp } from "firebase/firestore";
-import { startOfMonth, endOfMonth } from "date-fns";
+import { startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
 import { db } from "@/lib/firebase";
 
 type LoginResult = {
@@ -259,4 +258,66 @@ export async function getSalesRuns(staffId: string): Promise<{active: SalesRun[]
     }
 }
 
+
+export type AccountingReport = {
+    sales: number;
+    costOfGoodsSold: number;
+    grossProfit: number;
+    expenses: number;
+    netProfit: number;
+}
+
+export async function getAccountingReport(dateRange: { from: Date, to: Date }): Promise<AccountingReport> {
+    const from = startOfDay(dateRange.from);
+    const to = endOfDay(dateRange.to);
+
+    try {
+        // --- Calculate Sales ---
+        const ordersQuery = query(
+            collection(db, "orders"),
+            where("date", ">=", from.toISOString()),
+            where("date", "<=", to.toISOString()),
+            where("status", "==", "Completed")
+        );
+        const ordersSnapshot = await getDocs(ordersQuery);
+        const sales = ordersSnapshot.docs.reduce((sum, doc) => sum + doc.data().total, 0);
+
+        // --- Calculate Cost of Goods Sold (COGS) ---
+        let costOfGoodsSold = 0;
+        ordersSnapshot.forEach(doc => {
+            const order = doc.data();
+            order.items.forEach((item: any) => {
+                // This assumes product costPrice is stored with the product.
+                // A more robust system might snapshot cost at time of sale.
+                // This is a simplification.
+                costOfGoodsSold += (item.costPrice || (item.price * 0.6)) * item.quantity;
+            });
+        });
+        
+        // --- Calculate Expenses ---
+        const expensesQuery = query(
+            collection(db, "expenses"),
+            where("date", ">=", from.toISOString()),
+            where("date", "<=", to.toISOString())
+        );
+        const expensesSnapshot = await getDocs(expensesQuery);
+        const expenses = expensesSnapshot.docs.reduce((sum, doc) => sum + doc.data().amount, 0);
+        
+        // --- Final Calculations ---
+        const grossProfit = sales - costOfGoodsSold;
+        const netProfit = grossProfit - expenses;
+
+        return {
+            sales,
+            costOfGoodsSold,
+            grossProfit,
+            expenses,
+            netProfit
+        };
+
+    } catch (error) {
+        console.error("Error generating accounting report:", error);
+        return { sales: 0, costOfGoodsSold: 0, grossProfit: 0, expenses: 0, netProfit: 0 };
+    }
+}
     
