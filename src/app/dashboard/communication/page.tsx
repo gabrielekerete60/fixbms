@@ -135,7 +135,7 @@ export default function CommunicationPage() {
         setIsPosting(false);
     };
 
-    const isManager = user?.role === 'Manager' || user?.role === 'Supervisor';
+    const canPostAnnouncements = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer';
 
     return (
         <div className="flex flex-col gap-4">
@@ -182,7 +182,7 @@ export default function CommunicationPage() {
                                     ))
                                 )}
                             </div>
-                            {isManager && (
+                            {canPostAnnouncements && (
                                 <div className="relative">
                                     <Textarea
                                         placeholder="Type your announcement..."
@@ -216,3 +216,5 @@ export default function CommunicationPage() {
         </div>
     );
 }
+
+    

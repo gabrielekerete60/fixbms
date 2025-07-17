@@ -75,7 +75,7 @@ function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string 
       {navLinks.map((link) => 
         link.sublinks ? (
            <Collapsible key={link.label} className="grid gap-1" defaultOpen={link.sublinks.some(sub => pathname.startsWith(sub.href))}>
-            <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary [&[data-state=open]&gt;svg:last-child]:rotate-90">
+            <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary [&[data-state=open]>svg:last-child]:rotate-90">
               <div className="flex items-center gap-3">
                 <link.icon className="h-4 w-4" />
                 {link.label}
@@ -239,13 +239,13 @@ export default function DashboardLayout({
       { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Manager', 'Supervisor', 'Showroom Staff'] },
       { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor'] },
       {
-        icon: Inbox, label: "Orders", roles: ['Manager', 'Supervisor', 'Showroom Staff'], sublinks: [
+        icon: Inbox, label: "Orders", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Accountant'], sublinks: [
           { href: "/dashboard/orders/regular", label: "Regular Orders" },
           { href: "#", label: "Custom Orders" },
         ]
       },
       {
-        icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper'], sublinks: [
+        icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant'], sublinks: [
           { href: "/dashboard/inventory/products", label: "Products", icon: Cookie },
           { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList },
           { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot },
@@ -272,7 +272,7 @@ export default function DashboardLayout({
       { href: "/dashboard/accounting", icon: Wallet, label: "Accounting", roles: ['Manager', 'Accountant'] },
       { href: "#", icon: GanttChartSquare, label: "AI Analytics", roles: ['Manager'] },
       { href: "/dashboard/communication", icon: HelpingHand, label: "Communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper'] },
-      { href: "#", icon: BookOpen, label: "Documentation", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper'] },
+      { href: "/dashboard/documentation", icon: BookOpen, label: "Documentation", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper'] },
       { href: "/dashboard/settings", icon: Settings, label: "Settings", roles: ['Manager'] },
     ];
 
@@ -394,3 +394,5 @@ export default function DashboardLayout({
     </div>
   );
 }
+
+    
