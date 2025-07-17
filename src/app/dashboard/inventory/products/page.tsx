@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, FileUp, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, FileUp, Loader2, Calendar as CalendarIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,6 +55,13 @@ import { Label } from "@/components/ui/label";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 type Product = {
   id: string;
@@ -78,13 +85,13 @@ const getStatusBadge = (stock: number) => {
 };
 
 
-function ProductDialog({ product, onSave, children }: { product?: Product | null, onSave: (p: Omit<Product, 'id'>) => void, children: React.ReactNode }) {
+function ProductDialog({ product, onSave, categories, children }: { product?: Product | null, onSave: (p: Omit<Product, 'id'>) => void, categories: string[], children: React.ReactNode }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [name, setName] = useState(product?.name || "");
-    const [category, setCategory] = useState(product?.category || "Breads");
-    const [costPrice, setCostPrice] = useState(product?.costPrice || 0);
-    const [price, setPrice] = useState(product?.price || 0);
-    const [stock, setStock] = useState(product?.stock || 0);
+    const [name, setName] = useState("");
+    const [category, setCategory] = useState("");
+    const [costPrice, setCostPrice] = useState(0);
+    const [price, setPrice] = useState(0);
+    const [stock, setStock] = useState(0);
 
     const handleSubmit = () => {
         const newProductData = {
@@ -103,12 +110,12 @@ function ProductDialog({ product, onSave, children }: { product?: Product | null
     useEffect(() => {
         if (isOpen) {
             setName(product?.name || "");
-            setCategory(product?.category || "Breads");
+            setCategory(product?.category || categories[0] || "");
             setCostPrice(product?.costPrice || 0);
             setPrice(product?.price || 0);
             setStock(product?.stock || 0);
         }
-    }, [isOpen, product]);
+    }, [isOpen, product, categories]);
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -127,7 +134,16 @@ function ProductDialog({ product, onSave, children }: { product?: Product | null
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="category" className="text-right">Category</Label>
-                        <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} className="col-span-3" />
+                        <Select value={category} onValueChange={setCategory}>
+                            <SelectTrigger className="col-span-3">
+                                <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {categories.map(cat => (
+                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="costPrice" className="text-right">Cost Price (₦)</Label>
@@ -150,6 +166,27 @@ function ProductDialog({ product, onSave, children }: { product?: Product | null
     )
 }
 
+function ExportDialog({ children, onExport }: { children: React.ReactNode, onExport: () => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Export Products</DialogTitle>
+          <DialogDescription>
+            Select your export options. All current products will be included in the CSV file.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+          <Button onClick={() => { onExport(); setIsOpen(false); }}>Export to CSV</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export default function ProductsPage() {
   const { toast } = useToast();
@@ -157,6 +194,7 @@ export default function ProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
@@ -184,7 +222,7 @@ export default function ProductsPage() {
 
   useEffect(() => {
     fetchProducts();
-  }, [toast]);
+  }, []);
 
   const handleSaveProduct = async (productData: Omit<Product, 'id'>) => {
     try {
@@ -196,8 +234,9 @@ export default function ProductsPage() {
             await addDoc(collection(db, "products"), productData);
             toast({ title: "Success", description: "Product created successfully." });
         }
-        fetchProducts(); // Refresh data
+        fetchProducts();
         setEditingProduct(null);
+        setIsProductDialogOpen(false);
     } catch (error) {
         console.error("Error saving product:", error);
         toast({ variant: "destructive", title: "Error", description: "Could not save product." });
@@ -209,7 +248,7 @@ export default function ProductsPage() {
     try {
         await deleteDoc(doc(db, "products", productToDelete.id));
         toast({ title: "Success", description: "Product deleted successfully." });
-        fetchProducts(); // Refresh data
+        fetchProducts();
     } catch (error) {
         console.error("Error deleting product:", error);
         toast({ variant: "destructive", title: "Error", description: "Could not delete product." });
@@ -223,6 +262,33 @@ export default function ProductsPage() {
     setProductToDelete(product);
     setIsDeleteDialogOpen(true);
   }
+
+  const openEditDialog = (product: Product) => {
+    setEditingProduct(product);
+    setIsProductDialogOpen(true);
+  }
+  
+  const openAddDialog = () => {
+    setEditingProduct(null);
+    setIsProductDialogOpen(true);
+  }
+
+  const handleExport = () => {
+    const headers = ["ID", "Name", "Category", "Cost Price", "Selling Price", "Stock"];
+    const rows = productsWithProfit.map(p => 
+        [p.id, p.name, p.category, p.costPrice || 0, p.price, p.stock].join(',')
+    );
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "products.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Success", description: "Product data exported." });
+  };
+
 
   const productsWithProfit = useMemo(() => {
     const filtered = products.filter(p => {
@@ -239,22 +305,33 @@ export default function ProductsPage() {
     }));
   }, [products, activeTab]);
 
+  const categories = useMemo(() => [...new Set(products.map(p => p.category))], [products]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold font-headline">Products</h1>
         <div className="flex items-center gap-2">
-           <Button variant="outline">
-            <FileUp className="mr-2 h-4 w-4" />
-            Export
-          </Button>
-          <ProductDialog onSave={handleSaveProduct}>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Product
+           <ExportDialog onExport={handleExport}>
+            <Button variant="outline">
+                <FileUp className="mr-2 h-4 w-4" />
+                Export
             </Button>
-          </ProductDialog>
+           </ExportDialog>
+          <Button onClick={openAddDialog}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Add Product
+          </Button>
         </div>
       </div>
+       <ProductDialog 
+            product={editingProduct} 
+            onSave={handleSaveProduct}
+            categories={categories}
+            key={isProductDialogOpen.toString() + (editingProduct?.id || 'new')}
+        >
+        {/* This is a controlled dialog, the trigger is handled programmatically */}
+        <></>
+      </ProductDialog>
 
       <Tabs defaultValue="products">
         <TabsList>
@@ -327,29 +404,27 @@ export default function ProductsPage() {
                         </TableCell>
                         <TableCell>{product.stock > 0 ? product.stock : '--'}</TableCell>
                         <TableCell>
-                           <ProductDialog product={editingProduct} onSave={handleSaveProduct}>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                    <Button
-                                        aria-haspopup="true"
-                                        size="icon"
-                                        variant="ghost"
-                                    >
-                                        <MoreHorizontal className="h-4 w-4" />
-                                        <span className="sr-only">Toggle menu</span>
-                                    </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                    <DropdownMenuItem onSelect={() => setEditingProduct(product)}>Edit</DropdownMenuItem>
-                                    <DropdownMenuItem>View Logs</DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem className="text-destructive" onSelect={() => openDeleteDialog(product)}>
-                                        Delete
-                                    </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </ProductDialog>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                <Button
+                                    aria-haspopup="true"
+                                    size="icon"
+                                    variant="ghost"
+                                >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">Toggle menu</span>
+                                </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem onSelect={() => openEditDialog(product)}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem>View Logs</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive" onSelect={() => openDeleteDialog(product)}>
+                                    Delete
+                                </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))

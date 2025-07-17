@@ -61,15 +61,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select as ShadSelect,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  SelectContent as ShadSelectContent,
+  SelectItem as ShadSelectItem,
+  SelectTrigger as ShadSelectTrigger,
+  SelectValue as ShadSelectValue,
 } from "@/components/ui/select";
 import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { StylesConfig } from "react-select";
 
 type Promotion = {
     id: string;
@@ -102,8 +103,7 @@ const getStatusVariant = (status: string) => {
     }
 }
 
-function CreatePromotionDialog({ onSave, products, promotion, children }: { onSave: (promo: Omit<Promotion, 'id' | 'status'>) => void, products: Product[], promotion?: Promotion | null, children: React.ReactNode }) {
-  const [isOpen, setIsOpen] = useState(false);
+function CreatePromotionDialog({ onSave, products, promotion, children, isOpen, onOpenChange }: { onSave: (promo: Omit<Promotion, 'id' | 'status'>) => void, products: Product[], promotion?: Promotion | null, children: React.ReactNode, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [code, setCode] = useState("");
@@ -129,8 +129,7 @@ function CreatePromotionDialog({ onSave, products, promotion, children }: { onSa
 
   const handleSubmit = () => {
     if (!name || !code || !startDate || !endDate) {
-        // Basic validation
-        alert("Please fill all required fields.");
+        toast({ variant: 'destructive', title: 'Error', description: 'Please fill all required fields.' });
         return;
     }
     const promoData = {
@@ -144,13 +143,41 @@ function CreatePromotionDialog({ onSave, products, promotion, children }: { onSa
       applicableProducts
     }
     onSave(promoData);
-    setIsOpen(false);
+    onOpenChange(false);
   }
 
   const productOptions = products.map(p => ({ value: p.id, label: p.name }));
+  
+  const customSelectStyles: StylesConfig = {
+    control: (provided) => ({
+      ...provided,
+      backgroundColor: 'hsl(var(--input))',
+      borderColor: 'hsl(var(--border))',
+      color: 'hsl(var(--foreground))',
+    }),
+    multiValue: (provided) => ({
+      ...provided,
+      backgroundColor: 'hsl(var(--primary) / 0.2)',
+      color: 'hsl(var(--primary))',
+    }),
+    multiValueLabel: (provided) => ({
+        ...provided,
+        color: 'hsl(var(--primary-foreground))',
+    }),
+    menu: (provided) => ({
+      ...provided,
+      backgroundColor: 'hsl(var(--popover))',
+      color: 'hsl(var(--popover-foreground))',
+    }),
+    option: (provided, state) => ({
+        ...provided,
+        backgroundColor: state.isFocused ? 'hsl(var(--accent))' : 'transparent',
+        color: 'hsl(var(--accent-foreground))'
+    }),
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
@@ -176,14 +203,14 @@ function CreatePromotionDialog({ onSave, products, promotion, children }: { onSa
             <div className="grid gap-2">
               <Label htmlFor="type">Type</Label>
                <ShadSelect value={type} onValueChange={setType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="percentage">Percentage Discount</SelectItem>
-                  <SelectItem value="fixed_amount">Fixed Amount Discount</SelectItem>
-                  <SelectItem value="free_item">Free Item</SelectItem>
-                </SelectContent>
+                <ShadSelectTrigger>
+                  <ShadSelectValue placeholder="Select type" />
+                </ShadSelectTrigger>
+                <ShadSelectContent>
+                  <ShadSelectItem value="percentage">Percentage Discount</ShadSelectItem>
+                  <ShadSelectItem value="fixed_amount">Fixed Amount Discount</ShadSelectItem>
+                  <ShadSelectItem value="free_item">Free Item</ShadSelectItem>
+                </ShadSelectContent>
               </ShadSelect>
             </div>
           </div>
@@ -200,6 +227,7 @@ function CreatePromotionDialog({ onSave, products, promotion, children }: { onSa
                     value={applicableProducts}
                     onChange={(selected) => setApplicableProducts(selected as any)}
                     placeholder="Select products... (leave empty for all)"
+                    styles={customSelectStyles}
                 />
             </div>
           </div>
@@ -235,12 +263,75 @@ function CreatePromotionDialog({ onSave, products, promotion, children }: { onSa
           </div>
         </div>
         <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleSubmit}>{promotion ? "Save Changes" : "Create Promotion"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
+
+function ExportDialog({ children, onExport }: { children: React.ReactNode, onExport: (options: { dateRange?: DateRange }) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [date, setDate] = useState<DateRange | undefined>();
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Export Promotions</DialogTitle>
+          <DialogDescription>
+            Select a date range to export promotions to a CSV file. Promotions active within this range will be exported.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+            <Popover>
+                <PopoverTrigger asChild>
+                <Button
+                    id="date"
+                    variant={"outline"}
+                    className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                    )}
+                >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date?.from ? (
+                    date.to ? (
+                        <>
+                        {format(date.from, "LLL dd, y")} -{" "}
+                        {format(date.to, "LLL dd, y")}
+                        </>
+                    ) : (
+                        format(date.from, "LLL dd, y")
+                    )
+                    ) : (
+                    <span>Filter by date range</span>
+                    )}
+                </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={date?.from}
+                    selected={date}
+                    onSelect={setDate}
+                    numberOfMonths={2}
+                />
+                </PopoverContent>
+            </Popover>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+          <Button onClick={() => { onExport({ dateRange: date }); setIsOpen(false); }}>Export to CSV</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 
 export default function PromotionsPage() {
   const { toast } = useToast();
@@ -252,6 +343,7 @@ export default function PromotionsPage() {
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+  const [isPromoDialogOpen, setIsPromoDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [promotionToDelete, setPromotionToDelete] = useState<Promotion | null>(null);
 
@@ -295,7 +387,7 @@ export default function PromotionsPage() {
 
   useEffect(() => {
     fetchPromotions();
-  }, [toast]);
+  }, []);
   
   const handleSavePromotion = async (promoData: Omit<Promotion, 'id' | 'status'>) => {
     try {
@@ -329,19 +421,56 @@ export default function PromotionsPage() {
         setPromotionToDelete(null);
     }
   };
+  
+  const openAddDialog = () => {
+    setEditingPromotion(null);
+    setIsPromoDialogOpen(true);
+  };
+  
+  const openEditDialog = (promo: Promotion) => {
+    setEditingPromotion(promo);
+    setIsPromoDialogOpen(true);
+  };
 
   const openDeleteDialog = (promo: Promotion) => {
     setPromotionToDelete(promo);
     setIsDeleteDialogOpen(true);
   };
 
+  const handleExport = (options: { dateRange?: DateRange }) => {
+    let promosToExport = promotionsData;
+
+    if (options.dateRange?.from) {
+        promosToExport = promosToExport.filter(promo => {
+            const startDate = new Date(promo.startDate);
+            const endDate = new Date(promo.endDate);
+            return endDate >= options.dateRange!.from! && (!options.dateRange!.to || startDate <= options.dateRange!.to!);
+        });
+    }
+
+    const headers = ["ID", "Name", "Code", "Type", "Value", "Start Date", "End Date", "Status"];
+    const rows = promosToExport.map(p => 
+        [p.id, p.name, p.code, p.type, p.value || "N/A", new Date(p.startDate).toLocaleDateString(), new Date(p.endDate).toLocaleDateString(), p.status].join(',')
+    );
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `promotions_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Success", description: `${promosToExport.length} promotions exported.` });
+  };
+
+
   const filteredPromotions = useMemo(() => {
     return promotionsData.filter(promo => {
         const startDate = new Date(promo.startDate);
         const endDate = new Date(promo.endDate);
-        endDate.setHours(23, 59, 59, 999); // Include the whole end day
+        endDate.setHours(23, 59, 59, 999);
 
-        const dateMatch = !date || (!date.from || endDate >= date.from) && (!date.to || startDate <= date.to);
+        const dateMatch = !date?.from || (endDate >= date.from && (!date.to || startDate <= date.to));
         const searchMatch = !searchTerm || promo.name.toLowerCase().includes(searchTerm.toLowerCase()) || promo.code.toLowerCase().includes(searchTerm.toLowerCase());
         const statusMatch = statusFilter.length === 0 || statusFilter.includes(promo.status);
         return dateMatch && searchMatch && statusMatch;
@@ -416,29 +545,27 @@ export default function PromotionsPage() {
                         </Badge>
                     </TableCell>
                     <TableCell>
-                        <CreatePromotionDialog promotion={editingPromotion} onSave={handleSavePromotion} products={productsData}>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                    aria-haspopup="true"
-                                    size="icon"
-                                    variant="ghost"
-                                    >
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    <span className="sr-only">Toggle menu</span>
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                    <DropdownMenuItem onSelect={() => setEditingPromotion(promo)}>Edit</DropdownMenuItem>
-                                    <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem className="text-destructive" onSelect={() => openDeleteDialog(promo)}>
-                                    Delete
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </CreatePromotionDialog>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                aria-haspopup="true"
+                                size="icon"
+                                variant="ghost"
+                                >
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Toggle menu</span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem onSelect={() => openEditDialog(promo)}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive" onSelect={() => openDeleteDialog(promo)}>
+                                Delete
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </TableCell>
                     </TableRow>
                 ))
@@ -452,12 +579,20 @@ export default function PromotionsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold font-headline">Promotions</h1>
-         <CreatePromotionDialog onSave={handleSavePromotion} products={productsData}>
-            <Button>
-                <PlusCircle className="mr-2 h-4 w-4" /> Create New Promotion
-            </Button>
-        </CreatePromotionDialog>
+         <Button onClick={openAddDialog}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Create New Promotion
+        </Button>
       </div>
+
+      <CreatePromotionDialog 
+        onSave={handleSavePromotion} 
+        products={productsData} 
+        promotion={editingPromotion}
+        isOpen={isPromoDialogOpen}
+        onOpenChange={setIsPromoDialogOpen}
+      >
+        <></>
+      </CreatePromotionDialog>
 
       <Tabs defaultValue="promotions">
         <TabsList>
@@ -527,9 +662,11 @@ export default function PromotionsPage() {
                             <DropdownMenuCheckboxItem checked={statusFilter.includes('Expired')} onCheckedChange={(c) => handleStatusFilterChange('Expired', c as boolean)}>Expired</DropdownMenuCheckboxItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button variant="outline">
-                        <FileDown className="mr-2" /> Export
-                    </Button>
+                    <ExportDialog onExport={handleExport}>
+                        <Button variant="outline">
+                            <FileDown className="mr-2" /> Export
+                        </Button>
+                    </ExportDialog>
                 </div>
               </div>
             </CardHeader>

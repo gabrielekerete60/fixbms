@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -55,6 +56,13 @@ import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { useReactToPrint } from 'react-to-print';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 type CartItem = {
   id: string;
@@ -161,19 +169,6 @@ const getStatusVariant = (status?: string) => {
 }
 
 function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean }) {
-    const handlePrintReceipt = (orderId: string) => {
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        const receiptHtml = document.getElementById(`receipt-${orderId}`)?.innerHTML;
-        const styles = Array.from(document.styleSheets).map(s => s.href ? `<link rel="stylesheet" href="${s.href}">` : '').join('');
-        if (receiptHtml) {
-          printWindow.document.write(`<html><head><title>Receipt ${orderId}</title>${styles}</head><body><div class="p-8">${receiptHtml}</div></body></html>`);
-          printWindow.document.close();
-          // Timeout to allow styles to load
-          setTimeout(() => printWindow.print(), 500);
-        }
-      }
-    }
     
     return (
         <Table>
@@ -244,10 +239,6 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                                                     <span>View Details</span>
                                                 </DropdownMenuItem>
                                              </DialogTrigger>
-                                             <DropdownMenuItem onClick={() => handlePrintReceipt(order.id)}>
-                                                <Printer className="mr-2 h-4 w-4" />
-                                                <span>Print Receipt</span>
-                                            </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                     <Receipt order={order} />
@@ -259,6 +250,84 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
             </TableBody>
         </Table>
     );
+}
+
+
+function ExportDialog({ children, onExport }: { children: React.ReactNode, onExport: (options: { dateRange?: DateRange, status: string }) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [date, setDate] = useState<DateRange | undefined>();
+  const [status, setStatus] = useState("all");
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Export Orders</DialogTitle>
+          <DialogDescription>
+            Select a date range and status to export a filtered list of orders to a CSV file.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+                <Popover>
+                    <PopoverTrigger asChild>
+                    <Button
+                        id="date"
+                        variant={"outline"}
+                        className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !date && "text-muted-foreground"
+                        )}
+                    >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {date?.from ? (
+                        date.to ? (
+                            <>
+                            {format(date.from, "LLL dd, y")} -{" "}
+                            {format(date.to, "LLL dd, y")}
+                            </>
+                        ) : (
+                            format(date.from, "LLL dd, y")
+                        )
+                        ) : (
+                        <span>Filter by date range</span>
+                        )}
+                    </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={date?.from}
+                        selected={date}
+                        onSelect={setDate}
+                        numberOfMonths={2}
+                    />
+                    </PopoverContent>
+                </Popover>
+            </div>
+            <div className="grid gap-2">
+                <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="Completed">Completed</SelectItem>
+                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="Cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+          <Button onClick={() => { onExport({ dateRange: date, status }); setIsOpen(false); }}>Export to CSV</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 export default function RegularOrdersPage() {
@@ -326,6 +395,36 @@ export default function RegularOrdersPage() {
     }
   }
 
+  const handleExport = (options: { dateRange?: DateRange, status: string }) => {
+    let ordersToExport = allOrders;
+    
+    if (options.dateRange?.from) {
+        ordersToExport = ordersToExport.filter(order => {
+            const orderDate = new Date(order.date);
+            return orderDate >= options.dateRange!.from! && (!options.dateRange!.to || orderDate <= options.dateRange!.to!);
+        });
+    }
+
+    if (options.status !== 'all') {
+        ordersToExport = ordersToExport.filter(order => order.status === options.status);
+    }
+
+    const headers = ["Order ID", "Date", "Customer", "Status", "Payment Method", "Total"];
+    const rows = ordersToExport.map(o => 
+        [o.id, new Date(o.date).toLocaleString(), o.customerName || 'Walk-in', o.status, o.paymentMethod, o.total].join(',')
+    );
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `orders_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Success", description: `${ordersToExport.length} orders exported.` });
+  };
+
+
   const ordersByStatus = (status: CompletedOrder['status']) => filteredOrders.filter(o => o.status === status);
   const TABS = ['All Orders', 'Completed', 'Pending', 'Cancelled'];
 
@@ -356,56 +455,60 @@ export default function RegularOrdersPage() {
     <div className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold font-headline">Regular Orders</h1>
         <Tabs defaultValue="All Orders">
-            <TabsList>
-                {TABS.map(tab => <TabsTrigger key={tab} value={tab}>{tab}</TabsTrigger>)}
-            </TabsList>
+            <div className="flex justify-between items-center">
+                <TabsList>
+                    {TABS.map(tab => <TabsTrigger key={tab} value={tab}>{tab}</TabsTrigger>)}
+                </TabsList>
+                 <div className="flex items-center gap-2">
+                    <Button variant="outline" disabled={selectedOrders.length === 0} onClick={handlePrintSelected}><Printer className="mr-2"/> Print Selected</Button>
+                    <ExportDialog onExport={handleExport}>
+                        <Button variant="outline"><FileDown className="mr-2"/> Export</Button>
+                    </ExportDialog>
+                </div>
+            </div>
             <Card>
                 <CardHeader>
-                    <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 flex-1">
-                             <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                                <Input placeholder="Search by Order ID or customer..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                            </div>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <Button
-                                    id="date"
-                                    variant={"outline"}
-                                    className={cn(
-                                    "w-[260px] justify-start text-left font-normal",
-                                    !date && "text-muted-foreground"
-                                    )}
-                                >
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {date?.from ? (
-                                    date.to ? (
-                                        <>
-                                        {format(date.from, "LLL dd, y")} -{" "}
-                                        {format(date.to, "LLL dd, y")}
-                                        </>
-                                    ) : (
-                                        format(date.from, "LLL dd, y")
-                                    )
-                                    ) : (
-                                    <span>Filter by date range</span>
-                                    )}
-                                </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="end">
-                                <Calendar
-                                    initialFocus
-                                    mode="range"
-                                    defaultMonth={date?.from}
-                                    selected={date}
-                                    onSelect={setDate}
-                                    numberOfMonths={2}
-                                />
-                                </PopoverContent>
-                            </Popover>
-                            <Button variant="outline" disabled={selectedOrders.length === 0} onClick={handlePrintSelected}><Printer className="mr-2"/> Print Selected</Button>
-                            <Button variant="outline"><FileDown className="mr-2"/> Export</Button>
+                    <div className="flex items-center justify-start gap-4">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                            <Input placeholder="Search by Order ID or customer..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                         </div>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                id="date"
+                                variant={"outline"}
+                                className={cn(
+                                "w-[260px] justify-start text-left font-normal",
+                                !date && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {date?.from ? (
+                                date.to ? (
+                                    <>
+                                    {format(date.from, "LLL dd, y")} -{" "}
+                                    {format(date.to, "LLL dd, y")}
+                                    </>
+                                ) : (
+                                    format(date.from, "LLL dd, y")
+                                )
+                                ) : (
+                                <span>Filter by date range</span>
+                                )}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="end">
+                            <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={date?.from}
+                                selected={date}
+                                onSelect={setDate}
+                                numberOfMonths={2}
+                            />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                 </CardHeader>
                 <CardContent>
