@@ -139,7 +139,18 @@ const seedData = {
     { staff_id: '500006', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split('T')[0] },
     { staff_id: '500006', clock_in_time: daysAgo(3), clock_out_time: daysAgo(3), date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString().split('T')[0] },
   ],
-  transfers: [],
+  transfers: [
+      {
+        id: "trans_1",
+        from_staff_id: "100001",
+        from_staff_name: "Chris Manager",
+        to_staff_id: "400004",
+        to_staff_name: "Mfon Staff",
+        items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 12 }],
+        date: Timestamp.now(),
+        status: 'pending'
+      }
+  ],
   payment_confirmations: [
       { 
         id: "pc_1",
@@ -233,6 +244,20 @@ export async function seedDatabase(): Promise<ActionResult> {
   }
 }
 
+async function clearSubcollections(collectionPath: string, batch: writeBatch) {
+    const mainCollectionSnapshot = await getDocs(collection(db, collectionPath));
+    for (const mainDoc of mainCollectionSnapshot.docs) {
+        // Clear 'personal_stock' subcollection for staff
+        if (collectionPath === 'staff') {
+            const subCollectionRef = collection(db, mainDoc.ref.path, 'personal_stock');
+            const subCollectionSnapshot = await getDocs(subCollectionRef);
+            subCollectionSnapshot.forEach(subDoc => {
+                batch.delete(subDoc.ref);
+            });
+        }
+    }
+}
+
 export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
@@ -240,6 +265,12 @@ export async function clearDatabase(): Promise<ActionResult> {
     
     for (const collectionName of collectionsToClear) {
       const batch = writeBatch(db);
+
+      // Handle subcollections first if they exist
+      if (collectionName === 'staff') {
+        await clearSubcollections('staff', batch);
+      }
+      
       const querySnapshot = await getDocs(collection(db, collectionName));
       querySnapshot.forEach((doc) => {
         batch.delete(doc.ref);

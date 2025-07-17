@@ -46,7 +46,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, addDoc, writeBatch, doc } from "firebase/firestore";
+import { collection, getDocs, addDoc, writeBatch, doc, runTransaction, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 type Product = {
@@ -78,8 +78,16 @@ type CompletedOrder = {
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
 
+type User = {
+  name: string;
+  role: string;
+  staff_id: string;
+};
+
+
 export default function POSPage() {
   const { toast } = useToast();
+  const [user, setUser] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -92,18 +100,51 @@ export default function POSPage() {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (currentUser: User) => {
+    setIsLoadingProducts(true);
     try {
-      const productsCollection = collection(db, "products");
-      const productSnapshot = await getDocs(productsCollection);
-      const productsList = productSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[];
+      const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
+      const stockSnapshot = await getDocs(personalStockQuery);
+      
+      if (stockSnapshot.empty) {
+        setProducts([]);
+        setIsLoadingProducts(false);
+        return;
+      }
+
+      const productDetailsPromises = stockSnapshot.docs.map(stockDoc => {
+          const productId = stockDoc.data().productId;
+          return getDoc(doc(db, 'products', productId));
+      });
+      const productDetailsSnapshots = await Promise.all(productDetailsPromises);
+      
+      const productsList = stockSnapshot.docs.map((stockDoc, index) => {
+          const stockData = stockDoc.data();
+          const productDetailsDoc = productDetailsSnapshots[index];
+          
+          if (productDetailsDoc.exists()) {
+              const productDetails = productDetailsDoc.data();
+              return {
+                  id: productDetailsDoc.id,
+                  name: productDetails.name,
+                  price: productDetails.price,
+                  stock: stockData.stock, // Use personal stock amount
+                  category: productDetails.category,
+                  image: productDetails.image,
+                  'data-ai-hint': productDetails['data-ai-hint'],
+              } as Product;
+          }
+          return null;
+      }).filter((p): p is Product => p !== null);
+
       setProducts(productsList);
+
     } catch (error) {
       console.error("Error fetching products:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Could not fetch products from the database.",
+        description: "Could not fetch your assigned products.",
       });
     } finally {
       setIsLoadingProducts(false);
@@ -111,7 +152,12 @@ export default function POSPage() {
   };
 
   useEffect(() => {
-    fetchProducts();
+    const storedUser = localStorage.getItem('loggedInUser');
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      setUser(parsedUser);
+      fetchProducts(parsedUser);
+    }
   }, [toast]);
 
 
@@ -133,7 +179,7 @@ export default function POSPage() {
       toast({
         variant: "destructive",
         title: "Out of Stock",
-        description: `${product.name} is currently unavailable.`,
+        description: `${product.name} is currently unavailable in your inventory.`,
       });
       return;
     };
@@ -208,6 +254,11 @@ export default function POSPage() {
   }
 
   const completeOrder = async (paymentMethod: 'Card') => {
+    if (!user) {
+        toast({ variant: "destructive", title: "Error", description: "User not identified. Cannot complete order." });
+        return null;
+    }
+
     const newOrderData = {
       items: cart,
       subtotal,
@@ -216,28 +267,27 @@ export default function POSPage() {
       date: new Date().toISOString(),
       paymentMethod,
       customerName: customerName || 'Walk-in',
-      status: 'Completed' as const
+      status: 'Completed' as const,
+      staff_id: user.staff_id,
+      staff_name: user.name
     };
   
     try {
-      const batch = writeBatch(db);
-      
-      // 1. Create the new order document
       const orderRef = doc(collection(db, "orders"));
-      batch.set(orderRef, newOrderData);
-
-      // 2. Update stock for each item in the cart
-      cart.forEach(item => {
-        const productRef = doc(db, "products", item.id);
-        const productData = products.find(p => p.id === item.id);
-        if (productData) {
-          const newStock = productData.stock - item.quantity;
-          batch.update(productRef, { stock: newStock });
-        }
+      await runTransaction(db, async (transaction) => {
+          // 1. Update personal stock for each item in the cart
+          for (const item of cart) {
+              const personalStockRef = doc(db, 'staff', user.staff_id, 'personal_stock', item.id);
+              const personalStockDoc = await transaction.get(personalStockRef);
+              if (!personalStockDoc.exists() || personalStockDoc.data().stock < item.quantity) {
+                  throw new Error(`Not enough stock for ${item.name}.`);
+              }
+              transaction.update(personalStockRef, { stock: increment(-item.quantity) });
+          }
+          
+          // 2. Create the new order document
+          transaction.set(orderRef, newOrderData);
       });
-      
-      // Commit the batch transaction
-      await batch.commit();
       
       const newOrder: CompletedOrder = {
         id: orderRef.id,
@@ -249,15 +299,16 @@ export default function POSPage() {
       setCustomerName('');
 
       // Refresh product list to show updated stock
-      fetchProducts();
+      fetchProducts(user);
       
       return newOrder;
     } catch (error) {
       console.error("Error saving order:", error);
+      const errorMessage = error instanceof Error ? error.message : "There was a problem saving the order to the database.";
       toast({
         variant: "destructive",
         title: "Order Failed",
-        description: "There was a problem saving the order to the database.",
+        description: errorMessage,
       });
       return null;
     }
@@ -350,38 +401,44 @@ export default function POSPage() {
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
                          </div>
                       ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pr-4">
-                          {filteredProducts.map((product) => (
-                              <Card
-                              key={product.id}
-                              onClick={() => addToCart(product)}
-                              className={`cursor-pointer hover:shadow-lg transition-shadow group relative overflow-hidden ${product.stock === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
-                              >
-                                <CardContent className="p-0">
-                                    <Image
-                                    src={product.image}
-                                    alt={product.name}
-                                    width={150}
-                                    height={150}
-                                    className="rounded-t-lg object-cover w-full aspect-square transition-transform group-hover:scale-105"
-                                    data-ai-hint={product['data-ai-hint']}
-                                    />
-                                    <Badge variant="secondary" className="absolute top-2 right-2">
-                                        Stock: {product.stock}
-                                    </Badge>
-                                    {product.stock === 0 && (
-                                        <div className="absolute inset-0 bg-card/80 flex items-center justify-center rounded-lg">
-                                            <p className="font-bold text-lg text-destructive">Out of Stock</p>
-                                        </div>
-                                    )}
-                                </CardContent>
-                                <CardFooter className="p-3 flex flex-col items-start bg-muted/50">
-                                    <h3 className="font-semibold text-sm">{product.name}</h3>
-                                    <p className="text-sm text-primary font-bold">₦{product.price.toFixed(2)}</p>
-                                </CardFooter>
-                              </Card>
-                          ))}
-                        </div>
+                        filteredProducts.length > 0 ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pr-4">
+                            {filteredProducts.map((product) => (
+                                <Card
+                                key={product.id}
+                                onClick={() => addToCart(product)}
+                                className={`cursor-pointer hover:shadow-lg transition-shadow group relative overflow-hidden ${product.stock === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                >
+                                    <CardContent className="p-0">
+                                        <Image
+                                        src={product.image}
+                                        alt={product.name}
+                                        width={150}
+                                        height={150}
+                                        className="rounded-t-lg object-cover w-full aspect-square transition-transform group-hover:scale-105"
+                                        data-ai-hint={product['data-ai-hint']}
+                                        />
+                                        <Badge variant="secondary" className="absolute top-2 right-2">
+                                            Stock: {product.stock}
+                                        </Badge>
+                                        {product.stock === 0 && (
+                                            <div className="absolute inset-0 bg-card/80 flex items-center justify-center rounded-lg">
+                                                <p className="font-bold text-lg text-destructive">Out of Stock</p>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                    <CardFooter className="p-3 flex flex-col items-start bg-muted/50">
+                                        <h3 className="font-semibold text-sm">{product.name}</h3>
+                                        <p className="text-sm text-primary font-bold">₦{product.price.toFixed(2)}</p>
+                                    </CardFooter>
+                                </Card>
+                            ))}
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-muted-foreground">
+                                <p>No products in your assigned inventory.</p>
+                            </div>
+                        )
                       )}
                   </ScrollArea>
               </TabsContent>

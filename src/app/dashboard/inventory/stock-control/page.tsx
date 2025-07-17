@@ -31,6 +31,8 @@ import {
   Trash,
   Hourglass,
   Loader2,
+  Check,
+  X,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -47,11 +49,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
-import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 type User = {
     name: string;
@@ -77,15 +80,6 @@ type Product = {
   stock: number;
 };
 
-type Transfer = {
-    id: string;
-    to_staff_id: string;
-    to_staff_name: string;
-    from_staff_name: string;
-    items: TransferItem[];
-    date: Timestamp;
-    status: 'pending' | 'completed' | 'cancelled';
-}
 
 function ReportWasteTab({ products, user, onWasteReported }: { products: Product[], user: User | null, onWasteReported: () => void }) {
     const { toast } = useToast();
@@ -135,7 +129,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
             <CardHeader>
                 <CardTitle>Report Spoiled or Damaged Stock</CardTitle>
                 <CardDescription>
-                    Use this form to report any items that are no longer sellable. This will deduct the items from the main inventory.
+                    Use this form to report any items that are no longer sellable from your personal stock. This will deduct the items from your inventory.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -204,39 +198,50 @@ export default function StockControlPage() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [initiatedTransfers, setInitiatedTransfers] = useState<Transfer[]>([]);
+  const [pendingTransfers, setPendingTransfers] = useState<Transfer[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionState, setActionState] = useState<{ id: string, type: 'accept' | 'decline' } | null>(null);
 
   const fetchPageData = async () => {
         setIsLoading(true);
+        const userStr = localStorage.getItem('loggedInUser');
+        if (!userStr) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
+            setIsLoading(false);
+            return;
+        }
+        const currentUser = JSON.parse(userStr);
+        setUser(currentUser);
+
         try {
+            // Fetch all staff for the transfer dropdown
             const staffQuery = query(collection(db, "staff"), where("role", "in", ["Showroom Staff", "Delivery Staff", "Manager"]));
             const staffSnapshot = await getDocs(staffQuery);
             setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
 
-            const productsSnapshot = await getDocs(collection(db, "products"));
-            setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
-
-            // Fetch transfers based on user role
-            const userStr = localStorage.getItem('loggedInUser');
-            if (!userStr) {
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
-                return;
-            }
-            const currentUser = JSON.parse(userStr);
-            setUser(currentUser);
-
-            let transfersQuery;
-            if (currentUser.role === 'Manager' || currentUser.role === 'Supervisor' || currentUser.role === 'Storekeeper') {
-                // Admins see all transfers
-                 transfersQuery = query(collection(db, "transfers"), orderBy("date", "desc"));
+            // Fetch products based on user role
+            const userRole = currentUser.role;
+            if (userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper') {
+                // Admins see main inventory for transfers and waste reporting
+                const productsSnapshot = await getDocs(collection(db, "products"));
+                setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
             } else {
-                // Other staff see transfers initiated by them
-                 transfersQuery = query(collection(db, "transfers"), where('from_staff_id', '==', currentUser.staff_id), orderBy("date", "desc"));
+                // Other staff see their personal stock for waste reporting
+                const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
+                const personalStockSnapshot = await getDocs(personalStockQuery);
+                setProducts(personalStockSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().productName, stock: doc.data().stock })));
             }
+            
+            // Fetch transfers initiated by the user for the log
+            const transfersQuery = query(collection(db, "transfers"), where('from_staff_id', '==', currentUser.staff_id), orderBy("date", "desc"));
             const transfersSnapshot = await getDocs(transfersQuery);
             setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer)));
+
+            // Fetch transfers pending for the user to acknowledge
+            const pendingData = await getPendingTransfersForStaff(currentUser.staff_id);
+            setPendingTransfers(pendingData);
 
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -351,11 +356,109 @@ export default function StockControlPage() {
 
     setIsSubmitting(false);
   };
+  
+  const handleAcknowledge = async () => {
+    if (!actionState) return;
+    const { id, type } = actionState;
 
-  const pendingTransfers = useMemo(() => initiatedTransfers.filter(t => t.status === 'pending'), [initiatedTransfers]);
+    const result = await handleAcknowledgeTransfer(id, type);
+    if (result.success) {
+        toast({ title: 'Success', description: `Transfer has been ${type}ed.` });
+        fetchPageData();
+    } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+    }
+    setActionState(null);
+  };
+
   const userRole = user?.role;
   const canInitiateTransfer = userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper';
+  
+  if (!user) {
+    return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+  
+  // Simplified view for sales and delivery staff
+  if (!canInitiateTransfer) {
+     return (
+         <div className="flex flex-col gap-4">
+             <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
+              <AlertDialog open={!!actionState} onOpenChange={() => setActionState(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            You are about to {actionState?.type} this stock transfer. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleAcknowledge}>Yes, {actionState?.type}</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+             <Tabs defaultValue="acknowledge">
+                <TabsList>
+                    <TabsTrigger value="acknowledge" className="relative">
+                        Acknowledge Transfers 
+                        {pendingTransfers.length > 0 && <Badge className="ml-2">{pendingTransfers.length}</Badge>}
+                    </TabsTrigger>
+                    <TabsTrigger value="report-waste">
+                        <Trash className="mr-2 h-4 w-4" /> Report Waste
+                    </TabsTrigger>
+                </TabsList>
+                <TabsContent value="acknowledge">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Acknowledge Incoming Stock</CardTitle>
+                            <CardDescription>Review and acknowledge stock transferred to you. This stock will be added to your personal inventory.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>From</TableHead>
+                                        <TableHead>Items</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                        <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                    ) : pendingTransfers.length === 0 ? (
+                                        <TableRow><TableCell colSpan={4} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
+                                    ) : (
+                                        pendingTransfers.map(t => (
+                                            <TableRow key={t.id}>
+                                                <TableCell>{format(t.date.toDate(), 'Pp')}</TableCell>
+                                                <TableCell>{t.from_staff_name}</TableCell>
+                                                <TableCell>
+                                                    <ul className="list-disc pl-5">
+                                                        {t.items.map(i => <li key={i.productId}>{i.quantity} x {i.productName}</li>)}
+                                                    </ul>
+                                                </TableCell>
+                                                <TableCell className="text-right space-x-2">
+                                                    <Button variant="destructive" size="sm" onClick={() => setActionState({ id: t.id, type: 'decline' })}>Decline</Button>
+                                                    <Button size="sm" onClick={() => setActionState({ id: t.id, type: 'accept' })}>Accept</Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="report-waste">
+                    <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
+                </TabsContent>
+             </Tabs>
+         </div>
+     )
+  }
 
+  // Full view for admins
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
@@ -363,11 +466,9 @@ export default function StockControlPage() {
       </div>
       <Tabs defaultValue="initiate-transfer">
         <TabsList className="grid w-full grid-cols-5">
-            {canInitiateTransfer && (
-                <TabsTrigger value="initiate-transfer">
-                    <Send className="mr-2 h-4 w-4" /> Initiate Transfer
-                </TabsTrigger>
-            )}
+          <TabsTrigger value="initiate-transfer">
+              <Send className="mr-2 h-4 w-4" /> Initiate Transfer
+          </TabsTrigger>
           <TabsTrigger value="prod-requests">
             <Wrench className="mr-2 h-4 w-4" /> Prod Requests
           </TabsTrigger>
@@ -378,138 +479,157 @@ export default function StockControlPage() {
             <Trash className="mr-2 h-4 w-4" /> Report Waste
           </TabsTrigger>
           <TabsTrigger value="pending-transfers" className="relative">
-            <Hourglass className="mr-2 h-4 w-4" /> Pending Transfers
-            {pendingTransfers.length > 0 && (
-                 <div className="absolute top-1 right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {pendingTransfers.length}
-                </div>
-            )}
+            <Hourglass className="mr-2 h-4 w-4" /> All Pending
           </TabsTrigger>
         </TabsList>
-         {canInitiateTransfer && (
-            <TabsContent value="initiate-transfer">
-            <Card>
-                <CardHeader>
-                <CardTitle>Transfer Stock to Sales Floor</CardTitle>
-                <CardDescription>
-                    Initiate a transfer of finished products from the main store to a
-                    sales staff member.
-                </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                        <Label htmlFor="transfer-to">Transfer to</Label>
-                        <Select value={transferTo} onValueChange={handleTransferToChange} disabled={isLoading}>
-                        <SelectTrigger id="transfer-to">
-                            <SelectValue placeholder="Select a staff member" />
+        <TabsContent value="initiate-transfer">
+        <Card>
+            <CardHeader>
+            <CardTitle>Transfer Stock to Sales Floor</CardTitle>
+            <CardDescription>
+                Initiate a transfer of finished products from the main store to a
+                sales staff member.
+            </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                    <Label htmlFor="transfer-to">Transfer to</Label>
+                    <Select value={transferTo} onValueChange={handleTransferToChange} disabled={isLoading}>
+                    <SelectTrigger id="transfer-to">
+                        <SelectValue placeholder="Select a staff member" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {staff.map((s) => (
+                        <SelectItem key={s.staff_id} value={s.staff_id}>
+                            {s.name} ({s.role})
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                    </Select>
+                </div>
+                <div className="flex items-end pb-2">
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="sales-run" checked={isSalesRun} onCheckedChange={(checked) => setIsSalesRun(checked as boolean)} disabled={isSalesRunDisabled}/>
+                        <div className="grid gap-1.5 leading-none">
+                            <label
+                            htmlFor="sales-run"
+                            className={cn("text-sm font-medium leading-none", isSalesRunDisabled ? "text-muted-foreground" : "peer-disabled:cursor-not-allowed peer-disabled:opacity-70")}
+                            >
+                            This is for a sales run
+                            </label>
+                            <p className="text-sm text-muted-foreground">
+                            The recipient will manage sales for these items.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <Label>Items to Transfer</Label>
+                <div className="space-y-2">
+                {items.map((item, index) => (
+                    <div
+                    key={index}
+                    className="grid grid-cols-[1fr_120px_auto] gap-2 items-center"
+                    >
+                    <Select
+                        value={item.productId}
+                        onValueChange={(value) =>
+                        handleItemChange(index, "productId", value)
+                        }
+                        disabled={isLoading}
+                    >
+                        <SelectTrigger>
+                        <SelectValue placeholder="Select a product" />
                         </SelectTrigger>
                         <SelectContent>
-                            {staff.map((s) => (
-                            <SelectItem key={s.staff_id} value={s.staff_id}>
-                                {s.name} ({s.role})
+                        {products.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                            {p.name} (Stock: {p.stock})
                             </SelectItem>
-                            ))}
+                        ))}
                         </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="flex items-end pb-2">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox id="sales-run" checked={isSalesRun} onCheckedChange={(checked) => setIsSalesRun(checked as boolean)} disabled={isSalesRunDisabled}/>
-                            <div className="grid gap-1.5 leading-none">
-                                <label
-                                htmlFor="sales-run"
-                                className={cn("text-sm font-medium leading-none", isSalesRunDisabled ? "text-muted-foreground" : "peer-disabled:cursor-not-allowed peer-disabled:opacity-70")}
-                                >
-                                This is for a sales run
-                                </label>
-                                <p className="text-sm text-muted-foreground">
-                                The recipient will manage sales for these items.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <Label>Items to Transfer</Label>
-                    <div className="space-y-2">
-                    {items.map((item, index) => (
-                        <div
-                        key={index}
-                        className="grid grid-cols-[1fr_120px_auto] gap-2 items-center"
-                        >
-                        <Select
-                            value={item.productId}
-                            onValueChange={(value) =>
-                            handleItemChange(index, "productId", value)
-                            }
-                            disabled={isLoading}
-                        >
-                            <SelectTrigger>
-                            <SelectValue placeholder="Select a product" />
-                            </SelectTrigger>
-                            <SelectContent>
-                            {products.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                {p.name} (Stock: {p.stock})
-                                </SelectItem>
-                            ))}
-                            </SelectContent>
-                        </Select>
-                        <Input
-                            type="number"
-                            placeholder="Qty"
-                            min="1"
-                            value={item.quantity || ''}
-                            onChange={(e) =>
-                            handleItemChange(index, "quantity", e.target.value)
-                            }
-                        />
-                        <Button
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => handleRemoveItem(index)}
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                        </div>
-                    ))}
-                    </div>
+                    </Select>
+                    <Input
+                        type="number"
+                        placeholder="Qty"
+                        min="1"
+                        value={item.quantity || ''}
+                        onChange={(e) =>
+                        handleItemChange(index, "quantity", e.target.value)
+                        }
+                    />
                     <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                    onClick={handleAddItem}
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => handleRemoveItem(index)}
                     >
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+                        <Trash2 className="h-4 w-4" />
                     </Button>
+                    </div>
+                ))}
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="notes">Notes (Optional)</Label>
-                    <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                </div>
-                <div className="flex justify-end">
-                    <Button onClick={handleSubmit} disabled={isSubmitting || isLoading}>
-                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Submit Transfer
-                    </Button>
-                </div>
-                </CardContent>
-            </Card>
-            </TabsContent>
-         )}
+                <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={handleAddItem}
+                >
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+                </Button>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="notes">Notes (Optional)</Label>
+                <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
+            <div className="flex justify-end">
+                <Button onClick={handleSubmit} disabled={isSubmitting || isLoading}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    Submit Transfer
+                </Button>
+            </div>
+            </CardContent>
+        </Card>
+        </TabsContent>
          <TabsContent value="report-waste">
             <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
          </TabsContent>
+          <TabsContent value="pending-transfers">
+              <Card>
+                <CardHeader>
+                    <CardTitle>All Pending Transfers</CardTitle>
+                    <CardDescription>A log of all transfers awaiting acknowledgement across the system.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>From</TableHead>
+                                <TableHead>To</TableHead>
+                                <TableHead>Items</TableHead>
+                                <TableHead>Status</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                             <TableRow>
+                                <TableCell colSpan={5} className="h-24 text-center">Feature coming soon.</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </CardContent>
+              </Card>
+          </TabsContent>
       </Tabs>
 
       <Card>
         <CardHeader>
             <div className="flex justify-between items-center">
                 <div>
-                    <CardTitle>My Stock Movement Log</CardTitle>
-                    <CardDescription>A log of transfers you have initiated or received.</CardDescription>
+                    <CardTitle>My Initiated Transfers Log</CardTitle>
+                    <CardDescription>A log of transfers you have initiated.</CardDescription>
                 </div>
                 <Popover>
                     <PopoverTrigger asChild>
@@ -574,7 +694,7 @@ export default function StockControlPage() {
                                 <TableCell>{transfer.from_staff_name}</TableCell>
                                 <TableCell>{transfer.to_staff_name}</TableCell>
                                 <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
-                                <TableCell><Badge variant="secondary">{transfer.status}</Badge></TableCell>
+                                <TableCell><Badge variant={transfer.status === 'pending' ? 'secondary' : transfer.status === 'completed' ? 'default' : 'destructive'}>{transfer.status}</Badge></TableCell>
                             </TableRow>
                         ))
                     ) : (

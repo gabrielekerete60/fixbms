@@ -1,7 +1,7 @@
 
 "use server";
 
-import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction } from "firebase/firestore";
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
 import { db } from "@/lib/firebase";
 
@@ -540,32 +540,130 @@ type ReportWasteData = {
     notes?: string;
 };
 
+// This function now reports waste from a specific user's personal stock
 export async function handleReportWaste(data: ReportWasteData, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
     if (!data.productId || !data.quantity || !data.reason) {
         return { success: false, error: "Please fill out all required fields." };
     }
     
-    const batch = writeBatch(db);
     try {
-        // 1. Decrement product stock
-        const productRef = doc(db, 'products', data.productId);
-        batch.update(productRef, { stock: increment(-data.quantity) });
-
-        // 2. Create a waste log entry
+        const staffStockRef = doc(db, 'staff', user.staff_id, 'personal_stock', data.productId);
         const wasteLogRef = doc(collection(db, 'waste_logs'));
-        batch.set(wasteLogRef, {
-            ...data,
-            staffId: user.staff_id,
-            staffName: user.name,
-            date: serverTimestamp()
+
+        await runTransaction(db, async (transaction) => {
+            const staffStockDoc = await transaction.get(staffStockRef);
+            if (!staffStockDoc.exists() || staffStockDoc.data().stock < data.quantity) {
+                throw new Error("Not enough personal stock to report as waste.");
+            }
+
+            // 1. Decrement personal stock
+            transaction.update(staffStockRef, { stock: increment(-data.quantity) });
+
+            // 2. Create a waste log entry
+            transaction.set(wasteLogRef, {
+                ...data,
+                staffId: user.staff_id,
+                staffName: user.name,
+                date: serverTimestamp()
+            });
         });
 
-        await batch.commit();
         return { success: true };
 
     } catch (error) {
         console.error("Error reporting waste:", error);
-        return { success: false, error: "Failed to report waste." };
+        const errorMessage = error instanceof Error ? error.message : "Failed to report waste.";
+        return { success: false, error: errorMessage };
     }
+}
+
+export type Transfer = {
+  id: string;
+  from_staff_id: string;
+  from_staff_name: string;
+  to_staff_id: string;
+  to_staff_name: string;
+  items: { productId: string; productName: string; quantity: number }[];
+  date: Timestamp;
+  status: 'pending' | 'completed' | 'cancelled';
+};
+
+
+export async function getPendingTransfersForStaff(staffId: string): Promise<Transfer[]> {
+    try {
+        const q = query(
+            collection(db, 'transfers'),
+            where('to_staff_id', '==', staffId),
+            where('status', '==', 'pending'),
+            orderBy('date', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer));
+    } catch (error) {
+        console.error("Error fetching pending transfers:", error);
+        return [];
+    }
+}
+
+export async function handleAcknowledgeTransfer(transferId: string, action: 'accept' | 'decline'): Promise<{success: boolean, error?: string}> {
+     const transferRef = doc(db, 'transfers', transferId);
+     
+     if (action === 'decline') {
+        try {
+            await updateDoc(transferRef, { status: 'cancelled' });
+            return { success: true };
+        } catch (error) {
+             console.error("Error declining transfer:", error);
+             return { success: false, error: "Failed to decline transfer." };
+        }
+     }
+
+     // Handle 'accept' case within a transaction
+     try {
+        await runTransaction(db, async (transaction) => {
+            const transferDoc = await transaction.get(transferRef);
+            if (!transferDoc.exists()) {
+                throw new Error("Transfer does not exist.");
+            }
+            if (transferDoc.data().status !== 'pending') {
+                throw new Error("This transfer has already been processed.");
+            }
+            
+            const transfer = transferDoc.data() as Omit<Transfer, 'id'>;
+
+            for (const item of transfer.items) {
+                // 1. Decrement main inventory
+                const productRef = doc(db, 'products', item.productId);
+                const productDoc = await transaction.get(productRef);
+                if (!productDoc.exists() || productDoc.data().stock < item.quantity) {
+                    throw new Error(`Not enough stock for ${item.productName} in main inventory.`);
+                }
+                transaction.update(productRef, { stock: increment(-item.quantity) });
+
+                // 2. Increment staff's personal inventory
+                const staffStockRef = doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId);
+                const staffStockDoc = await transaction.get(staffStockRef);
+                if(staffStockDoc.exists()) {
+                     transaction.update(staffStockRef, { stock: increment(item.quantity) });
+                } else {
+                     transaction.set(staffStockRef, { 
+                        productId: item.productId,
+                        productName: item.productName,
+                        stock: item.quantity
+                     });
+                }
+            }
+            
+            // 3. Update transfer status
+            transaction.update(transferRef, { status: 'completed' });
+        });
+
+        return { success: true };
+
+     } catch (error) {
+        console.error("Error accepting transfer:", error);
+        const errorMessage = error instanceof Error ? error.message : "Failed to accept transfer.";
+        return { success: false, error: errorMessage };
+     }
 }
     
