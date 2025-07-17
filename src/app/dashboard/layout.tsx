@@ -23,6 +23,9 @@ import {
   BookOpen,
   Clock,
   PanelLeft,
+  Cookie,
+  ClipboardList,
+  Carrot,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -125,10 +128,10 @@ export default function DashboardLayout({
     },
     {
       icon: Package, label: "Inventory", sublinks: [
-        { href: "/dashboard/inventory/products", label: "Products" },
-        { href: "/dashboard/inventory/recipes", label: "Recipes" },
+        { href: "/dashboard/inventory/products", label: "Products", icon: Cookie },
+        { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList },
+        { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot },
         { href: "/dashboard/inventory/suppliers", label: "Suppliers" },
-        { href: "#", label: "Ingredients" },
         { href: "#", label: "Stock Control" },
         { href: "#", label: "Other Supplies" },
       ]
