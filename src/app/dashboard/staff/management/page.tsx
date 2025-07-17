@@ -60,6 +60,7 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc } from "
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type Staff = {
   staff_id: string;
@@ -323,8 +324,8 @@ export default function StaffManagementPage() {
     };
 
     return (
-        <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 h-full">
+            <div className="flex items-center justify-between shrink-0">
                 <h1 className="text-2xl font-bold font-headline">Staff</h1>
                 <Button onClick={openAddDialog}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Staff
@@ -338,16 +339,16 @@ export default function StaffManagementPage() {
                 staff={editingStaff}
             />
 
-            <Card>
+            <Card className="flex-grow flex flex-col">
                 <CardHeader>
                     <CardTitle>Manage Staff</CardTitle>
                     <CardDescription>
                         A list of all staff members in your bakery.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex-grow overflow-auto">
                     <Table>
-                        <TableHeader>
+                        <TableHeader className="sticky top-0 bg-card">
                             <TableRow>
                                 <TableHead>Staff Member</TableHead>
                                 <TableHead>Role</TableHead>
@@ -356,7 +357,7 @@ export default function StaffManagementPage() {
                                 <TableHead><span className="sr-only">Actions</span></TableHead>
                             </TableRow>
                         </TableHeader>
-                        <TableBody>
+                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
                                     <TableCell colSpan={5} className="h-24 text-center">
