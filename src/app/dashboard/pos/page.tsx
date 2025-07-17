@@ -210,7 +210,6 @@ export default function POSPage() {
   const onPaystackSuccess = (reference: any) => {
     console.log(reference);
     completeOrder('Paystack');
-    setIsCheckoutOpen(false);
     setIsReceiptOpen(true);
     toast({
       title: "Payment Successful",
@@ -226,6 +225,11 @@ export default function POSPage() {
       description: "The payment process was cancelled.",
     })
   };
+
+  const handlePaystackPayment = () => {
+    setIsCheckoutOpen(false);
+    initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose});
+  }
 
   const handlePrintReceipt = () => {
     window.print();
@@ -434,7 +438,7 @@ export default function POSPage() {
                         <CreditCard className="w-8 h-8"/>
                         <span>Pay with Card</span>
                     </Button>
-                    <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
+                    <Button variant="outline" className="h-20 flex-col gap-2" onClick={handlePaystackPayment}>
                         <Wallet className="w-8 h-8"/>
                         <span>Pay with Paystack</span>
                     </Button>
