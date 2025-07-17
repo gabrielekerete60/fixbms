@@ -60,7 +60,6 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc } from "
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 type Staff = {
   staff_id: string;
@@ -435,3 +434,5 @@ export default function StaffManagementPage() {
         </div>
     );
 }
+
+    

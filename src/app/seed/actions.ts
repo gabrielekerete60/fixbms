@@ -99,14 +99,7 @@ export async function seedDatabase(): Promise<ActionResult> {
     
     for (const [collectionName, data] of Object.entries(seedData)) {
         if (Array.isArray(data)) {
-             const dataToSeed = data.filter(item => {
-                if (collectionName === 'staff') {
-                    return item.role !== 'Developer';
-                }
-                return true;
-            });
-
-            dataToSeed.forEach((item) => {
+            data.forEach((item) => {
                 let docRef;
                 if(item.id) {
                     docRef = doc(db, collectionName, item.id);
@@ -167,3 +160,5 @@ export async function clearDatabase(): Promise<ActionResult> {
     return { success: false, error: `Failed to clear database: ${errorMessage}` };
   }
 }
+
+    
