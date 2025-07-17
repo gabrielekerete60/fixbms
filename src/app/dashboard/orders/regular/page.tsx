@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Printer, FileDown, MoreHorizontal } from "lucide-react";
+import { Eye, Printer, FileDown, MoreHorizontal, Calendar as CalendarIcon, ListFilter, Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -44,6 +47,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -65,6 +70,7 @@ type CompletedOrder = {
   date: string;
   paymentMethod: 'Card' | 'Paystack';
   customerName?: string;
+  status: 'Completed' | 'Pending' | 'Cancelled';
 }
 
 function Receipt({ order }: { order: CompletedOrder }) {
@@ -145,13 +151,120 @@ function Receipt({ order }: { order: CompletedOrder }) {
   );
 }
 
+const getStatusVariant = (status: string) => {
+    switch (status.toLowerCase()) {
+        case 'completed':
+            return 'default';
+        case 'pending':
+            return 'secondary';
+        case 'cancelled':
+            return 'destructive';
+        default:
+            return 'outline';
+    }
+}
+
+function OrdersTable({ orders, onSelectOne, selectedOrders }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, selectedOrders: string[] }) {
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead padding="checkbox">
+                       <Checkbox
+                            checked={selectedOrders.length > 0 && selectedOrders.length === orders.length}
+                            onCheckedChange={(checked) => {
+                                if(checked) {
+                                    orders.forEach(o => onSelectOne(o.id, true));
+                                } else {
+                                     orders.forEach(o => onSelectOne(o.id, false));
+                                }
+                            }}
+                            aria-label="Select all"
+                        />
+                    </TableHead>
+                    <TableHead>Order ID</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {orders.length === 0 ? (
+                    <TableRow>
+                        <TableCell colSpan={9} className="h-24 text-center">
+                            No orders found for this view.
+                        </TableCell>
+                    </TableRow>
+                ) : (
+                    orders.map((order) => (
+                        <TableRow key={order.id} data-state={selectedOrders.includes(order.id) && "selected"}>
+                            <TableCell padding="checkbox">
+                                <Checkbox
+                                    checked={selectedOrders.includes(order.id)}
+                                    onCheckedChange={(checked) => onSelectOne(order.id, checked as boolean)}
+                                    aria-label={`Select order ${order.id}`}
+                                />
+                            </TableCell>
+                            <TableCell className="font-medium">{order.id}</TableCell>
+                            <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
+                            <TableCell>{order.customerName || 'Walk-in'}</TableCell>
+                            <TableCell>{order.items.reduce((acc, item) => acc + item.quantity, 0)}</TableCell>
+                            <TableCell>
+                                <Badge variant={order.paymentMethod === 'Card' ? 'secondary' : 'default'}>
+                                    {order.paymentMethod}
+                                </Badge>
+                            </TableCell>
+                            <TableCell>
+                                <Badge variant={getStatusVariant(order.status)}>
+                                    {order.status}
+                                </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">₦{order.total.toFixed(2)}</TableCell>
+                            <TableCell className="text-center">
+                               <Dialog>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                            <span className="sr-only">Open menu</span>
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                             <DialogTrigger asChild>
+                                                <DropdownMenuItem>
+                                                    <Eye className="mr-2 h-4 w-4" />
+                                                    <span>View Details</span>
+                                                </DropdownMenuItem>
+                                             </DialogTrigger>
+                                             <DropdownMenuItem>
+                                                <Printer className="mr-2 h-4 w-4" />
+                                                <span>Print Receipt</span>
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <Receipt order={order} />
+                               </Dialog>
+                            </TableCell>
+                        </TableRow>
+                    ))
+                )}
+            </TableBody>
+        </Table>
+    );
+}
+
+
 export default function RegularOrdersPage() {
-  const [completedOrders] = useLocalStorage<CompletedOrder[]>('completedOrders', []);
+  const [allOrders] = useLocalStorage<CompletedOrder[]>('completedOrders', []);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
 
   const filteredOrders = useMemo(() => {
-    return completedOrders.filter(order => {
+    return allOrders.filter(order => {
       if (!date?.from) return true;
       const orderDate = new Date(order.date);
       if (date.to) {
@@ -159,162 +272,119 @@ export default function RegularOrdersPage() {
       }
       return orderDate >= date.from;
     });
-  }, [completedOrders, date]);
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedOrders(filteredOrders.map(o => o.id));
-    } else {
-      setSelectedOrders([]);
-    }
-  }
+  }, [allOrders, date]);
 
   const handleSelectOne = (orderId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedOrders(prev => [...prev, orderId]);
-    } else {
-      setSelectedOrders(prev => prev.filter(id => id !== orderId));
-    }
+    setSelectedOrders(prev => {
+        if (checked) {
+            return [...prev, orderId];
+        } else {
+            return prev.filter(id => id !== orderId);
+        }
+    });
   }
 
-  const isAllSelected = selectedOrders.length > 0 && selectedOrders.length === filteredOrders.length;
-
+  const ordersByStatus = (status: CompletedOrder['status']) => filteredOrders.filter(o => o.status === status);
+  const TABS = ['All Orders', 'Completed', 'Pending', 'Cancelled'];
 
   return (
     <div className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold font-headline">Regular Orders</h1>
-        <Card>
-            <CardHeader>
-                <div className="flex items-center justify-between gap-4">
-                     <div>
-                        <CardTitle>Completed Orders</CardTitle>
-                        <CardDescription>A list of all successfully completed transactions.</CardDescription>
-                     </div>
-                     <div className="flex items-center gap-2">
-                         <Popover>
-                            <PopoverTrigger asChild>
-                            <Button
-                                id="date"
-                                variant={"outline"}
-                                className={cn(
-                                "w-[300px] justify-start text-left font-normal",
-                                !date && "text-muted-foreground"
-                                )}
-                            >
-                                {date?.from ? (
-                                date.to ? (
-                                    <>
-                                    {format(date.from, "LLL dd, y")} -{" "}
-                                    {format(date.to, "LLL dd, y")}
-                                    </>
-                                ) : (
-                                    format(date.from, "LLL dd, y")
-                                )
-                                ) : (
-                                <span>Pick a date range</span>
-                                )}
-                            </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="end">
-                            <Calendar
-                                initialFocus
-                                mode="range"
-                                defaultMonth={date?.from}
-                                selected={date}
-                                onSelect={setDate}
-                                numberOfMonths={2}
-                            />
-                            </PopoverContent>
-                        </Popover>
-                        <Button variant="outline" disabled={selectedOrders.length === 0}><Printer className="mr-2"/> Print Selected</Button>
-                        <Button variant="outline"><FileDown className="mr-2"/> Export</Button>
-                     </div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead padding="checkbox">
-                               <Checkbox
-                                    checked={isAllSelected}
-                                    onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
-                                    aria-label="Select all"
+        <Tabs defaultValue="All Orders">
+            <TabsList>
+                {TABS.map(tab => <TabsTrigger key={tab} value={tab}>{tab}</TabsTrigger>)}
+            </TabsList>
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between gap-4">
+                        <div>
+                            <CardTitle>Completed Orders</CardTitle>
+                            <CardDescription>A list of all successfully completed transactions.</CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                <Input placeholder="Search by Order ID or customer..." className="pl-10 w-64" />
+                            </div>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                <Button
+                                    id="date"
+                                    variant={"outline"}
+                                    className={cn(
+                                    "w-[260px] justify-start text-left font-normal",
+                                    !date && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {date?.from ? (
+                                    date.to ? (
+                                        <>
+                                        {format(date.from, "LLL dd, y")} -{" "}
+                                        {format(date.to, "LLL dd, y")}
+                                        </>
+                                    ) : (
+                                        format(date.from, "LLL dd, y")
+                                    )
+                                    ) : (
+                                    <span>Filter by date range</span>
+                                    )}
+                                </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="end">
+                                <Calendar
+                                    initialFocus
+                                    mode="range"
+                                    defaultMonth={date?.from}
+                                    selected={date}
+                                    onSelect={setDate}
+                                    numberOfMonths={2}
                                 />
-                            </TableHead>
-                            <TableHead>Order ID</TableHead>
-                            <TableHead>Date</TableHead>
-                             <TableHead>Customer</TableHead>
-                            <TableHead>Items</TableHead>
-                            <TableHead>Payment Method</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                            <TableHead className="text-center">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredOrders.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={8} className="h-24 text-center">
-                                    No completed orders found for the selected period.
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            filteredOrders.map((order) => (
-                                <TableRow key={order.id} data-state={selectedOrders.includes(order.id) && "selected"}>
-                                    <TableCell padding="checkbox">
-                                        <Checkbox
-                                            checked={selectedOrders.includes(order.id)}
-                                            onCheckedChange={(checked) => handleSelectOne(order.id, checked as boolean)}
-                                            aria-label={`Select order ${order.id}`}
-                                        />
-                                    </TableCell>
-                                    <TableCell className="font-medium">{order.id}</TableCell>
-                                    <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
-                                    <TableCell>{order.customerName || 'Walk-in'}</TableCell>
-                                    <TableCell>{order.items.reduce((acc, item) => acc + item.quantity, 0)}</TableCell>
-                                    <TableCell>
-                                        <Badge variant={order.paymentMethod === 'Card' ? 'secondary' : 'default'}>
-                                            {order.paymentMethod}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right">₦{order.total.toFixed(2)}</TableCell>
-                                    <TableCell className="text-center">
-                                       <Dialog>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                                    <span className="sr-only">Open menu</span>
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                     <DialogTrigger asChild>
-                                                        <DropdownMenuItem>
-                                                            <Eye className="mr-2 h-4 w-4" />
-                                                            <span>View Details</span>
-                                                        </DropdownMenuItem>
-                                                     </DialogTrigger>
-                                                     <DropdownMenuItem>
-                                                        <Printer className="mr-2 h-4 w-4" />
-                                                        <span>Print Receipt</span>
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                            <Receipt order={order} />
-                                       </Dialog>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </CardContent>
-            <CardFooter>
-                <div className="text-xs text-muted-foreground">
-                    Showing <strong>{filteredOrders.length}</strong> of <strong>{completedOrders.length}</strong> orders.
-                </div>
-            </CardFooter>
-        </Card>
+                                </PopoverContent>
+                            </Popover>
+                             <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="ml-auto">
+                                    <ListFilter className="mr-2 h-4 w-4" />
+                                    Filter by Status
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Status</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuCheckboxItem checked>Completed</DropdownMenuCheckboxItem>
+                                    <DropdownMenuCheckboxItem>Pending</DropdownMenuCheckboxItem>
+                                    <DropdownMenuCheckboxItem>Cancelled</DropdownMenuCheckboxItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <Button variant="outline" disabled={selectedOrders.length === 0}><Printer className="mr-2"/> Print Selected</Button>
+                            <Button variant="outline"><FileDown className="mr-2"/> Export</Button>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <TabsContent value="All Orders">
+                        <OrdersTable orders={filteredOrders} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
+                    </TabsContent>
+                    <TabsContent value="Completed">
+                        <OrdersTable orders={ordersByStatus('Completed')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
+                    </TabsContent>
+                    <TabsContent value="Pending">
+                         <OrdersTable orders={ordersByStatus('Pending')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
+                    </TabsContent>
+                    <TabsContent value="Cancelled">
+                         <OrdersTable orders={ordersByStatus('Cancelled')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
+                    </TabsContent>
+                </CardContent>
+                <CardFooter>
+                    <div className="text-xs text-muted-foreground">
+                        Showing <strong>{filteredOrders.length}</strong> of <strong>{allOrders.length}</strong> orders.
+                    </div>
+                </CardFooter>
+            </Card>
+        </Tabs>
     </div>
   )
 }
+
+    

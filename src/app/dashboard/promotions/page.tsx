@@ -47,6 +47,25 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 
 const promotionsData = [
     { id: "promo_1", name: "Weekend Special", description: "10% off all bread items", type: "percentage", value: 10, code: "WEEKEND10", startDate: "2024-01-01", endDate: "2024-12-31", status: "Active" },
@@ -68,6 +87,109 @@ const getStatusVariant = (status: string) => {
     }
 }
 
+function CreatePromotionDialog() {
+  const [startDate, setStartDate] = useState<Date>();
+  const [endDate, setEndDate] = useState<Date>();
+  return (
+    <DialogContent className="sm:max-w-[600px]">
+      <DialogHeader>
+        <DialogTitle>Add New Promotion</DialogTitle>
+        <DialogDescription>
+          Fill in the details for the customer promotion.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-6">
+        <div className="grid gap-2">
+          <Label htmlFor="promotion-name">Promotion Name</Label>
+          <Input id="promotion-name" placeholder="e.g. Summer Sale" />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="description">Description</Label>
+          <Textarea id="description" placeholder="Describe the promotion" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="promo-code">Promo Code</Label>
+            <Input id="promo-code" placeholder="e.g. SUMMER25" />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="type">Type</Label>
+             <Select>
+              <SelectTrigger>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="percentage">Percentage Discount</SelectItem>
+                <SelectItem value="fixed_amount">Fixed Amount Discount</SelectItem>
+                <SelectItem value="free_item">Free Item</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+         <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="value">Value</Label>
+            <Input id="value" type="number" placeholder="0" />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="usage-limit">Usage Limit</Label>
+             <Input id="usage-limit" type="number" placeholder="0 for unlimited" />
+          </div>
+        </div>
+         <div className="grid gap-2">
+          <Label htmlFor="timezone">Timezone</Label>
+          <Select>
+            <SelectTrigger>
+              <SelectValue placeholder="All Timezones" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="africa/lagos">Africa/Lagos (WAT)</SelectItem>
+              {/* Add other timezones as needed */}
+            </SelectContent>
+          </Select>
+        </div>
+         <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-2">
+            <Label>Start Date</Label>
+             <Popover>
+              <PopoverTrigger asChild>
+                <Button variant={"outline"} className={cn("justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
+              </PopoverContent>
+            </Popover>
+          </div>
+           <div className="grid gap-2">
+            <Label>End Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant={"outline"} className={cn("justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {endDate ? format(endDate, "PPP") : <span>Pick a date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+        <div className="grid gap-2">
+          <Label>Applicable Products</Label>
+          <Input placeholder="Select products this applies to. Leave empty for all." />
+        </div>
+      </div>
+      <DialogFooter>
+        <Button type="submit">Create Promotion</Button>
+      </DialogFooter>
+    </DialogContent>
+  )
+}
+
 
 export default function PromotionsPage() {
   const [date, setDate] = useState<DateRange | undefined>();
@@ -76,9 +198,14 @@ export default function PromotionsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold font-headline">Promotions</h1>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" /> Create New Promotion
-        </Button>
+         <Dialog>
+            <DialogTrigger asChild>
+                <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Create New Promotion
+                </Button>
+            </DialogTrigger>
+            <CreatePromotionDialog />
+        </Dialog>
       </div>
 
       <Tabs defaultValue="promotions">
@@ -245,3 +372,5 @@ export default function PromotionsPage() {
     </div>
   );
 }
+
+    

@@ -78,6 +78,7 @@ type CompletedOrder = {
   date: string;
   paymentMethod: 'Card' | 'Paystack';
   customerName?: string;
+  status: 'Completed' | 'Pending' | 'Cancelled';
 }
 
 export default function POSPage() {
@@ -186,7 +187,8 @@ export default function POSPage() {
       total,
       date: new Date().toISOString(),
       paymentMethod,
-      customerName: customerName || 'Walk-in'
+      customerName: customerName || 'Walk-in',
+      status: 'Completed'
     };
     
     // In a real app, this would also update stock levels in the database.
@@ -624,3 +626,5 @@ export default function POSPage() {
      </>
   );
 }
+
+    
