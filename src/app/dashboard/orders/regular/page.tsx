@@ -69,7 +69,7 @@ type CompletedOrder = {
   tax: number;
   total: number;
   date: string;
-  paymentMethod: 'Card' | 'Paystack';
+  paymentMethod: 'Card';
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
@@ -216,7 +216,7 @@ function OrdersTable({ orders, onSelectOne, selectedOrders }: { orders: Complete
                             <TableCell>{order.customerName || 'Walk-in'}</TableCell>
                             <TableCell>{order.items.reduce((acc, item) => acc + item.quantity, 0)}</TableCell>
                             <TableCell>
-                                <Badge variant={order.paymentMethod === 'Card' ? 'secondary' : 'default'}>
+                                <Badge variant={'secondary'}>
                                     {order.paymentMethod}
                                 </Badge>
                             </TableCell>
@@ -422,3 +422,5 @@ export default function RegularOrdersPage() {
     </div>
   )
 }
+
+    

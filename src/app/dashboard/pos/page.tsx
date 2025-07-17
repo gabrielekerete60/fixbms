@@ -3,8 +3,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
-import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Wallet, Printer, User, Building, Loader2 } from "lucide-react";
-import { usePaystackPayment } from "react-paystack";
+import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -74,7 +73,7 @@ type CompletedOrder = {
   tax: number;
   total: number;
   date: string;
-  paymentMethod: 'Card' | 'Paystack';
+  paymentMethod: 'Card';
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
@@ -197,7 +196,7 @@ export default function POSPage() {
     setActiveTab('All');
   }
 
-  const completeOrder = async (paymentMethod: 'Card' | 'Paystack') => {
+  const completeOrder = async (paymentMethod: 'Card') => {
     const newOrderData = {
       items: cart,
       subtotal,
@@ -244,26 +243,6 @@ export default function POSPage() {
       });
     }
   }
-
-  const onPaystackSuccess = async (reference: any) => {
-    const completed = await completeOrder('Paystack');
-    if (completed) {
-      setIsCheckoutOpen(false);
-      setIsReceiptOpen(true);
-      toast({
-        title: "Payment Successful",
-        description: "The order has been successfully processed.",
-      });
-    }
-  };
-
-  const onPaystackClose = () => {
-    toast({
-      variant: 'destructive',
-      title: "Payment Cancelled",
-      description: "The payment process was cancelled.",
-    })
-  };
   
   const handlePrintReceipt = () => {
     const printWindow = window.open('', '_blank');
@@ -307,38 +286,6 @@ export default function POSPage() {
         }
     }
   }
-  
-  const PaystackButton = () => {
-    const paystackConfig = {
-        reference: (new Date()).getTime().toString(),
-        email: "customer@example.com", // This should be dynamic in a real app
-        amount: Math.round(total * 100),
-        publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-    };
-
-    const initializePayment = usePaystackPayment(paystackConfig);
-
-    const handlePaystackPayment = () => {
-      if (!paystackConfig.publicKey) {
-        toast({
-          variant: "destructive",
-          title: "Configuration Error",
-          description: "Paystack is not set up correctly. Please contact support.",
-        });
-        return;
-      }
-      setIsCheckoutOpen(false);
-      initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose});
-    };
-
-    return (
-        <Button variant="outline" className="h-20 flex-col gap-2" onClick={handlePaystackPayment}>
-            <Wallet className="w-8 h-8"/>
-            <span>Pay with Paystack</span>
-        </Button>
-    )
-  }
-
 
   return (
      <>
@@ -568,12 +515,11 @@ export default function POSPage() {
                         Select a payment method to complete the transaction for <strong>₦{total.toFixed(2)}</strong>.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid grid-cols-2 gap-4 py-4">
+                <div className="grid grid-cols-1 gap-4 py-4">
                     <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => { setIsCheckoutOpen(false); setIsConfirmCashOpen(true); }}>
                         <CreditCard className="w-8 h-8"/>
-                        <span>Pay with Card</span>
+                        <span>Pay with Card / POS</span>
                     </Button>
-                    <PaystackButton />
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsCheckoutOpen(false)}>Cancel</Button>
@@ -663,3 +609,5 @@ export default function POSPage() {
      </>
   );
 }
+
+    
