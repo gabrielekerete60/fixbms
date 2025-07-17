@@ -1,8 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
-import { useLocalStorage } from "@/hooks/use-local-storage";
+import { useState, useMemo, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -21,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Printer, FileDown, MoreHorizontal, Calendar as CalendarIcon, ListFilter, Search } from "lucide-react";
+import { Eye, Printer, FileDown, MoreHorizontal, Calendar as CalendarIcon, ListFilter, Search, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -52,10 +51,12 @@ import { Input } from "@/components/ui/input"
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
 
 type CartItem = {
-  id: number;
+  id: string;
   name: string;
   price: number;
   quantity: number;
@@ -116,8 +117,8 @@ function Receipt({ order }: { order: CompletedOrder }) {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {order.items.map(item => (
-                    <TableRow key={item.id}>
+                    {order.items.map((item, index) => (
+                    <TableRow key={item.id || index}>
                         <TableCell>{item.name}</TableCell>
                         <TableCell className="text-center">{item.quantity}</TableCell>
                         <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
@@ -210,7 +211,7 @@ function OrdersTable({ orders, onSelectOne, selectedOrders }: { orders: Complete
                                     aria-label={`Select order ${order.id}`}
                                 />
                             </TableCell>
-                            <TableCell className="font-medium">{order.id}</TableCell>
+                            <TableCell className="font-medium">{order.id.substring(0, 7)}...</TableCell>
                             <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
                             <TableCell>{order.customerName || 'Walk-in'}</TableCell>
                             <TableCell>{order.items.reduce((acc, item) => acc + item.quantity, 0)}</TableCell>
@@ -258,11 +259,34 @@ function OrdersTable({ orders, onSelectOne, selectedOrders }: { orders: Complete
     );
 }
 
-
 export default function RegularOrdersPage() {
-  const [allOrders] = useLocalStorage<CompletedOrder[]>('completedOrders', []);
+  const { toast } = useToast();
+  const [allOrders, setAllOrders] = useState<CompletedOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      setIsLoading(true);
+      try {
+        const ordersQuery = query(collection(db, "orders"), orderBy("date", "desc"));
+        const orderSnapshot = await getDocs(ordersQuery);
+        const ordersList = orderSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CompletedOrder[];
+        setAllOrders(ordersList);
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not fetch orders from the database.",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchOrders();
+  }, [toast]);
 
   const filteredOrders = useMemo(() => {
     return allOrders.filter(order => {
@@ -271,7 +295,7 @@ export default function RegularOrdersPage() {
       if (date.to) {
         return orderDate >= date.from && orderDate <= date.to;
       }
-      return orderDate >= date.from;
+      return orderDate.toDateString() === date.from.toDateString();
     });
   }, [allOrders, date]);
 
@@ -287,6 +311,32 @@ export default function RegularOrdersPage() {
 
   const ordersByStatus = (status: CompletedOrder['status']) => filteredOrders.filter(o => o.status === status);
   const TABS = ['All Orders', 'Completed', 'Pending', 'Cancelled'];
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+    return (
+      <>
+        <TabsContent value="All Orders">
+          <OrdersTable orders={filteredOrders} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
+        </TabsContent>
+        <TabsContent value="Completed">
+          <OrdersTable orders={ordersByStatus('Completed')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
+        </TabsContent>
+        <TabsContent value="Pending">
+          <OrdersTable orders={ordersByStatus('Pending')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
+        </TabsContent>
+        <TabsContent value="Cancelled">
+          <OrdersTable orders={ordersByStatus('Cancelled')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
+        </TabsContent>
+      </>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -360,18 +410,7 @@ export default function RegularOrdersPage() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <TabsContent value="All Orders">
-                        <OrdersTable orders={filteredOrders} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
-                    </TabsContent>
-                    <TabsContent value="Completed">
-                        <OrdersTable orders={ordersByStatus('Completed')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
-                    </TabsContent>
-                    <TabsContent value="Pending">
-                         <OrdersTable orders={ordersByStatus('Pending')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
-                    </TabsContent>
-                    <TabsContent value="Cancelled">
-                         <OrdersTable orders={ordersByStatus('Cancelled')} onSelectOne={handleSelectOne} selectedOrders={selectedOrders} />
-                    </TabsContent>
+                    {renderContent()}
                 </CardContent>
                 <CardFooter>
                     <div className="text-xs text-muted-foreground">
@@ -383,5 +422,3 @@ export default function RegularOrdersPage() {
     </div>
   )
 }
-
-    

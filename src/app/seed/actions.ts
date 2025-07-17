@@ -36,10 +36,10 @@ const seedData = {
   promotions: [
     { id: "promo_1", name: "Weekend Special", description: "10% off all bread items", type: "percentage", value: 10, code: "WEEKEND10", startDate: "2024-01-01", endDate: "2024-12-31", status: "Active" },
     { id: "promo_2", name: "Free Drink", description: "Buy any 2 loaves, get a free drink", type: "free_item", value: null, code: "DRINKUP", startDate: "2024-05-01", endDate: "2024-05-31", status: "Expired" },
-    { id: "promo_3", name: "Jumbo Discount", description: "₦100 off Jumbo Loaf", type: "fixed_amount", value: 100, code: "JUMBO100", startDate: "2024-06-01", endDate: "2024-06-30", status: "Scheduled" }
+    { id: "promo_3", name: "Jumbo Discount", description: "₦100 off Jumbo Loaf", type: "fixed_amount", value: 100, code: "JUMBO100", startDate: "2024-06-01", endDate: "2024-06-30", status: "Active" },
+    { id: "promo_4", name: "New Customer", description: "15% off first order", type: "percentage", value: 15, code: "NEW15", startDate: "2024-07-01", endDate: "2024-07-31", status: "Scheduled" }
   ]
 };
-
 
 export async function seedDatabase(): Promise<ActionResult> {
   console.log("Attempting to seed database...");
@@ -61,6 +61,12 @@ export async function seedDatabase(): Promise<ActionResult> {
         batch.set(docRef, promotion);
     });
     
+    // We will create an empty "orders" collection so it exists, but not seed any orders.
+    // This is a placeholder for where completed orders will go.
+    const emptyOrderRef = doc(collection(db, "orders"));
+    batch.set(emptyOrderRef, { placeholder: true });
+    batch.delete(emptyOrderRef); // Delete it right away, just to ensure the collection path is created if it doesn't exist.
+
     await batch.commit();
 
     console.log("Database seeded successfully.");
@@ -75,10 +81,11 @@ export async function seedDatabase(): Promise<ActionResult> {
 export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
-    const collectionsToClear = ['products', 'staff', 'promotions'];
+    const collectionsToClear = ['products', 'staff', 'promotions', 'orders'];
     const batch = writeBatch(db);
 
     for (const collectionName of collectionsToClear) {
+      // It's safe to try to clear a collection even if it doesn't exist.
       const querySnapshot = await getDocs(collection(db, collectionName));
       querySnapshot.forEach((doc) => {
         batch.delete(doc.ref);

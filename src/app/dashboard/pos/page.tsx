@@ -1,9 +1,9 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
-import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Wallet, Printer, User, Building } from "lucide-react";
+import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Wallet, Printer, User, Building, Loader2 } from "lucide-react";
 import { usePaystackPayment } from "react-paystack";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,23 +47,21 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
+import { collection, getDocs, addDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
-const initialProducts = [
-  // Breads
-  { id: 1, name: "Family Loaf", price: 550.00, stock: 50, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf' },
-  { id: 2, name: "Burger Loaf", price: 450.00, stock: 30, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun' },
-  { id: 3, name: "Jumbo Loaf", price: 900.00, stock: 25, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread' },
-  { id: 4, name: "Round Loaf", price: 500.00, stock: 40, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread' },
-  // Drinks
-  { id: 5, name: "Coca-Cola (50cl)", price: 300.00, stock: 100, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola' },
-  { id: 6, name: "Bottled Water (75cl)", price: 200.00, stock: 150, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water' },
-  { id: 7, name: "Pepsi (50cl)", price: 300.00, stock: 90, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'pepsi can' },
-  { id: 8, name: "Sprite (50cl)", price: 300.00, stock: 0, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'sprite can' },
-];
-
+type Product = {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  category: string;
+  image: string;
+  'data-ai-hint': string;
+};
 
 type CartItem = {
-  id: number;
+  id: string;
   name: string;
   price: number;
   quantity: number;
@@ -83,10 +81,10 @@ type CompletedOrder = {
 
 export default function POSPage() {
   const { toast } = useToast();
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [heldOrders, setHeldOrders] = useLocalStorage<CartItem[][]>('heldOrders', []);
-  const [completedOrders, setCompletedOrders] = useLocalStorage<CompletedOrder[]>('completedOrders', []);
   const [activeTab, setActiveTab] = useState('All');
   const [customerType, setCustomerType] = useState<'walk-in' | 'registered'>('walk-in');
   const [customerName, setCustomerName] = useState('');
@@ -94,6 +92,27 @@ export default function POSPage() {
   const [isConfirmCashOpen, setIsConfirmCashOpen] = useState(false);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const productsCollection = collection(db, "products");
+        const productSnapshot = await getDocs(productsCollection);
+        const productsList = productSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[];
+        setProducts(productsList);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not fetch products from the database.",
+        });
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    };
+    fetchProducts();
+  }, [toast]);
 
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
@@ -108,7 +127,7 @@ export default function POSPage() {
   }, [activeTab, products]);
 
 
-  const addToCart = (product: typeof products[0]) => {
+  const addToCart = (product: Product) => {
     if (product.stock === 0) {
       toast({
         variant: "destructive",
@@ -127,11 +146,11 @@ export default function POSPage() {
             : item
         );
       }
-      return [...prevCart, { ...product, quantity: 1 }];
+      return [...prevCart, { id: product.id, name: product.name, price: product.price, quantity: 1 }];
     });
   };
 
-  const updateQuantity = (productId: number, newQuantity: number) => {
+  const updateQuantity = (productId: string, newQuantity: number) => {
     setCart((prevCart) => {
       if (newQuantity <= 0) {
         return prevCart.filter((item) => item.id !== productId);
@@ -178,9 +197,8 @@ export default function POSPage() {
     setActiveTab('All');
   }
 
-  const completeOrder = (paymentMethod: 'Card' | 'Paystack') => {
-    const newOrder: CompletedOrder = {
-      id: `ORD-${Date.now()}`,
+  const completeOrder = async (paymentMethod: 'Card' | 'Paystack') => {
+    const newOrderData = {
       items: cart,
       subtotal,
       tax,
@@ -188,24 +206,43 @@ export default function POSPage() {
       date: new Date().toISOString(),
       paymentMethod,
       customerName: customerName || 'Walk-in',
-      status: 'Completed'
+      status: 'Completed' as const
     };
-    
-    // In a real app, this would also update stock levels in the database.
-    setCompletedOrders(prev => [newOrder, ...prev]);
-    setLastCompletedOrder(newOrder);
-    setCart([]);
-    setCustomerName('');
+  
+    try {
+      // In a real app, this would also update stock levels in the database in a transaction.
+      const docRef = await addDoc(collection(db, "orders"), newOrderData);
+      
+      const newOrder: CompletedOrder = {
+        id: docRef.id,
+        ...newOrderData,
+      };
+      
+      setLastCompletedOrder(newOrder);
+      setCart([]);
+      setCustomerName('');
+      return newOrder;
+    } catch (error) {
+      console.error("Error saving order:", error);
+      toast({
+        variant: "destructive",
+        title: "Order Failed",
+        description: "There was a problem saving the order to the database.",
+      });
+      return null;
+    }
   }
 
-  const handleCardPayment = () => {
-    completeOrder('Card');
-    setIsConfirmCashOpen(false);
-    setIsReceiptOpen(true);
-    toast({
-      title: "Order Completed",
-      description: "The order has been successfully processed.",
-    });
+  const handleCardPayment = async () => {
+    const completed = await completeOrder('Card');
+    if (completed) {
+      setIsConfirmCashOpen(false);
+      setIsReceiptOpen(true);
+      toast({
+        title: "Order Completed",
+        description: "The order has been successfully processed.",
+      });
+    }
   }
 
   const paystackConfig = {
@@ -217,18 +254,22 @@ export default function POSPage() {
 
   const initializePayment = usePaystackPayment(paystackConfig);
 
-  const onPaystackSuccess = (reference: any) => {
+  const onPaystackSuccess = async (reference: any) => {
     console.log(reference);
-    completeOrder('Paystack');
-    setIsReceiptOpen(true);
-    toast({
-      title: "Payment Successful",
-      description: "The order has been successfully processed.",
-    });
+    const completed = await completeOrder('Paystack');
+    if (completed) {
+      setIsCheckoutOpen(false);
+      setIsReceiptOpen(true);
+      toast({
+        title: "Payment Successful",
+        description: "The order has been successfully processed.",
+      });
+    }
   };
 
   const onPaystackClose = () => {
     console.log('closed');
+    setIsCheckoutOpen(true); // Re-open checkout if Paystack is closed
     toast({
       variant: 'destructive',
       title: "Payment Cancelled",
@@ -240,12 +281,11 @@ export default function POSPage() {
     setIsCheckoutOpen(false);
     initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose});
   }
-
+  
   const handlePrintReceipt = () => {
     window.print();
   }
 
-  
   return (
      <>
      <div className="grid grid-cols-1 xl:grid-cols-[1fr_450px] gap-6 h-[calc(100vh_-_8rem)] print:hidden">
@@ -273,38 +313,44 @@ export default function POSPage() {
 
               <TabsContent value={activeTab} className="mt-4 flex-grow">
                   <ScrollArea className="h-[calc(100vh_-_22rem)]">
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pr-4">
-                        {filteredProducts.map((product) => (
-                            <Card
-                            key={product.id}
-                            onClick={() => addToCart(product)}
-                            className={`cursor-pointer hover:shadow-lg transition-shadow group relative overflow-hidden ${product.stock === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
-                            >
-                              <CardContent className="p-0">
-                                  <Image
-                                  src={product.image}
-                                  alt={product.name}
-                                  width={150}
-                                  height={150}
-                                  className="rounded-t-lg object-cover w-full aspect-square transition-transform group-hover:scale-105"
-                                  data-ai-hint={product['data-ai-hint']}
-                                  />
-                                  <Badge variant="secondary" className="absolute top-2 right-2">
-                                      Stock: {product.stock}
-                                  </Badge>
-                                  {product.stock === 0 && (
-                                      <div className="absolute inset-0 bg-card/80 flex items-center justify-center rounded-lg">
-                                          <p className="font-bold text-lg text-destructive">Out of Stock</p>
-                                      </div>
-                                  )}
-                              </CardContent>
-                              <CardFooter className="p-3 flex flex-col items-start bg-muted/50">
-                                  <h3 className="font-semibold text-sm">{product.name}</h3>
-                                  <p className="text-sm text-primary font-bold">₦{product.price.toFixed(2)}</p>
-                              </CardFooter>
-                            </Card>
-                        ))}
-                      </div>
+                      {isLoadingProducts ? (
+                         <div className="flex items-center justify-center h-full">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                         </div>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pr-4">
+                          {filteredProducts.map((product) => (
+                              <Card
+                              key={product.id}
+                              onClick={() => addToCart(product)}
+                              className={`cursor-pointer hover:shadow-lg transition-shadow group relative overflow-hidden ${product.stock === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
+                              >
+                                <CardContent className="p-0">
+                                    <Image
+                                    src={product.image}
+                                    alt={product.name}
+                                    width={150}
+                                    height={150}
+                                    className="rounded-t-lg object-cover w-full aspect-square transition-transform group-hover:scale-105"
+                                    data-ai-hint={product['data-ai-hint']}
+                                    />
+                                    <Badge variant="secondary" className="absolute top-2 right-2">
+                                        Stock: {product.stock}
+                                    </Badge>
+                                    {product.stock === 0 && (
+                                        <div className="absolute inset-0 bg-card/80 flex items-center justify-center rounded-lg">
+                                            <p className="font-bold text-lg text-destructive">Out of Stock</p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                                <CardFooter className="p-3 flex flex-col items-start bg-muted/50">
+                                    <h3 className="font-semibold text-sm">{product.name}</h3>
+                                    <p className="text-sm text-primary font-bold">₦{product.price.toFixed(2)}</p>
+                                </CardFooter>
+                              </Card>
+                          ))}
+                        </div>
+                      )}
                   </ScrollArea>
               </TabsContent>
                <TabsContent value="held-orders" className="mt-4">
@@ -626,5 +672,3 @@ export default function POSPage() {
      </>
   );
 }
-
-    

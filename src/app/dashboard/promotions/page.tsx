@@ -1,6 +1,6 @@
 
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FileDown,
   PlusCircle,
@@ -8,6 +8,7 @@ import {
   ListFilter,
   MoreHorizontal,
   Calendar as CalendarIcon,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,14 +66,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
 
-
-const promotionsData = [
-    { id: "promo_1", name: "Weekend Special", description: "10% off all bread items", type: "percentage", value: 10, code: "WEEKEND10", startDate: "2024-01-01", endDate: "2024-12-31", status: "Active" },
-    { id: "promo_2", name: "Free Drink", description: "Buy any 2 loaves, get a free drink", type: "free_item", value: null, code: "DRINKUP", startDate: "2024-05-01", endDate: "2024-05-31", status: "Expired" },
-    { id: "promo_3", name: "Jumbo Discount", description: "₦100 off Jumbo Loaf", type: "fixed_amount", value: 100, code: "JUMBO100", startDate: "2024-06-01", endDate: "2024-06-30", status: "Active" },
-    { id: "promo_4", name: "New Customer", description: "15% off first order", type: "percentage", value: 15, code: "NEW15", startDate: "2024-07-01", endDate: "2024-07-31", status: "Scheduled" }
-];
+type Promotion = {
+    id: string;
+    name: string;
+    description: string;
+    type: string;
+    value: number | null;
+    code: string;
+    startDate: string;
+    endDate: string;
+    status: "Active" | "Expired" | "Scheduled";
+}
 
 const getStatusVariant = (status: string) => {
     switch (status.toLowerCase()) {
@@ -190,9 +198,113 @@ function CreatePromotionDialog() {
   )
 }
 
-
 export default function PromotionsPage() {
+  const { toast } = useToast();
+  const [promotionsData, setPromotionsData] = useState<Promotion[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [date, setDate] = useState<DateRange | undefined>();
+
+  useEffect(() => {
+    const fetchPromotions = async () => {
+      setIsLoading(true);
+      try {
+        const promotionsCollection = collection(db, "promotions");
+        const promotionSnapshot = await getDocs(promotionsCollection);
+        const promotionsList = promotionSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Promotion[];
+        setPromotionsData(promotionsList);
+      } catch (error) {
+        console.error("Error fetching promotions:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not fetch promotions from the database.",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchPromotions();
+  }, [toast]);
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>
+              <Checkbox aria-label="Select all" />
+            </TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Code</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Value</TableHead>
+            <TableHead>Start Date</TableHead>
+            <TableHead>End Date</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>
+              <span className="sr-only">Actions</span>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {promotionsData.map((promo) => (
+            <TableRow key={promo.id}>
+               <TableCell>
+                    <Checkbox aria-label={`Select promotion ${promo.name}`} />
+                </TableCell>
+              <TableCell className="font-medium">{promo.name}</TableCell>
+              <TableCell>
+                <Badge variant="outline">{promo.code}</Badge>
+              </TableCell>
+               <TableCell className="capitalize">{promo.type.replace('_', ' ')}</TableCell>
+                <TableCell>
+                    {promo.type === 'percentage' && `${promo.value}%`}
+                    {promo.type === 'fixed_amount' && `₦${promo.value}`}
+                    {promo.type === 'free_item' && 'N/A'}
+                </TableCell>
+              <TableCell>{new Date(promo.startDate).toLocaleDateString()}</TableCell>
+               <TableCell>{new Date(promo.endDate).toLocaleDateString()}</TableCell>
+              <TableCell>
+                <Badge variant={getStatusVariant(promo.status)}>
+                    {promo.status}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      aria-haspopup="true"
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                      <span className="sr-only">Toggle menu</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                    <DropdownMenuItem>Edit</DropdownMenuItem>
+                    <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive">
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -286,74 +398,7 @@ export default function PromotionsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>
-                      <Checkbox aria-label="Select all" />
-                    </TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Start Date</TableHead>
-                    <TableHead>End Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>
-                      <span className="sr-only">Actions</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {promotionsData.map((promo) => (
-                    <TableRow key={promo.id}>
-                       <TableCell>
-                            <Checkbox aria-label={`Select promotion ${promo.name}`} />
-                        </TableCell>
-                      <TableCell className="font-medium">{promo.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{promo.code}</Badge>
-                      </TableCell>
-                       <TableCell className="capitalize">{promo.type.replace('_', ' ')}</TableCell>
-                        <TableCell>
-                            {promo.type === 'percentage' && `${promo.value}%`}
-                            {promo.type === 'fixed_amount' && `₦${promo.value}`}
-                            {promo.type === 'free_item' && 'N/A'}
-                        </TableCell>
-                      <TableCell>{new Date(promo.startDate).toLocaleDateString()}</TableCell>
-                       <TableCell>{new Date(promo.endDate).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusVariant(promo.status)}>
-                            {promo.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              aria-haspopup="true"
-                              size="icon"
-                              variant="ghost"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Toggle menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>Edit</DropdownMenuItem>
-                            <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive">
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {renderContent()}
             </CardContent>
           </Card>
         </TabsContent>
@@ -372,5 +417,3 @@ export default function PromotionsPage() {
     </div>
   );
 }
-
-    
