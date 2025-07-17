@@ -1,6 +1,7 @@
+
 "use server";
 
-import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment } from "firebase/firestore";
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
 import { db } from "@/lib/firebase";
 
@@ -280,12 +281,11 @@ export async function getAccountingReport(dateRange: { from: Date, to: Date }): 
             where("status", "==", "Completed")
         );
         const ordersSnapshot = await getDocs(ordersQuery);
-        const sales = ordersSnapshot.docs.reduce((sum, doc) => sum + doc.data().total, 0);
-
-        // --- Calculate Cost of Goods Sold (COGS) ---
+        let sales = 0;
         let costOfGoodsSold = 0;
         ordersSnapshot.forEach(doc => {
             const order = doc.data();
+            sales += order.total;
             order.items.forEach((item: any) => {
                 // This assumes product costPrice is stored with the product.
                 // A more robust system might snapshot cost at time of sale.
@@ -320,4 +320,102 @@ export async function getAccountingReport(dateRange: { from: Date, to: Date }): 
         return { sales: 0, costOfGoodsSold: 0, grossProfit: 0, expenses: 0, netProfit: 0 };
     }
 }
+
+export type Creditor = {
+    id: string;
+    name: string;
+    contactPerson: string;
+    amountOwed: number;
+    amountPaid: number;
+    balance: number;
+}
+
+export async function getCreditors(): Promise<Creditor[]> {
+    try {
+        const q = query(collection(db, "suppliers"), where("amountOwed", ">", 0));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            const balance = (data.amountOwed || 0) - (data.amountPaid || 0);
+            return {
+                id: doc.id,
+                name: data.name,
+                contactPerson: data.contactPerson,
+                amountOwed: data.amountOwed || 0,
+                amountPaid: data.amountPaid || 0,
+                balance: balance
+            }
+        }).filter(c => c.balance > 0);
+    } catch (error) {
+        console.error("Error fetching creditors:", error);
+        return [];
+    }
+}
+
+export type Expense = {
+    id: string;
+    category: string;
+    description: string;
+    amount: number;
+    date: string;
+}
+
+export async function getExpenses(dateRange: { from: Date, to: Date }): Promise<Expense[]> {
+     const from = startOfDay(dateRange.from);
+     const to = endOfDay(dateRange.to);
+     try {
+        const q = query(
+            collection(db, "expenses"),
+            where("date", ">=", from.toISOString()),
+            where("date", "<=", to.toISOString()),
+            orderBy("date", "desc")
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
+     } catch(error) {
+        console.error("Error fetching expenses:", error);
+        return [];
+     }
+}
+
+export async function handleLogPayment(supplierId: string, amount: number): Promise<{ success: boolean; error?: string }> {
+    try {
+        const batch = writeBatch(db);
+
+        // 1. Update supplier's amountPaid
+        const supplierRef = doc(db, "suppliers", supplierId);
+        batch.update(supplierRef, { amountPaid: increment(amount) });
+
+        // 2. Add a corresponding expense record
+        const expenseRef = doc(collection(db, "expenses"));
+        const supplierDoc = await getDoc(supplierRef);
+        const supplierName = supplierDoc.exists() ? supplierDoc.data().name : 'Unknown Supplier';
+        batch.set(expenseRef, {
+            category: "Creditor Payments",
+            description: `Payment to supplier: ${supplierName}`,
+            amount: amount,
+            date: new Date().toISOString()
+        });
+        
+        await batch.commit();
+        return { success: true };
+    } catch (error) {
+        console.error("Error logging payment:", error);
+        return { success: false, error: "Failed to log payment." };
+    }
+}
+
+export async function handleAddExpense(expenseData: Omit<Expense, 'id' | 'date'>): Promise<{ success: boolean; error?: string }> {
+    try {
+        await addDoc(collection(db, "expenses"), {
+            ...expenseData,
+            date: new Date().toISOString()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error adding expense:", error);
+        return { success: false, error: "Failed to add expense." };
+    }
+}
     
+
