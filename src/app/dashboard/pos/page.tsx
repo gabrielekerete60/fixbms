@@ -420,8 +420,8 @@ export default function POSPage() {
        {/* ---- DIALOGS ---- */}
 
        {/* Checkout Dialog */}
-        <AlertDialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-            <AlertDialogContent>
+        <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+            <DialogContent>
                 <AlertDialogHeader>
                 <AlertDialogTitle>Complete Payment</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -438,11 +438,11 @@ export default function POSPage() {
                         <span>Pay with Paystack</span>
                     </Button>
                 </div>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsCheckoutOpen(false)}>Cancel</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
         {/* Confirm Cash Received Dialog */}
          <AlertDialog open={isConfirmCashOpen} onOpenChange={setIsConfirmCashOpen}>
@@ -585,4 +585,3 @@ export default function POSPage() {
      </>
   );
 }
-

@@ -22,6 +22,7 @@ import {
   HelpingHand,
   BookOpen,
   Clock,
+  PanelLeft,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -42,9 +43,60 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
+
+function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string }) {
+  return (
+    <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
+      {navLinks.map((link) => 
+        link.sublinks ? (
+           <Collapsible key={link.label} className="grid gap-1" defaultOpen={link.sublinks.some(sub => pathname.startsWith(sub.href))}>
+            <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary [&[data-state=open]>svg:last-child]:rotate-90">
+              <div className="flex items-center gap-3">
+                <link.icon className="h-4 w-4" />
+                {link.label}
+              </div>
+              <ChevronRight className="h-4 w-4 transition-transform" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l pl-3">
+              {link.sublinks.map(sublink => (
+                 <Link 
+                    key={sublink.label} 
+                    href={sublink.href} 
+                    className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                        pathname === sublink.href && "bg-muted text-primary"
+                        )}>
+                    {sublink.label}
+                </Link>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        ) : (
+          <Link
+            key={link.label}
+            href={link.href}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+              pathname === link.href && "bg-muted text-primary"
+            )}
+          >
+            <link.icon className="h-4 w-4" />
+            {link.label}
+          </Link>
+        )
+      )}
+    </nav>
+  );
+}
+
 
 export default function DashboardLayout({
   children,
@@ -114,46 +166,7 @@ export default function DashboardLayout({
             </Link>
           </div>
           <div className="flex-1 overflow-auto py-2">
-            <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-              {navLinks.map((link) => 
-                link.sublinks ? (
-                   <Collapsible key={link.label} className="grid gap-1" defaultOpen={link.sublinks.some(sub => pathname.startsWith(sub.href))}>
-                    <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary [&[data-state=open]>svg]:rotate-90">
-                      <div className="flex items-center gap-3">
-                        <link.icon className="h-4 w-4" />
-                        {link.label}
-                      </div>
-                      <ChevronRight className="h-4 w-4 transition-transform" />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l pl-3">
-                      {link.sublinks.map(sublink => (
-                         <Link 
-                            key={sublink.label} 
-                            href={sublink.href} 
-                            className={cn(
-                                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                                pathname === sublink.href && "bg-muted text-primary"
-                                )}>
-                            {sublink.label}
-                        </Link>
-                      ))}
-                    </CollapsibleContent>
-                  </Collapsible>
-                ) : (
-                  <Link
-                    key={link.label}
-                    href={link.href}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                      pathname === link.href && "bg-muted text-primary"
-                    )}
-                  >
-                    <link.icon className="h-4 w-4" />
-                    {link.label}
-                  </Link>
-                )
-              )}
-            </nav>
+            <SidebarNav navLinks={navLinks} pathname={pathname} />
           </div>
           <div className="mt-auto p-4 border-t">
             <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
@@ -180,10 +193,29 @@ export default function DashboardLayout({
       </div>
       <div className="flex flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
-          <Button variant="outline" size="icon" className="shrink-0 md:hidden">
-            <Package2 className="h-5 w-5" />
-            <span className="sr-only">Toggle navigation menu</span>
-          </Button>
+          <Sheet>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 md:hidden"
+                >
+                  <PanelLeft className="h-5 w-5" />
+                  <span className="sr-only">Toggle navigation menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="flex flex-col">
+                 <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+                    <Link href="/" className="flex items-center gap-2 font-semibold">
+                      <Pizza className="h-6 w-6 text-primary" />
+                      <span className="font-headline">Bakery Management System</span>
+                    </Link>
+                  </div>
+                <div className="overflow-auto">
+                    <SidebarNav navLinks={navLinks} pathname={pathname} />
+                </div>
+              </SheetContent>
+            </Sheet>
           <div className="w-full flex-1">
             {/* Can add a search bar here if needed */}
           </div>
@@ -204,11 +236,10 @@ export default function DashboardLayout({
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background">
+        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background overflow-auto">
           {children}
         </main>
       </div>
     </div>
   );
 }
-
