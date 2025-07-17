@@ -602,6 +602,21 @@ export async function getWasteLogs(): Promise<WasteLog[]> {
     }
 }
 
+export async function getWasteLogsForStaff(staffId: string): Promise<WasteLog[]> {
+    try {
+        const q = query(
+            collection(db, 'waste_logs'),
+            where('staffId', '==', staffId),
+            orderBy('date', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WasteLog));
+    } catch (error) {
+        console.error("Error fetching waste logs for staff:", error);
+        return [];
+    }
+}
+
 
 export type Transfer = {
   id: string;
@@ -627,6 +642,22 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer));
     } catch (error) {
         console.error("Error fetching pending transfers:", error);
+        return [];
+    }
+}
+
+export async function getCompletedTransfersForStaff(staffId: string): Promise<Transfer[]> {
+    try {
+        const q = query(
+            collection(db, 'transfers'),
+            where('to_staff_id', '==', staffId),
+            where('status', '==', 'completed'),
+            orderBy('date', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer));
+    } catch (error) {
+        console.error("Error fetching completed transfers:", error);
         return [];
     }
 }

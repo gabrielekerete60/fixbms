@@ -19,7 +19,7 @@ const seedData = {
       { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 25, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500 },
       { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 40, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280 },
       { id: "prod_5", name: "Coca-Cola (50cl)", price: 300.00, stock: 100, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200 },
-      { id: "prod_6", name: "Bottled Water (75cl)", price: 200.00, stock: 150, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100 },
+      { id: "prod_6", name: "Bottled Water (75cl)", price: 150.00, stock: 150, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100 },
       { id: "prod_7", name: "Pepsi (50cl)", price: 300.00, stock: 90, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'pepsi can', costPrice: 200 },
       { id: "prod_8", name: "Sprite (50cl)", price: 300.00, stock: 0, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'sprite can', costPrice: 200 },
   ],
@@ -149,6 +149,16 @@ const seedData = {
         items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 12 }],
         date: Timestamp.now(),
         status: 'pending'
+      },
+       {
+        id: "trans_2",
+        from_staff_id: "100001",
+        from_staff_name: "Chris Manager",
+        to_staff_id: "400004",
+        to_staff_name: "Mfon Staff",
+        items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 5 }],
+        date: daysAgo(1),
+        status: 'completed'
       }
   ],
   payment_confirmations: [
@@ -202,6 +212,18 @@ const seedData = {
           staffId: '400005',
           staffName: 'Akan Staff',
           date: Timestamp.fromDate(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)),
+      },
+      {
+          id: 'wl_2',
+          productId: 'prod_2',
+          productName: 'Burger Loaf',
+          productCategory: 'Breads',
+          quantity: 2,
+          reason: 'Spoiled',
+          notes: 'Expired before sale.',
+          staffId: '400004',
+          staffName: 'Mfon Staff',
+          date: Timestamp.fromDate(new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)),
       }
   ]
 };

@@ -52,7 +52,7 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, getWasteLogsForStaff, WasteLog } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
@@ -106,6 +106,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
         const result = await handleReportWaste({
             productId,
             productName: selectedProduct?.name || 'Unknown Product',
+            productCategory: 'Unknown', // This should be ideally fetched with product data
             quantity: Number(quantity),
             reason,
             notes
@@ -199,6 +200,8 @@ export default function StockControlPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [initiatedTransfers, setInitiatedTransfers] = useState<Transfer[]>([]);
   const [pendingTransfers, setPendingTransfers] = useState<Transfer[]>([]);
+  const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([]);
+  const [myWasteLogs, setMyWasteLogs] = useState<WasteLog[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -227,6 +230,10 @@ export default function StockControlPage() {
                 // Admins see main inventory for transfers and waste reporting
                 const productsSnapshot = await getDocs(collection(db, "products"));
                 setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
+                 // Fetch transfers initiated by the user for the log
+                const transfersQuery = query(collection(db, "transfers"), where('from_staff_id', '==', currentUser.staff_id), orderBy("date", "desc"));
+                const transfersSnapshot = await getDocs(transfersQuery);
+                setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer)));
             } else {
                 // Other staff see their personal stock for waste reporting
                 const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
@@ -234,14 +241,16 @@ export default function StockControlPage() {
                 setProducts(personalStockSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().productName, stock: doc.data().stock })));
             }
             
-            // Fetch transfers initiated by the user for the log
-            const transfersQuery = query(collection(db, "transfers"), where('from_staff_id', '==', currentUser.staff_id), orderBy("date", "desc"));
-            const transfersSnapshot = await getDocs(transfersQuery);
-            setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer)));
-
-            // Fetch transfers pending for the user to acknowledge
-            const pendingData = await getPendingTransfersForStaff(currentUser.staff_id);
+            // Fetch data specific to the logged-in user
+            const [pendingData, completedData, wasteData] = await Promise.all([
+                getPendingTransfersForStaff(currentUser.staff_id),
+                getCompletedTransfersForStaff(currentUser.staff_id),
+                getWasteLogsForStaff(currentUser.staff_id)
+            ]);
             setPendingTransfers(pendingData);
+            setCompletedTransfers(completedData);
+            setMyWasteLogs(wasteData);
+
 
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -398,13 +407,19 @@ export default function StockControlPage() {
                 </AlertDialogContent>
             </AlertDialog>
              <Tabs defaultValue="acknowledge">
-                <TabsList>
+                <TabsList className="grid grid-cols-4 w-full">
                     <TabsTrigger value="acknowledge" className="relative">
                         Acknowledge Transfers 
                         {pendingTransfers.length > 0 && <Badge className="ml-2">{pendingTransfers.length}</Badge>}
                     </TabsTrigger>
+                     <TabsTrigger value="history">
+                        My Transfer History
+                    </TabsTrigger>
                     <TabsTrigger value="report-waste">
                         <Trash className="mr-2 h-4 w-4" /> Report Waste
+                    </TabsTrigger>
+                     <TabsTrigger value="waste-logs">
+                        My Waste Logs
                     </TabsTrigger>
                 </TabsList>
                 <TabsContent value="acknowledge">
@@ -450,8 +465,84 @@ export default function StockControlPage() {
                         </CardContent>
                     </Card>
                 </TabsContent>
+                <TabsContent value="history">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>My Transfer History</CardTitle>
+                            <CardDescription>A log of all stock transfers you have successfully accepted.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>From</TableHead>
+                                        <TableHead>Items</TableHead>
+                                        <TableHead>Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                     {isLoading ? (
+                                        <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                    ) : completedTransfers.length === 0 ? (
+                                        <TableRow><TableCell colSpan={4} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
+                                    ) : (
+                                        completedTransfers.map(t => (
+                                            <TableRow key={t.id}>
+                                                <TableCell>{format(t.date.toDate(), 'Pp')}</TableCell>
+                                                <TableCell>{t.from_staff_name}</TableCell>
+                                                <TableCell>
+                                                    <ul className="list-disc pl-5">
+                                                        {t.items.map(i => <li key={i.productId}>{i.quantity} x {i.productName}</li>)}
+                                                    </ul>
+                                                </TableCell>
+                                                <TableCell><Badge>{t.status}</Badge></TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
                 <TabsContent value="report-waste">
                     <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
+                </TabsContent>
+                 <TabsContent value="waste-logs">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>My Waste Logs</CardTitle>
+                            <CardDescription>A history of all waste you have reported from your personal inventory.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Product</TableHead>
+                                        <TableHead>Quantity</TableHead>
+                                        <TableHead>Reason</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                        <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                    ) : myWasteLogs.length === 0 ? (
+                                        <TableRow><TableCell colSpan={4} className="h-24 text-center">You have not reported any waste.</TableCell></TableRow>
+                                    ) : (
+                                        myWasteLogs.map(log => (
+                                            <TableRow key={log.id}>
+                                                <TableCell>{format(log.date.toDate(), 'PPP')}</TableCell>
+                                                <TableCell>{log.productName}</TableCell>
+                                                <TableCell>{log.quantity}</TableCell>
+                                                <TableCell>{log.reason}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
                 </TabsContent>
              </Tabs>
          </div>
