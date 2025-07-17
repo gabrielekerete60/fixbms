@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Home,
   ShoppingBag,
@@ -54,6 +54,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string }) {
   return (
@@ -107,6 +108,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { toast } = useToast();
   const [time, setTime] = useState('');
 
   useEffect(() => {
@@ -115,6 +118,15 @@ export default function DashboardLayout({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const handleLogout = () => {
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+    router.push("/");
+  };
+
 
   const navLinks = [
     { href: "/dashboard", icon: Home, label: "Dashboard" },
@@ -155,7 +167,7 @@ export default function DashboardLayout({
     { href: "#", icon: GanttChartSquare, label: "AI Analytics" },
     { href: "#", icon: HelpingHand, label: "Communication" },
     { href: "#", icon: BookOpen, label: "Documentation" },
-    { href: "#", icon: Settings, label: "Settings" },
+    { href: "/dashboard/settings", icon: Settings, label: "Settings" },
   ];
 
   return (
@@ -232,10 +244,14 @@ export default function DashboardLayout({
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Settings</DropdownMenuItem>
-              <DropdownMenuItem>Support</DropdownMenuItem>
+              <Link href="/dashboard/settings" passHref>
+                <DropdownMenuItem>Settings</DropdownMenuItem>
+              </Link>
+              <Link href="/dashboard/support" passHref>
+                <DropdownMenuItem>Support</DropdownMenuItem>
+              </Link>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Logout</DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleLogout}>Logout</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
