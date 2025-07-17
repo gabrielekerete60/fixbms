@@ -12,7 +12,6 @@ import {
   Settings,
   CircleUser,
   Pizza,
-  Package2,
   Inbox,
   ChevronRight,
   Users2,
@@ -55,6 +54,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+
+type User = {
+  name: string;
+  role: string;
+};
 
 function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string }) {
   return (
@@ -111,6 +115,18 @@ export default function DashboardLayout({
   const router = useRouter();
   const { toast } = useToast();
   const [time, setTime] = useState('');
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    // Check for user session on mount
+    const storedUser = localStorage.getItem('loggedInUser');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    } else {
+      // If no user, redirect to login
+      router.push('/');
+    }
+  }, [router]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -120,6 +136,8 @@ export default function DashboardLayout({
   }, []);
 
   const handleLogout = () => {
+    // Clear user session from localStorage
+    localStorage.removeItem('loggedInUser');
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
@@ -170,6 +188,11 @@ export default function DashboardLayout({
     { href: "/dashboard/settings", icon: Settings, label: "Settings" },
   ];
 
+  if (!user) {
+    // Render a loading state or null while redirecting
+    return null;
+  }
+
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       <div className="hidden border-r bg-muted/40 md:block">
@@ -177,7 +200,7 @@ export default function DashboardLayout({
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <Pizza className="h-6 w-6 text-primary" />
-              <span className="font-headline">Bakery Management System</span>
+              <span className="font-headline">Sweet Track</span>
             </Link>
           </div>
           <div className="flex-1 overflow-auto py-2">
@@ -194,12 +217,12 @@ export default function DashboardLayout({
             <Card>
               <CardContent className="p-2 flex items-center gap-2">
                  <Avatar>
-                  <AvatarImage src="https://placehold.co/40x40.png" alt="@chrismanager" data-ai-hint="profile person" />
-                  <AvatarFallback>CM</AvatarFallback>
+                  <AvatarImage src="https://placehold.co/40x40.png" alt={user.name} data-ai-hint="profile person" />
+                  <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                 </Avatar>
                 <div>
-                    <p className='font-semibold text-sm'>Chris Manager</p>
-                    <p className='text-xs text-muted-foreground'>chris.manager@example.com</p>
+                    <p className='font-semibold text-sm'>{user.name}</p>
+                    <p className='text-xs text-muted-foreground'>Role: {user.role}</p>
                 </div>
               </CardContent>
             </Card>
@@ -223,7 +246,7 @@ export default function DashboardLayout({
                  <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
                     <Link href="/" className="flex items-center gap-2 font-semibold">
                       <Pizza className="h-6 w-6 text-primary" />
-                      <span className="font-headline">Bakery Management System</span>
+                      <span className="font-headline">Sweet Track</span>
                     </Link>
                   </div>
                 <div className="overflow-auto">

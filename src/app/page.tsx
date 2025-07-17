@@ -33,11 +33,13 @@ export default function LoginPage() {
     const formData = new FormData(event.currentTarget);
     const result = await handleLogin(formData);
 
-    if (result.success) {
+    if (result.success && result.user) {
       toast({
         title: "Login Successful",
-        description: "Welcome back!",
+        description: `Welcome back, ${result.user.name}!`,
       });
+      // Store user session in localStorage
+      localStorage.setItem('loggedInUser', JSON.stringify(result.user));
       router.push("/dashboard");
     } else {
       toast({
@@ -45,6 +47,8 @@ export default function LoginPage() {
         title: "Login Failed",
         description: result.error,
       });
+       // Clear any previous session info on failed login
+      localStorage.removeItem('loggedInUser');
     }
     
     setIsLoading(false);
@@ -55,7 +59,7 @@ export default function LoginPage() {
       <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-primary/20 via-background to-secondary/20 -z-10" />
       <Card className="w-full max-w-sm shadow-2xl bg-card/80 backdrop-blur-sm border-primary/20">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-headline text-primary">Bakery Management System</CardTitle>
+          <CardTitle className="text-3xl font-headline text-primary">Sweet Track</CardTitle>
           <CardDescription className="font-body">Welcome back! Please log in.</CardDescription>
         </CardHeader>
         <CardContent>
