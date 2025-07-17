@@ -67,7 +67,7 @@ export default function DashboardLayout({
     { href: "#", icon: LineChart, label: "Promotions" },
     {
       icon: Inbox, label: "Orders", sublinks: [
-        { href: "#", label: "Regular Orders" },
+        { href: "/dashboard/orders/regular", label: "Regular Orders" },
         { href: "#", label: "Custom Orders" },
       ]
     },
@@ -117,7 +117,7 @@ export default function DashboardLayout({
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               {navLinks.map((link) => 
                 link.sublinks ? (
-                   <Collapsible key={link.label} className="grid gap-1">
+                   <Collapsible key={link.label} className="grid gap-1" defaultOpen={link.sublinks.some(sub => pathname.startsWith(sub.href))}>
                     <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary [&[data-state=open]>svg]:rotate-90">
                       <div className="flex items-center gap-3">
                         <link.icon className="h-4 w-4" />
@@ -127,7 +127,15 @@ export default function DashboardLayout({
                     </CollapsibleTrigger>
                     <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l pl-3">
                       {link.sublinks.map(sublink => (
-                         <Link key={sublink.label} href={sublink.href} className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">{sublink.label}</Link>
+                         <Link 
+                            key={sublink.label} 
+                            href={sublink.href} 
+                            className={cn(
+                                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                                pathname === sublink.href && "bg-muted text-primary"
+                                )}>
+                            {sublink.label}
+                        </Link>
                       ))}
                     </CollapsibleContent>
                   </Collapsible>
@@ -203,3 +211,4 @@ export default function DashboardLayout({
     </div>
   );
 }
+

@@ -3,7 +3,8 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
-import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Wallet } from "lucide-react";
+import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Wallet, Printer } from "lucide-react";
+import { usePaystackPayment } from "react-paystack";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,8 +27,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
+import { useToast } from "@/hooks/use-toast";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 
 const initialProducts = [
   // Breads
@@ -50,14 +67,34 @@ type CartItem = {
   quantity: number;
 };
 
+type CompletedOrder = {
+  id: string;
+  items: CartItem[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  date: string;
+  paymentMethod: 'Card' | 'Paystack';
+}
+
 export default function POSPage() {
   const { toast } = useToast();
   const [products, setProducts] = useState(initialProducts);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [heldOrders, setHeldOrders] = useState<CartItem[][]>([]);
+  const [heldOrders, setHeldOrders] = useLocalStorage<CartItem[][]>('heldOrders', []);
+  const [completedOrders, setCompletedOrders] = useLocalStorage<CompletedOrder[]>('completedOrders', []);
   const [activeTab, setActiveTab] = useState('All');
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isConfirmCashOpen, setIsConfirmCashOpen] = useState(false);
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
+
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
+
+  const subtotal = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
+  const tax = useMemo(() => subtotal * 0.075, [subtotal]); // 7.5% VAT
+  const total = useMemo(() => subtotal + tax, [subtotal, tax]);
   
   const filteredProducts = useMemo(() => {
     if (activeTab === 'All') return products;
@@ -133,12 +170,70 @@ export default function POSPage() {
     setActiveTab('All');
   }
 
-  const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const tax = subtotal * 0.075; // 7.5% VAT
-  const total = subtotal + tax;
+  const completeOrder = (paymentMethod: 'Card' | 'Paystack') => {
+    const newOrder: CompletedOrder = {
+      id: `ORD-${Date.now()}`,
+      items: cart,
+      subtotal,
+      tax,
+      total,
+      date: new Date().toISOString(),
+      paymentMethod,
+    };
+    
+    // In a real app, this would also update stock levels in the database.
+    setCompletedOrders(prev => [newOrder, ...prev]);
+    setLastCompletedOrder(newOrder);
+    setCart([]);
+  }
+
+  const handleCardPayment = () => {
+    completeOrder('Card');
+    setIsConfirmCashOpen(false);
+    setIsReceiptOpen(true);
+    toast({
+      title: "Order Completed",
+      description: "The order has been successfully processed.",
+    });
+  }
+
+  const paystackConfig = {
+    reference: (new Date()).getTime().toString(),
+    email: "customer@example.com", // In a real app, get this from customer data
+    amount: Math.round(total * 100), // Amount in kobo
+    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+  };
+
+  const initializePayment = usePaystackPayment(paystackConfig);
+
+  const onPaystackSuccess = (reference: any) => {
+    console.log(reference);
+    completeOrder('Paystack');
+    setIsCheckoutOpen(false);
+    setIsReceiptOpen(true);
+    toast({
+      title: "Payment Successful",
+      description: "The order has been successfully processed.",
+    });
+  };
+
+  const onPaystackClose = () => {
+    console.log('closed');
+    toast({
+      variant: 'destructive',
+      title: "Payment Cancelled",
+      description: "The payment process was cancelled.",
+    })
+  };
+
+  const handlePrintReceipt = () => {
+    window.print();
+  }
+
   
   return (
-     <div className="grid grid-cols-1 xl:grid-cols-[1fr_450px] gap-6 h-[calc(100vh_-_8rem)]">
+     <>
+     <div className="grid grid-cols-1 xl:grid-cols-[1fr_450px] gap-6 h-[calc(100vh_-_8rem)] print:hidden">
       {/* Products Section */}
       <Card className="flex flex-col">
         <CardContent className="p-4 flex flex-col gap-4 flex-grow">
@@ -315,36 +410,179 @@ export default function POSPage() {
                     </AlertDialogContent>
                 </AlertDialog>
             </div>
-             <AlertDialog>
-                <AlertDialogTrigger asChild>
-                    <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0}>
-                        Checkout
-                    </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                    <AlertDialogTitle>Complete Payment</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Select a payment method to complete the transaction for <strong>₦{total.toFixed(2)}</strong>.
-                    </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <div className="grid grid-cols-2 gap-4 py-4">
-                        <Button variant="outline" className="h-20 flex-col gap-2">
-                           <CreditCard className="w-8 h-8"/>
-                           <span>Pay with Card</span>
-                        </Button>
-                         <Button variant="outline" className="h-20 flex-col gap-2">
-                           <Wallet className="w-8 h-8"/>
-                           <span>Pay with Paystack</span>
-                        </Button>
-                    </div>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+             <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0} onClick={() => setIsCheckoutOpen(true)}>
+                Checkout
+             </Button>
         </CardFooter>
       </Card>
-    </div>
+      </div>
+
+       {/* ---- DIALOGS ---- */}
+
+       {/* Checkout Dialog */}
+        <AlertDialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                <AlertDialogTitle>Complete Payment</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Select a payment method to complete the transaction for <strong>₦{total.toFixed(2)}</strong>.
+                </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="grid grid-cols-2 gap-4 py-4">
+                    <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => { setIsCheckoutOpen(false); setIsConfirmCashOpen(true); }}>
+                        <CreditCard className="w-8 h-8"/>
+                        <span>Pay with Card</span>
+                    </Button>
+                    <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
+                        <Wallet className="w-8 h-8"/>
+                        <span>Pay with Paystack</span>
+                    </Button>
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Confirm Cash Received Dialog */}
+         <AlertDialog open={isConfirmCashOpen} onOpenChange={setIsConfirmCashOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Have you received the total amount of <strong>₦{total.toFixed(2)}</strong> in cash or via the POS terminal?
+                </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>No, Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleCardPayment}>Yes, I have</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Receipt Dialog */}
+        {lastCompletedOrder && (
+            <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
+                <DialogContent className="sm:max-w-md print:max-w-full print:border-none print:shadow-none">
+                     <DialogHeader>
+                        <DialogTitle className="font-headline text-2xl text-center">Sweet Track</DialogTitle>
+                        <DialogDescription className="text-center">
+                            Sale Receipt
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="text-sm text-muted-foreground">
+                            <p><strong>Order ID:</strong> {lastCompletedOrder.id}</p>
+                            <p><strong>Date:</strong> {new Date(lastCompletedOrder.date).toLocaleString()}</p>
+                            <p><strong>Payment Method:</strong> {lastCompletedOrder.paymentMethod}</p>
+                        </div>
+                        <Separator />
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                <TableHead>Item</TableHead>
+                                <TableHead className="text-center">Qty</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {lastCompletedOrder.items.map(item => (
+                                <TableRow key={item.id}>
+                                    <TableCell>{item.name}</TableCell>
+                                    <TableCell className="text-center">{item.quantity}</TableCell>
+                                    <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
+                                </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                         <Separator />
+                         <div className="w-full space-y-1 text-sm pr-2">
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Subtotal</span>
+                                <span className="font-medium">₦{lastCompletedOrder.subtotal.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Tax (7.5%)</span>
+                                <span className="font-medium">₦{lastCompletedOrder.tax.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-base mt-1">
+                                <span>Total</span>
+                                <span>₦{lastCompletedOrder.total.toFixed(2)}</span>
+                            </div>
+                        </div>
+                        <Separator />
+                        <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
+                    </div>
+                    <div className="flex justify-end gap-2 print:hidden">
+                        <Button variant="outline" onClick={handlePrintReceipt}><Printer className="mr-2 h-4 w-4"/> Print</Button>
+                        <Button onClick={() => setIsReceiptOpen(false)}>Close</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        )}
+        <style jsx global>{`
+          @media print {
+            body * {
+              visibility: hidden;
+            }
+            .print-receipt, .print-receipt * {
+              visibility: visible;
+            }
+            .print-receipt {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+            }
+          }
+        `}</style>
+         {isReceiptOpen && lastCompletedOrder && (
+          <div className="hidden print:block print-receipt">
+            <div className="bg-white text-black p-8">
+              <h2 className="font-headline text-3xl text-center mb-2">Sweet Track</h2>
+              <p className="text-center mb-4">Sale Receipt</p>
+              <div className="text-sm mb-4">
+                  <p><strong>Order ID:</strong> {lastCompletedOrder.id}</p>
+                  <p><strong>Date:</strong> {new Date(lastCompletedOrder.date).toLocaleString()}</p>
+                  <p><strong>Payment Method:</strong> {lastCompletedOrder.paymentMethod}</p>
+              </div>
+              <table className="w-full text-sm">
+                  <thead>
+                      <tr className="border-b">
+                          <th className="text-left pb-1">Item</th>
+                          <th className="text-center pb-1">Qty</th>
+                          <th className="text-right pb-1">Amount</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      {lastCompletedOrder.items.map(item => (
+                      <tr key={item.id} className="border-b">
+                          <td className="py-1">{item.name}</td>
+                          <td className="text-center py-1">{item.quantity}</td>
+                          <td className="text-right py-1">₦{(item.price * item.quantity).toFixed(2)}</td>
+                      </tr>
+                      ))}
+                  </tbody>
+              </table>
+              <div className="w-full mt-4 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                      <span>Subtotal</span>
+                      <span>₦{lastCompletedOrder.subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                      <span>Tax (7.5%)</span>
+                      <span>₦{lastCompletedOrder.tax.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-base mt-1">
+                      <span>Total</span>
+                      <span>₦{lastCompletedOrder.total.toFixed(2)}</span>
+                  </div>
+              </div>
+              <p className="text-center text-xs mt-6">Thank you for your patronage!</p>
+            </div>
+          </div>
+        )}
+     </>
   );
 }
+
