@@ -125,7 +125,7 @@ export default function DashboardLayout({
     },
     {
       icon: Package, label: "Inventory", sublinks: [
-        { href: "#", label: "Products" },
+        { href: "/dashboard/inventory/products", label: "Products" },
         { href: "#", label: "Recipes" },
         { href: "#", label: "Suppliers" },
         { href: "#", label: "Ingredients" },

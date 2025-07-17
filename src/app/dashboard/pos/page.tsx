@@ -246,7 +246,7 @@ export default function POSPage() {
   }
 
   const onPaystackSuccess = async (reference: any) => {
-    console.log(reference);
+    console.log("Paystack Success!", reference);
     const completed = await completeOrder('Paystack');
     if (completed) {
       setIsCheckoutOpen(false);
@@ -259,7 +259,7 @@ export default function POSPage() {
   };
 
   const onPaystackClose = () => {
-    console.log('closed');
+    console.log('Paystack dialog closed.');
     toast({
       variant: 'destructive',
       title: "Payment Cancelled",
@@ -271,19 +271,29 @@ export default function POSPage() {
     window.print();
   }
   
-  const PaystackButton = ({ amount, email, onSuccess, onClose }: { amount: number, email: string, onSuccess: (ref: any) => void, onClose: () => void }) => {
+  const PaystackButton = () => {
     const paystackConfig = {
         reference: (new Date()).getTime().toString(),
-        email: email,
-        amount: Math.round(amount * 100),
-        publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_48b78021e92f66d403c42ede714bffbb77959516',
+        email: "customer@example.com",
+        amount: Math.round(total * 100),
+        publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
     };
 
     const initializePayment = usePaystackPayment(paystackConfig);
-    
+
     const handlePaystackPayment = () => {
+      console.log("Initializing Paystack with config:", paystackConfig);
+      if (!paystackConfig.publicKey) {
+        console.error("Paystack public key is not configured.");
+        toast({
+          variant: "destructive",
+          title: "Configuration Error",
+          description: "Paystack is not set up correctly. Please contact support.",
+        });
+        return;
+      }
       setIsCheckoutOpen(false);
-      initializePayment({onSuccess, onClose});
+      initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose});
     };
 
     return (
@@ -528,12 +538,7 @@ export default function POSPage() {
                         <CreditCard className="w-8 h-8"/>
                         <span>Pay with Card</span>
                     </Button>
-                    <PaystackButton
-                        amount={total}
-                        email={"customer@example.com"}
-                        onSuccess={onPaystackSuccess}
-                        onClose={onPaystackClose}
-                    />
+                    <PaystackButton />
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsCheckoutOpen(false)}>Cancel</Button>
