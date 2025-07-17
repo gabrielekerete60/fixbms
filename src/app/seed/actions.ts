@@ -85,7 +85,7 @@ const seedData = {
   customers: [
       { id: 'cust_1', name: 'Adebisi Onyeka', phone: '08012345678', email: 'a.onyeka@example.com', address: '123, Allen Avenue, Ikeja', joinedDate: '2023-01-15T10:00:00Z', totalSpent: 150000 },
       { id: 'cust_2', name: 'Ngozi Okoro', phone: '09087654321', email: 'n.okoro@example.com', address: '45, Lekki Phase 1', joinedDate: '2023-02-20T11:30:00Z', totalSpent: 75000 },
-      { id: 'cust_3', name: 'Chinedu Eze', phone: '07011223344', email: 'c.eze@example.com', address: '78, Surulere, Lagos', joinedDate: '2023--03-10T09:00:00Z', totalSpent: 250000 },
+      { id: 'cust_3', name: 'Chinedu Eze', phone: '07011223344', email: 'c.eze@example.com', address: '78, Surulere, Lagos', joinedDate: '2023-03-10T09:00:00Z', totalSpent: 250000 },
   ],
    orders: [
     {
@@ -190,7 +190,20 @@ const seedData = {
       status: "new"
     }
   ],
-  waste_logs: []
+  waste_logs: [
+      {
+          id: 'wl_1',
+          productId: 'prod_1',
+          productName: 'Family Loaf',
+          productCategory: 'Breads',
+          quantity: 1,
+          reason: 'Damaged',
+          notes: 'Wrapper was torn during delivery.',
+          staffId: '400005',
+          staffName: 'Akan Staff',
+          date: Timestamp.fromDate(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)),
+      }
+  ]
 };
 
 export async function seedDatabase(): Promise<ActionResult> {

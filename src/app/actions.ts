@@ -535,6 +535,7 @@ export async function submitReport(data: ReportSubmission): Promise<{ success: b
 type ReportWasteData = {
     productId: string;
     productName: string;
+    productCategory: string;
     quantity: number;
     reason: string;
     notes?: string;
@@ -576,6 +577,31 @@ export async function handleReportWaste(data: ReportWasteData, user: { staff_id:
         return { success: false, error: errorMessage };
     }
 }
+
+export type WasteLog = {
+    id: string;
+    productId: string;
+    productName: string;
+    productCategory: string;
+    quantity: number;
+    reason: string;
+    notes?: string;
+    staffId: string;
+    staffName: string;
+    date: Timestamp;
+}
+
+export async function getWasteLogs(): Promise<WasteLog[]> {
+    try {
+        const q = query(collection(db, 'waste_logs'), orderBy('date', 'desc'));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WasteLog));
+    } catch (error) {
+        console.error("Error fetching waste logs:", error);
+        return [];
+    }
+}
+
 
 export type Transfer = {
   id: string;
