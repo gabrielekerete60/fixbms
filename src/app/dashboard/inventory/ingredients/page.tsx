@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -182,7 +182,7 @@ export default function IngredientsPage() {
     const [ingredientToDelete, setIngredientToDelete] = useState<Ingredient | null>(null);
     const [date, setDate] = useState<DateRange | undefined>();
 
-    const fetchIngredients = async () => {
+    const fetchIngredients = useCallback(async () => {
         setIsLoading(true);
         try {
             const ingredientsCollection = collection(db, "ingredients");
@@ -195,11 +195,15 @@ export default function IngredientsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [toast]);
 
     useEffect(() => {
         fetchIngredients();
-    }, []);
+        window.addEventListener('focus', fetchIngredients);
+        return () => {
+            window.removeEventListener('focus', fetchIngredients);
+        };
+    }, [fetchIngredients]);
 
     const handleSaveIngredient = async (ingredientData: Partial<Omit<Ingredient, 'id' | 'stock'>>) => {
         try {

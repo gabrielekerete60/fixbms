@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -173,7 +173,7 @@ export default function OtherSuppliesPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [supplyToDelete, setSupplyToDelete] = useState<OtherSupply | null>(null);
 
-    const fetchSupplies = async () => {
+    const fetchSupplies = useCallback(async () => {
         setIsLoading(true);
         try {
             const suppliesCollection = collection(db, "other_supplies");
@@ -186,11 +186,15 @@ export default function OtherSuppliesPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [toast]);
 
     useEffect(() => {
         fetchSupplies();
-    }, []);
+        window.addEventListener('focus', fetchSupplies);
+        return () => {
+            window.removeEventListener('focus', fetchSupplies);
+        };
+    }, [fetchSupplies]);
 
     const handleSaveSupply = async (supplyData: Omit<OtherSupply, 'id'>) => {
         try {

@@ -57,9 +57,11 @@ import {
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { getAttendanceStatus, handleClockIn, handleClockOut } from '../actions';
+import { getAttendanceStatus, handleClockIn, handleClockOut, handleLogin } from '../actions';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 type User = {
   name: string;
@@ -127,6 +129,17 @@ export default function DashboardLayout({
   const [attendanceId, setAttendanceId] = useState<string | null>(null);
   const [isClocking, setIsClocking] = useState(true);
 
+  const handleLogout = useCallback((message?: string) => {
+    localStorage.removeItem('loggedInUser');
+    toast({
+      variant: message ? "destructive" : "default",
+      title: message ? "Logged Out" : "Logged Out",
+      description: message || "You have been successfully logged out.",
+    });
+    router.push("/");
+  }, [router, toast]);
+
+
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
@@ -158,15 +171,38 @@ export default function DashboardLayout({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+  
+  // Real-time user status check
+  useEffect(() => {
+      if (!user) return;
 
-  const handleLogout = () => {
-    localStorage.removeItem('loggedInUser');
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    });
-    router.push("/");
-  };
+      const checkUserStatus = async () => {
+          const userDocRef = doc(db, "staff", user.staff_id);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+              const userData = userDoc.data();
+              if (!userData.is_active) {
+                  handleLogout("This staff account is inactive.");
+              }
+          } else {
+              // User doesn't exist anymore
+              handleLogout("User account not found.");
+          }
+      };
+      
+      // Check every 15 seconds
+      const interval = setInterval(checkUserStatus, 15000);
+      
+      // Also check when window regains focus
+      window.addEventListener('focus', checkUserStatus);
+      
+      return () => {
+          clearInterval(interval);
+          window.removeEventListener('focus', checkUserStatus);
+      };
+
+  }, [user, handleLogout]);
+
   
   const handleClockInOut = async () => {
     if (!user) return;
@@ -322,7 +358,7 @@ export default function DashboardLayout({
                 <DropdownMenuItem>Support</DropdownMenuItem>
               </Link>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={handleLogout}>Logout</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => handleLogout()}>Logout</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </header>

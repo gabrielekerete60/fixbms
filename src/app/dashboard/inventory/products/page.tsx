@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Image from "next/image";
 import {
   Card,
@@ -207,7 +207,7 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     setIsLoading(true);
     try {
       const productsCollection = collection(db, "products");
@@ -227,11 +227,15 @@ export default function ProductsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+    window.addEventListener('focus', fetchProducts);
+    return () => {
+        window.removeEventListener('focus', fetchProducts);
+    }
+  }, [fetchProducts]);
 
   const handleSaveProduct = async (productData: Omit<Product, 'id'>) => {
     try {

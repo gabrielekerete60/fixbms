@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -436,7 +436,7 @@ export default function SuppliersPage() {
     const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
     const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
 
-    const fetchSuppliers = async () => {
+    const fetchSuppliers = useCallback(async () => {
         setIsLoading(true);
         try {
             const suppliersCollection = collection(db, "suppliers");
@@ -449,11 +449,15 @@ export default function SuppliersPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [toast]);
 
     useEffect(() => {
         fetchSuppliers();
-    }, []);
+        window.addEventListener('focus', fetchSuppliers);
+        return () => {
+            window.removeEventListener('focus', fetchSuppliers);
+        };
+    }, [fetchSuppliers]);
 
     const handleSaveSupplier = async (supplierData: Omit<Supplier, 'id'>) => {
         try {

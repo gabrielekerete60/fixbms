@@ -1,14 +1,13 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter
 } from "@/components/ui/card";
 import {
   Table,
@@ -314,7 +313,7 @@ export default function StaffManagementPage() {
     const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
     const [staffToDelete, setStaffToDelete] = useState<Staff | null>(null);
 
-    const fetchStaff = async () => {
+    const fetchStaff = useCallback(async () => {
         setIsLoading(true);
         try {
             const staffCollection = collection(db, "staff");
@@ -329,11 +328,15 @@ export default function StaffManagementPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [toast]);
 
     useEffect(() => {
         fetchStaff();
-    }, []);
+        window.addEventListener('focus', fetchStaff);
+        return () => {
+            window.removeEventListener('focus', fetchStaff);
+        };
+    }, [fetchStaff]);
 
     const handleSaveStaff = async (staffData: Omit<Staff, 'staff_id'>) => {
         try {
