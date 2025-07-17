@@ -1,13 +1,15 @@
-
 "use server";
 
 import { db } from "@/lib/firebase";
-import { collection, getDocs, writeBatch, doc } from "firebase/firestore";
+import { collection, getDocs, writeBatch, doc, Timestamp } from "firebase/firestore";
 
 type ActionResult = {
   success: boolean;
   error?: string;
 };
+
+// Helper to create timestamps for recent days
+const daysAgo = (days: number) => Timestamp.fromDate(new Date(new Date().setDate(new Date().getDate() - days)));
 
 const seedData = {
   products: [
@@ -115,7 +117,22 @@ const seedData = {
     { id: 'log_1', supplierId: 'sup_1', supplierName: 'Flour Mills of Nigeria', ingredientId: 'ing_1', ingredientName: 'All-Purpose Flour', quantity: 20, unit: 'kg', costPerUnit: 500, totalCost: 10000, date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), invoiceNumber: 'FMN-123' },
     { id: 'log_2', supplierId: 'sup_2', supplierName: 'Dangote Sugar', ingredientId: 'ing_2', ingredientName: 'Granulated Sugar', quantity: 10, unit: 'kg', costPerUnit: 800, totalCost: 8000, date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), invoiceNumber: 'DAN-456' }
   ],
-  attendance: [],
+  attendance: [
+    // Staff 100001 (Manager) - Attended 4 days this week
+    { staff_id: '100001', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split('T')[0] },
+    { staff_id: '100001', clock_in_time: daysAgo(2), clock_out_time: daysAgo(2), date: new Date(new Date().setDate(new Date().getDate() - 2)).toISOString().split('T')[0] },
+    { staff_id: '100001', clock_in_time: daysAgo(3), clock_out_time: daysAgo(3), date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString().split('T')[0] },
+    { staff_id: '100001', clock_in_time: daysAgo(4), clock_out_time: daysAgo(4), date: new Date(new Date().setDate(new Date().getDate() - 4)).toISOString().split('T')[0] },
+    // Staff 400004 (Showroom) - Attended 5 days
+    { staff_id: '400004', clock_in_time: daysAgo(0), clock_out_time: null, date: new Date().toISOString().split('T')[0] },
+    { staff_id: '400004', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split('T')[0] },
+    { staff_id: '400004', clock_in_time: daysAgo(2), clock_out_time: daysAgo(2), date: new Date(new Date().setDate(new Date().getDate() - 2)).toISOString().split('T')[0] },
+    { staff_id: '400004', clock_in_time: daysAgo(3), clock_out_time: daysAgo(3), date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString().split('T')[0] },
+    { staff_id: '400004', clock_in_time: daysAgo(4), clock_out_time: daysAgo(4), date: new Date(new Date().setDate(new Date().getDate() - 4)).toISOString().split('T')[0] },
+     // Staff 500006 (Baker) - Attended 2 days
+    { staff_id: '500006', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split('T')[0] },
+    { staff_id: '500006', clock_in_time: daysAgo(3), clock_out_time: daysAgo(3), date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString().split('T')[0] },
+  ],
   transfers: [],
 };
 
@@ -128,6 +145,7 @@ export async function seedDatabase(): Promise<ActionResult> {
         if (Array.isArray(data)) {
             data.forEach((item) => {
                 let docRef;
+                // Use a specific ID if provided, otherwise let Firestore generate one
                 if(item.id) {
                     docRef = doc(db, collectionName, item.id);
                 } else if (item.staff_id) {
@@ -135,7 +153,22 @@ export async function seedDatabase(): Promise<ActionResult> {
                 } else {
                     docRef = doc(collection(db, collectionName));
                 }
-                batch.set(docRef, item);
+                // Convert date strings to Timestamps for Firestore where needed
+                const itemWithTimestamps = { ...item };
+                if (item.date && typeof item.date === 'string') {
+                    itemWithTimestamps.date = Timestamp.fromDate(new Date(item.date));
+                }
+                 if (item.joinedDate && typeof item.joinedDate === 'string') {
+                    itemWithTimestamps.joinedDate = Timestamp.fromDate(new Date(item.joinedDate));
+                }
+                if (item.startDate && typeof item.startDate === 'string') {
+                    itemWithTimestamps.startDate = Timestamp.fromDate(new Date(item.startDate));
+                }
+                 if (item.endDate && typeof item.endDate === 'string') {
+                    itemWithTimestamps.endDate = Timestamp.fromDate(new Date(item.endDate));
+                }
+
+                batch.set(docRef, itemWithTimestamps);
             });
         }
     }
@@ -163,6 +196,7 @@ export async function clearDatabase(): Promise<ActionResult> {
         batch.delete(doc.ref);
       });
       await batch.commit();
+      console.log(`Cleared collection: ${collectionName}`);
     }
     
     console.log("Database cleared successfully.");
