@@ -59,11 +59,11 @@ export default function LoginPage() {
       <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-primary/20 via-background to-secondary/20 -z-10" />
       <Card className="w-full max-w-sm shadow-2xl bg-card/80 backdrop-blur-sm border-primary/20">
         <CardHeader className="text-center">
-          <div className="mx-auto bg-primary/20 p-3 rounded-full mb-2">
-             <Pizza className="h-8 w-8 text-primary" />
-          </div>
-          <CardTitle className="text-3xl font-headline text-primary">BMS</CardTitle>
-          <CardDescription className="font-body">Welcome to the Bakery Management System. Please log in.</CardDescription>
+            <div className="flex justify-center items-center gap-2">
+                <Pizza className="h-8 w-8 text-primary" />
+                <CardTitle className="text-3xl font-headline text-primary">BMS</CardTitle>
+            </div>
+          <CardDescription className="font-body pt-2">Welcome to the Bakery Management System. Please log in.</CardDescription>
         </CardHeader>
         <CardContent>
           <form id="login-form" onSubmit={handleSubmit}>
@@ -113,3 +113,5 @@ export default function LoginPage() {
     </main>
   );
 }
+
+    

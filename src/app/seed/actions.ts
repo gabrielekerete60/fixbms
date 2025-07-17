@@ -151,6 +151,22 @@ const seedData = {
         status: "pending"
       }
   ],
+  announcements: [
+    {
+      id: "ann_1",
+      staffId: "100001",
+      staffName: "Chris Manager",
+      message: "Team, please remember to clock in and out accurately. Payroll depends on it!",
+      timestamp: Timestamp.fromDate(new Date("2024-07-29T13:00:00"))
+    },
+    {
+      id: "ann_2",
+      staffId: "200002",
+      staffName: "Vic Supervisor",
+      message: "We have a large custom cake order due this Friday. All hands on deck!",
+      timestamp: Timestamp.fromDate(new Date("2024-07-30T10:00:00"))
+    }
+  ]
 };
 
 export async function seedDatabase(): Promise<ActionResult> {
@@ -183,6 +199,9 @@ export async function seedDatabase(): Promise<ActionResult> {
                 }
                  if (item.endDate && typeof item.endDate === 'string') {
                     itemWithTimestamps.endDate = Timestamp.fromDate(new Date(item.endDate));
+                }
+                 if (item.timestamp && typeof item.timestamp === 'string') {
+                    itemWithTimestamps.timestamp = Timestamp.fromDate(new Date(item.timestamp));
                 }
 
                 batch.set(docRef, itemWithTimestamps);
@@ -225,3 +244,5 @@ export async function clearDatabase(): Promise<ActionResult> {
     return { success: false, error: `Failed to clear database: ${errorMessage}` };
   }
 }
+
+    

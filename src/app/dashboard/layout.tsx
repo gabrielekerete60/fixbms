@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -270,7 +271,7 @@ export default function DashboardLayout({
     { href: "/dashboard/deliveries", icon: Car, label: "Deliveries" },
     { href: "/dashboard/accounting", icon: Wallet, label: "Accounting" },
     { href: "#", icon: GanttChartSquare, label: "AI Analytics" },
-    { href: "#", icon: HelpingHand, label: "Communication" },
+    { href: "/dashboard/communication", icon: HelpingHand, label: "Communication" },
     { href: "#", icon: BookOpen, label: "Documentation" },
     { href: "/dashboard/settings", icon: Settings, label: "Settings" },
   ];
@@ -371,3 +372,5 @@ export default function DashboardLayout({
     </div>
   );
 }
+
+    

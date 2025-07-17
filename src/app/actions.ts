@@ -458,4 +458,43 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
     return { success: false, error: `Failed to ${action} payment.` };
   }
 }
+
+export type Announcement = {
+    id: string;
+    staffId: string;
+    staffName: string;
+    message: string;
+    timestamp: Timestamp;
+}
+
+export async function getAnnouncements(): Promise<Announcement[]> {
+    try {
+        const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement));
+    } catch (error) {
+        console.error("Error fetching announcements:", error);
+        return [];
+    }
+}
+
+export async function postAnnouncement(message: string, user: { staff_id: string, name: string }): Promise<{ success: boolean, error?: string }> {
+    if (!message.trim()) {
+        return { success: false, error: 'Announcement message cannot be empty.' };
+    }
+    try {
+        await addDoc(collection(db, 'announcements'), {
+            message,
+            staffId: user.staff_id,
+            staffName: user.name,
+            timestamp: serverTimestamp()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error posting announcement:", error);
+        return { success: false, error: 'Failed to post announcement.' };
+    }
+}
+    
+
     
