@@ -13,6 +13,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { format, startOfDay, endOfDay } from 'date-fns';
+import { Calendar } from '@/components/ui/calendar';
+import { db } from '@/lib/firebase';
 
 function EmptyState({ title, description }: { title: string, description: string }) {
     return (
@@ -96,6 +98,7 @@ export default function DeliveriesPage() {
         const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
 
         return completedRuns.filter(run => {
+            if (!run.date) return false;
             const runDate = run.date.toDate();
             return runDate >= from && runDate <= to;
         });
