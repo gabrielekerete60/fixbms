@@ -25,6 +25,8 @@ import {
   Cookie,
   ClipboardList,
   Carrot,
+  Archive,
+  ListChecks,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -162,8 +164,8 @@ export default function DashboardLayout({
         { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList },
         { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot },
         { href: "/dashboard/inventory/suppliers", label: "Suppliers" },
-        { href: "#", label: "Stock Control" },
-        { href: "#", label: "Other Supplies" },
+        { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks },
+        { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", icon: Archive },
       ]
     },
     {
@@ -200,7 +202,7 @@ export default function DashboardLayout({
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <Pizza className="h-6 w-6 text-primary" />
-              <span className="font-headline">Sweet Track</span>
+              <span className="font-headline">BMS</span>
             </Link>
           </div>
           <div className="flex-1 overflow-auto py-2">
@@ -229,8 +231,8 @@ export default function DashboardLayout({
           </div>
         </div>
       </div>
-      <div className="flex flex-col">
-        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
+      <div className="flex flex-col max-h-screen">
+        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 shrink-0">
           <Sheet>
               <SheetTrigger asChild>
                 <Button
@@ -242,14 +244,14 @@ export default function DashboardLayout({
                   <span className="sr-only">Toggle navigation menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="flex flex-col">
-                 <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+              <SheetContent side="left" className="flex flex-col p-0">
+                 <div className="flex h-14 shrink-0 items-center border-b px-4 lg:h-[60px]">
                     <Link href="/" className="flex items-center gap-2 font-semibold">
                       <Pizza className="h-6 w-6 text-primary" />
-                      <span className="font-headline">Sweet Track</span>
+                      <span className="font-headline">BMS</span>
                     </Link>
                   </div>
-                <div className="overflow-auto">
+                <div className="overflow-auto flex-1">
                     <SidebarNav navLinks={navLinks} pathname={pathname} />
                 </div>
               </SheetContent>

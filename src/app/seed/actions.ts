@@ -75,7 +75,12 @@ const seedData = {
     { id: "ing_13", name: "Preservative", stock: 1.00, unit: 'kg', costPerUnit: 5000.00, expiryDate: null },
     { id: "ing_14", name: "Butterscotch Flavor", stock: 0.50, unit: 'L', costPerUnit: 18000.00, expiryDate: null },
     { id: "ing_15", name: "Strawberry Flavor", stock: 0.50, unit: 'L', costPerUnit: 17000.00, expiryDate: null },
-    { id: "ing_16", name: "Milk for Bakers", stock: 50.00, unit: 'sachets', costPerUnit: 150.00, expiryDate: null },
+  ],
+  other_supplies: [
+    { id: "sup_os_1", name: "Milk for Bakers", stock: 50.00, unit: 'sachets', costPerUnit: 150.00, category: "Production" },
+    { id: "sup_os_2", name: "Bread Wrappers", stock: 1000, unit: 'pcs', costPerUnit: 10.00, category: "Packaging" },
+    { id: "sup_os_3", name: "Shopping Bags", stock: 500, unit: 'pcs', costPerUnit: 20.00, category: "Packaging" },
+    { id: "sup_os_4", name: "Disinfectant", stock: 5, unit: 'L', costPerUnit: 5000.00, category: "Cleaning" },
   ]
 };
 
@@ -119,6 +124,12 @@ export async function seedDatabase(): Promise<ActionResult> {
         const docRef = doc(db, "ingredients", ingredient.id);
         batch.set(docRef, ingredient);
     });
+    
+    // Seed Other Supplies
+    seedData.other_supplies.forEach((supply) => {
+        const docRef = doc(db, "other_supplies", supply.id);
+        batch.set(docRef, supply);
+    });
 
     // We will create an empty "orders" collection so it exists, but not seed any orders.
     // This is a placeholder for where completed orders will go.
@@ -140,7 +151,7 @@ export async function seedDatabase(): Promise<ActionResult> {
 export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
-    const collectionsToClear = ['products', 'staff', 'promotions', 'orders', 'suppliers', 'recipes', 'ingredients'];
+    const collectionsToClear = ['products', 'staff', 'promotions', 'orders', 'suppliers', 'recipes', 'ingredients', 'other_supplies'];
     const batch = writeBatch(db);
 
     for (const collectionName of collectionsToClear) {
