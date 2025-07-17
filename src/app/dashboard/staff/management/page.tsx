@@ -56,7 +56,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -113,7 +113,7 @@ function StaffDialog({
             setRole(staff.role || "");
             setPayType(staff.pay_type || "Salary");
             setPayRate(staff.pay_rate || 0);
-            setPassword(staff.password || "");
+            setPassword(""); // Always clear password for editing for security
             setTimezone(staff.timezone || "Africa/Lagos");
             setBankName(staff.bank_name || "");
             setAccountNumber(staff.account_number || "");
@@ -142,19 +142,24 @@ function StaffDialog({
             return;
         }
 
-        onSave({ 
-            name, 
+        const staffData: Partial<Omit<Staff, 'staff_id'>> = {
+            name,
             email,
-            role, 
+            role,
             pay_type: payType,
             pay_rate: Number(payRate),
-            // Only include password if it has been set, to avoid overwriting with empty string
-            ...(password && { password }),
             timezone,
             bank_name: bankName,
             account_number: accountNumber,
             is_active: isActive,
-        });
+        };
+        
+        // Only include password if it has been set, to avoid overwriting with empty string
+        if (password) {
+            staffData.password = password;
+        }
+
+        onSave(staffData as Omit<Staff, 'staff_id'>);
         onOpenChange(false);
     };
 
@@ -283,7 +288,7 @@ export default function StaffManagementPage() {
                 // Firestore doesn't store the ID in the document data by default,
                 // so we write to a doc with a specific ID.
                 const newStaffRef = doc(db, "staff", newId);
-                await updateDoc(newStaffRef, staffData);
+                await setDoc(newStaffRef, staffData);
                 toast({ title: "Success", description: "Staff member created successfully." });
             }
             fetchStaff();
@@ -379,7 +384,7 @@ export default function StaffManagementPage() {
                                                 {staff.is_active ? 'Active' : 'Inactive'}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell>₦{staff.pay_rate.toLocaleString()}/{staff.pay_type === 'Salary' ? 'mo' : 'hr'}</TableCell>
+                                        <TableCell>₦{(staff.pay_rate || 0).toLocaleString()}/{staff.pay_type === 'Salary' ? 'mo' : 'hr'}</TableCell>
                                         <TableCell>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
