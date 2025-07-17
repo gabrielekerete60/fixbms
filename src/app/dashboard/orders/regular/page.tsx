@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import {
   Card,
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Printer } from "lucide-react";
+import { Eye, Printer, FileDown, MoreHorizontal } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,8 +29,25 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { DateRange } from "react-day-picker";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+
 
 type CartItem = {
   id: number;
@@ -47,6 +64,7 @@ type CompletedOrder = {
   total: number;
   date: string;
   paymentMethod: 'Card' | 'Paystack';
+  customerName?: string;
 }
 
 function Receipt({ order }: { order: CompletedOrder }) {
@@ -80,6 +98,7 @@ function Receipt({ order }: { order: CompletedOrder }) {
                 <p><strong>Order ID:</strong> {order.id}</p>
                 <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
                 <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
+                <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
             </div>
             <Separator />
             <Table>
@@ -128,39 +147,130 @@ function Receipt({ order }: { order: CompletedOrder }) {
 
 export default function RegularOrdersPage() {
   const [completedOrders] = useLocalStorage<CompletedOrder[]>('completedOrders', []);
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [date, setDate] = useState<DateRange | undefined>();
+
+  const filteredOrders = useMemo(() => {
+    return completedOrders.filter(order => {
+      if (!date?.from) return true;
+      const orderDate = new Date(order.date);
+      if (date.to) {
+        return orderDate >= date.from && orderDate <= date.to;
+      }
+      return orderDate >= date.from;
+    });
+  }, [completedOrders, date]);
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedOrders(filteredOrders.map(o => o.id));
+    } else {
+      setSelectedOrders([]);
+    }
+  }
+
+  const handleSelectOne = (orderId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedOrders(prev => [...prev, orderId]);
+    } else {
+      setSelectedOrders(prev => prev.filter(id => id !== orderId));
+    }
+  }
+
+  const isAllSelected = selectedOrders.length > 0 && selectedOrders.length === filteredOrders.length;
+
 
   return (
     <div className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold font-headline">Regular Orders</h1>
         <Card>
             <CardHeader>
-                <CardTitle>Completed Orders</CardTitle>
-                <CardDescription>A list of all successfully completed transactions.</CardDescription>
+                <div className="flex items-center justify-between gap-4">
+                     <div>
+                        <CardTitle>Completed Orders</CardTitle>
+                        <CardDescription>A list of all successfully completed transactions.</CardDescription>
+                     </div>
+                     <div className="flex items-center gap-2">
+                         <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                id="date"
+                                variant={"outline"}
+                                className={cn(
+                                "w-[300px] justify-start text-left font-normal",
+                                !date && "text-muted-foreground"
+                                )}
+                            >
+                                {date?.from ? (
+                                date.to ? (
+                                    <>
+                                    {format(date.from, "LLL dd, y")} -{" "}
+                                    {format(date.to, "LLL dd, y")}
+                                    </>
+                                ) : (
+                                    format(date.from, "LLL dd, y")
+                                )
+                                ) : (
+                                <span>Pick a date range</span>
+                                )}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="end">
+                            <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={date?.from}
+                                selected={date}
+                                onSelect={setDate}
+                                numberOfMonths={2}
+                            />
+                            </PopoverContent>
+                        </Popover>
+                        <Button variant="outline" disabled={selectedOrders.length === 0}><Printer className="mr-2"/> Print Selected</Button>
+                        <Button variant="outline"><FileDown className="mr-2"/> Export</Button>
+                     </div>
+                </div>
             </CardHeader>
             <CardContent>
                  <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead padding="checkbox">
+                               <Checkbox
+                                    checked={isAllSelected}
+                                    onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                                    aria-label="Select all"
+                                />
+                            </TableHead>
                             <TableHead>Order ID</TableHead>
                             <TableHead>Date</TableHead>
+                             <TableHead>Customer</TableHead>
                             <TableHead>Items</TableHead>
                             <TableHead>Payment Method</TableHead>
                             <TableHead className="text-right">Total</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                            <TableHead className="text-center">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {completedOrders.length === 0 ? (
+                        {filteredOrders.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="h-24 text-center">
-                                    No completed orders yet.
+                                <TableCell colSpan={8} className="h-24 text-center">
+                                    No completed orders found for the selected period.
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            completedOrders.map((order) => (
-                                <TableRow key={order.id}>
+                            filteredOrders.map((order) => (
+                                <TableRow key={order.id} data-state={selectedOrders.includes(order.id) && "selected"}>
+                                    <TableCell padding="checkbox">
+                                        <Checkbox
+                                            checked={selectedOrders.includes(order.id)}
+                                            onCheckedChange={(checked) => handleSelectOne(order.id, checked as boolean)}
+                                            aria-label={`Select order ${order.id}`}
+                                        />
+                                    </TableCell>
                                     <TableCell className="font-medium">{order.id}</TableCell>
                                     <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
+                                    <TableCell>{order.customerName || 'Walk-in'}</TableCell>
                                     <TableCell>{order.items.reduce((acc, item) => acc + item.quantity, 0)}</TableCell>
                                     <TableCell>
                                         <Badge variant={order.paymentMethod === 'Card' ? 'secondary' : 'default'}>
@@ -168,13 +278,28 @@ export default function RegularOrdersPage() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">₦{order.total.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right">
+                                    <TableCell className="text-center">
                                        <Dialog>
-                                            <DialogTrigger asChild>
-                                                <Button variant="ghost" size="icon">
-                                                    <Eye className="h-4 w-4" />
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                                    <span className="sr-only">Open menu</span>
+                                                    <MoreHorizontal className="h-4 w-4" />
                                                 </Button>
-                                            </DialogTrigger>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                     <DialogTrigger asChild>
+                                                        <DropdownMenuItem>
+                                                            <Eye className="mr-2 h-4 w-4" />
+                                                            <span>View Details</span>
+                                                        </DropdownMenuItem>
+                                                     </DialogTrigger>
+                                                     <DropdownMenuItem>
+                                                        <Printer className="mr-2 h-4 w-4" />
+                                                        <span>Print Receipt</span>
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                             <Receipt order={order} />
                                        </Dialog>
                                     </TableCell>
@@ -186,11 +311,10 @@ export default function RegularOrdersPage() {
             </CardContent>
             <CardFooter>
                 <div className="text-xs text-muted-foreground">
-                    Showing <strong>{completedOrders.length}</strong> orders.
+                    Showing <strong>{filteredOrders.length}</strong> of <strong>{completedOrders.length}</strong> orders.
                 </div>
             </CardFooter>
         </Card>
     </div>
   )
 }
-

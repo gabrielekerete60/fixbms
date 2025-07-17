@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
-import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Wallet, Printer } from "lucide-react";
+import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Wallet, Printer, User, Building } from "lucide-react";
 import { usePaystackPayment } from "react-paystack";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 
@@ -76,6 +77,7 @@ type CompletedOrder = {
   total: number;
   date: string;
   paymentMethod: 'Card' | 'Paystack';
+  customerName?: string;
 }
 
 export default function POSPage() {
@@ -85,6 +87,8 @@ export default function POSPage() {
   const [heldOrders, setHeldOrders] = useLocalStorage<CartItem[][]>('heldOrders', []);
   const [completedOrders, setCompletedOrders] = useLocalStorage<CompletedOrder[]>('completedOrders', []);
   const [activeTab, setActiveTab] = useState('All');
+  const [customerType, setCustomerType] = useState<'walk-in' | 'registered'>('walk-in');
+  const [customerName, setCustomerName] = useState('');
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isConfirmCashOpen, setIsConfirmCashOpen] = useState(false);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
@@ -140,6 +144,7 @@ export default function POSPage() {
   const clearCart = () => {
     if (cart.length === 0) return;
     setCart([]);
+    setCustomerName('');
     toast({
         title: "Cart Cleared",
         description: "All items have been removed from the cart.",
@@ -150,6 +155,7 @@ export default function POSPage() {
     if (cart.length === 0) return;
     setHeldOrders(prev => [...prev, cart]);
     setCart([]);
+    setCustomerName('');
      toast({
         title: "Order Held",
         description: "The current cart has been saved.",
@@ -180,12 +186,14 @@ export default function POSPage() {
       total,
       date: new Date().toISOString(),
       paymentMethod,
+      customerName: customerName || 'Walk-in'
     };
     
     // In a real app, this would also update stock levels in the database.
     setCompletedOrders(prev => [newOrder, ...prev]);
     setLastCompletedOrder(newOrder);
     setCart([]);
+    setCustomerName('');
   }
 
   const handleCardPayment = () => {
@@ -202,7 +210,7 @@ export default function POSPage() {
     reference: (new Date()).getTime().toString(),
     email: "customer@example.com", // In a real app, get this from customer data
     amount: Math.round(total * 100), // Amount in kobo
-    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_48b78021e92f66d403c42ede714bffbb77959516',
   };
 
   const initializePayment = usePaystackPayment(paystackConfig);
@@ -326,8 +334,33 @@ export default function POSPage() {
       <Card className="flex flex-col h-full">
         <CardContent className="p-4 flex flex-col gap-4 flex-grow">
           <h2 className="text-xl font-bold font-headline mb-2">Current Order</h2>
+            <div className="space-y-4">
+                 <div className="grid grid-cols-2 gap-2">
+                    <Button variant={customerType === 'walk-in' ? 'default' : 'outline'} onClick={() => setCustomerType('walk-in')}>
+                        <User className="mr-2 h-4 w-4" />
+                        Walk-in
+                    </Button>
+                    <Button variant={customerType === 'registered' ? 'default' : 'outline'} onClick={() => setCustomerType('registered')}>
+                        <Building className="mr-2 h-4 w-4" />
+                        Registered
+                    </Button>
+                 </div>
+                 {customerType === 'walk-in' && (
+                     <div className="space-y-1.5">
+                        <Label htmlFor="customer-name">Customer Name (Optional)</Label>
+                        <Input id="customer-name" placeholder="Enter name for walk-in" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                    </div>
+                 )}
+                 {customerType === 'registered' && (
+                     <div className="space-y-1.5">
+                        <Label htmlFor="customer-search">Search Registered Customer</Label>
+                         <Input id="customer-search" placeholder="Search by name or phone..." />
+                     </div>
+                 )}
+            </div>
+            <Separator />
           
-          <ScrollArea className="flex-grow -mr-4 pr-4 mb-4 min-h-[200px]">
+          <ScrollArea className="flex-grow -mr-4 pr-4 mb-4 min-h-[150px]">
             {cart.length === 0 ? (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>Click on a product to add it to the order.</p>
@@ -480,6 +513,7 @@ export default function POSPage() {
                             <p><strong>Order ID:</strong> {lastCompletedOrder.id}</p>
                             <p><strong>Date:</strong> {new Date(lastCompletedOrder.date).toLocaleString()}</p>
                             <p><strong>Payment Method:</strong> {lastCompletedOrder.paymentMethod}</p>
+                             <p><strong>Customer:</strong> {lastCompletedOrder.customerName || 'Walk-in'}</p>
                         </div>
                         <Separator />
                         <Table>
