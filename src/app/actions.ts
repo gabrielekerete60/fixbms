@@ -1,7 +1,7 @@
 
 "use server";
 
-import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc } from "firebase/firestore";
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
 import { db } from "@/lib/firebase";
 
@@ -417,5 +417,45 @@ export async function handleAddExpense(expenseData: Omit<Expense, 'id' | 'date'>
         return { success: false, error: "Failed to add expense." };
     }
 }
-    
 
+export type PaymentConfirmation = {
+  id: string;
+  date: Timestamp;
+  driverId: string;
+  driverName: string;
+  saleId: string;
+  amount: number;
+  status: 'pending' | 'approved' | 'declined';
+};
+
+export async function getPaymentConfirmations(): Promise<PaymentConfirmation[]> {
+  try {
+    const q = query(
+      collection(db, 'payment_confirmations'),
+      where('status', '==', 'pending'),
+      orderBy('date', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentConfirmation));
+  } catch (error) {
+    console.error("Error fetching payment confirmations:", error);
+    return [];
+  }
+}
+
+export async function handlePaymentConfirmation(confirmationId: string, action: 'approve' | 'decline'): Promise<{ success: boolean; error?: string }> {
+  try {
+    const confirmationRef = doc(db, 'payment_confirmations', confirmationId);
+    const newStatus = action === 'approve' ? 'approved' : 'declined';
+    
+    // In a real app, 'approving' might also trigger updating a customer's balance or creating a formal sales record.
+    // For now, we just update the status.
+    await updateDoc(confirmationRef, { status: newStatus });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error handling payment confirmation:", error);
+    return { success: false, error: `Failed to ${action} payment.` };
+  }
+}
+    

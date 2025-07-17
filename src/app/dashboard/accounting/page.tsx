@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { format, subMonths } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { Separator } from "@/components/ui/separator";
-import { getAccountingReport, AccountingReport, getCreditors, Creditor, getExpenses, Expense, handleLogPayment, handleAddExpense } from "@/app/actions";
+import { getAccountingReport, AccountingReport, getCreditors, Creditor, getExpenses, Expense, handleLogPayment, handleAddExpense, getPaymentConfirmations, PaymentConfirmation, handlePaymentConfirmation } from "@/app/actions";
 import {
   Table,
   TableBody,
@@ -47,6 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 // --- P&L Components ---
 function StatRow({ label, value, isNegative, isBold }: { label: string, value: number, isNegative?: boolean, isBold?: boolean }) {
@@ -191,6 +192,116 @@ function AddExpenseDialog({ onExpenseAdded }: { onExpenseAdded: () => void }) {
             </DialogContent>
         </Dialog>
     )
+}
+
+function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void }) {
+    const { toast } = useToast();
+    const [confirmations, setConfirmations] = useState<PaymentConfirmation[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [actionState, setActionState] = useState<{ id: string, type: 'approve' | 'decline' } | null>(null);
+
+    useEffect(() => {
+        const fetchConfirmations = async () => {
+            setIsLoading(true);
+            const data = await getPaymentConfirmations();
+            setConfirmations(data);
+            setIsLoading(false);
+        }
+        fetchConfirmations();
+    }, []);
+
+    const handleAction = async () => {
+        if (!actionState) return;
+        const { id, type } = actionState;
+
+        const result = await handlePaymentConfirmation(id, type);
+        if (result.success) {
+            toast({ title: 'Success', description: `Payment has been ${type}d.` });
+            setConfirmations(prev => prev.filter(c => c.id !== id));
+            onDataChange();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setActionState(null);
+    }
+
+    if (isLoading) return <div className="flex items-center justify-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
+    return (
+        <div className="space-y-6">
+            <AlertDialog open={!!actionState} onOpenChange={() => setActionState(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            You are about to {actionState?.type} this payment confirmation. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleAction}>Yes, {actionState?.type}</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Pending Payment Confirmations</CardTitle>
+                    <CardDescription>Review and approve payments reported by delivery staff for credit sales.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Driver</TableHead>
+                                <TableHead>Sale ID</TableHead>
+                                <TableHead>Amount</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {confirmations.length === 0 ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending payment confirmations.</TableCell></TableRow>
+                            ) : (
+                                confirmations.map(c => (
+                                    <TableRow key={c.id}>
+                                        <TableCell>{format(c.date.toDate(), 'PPp')}</TableCell>
+                                        <TableCell>{c.driverName}</TableCell>
+                                        <TableCell>{c.saleId}</TableCell>
+                                        <TableCell>₦{c.amount.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right space-x-2">
+                                            <Button variant="destructive" size="sm" onClick={() => setActionState({ id: c.id, type: 'decline' })}>Decline</Button>
+                                            <Button size="sm" onClick={() => setActionState({ id: c.id, type: 'approve' })}>Approve</Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+            <Tabs defaultValue="pending-stock">
+                <TabsList>
+                    <TabsTrigger value="pending-stock">Pending Stock Requests</TabsTrigger>
+                    <TabsTrigger value="resolved-requests">Resolved Requests</TabsTrigger>
+                </TabsList>
+                <TabsContent value="pending-stock">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Pending Requests</CardTitle>
+                            <CardDescription>Review and approve incoming stock from storekeepers.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                           <div className="flex items-center justify-center h-24 text-muted-foreground">
+                                No pending stock requests.
+                           </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
+        </div>
+    );
 }
 
 export default function AccountingPage() {
@@ -430,18 +541,9 @@ export default function AccountingPage() {
             <ExpensesContent />
         </TabsContent>
          <TabsContent value="payments-requests" className="mt-4">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Payments &amp; Requests</CardTitle>
-                    <CardDescription>Coming soon.</CardDescription>
-                </CardHeader>
-                 <CardContent className="flex items-center justify-center h-64 text-muted-foreground">
-                    <p>Payment requests and logs will be displayed here.</p>
-                </CardContent>
-            </Card>
+            <PaymentsAndRequestsContent onDataChange={fetchData} />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
-

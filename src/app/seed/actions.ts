@@ -1,3 +1,4 @@
+
 "use server";
 
 import { db } from "@/lib/firebase";
@@ -139,6 +140,17 @@ const seedData = {
     { staff_id: '500006', clock_in_time: daysAgo(3), clock_out_time: daysAgo(3), date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString().split('T')[0] },
   ],
   transfers: [],
+  payment_confirmations: [
+      { 
+        id: "pc_1",
+        date: Timestamp.now(),
+        driverId: "400005",
+        driverName: "Akan Staff",
+        saleId: "FSALE-1752768719625",
+        amount: 1000.00,
+        status: "pending"
+      }
+  ],
 };
 
 export async function seedDatabase(): Promise<ActionResult> {
