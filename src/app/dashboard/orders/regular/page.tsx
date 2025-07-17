@@ -151,7 +151,8 @@ function Receipt({ order }: { order: CompletedOrder }) {
   );
 }
 
-const getStatusVariant = (status: string) => {
+const getStatusVariant = (status?: string) => {
+    if (!status) return 'outline';
     switch (status.toLowerCase()) {
         case 'completed':
             return 'default';
