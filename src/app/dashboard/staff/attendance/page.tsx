@@ -144,6 +144,12 @@ export default function AttendancePage() {
   const filteredLogs = useMemo(() => {
     let logs = allAttendance;
 
+    if (logStatusFilter === 'in') {
+      logs = logs.filter(log => log.clock_out_time === null);
+    } else if (logStatusFilter === 'out') {
+      logs = logs.filter(log => log.clock_out_time !== null);
+    }
+
     if (date?.from) {
       const from = startOfDay(date.from);
       const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
@@ -151,13 +157,6 @@ export default function AttendancePage() {
           const logDate = log.clock_in_time.toDate();
           return logDate >= from && logDate <= to;
       });
-    }
-
-    if (logStatusFilter === 'in') {
-      return logs.filter(log => log.clock_out_time === null);
-    }
-    if (logStatusFilter === 'out') {
-      return logs.filter(log => log.clock_out_time !== null);
     }
     
     return logs;
@@ -384,3 +383,5 @@ export default function AttendancePage() {
     </div>
   );
 }
+
+    

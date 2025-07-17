@@ -129,8 +129,15 @@ type InitiateTransferResult = {
 
 export async function handleInitiateTransfer(data: any): Promise<InitiateTransferResult> {
     try {
+        const userStr = localStorage.getItem('loggedInUser');
+        if (!userStr) {
+             return { success: false, error: "Could not identify initiator." };
+        }
+        const user = JSON.parse(userStr);
+
         await addDoc(collection(db, "transfers"), {
             ...data,
+            from_staff_id: user.staff_id,
             date: serverTimestamp(),
             status: 'pending'
         });
@@ -227,6 +234,7 @@ export type SalesRun = {
     items: { productId: string; productName: string; quantity: number }[];
     notes?: string;
     from_staff_name?: string; // Who initiated it
+    from_staff_id?: string;
 };
 
 export async function getSalesRuns(staffId: string): Promise<{active: SalesRun[], completed: SalesRun[]}> {
@@ -250,3 +258,5 @@ export async function getSalesRuns(staffId: string): Promise<{active: SalesRun[]
         return { active: [], completed: [] };
     }
 }
+
+    

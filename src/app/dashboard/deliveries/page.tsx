@@ -5,39 +5,44 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Package2 } from 'lucide-react';
-import { getSalesRuns, SalesRun } from '@/app/actions';
+import { getSalesRuns } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { SalesRun as SalesRunType } from '@/app/actions';
 
-function EmptyState() {
+function EmptyState({ title, description }: { title: string, description: string }) {
     return (
         <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
             <Package2 className="h-16 w-16 mb-4" />
-            <h3 className="text-xl font-semibold">No Active Sales Runs</h3>
-            <p>Acknowledged sales runs will appear here.</p>
+            <h3 className="text-xl font-semibold">{title}</h3>
+            <p>{description}</p>
         </div>
     );
 }
 
-function RunCard({ run }: { run: SalesRun }) {
-    // This will be expanded later to show more details and actions
+function RunCard({ run }: { run: SalesRunType }) {
+    const runDate = run.date ? new Date(run.date.toDate()) : new Date();
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle>Run ID: {run.id.substring(0, 7)}...</CardTitle>
                 <CardDescription>
-                    Assigned on {new Date(run.date.toDate()).toLocaleString()}
+                    Assigned on {runDate.toLocaleString()} by {run.from_staff_name || 'Storekeeper'}
                 </CardDescription>
             </CardHeader>
             <CardContent>
                 <p>{run.items.reduce((sum, item) => sum + item.quantity, 0)} items to deliver.</p>
+                {run.notes && <p className="mt-2 text-sm text-muted-foreground italic">Notes: {run.notes}</p>}
             </CardContent>
         </Card>
     );
 }
 
 export default function DeliveriesPage() {
-    const [activeRuns, setActiveRuns] = useState<SalesRun[]>([]);
-    const [completedRuns, setCompletedRuns] = useState<SalesRun[]>([]);
+    const [activeRuns, setActiveRuns] = useState<SalesRunType[]>([]);
+    const [completedRuns, setCompletedRuns] = useState<SalesRunType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
@@ -51,10 +56,32 @@ export default function DeliveriesPage() {
         }
         const user = JSON.parse(userStr);
 
-        const { active, completed } = await getSalesRuns(user.staff_id);
-        setActiveRuns(active);
-        setCompletedRuns(completed);
-        setIsLoading(false);
+        try {
+            const { active, completed } = await getSalesRuns(user.staff_id);
+
+             // Fetch the initiator's name for each run
+            const fetchInitiatorNames = async (runs: SalesRunType[]) => {
+                const runsWithNames = await Promise.all(runs.map(async (run: any) => {
+                    if (run.from_staff_id) {
+                        const staffDoc = await getDoc(doc(db, 'staff', run.from_staff_id));
+                        return { ...run, from_staff_name: staffDoc.exists() ? staffDoc.data().name : 'Unknown' };
+                    }
+                    return run;
+                }));
+                return runsWithNames;
+            };
+
+            const activeWithName = await fetchInitiatorNames(active);
+            const completedWithName = await fetchInitiatorNames(completed);
+
+            setActiveRuns(activeWithName);
+            setCompletedRuns(completedWithName);
+        } catch (error) {
+            console.error("Error fetching runs:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales runs.' });
+        } finally {
+            setIsLoading(false);
+        }
     }, [toast]);
 
     useEffect(() => {
@@ -67,8 +94,8 @@ export default function DeliveriesPage() {
 
             <Tabs defaultValue="active">
                 <TabsList>
-                    <TabsTrigger value="active">Active Runs</TabsTrigger>
-                    <TabsTrigger value="completed">Completed Runs</TabsTrigger>
+                    <TabsTrigger value="active">Active Runs ({activeRuns.length})</TabsTrigger>
+                    <TabsTrigger value="completed">Completed Runs ({completedRuns.length})</TabsTrigger>
                 </TabsList>
                 <TabsContent value="active" className="mt-4">
                     {isLoading ? (
@@ -82,7 +109,7 @@ export default function DeliveriesPage() {
                     ) : (
                         <Card>
                             <CardContent className="p-6">
-                                <EmptyState />
+                                <EmptyState title="No Active Sales Runs" description="Acknowledged sales runs will appear here." />
                             </CardContent>
                         </Card>
                     )}
@@ -99,10 +126,7 @@ export default function DeliveriesPage() {
                     ) : (
                        <Card>
                             <CardContent className="p-6">
-                                <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
-                                    <h3 className="text-xl font-semibold">No Completed Runs</h3>
-                                    <p>Your completed sales runs will appear here.</p>
-                                </div>
+                                <EmptyState title="No Completed Runs" description="Your completed sales runs will appear here." />
                             </CardContent>
                         </Card>
                     )}
@@ -111,3 +135,5 @@ export default function DeliveriesPage() {
         </div>
     );
 }
+
+    
