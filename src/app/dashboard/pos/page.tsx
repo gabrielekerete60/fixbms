@@ -246,7 +246,6 @@ export default function POSPage() {
   }
 
   const onPaystackSuccess = async (reference: any) => {
-    console.log("Paystack Success!", reference);
     const completed = await completeOrder('Paystack');
     if (completed) {
       setIsCheckoutOpen(false);
@@ -259,7 +258,6 @@ export default function POSPage() {
   };
 
   const onPaystackClose = () => {
-    console.log('Paystack dialog closed.');
     toast({
       variant: 'destructive',
       title: "Payment Cancelled",
@@ -268,13 +266,52 @@ export default function POSPage() {
   };
   
   const handlePrintReceipt = () => {
-    window.print();
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        const receiptContent = document.getElementById('receipt-content');
+        if (receiptContent) {
+            const printableContent = `
+                <html>
+                    <head>
+                        <title>Receipt</title>
+                        <style>
+                            body { font-family: sans-serif; margin: 20px; }
+                            .receipt-container { max-width: 300px; margin: auto; }
+                            .text-center { text-align: center; }
+                            .font-bold { font-weight: bold; }
+                            .text-lg { font-size: 1.125rem; }
+                            .text-2xl { font-size: 1.5rem; }
+                            .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
+                            .text-sm { font-size: 0.875rem; }
+                            .text-xs { font-size: 0.75rem; }
+                            .text-muted-foreground { color: #6b7280; }
+                            table { width: 100%; border-collapse: collapse; }
+                            th, td { padding: 4px 0; }
+                            .text-right { text-align: right; }
+                            .flex { display: flex; }
+                            .justify-between { justify-content: space-between; }
+                            hr { border: 0; border-top: 1px dashed #d1d5db; margin: 1rem 0; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="receipt-container">
+                            ${receiptContent.innerHTML}
+                        </div>
+                    </body>
+                </html>
+            `;
+            printWindow.document.write(printableContent);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        }
+    }
   }
   
   const PaystackButton = () => {
     const paystackConfig = {
         reference: (new Date()).getTime().toString(),
-        email: "customer@example.com",
+        email: "customer@example.com", // This should be dynamic in a real app
         amount: Math.round(total * 100),
         publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
     };
@@ -282,9 +319,7 @@ export default function POSPage() {
     const initializePayment = usePaystackPayment(paystackConfig);
 
     const handlePaystackPayment = () => {
-      console.log("Initializing Paystack with config:", paystackConfig);
       if (!paystackConfig.publicKey) {
-        console.error("Paystack public key is not configured.");
         toast({
           variant: "destructive",
           title: "Configuration Error",
@@ -566,124 +601,64 @@ export default function POSPage() {
         {lastCompletedOrder && (
             <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
                 <DialogContent className="sm:max-w-md print:max-w-full print:border-none print:shadow-none">
-                     <DialogHeader>
-                        <DialogTitle className="font-headline text-2xl text-center">BMS</DialogTitle>
-                        <DialogDescription className="text-center">
-                            Sale Receipt
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="text-sm text-muted-foreground">
-                            <p><strong>Order ID:</strong> {lastCompletedOrder.id}</p>
-                            <p><strong>Date:</strong> {new Date(lastCompletedOrder.date).toLocaleString()}</p>
-                            <p><strong>Payment Method:</strong> {lastCompletedOrder.paymentMethod}</p>
-                             <p><strong>Customer:</strong> {lastCompletedOrder.customerName || 'Walk-in'}</p>
+                     <div id="receipt-content">
+                        <DialogHeader>
+                            <DialogTitle className="font-headline text-2xl text-center">BMS</DialogTitle>
+                            <DialogDescription className="text-center">
+                                Sale Receipt
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4 space-y-4">
+                            <div className="text-sm text-muted-foreground">
+                                <p><strong>Order ID:</strong> {lastCompletedOrder.id}</p>
+                                <p><strong>Date:</strong> {new Date(lastCompletedOrder.date).toLocaleString()}</p>
+                                <p><strong>Payment Method:</strong> {lastCompletedOrder.paymentMethod}</p>
+                                <p><strong>Customer:</strong> {lastCompletedOrder.customerName || 'Walk-in'}</p>
+                            </div>
+                            <Separator />
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                    <TableHead>Item</TableHead>
+                                    <TableHead className="text-center">Qty</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {lastCompletedOrder.items.map(item => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>{item.name}</TableCell>
+                                        <TableCell className="text-center">{item.quantity}</TableCell>
+                                        <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
+                                    </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                            <Separator />
+                            <div className="w-full space-y-1 text-sm pr-2">
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Subtotal</span>
+                                    <span className="font-medium">₦{lastCompletedOrder.subtotal.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Tax (7.5%)</span>
+                                    <span className="font-medium">₦{lastCompletedOrder.tax.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between font-bold text-base mt-1">
+                                    <span>Total</span>
+                                    <span>₦{lastCompletedOrder.total.toFixed(2)}</span>
+                                </div>
+                            </div>
+                            <Separator />
+                            <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
                         </div>
-                        <Separator />
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                <TableHead>Item</TableHead>
-                                <TableHead className="text-center">Qty</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {lastCompletedOrder.items.map(item => (
-                                <TableRow key={item.id}>
-                                    <TableCell>{item.name}</TableCell>
-                                    <TableCell className="text-center">{item.quantity}</TableCell>
-                                    <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
-                                </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                         <Separator />
-                         <div className="w-full space-y-1 text-sm pr-2">
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Subtotal</span>
-                                <span className="font-medium">₦{lastCompletedOrder.subtotal.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Tax (7.5%)</span>
-                                <span className="font-medium">₦{lastCompletedOrder.tax.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between font-bold text-base mt-1">
-                                <span>Total</span>
-                                <span>₦{lastCompletedOrder.total.toFixed(2)}</span>
-                            </div>
-                        </div>
-                        <Separator />
-                        <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
                     </div>
-                    <div className="flex justify-end gap-2 print:hidden">
+                    <DialogFooter className="flex justify-end gap-2 print:hidden">
                         <Button variant="outline" onClick={handlePrintReceipt}><Printer className="mr-2 h-4 w-4"/> Print</Button>
                         <Button onClick={() => setIsReceiptOpen(false)}>Close</Button>
-                    </div>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
-        )}
-        <style jsx global>{`
-          @media print {
-            body * {
-              visibility: hidden;
-            }
-            .print-receipt, .print-receipt * {
-              visibility: visible;
-            }
-            .print-receipt {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100%;
-            }
-          }
-        `}</style>
-         {isReceiptOpen && lastCompletedOrder && (
-          <div className="hidden print:block print-receipt">
-            <div className="bg-white text-black p-8">
-              <h2 className="font-headline text-3xl text-center mb-2">BMS</h2>
-              <p className="text-center mb-4">Sale Receipt</p>
-              <div className="text-sm mb-4">
-                  <p><strong>Order ID:</strong> {lastCompletedOrder.id}</p>
-                  <p><strong>Date:</strong> {new Date(lastCompletedOrder.date).toLocaleString()}</p>
-                  <p><strong>Payment Method:</strong> {lastCompletedOrder.paymentMethod}</p>
-              </div>
-              <table className="w-full text-sm">
-                  <thead>
-                      <tr className="border-b">
-                          <th className="text-left pb-1">Item</th>
-                          <th className="text-center pb-1">Qty</th>
-                          <th className="text-right pb-1">Amount</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-                      {lastCompletedOrder.items.map(item => (
-                      <tr key={item.id} className="border-b">
-                          <td className="py-1">{item.name}</td>
-                          <td className="text-center py-1">{item.quantity}</td>
-                          <td className="text-right py-1">₦{(item.price * item.quantity).toFixed(2)}</td>
-                      </tr>
-                      ))}
-                  </tbody>
-              </table>
-              <div className="w-full mt-4 space-y-1 text-sm">
-                  <div className="flex justify-between">
-                      <span>Subtotal</span>
-                      <span>₦{lastCompletedOrder.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                      <span>Tax (7.5%)</span>
-                      <span>₦{lastCompletedOrder.tax.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-base mt-1">
-                      <span>Total</span>
-                      <span>₦{lastCompletedOrder.total.toFixed(2)}</span>
-                  </div>
-              </div>
-              <p className="text-center text-xs mt-6">Thank you for your patronage!</p>
-            </div>
-          </div>
         )}
      </>
   );
