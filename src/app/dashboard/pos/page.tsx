@@ -31,6 +31,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -422,12 +423,12 @@ export default function POSPage() {
        {/* Checkout Dialog */}
         <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
             <DialogContent>
-                <AlertDialogHeader>
-                <AlertDialogTitle>Complete Payment</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Select a payment method to complete the transaction for <strong>₦{total.toFixed(2)}</strong>.
-                </AlertDialogDescription>
-                </AlertDialogHeader>
+                <DialogHeader>
+                    <DialogTitle>Complete Payment</DialogTitle>
+                    <DialogDescription>
+                        Select a payment method to complete the transaction for <strong>₦{total.toFixed(2)}</strong>.
+                    </DialogDescription>
+                </DialogHeader>
                 <div className="grid grid-cols-2 gap-4 py-4">
                     <Button variant="outline" className="h-20 flex-col gap-2" onClick={() => { setIsCheckoutOpen(false); setIsConfirmCashOpen(true); }}>
                         <CreditCard className="w-8 h-8"/>
