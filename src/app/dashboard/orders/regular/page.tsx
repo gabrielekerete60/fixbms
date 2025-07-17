@@ -298,12 +298,8 @@ export default function RegularOrdersPage() {
             <Card>
                 <CardHeader>
                     <div className="flex items-center justify-between gap-4">
-                        <div>
-                            <CardTitle>Completed Orders</CardTitle>
-                            <CardDescription>A list of all successfully completed transactions.</CardDescription>
-                        </div>
-                        <div className="flex items-center gap-2">
-                             <div className="relative flex-1">
+                        <div className="flex items-center gap-2 flex-1">
+                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                 <Input placeholder="Search by Order ID or customer..." className="pl-10 w-64" />
                             </div>
