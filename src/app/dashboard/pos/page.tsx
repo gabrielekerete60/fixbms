@@ -128,7 +128,8 @@ export default function POSPage() {
 
 
   const addToCart = (product: Product) => {
-    if (product.stock === 0) {
+    const productInStock = products.find(p => p.id === product.id);
+    if (!productInStock || productInStock.stock === 0) {
       toast({
         variant: "destructive",
         title: "Out of Stock",
@@ -140,6 +141,10 @@ export default function POSPage() {
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.id === product.id);
       if (existingItem) {
+        if(existingItem.quantity >= productInStock.stock) {
+            toast({ variant: "destructive", title: "Stock Limit Reached", description: `Cannot add more ${product.name}.` });
+            return prevCart;
+        }
         return prevCart.map((item) =>
           item.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
@@ -154,6 +159,11 @@ export default function POSPage() {
     setCart((prevCart) => {
       if (newQuantity <= 0) {
         return prevCart.filter((item) => item.id !== productId);
+      }
+      const productInStock = products.find(p => p.id === productId);
+      if (productInStock && newQuantity > productInStock.stock) {
+        toast({ variant: "destructive", title: "Stock Limit Reached", description: `Only ${productInStock.stock} units of ${productInStock.name} available.` });
+        return prevCart.map((item) => item.id === productId ? { ...item, quantity: productInStock.stock } : item);
       }
       return prevCart.map((item) =>
         item.id === productId ? { ...item, quantity: newQuantity } : item
@@ -630,5 +640,3 @@ export default function POSPage() {
      </>
   );
 }
-
-    

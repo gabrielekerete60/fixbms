@@ -62,11 +62,13 @@ type TransferItem = {
 type StaffMember = {
   staff_id: string;
   name: string;
+  role: string;
 };
 
 type Product = {
   id: string;
   name: string;
+  stock: number;
 };
 
 type Transfer = {
@@ -82,6 +84,7 @@ export default function StockControlPage() {
   const { toast } = useToast();
   const [transferTo, setTransferTo] = useState("");
   const [isSalesRun, setIsSalesRun] = useState(false);
+  const [isSalesRunDisabled, setIsSalesRunDisabled] = useState(false);
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<Partial<TransferItem>[]>([
     { productId: "", quantity: 1 },
@@ -101,10 +104,10 @@ export default function StockControlPage() {
         try {
             const staffQuery = query(collection(db, "staff"), where("role", "in", ["Showroom Staff", "Delivery Staff", "Manager"]));
             const staffSnapshot = await getDocs(staffQuery);
-            setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name })));
+            setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
 
             const productsSnapshot = await getDocs(collection(db, "products"));
-            setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+            setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
 
             const transfersQuery = query(collection(db, "transfers"), orderBy("date", "desc"));
             const transfersSnapshot = await getDocs(transfersQuery);
@@ -120,6 +123,23 @@ export default function StockControlPage() {
     fetchData();
   }, [toast]);
 
+  const handleTransferToChange = (staffId: string) => {
+    setTransferTo(staffId);
+    const selectedStaff = staff.find(s => s.staff_id === staffId);
+    if (selectedStaff) {
+        if (selectedStaff.role === 'Delivery Staff') {
+            setIsSalesRun(true);
+            setIsSalesRunDisabled(true);
+        } else if (selectedStaff.role === 'Showroom Staff') {
+            setIsSalesRun(false);
+            setIsSalesRunDisabled(true);
+        } else {
+            setIsSalesRun(false);
+            setIsSalesRunDisabled(false);
+        }
+    }
+  }
+
 
   const handleItemChange = (
     index: number,
@@ -134,7 +154,18 @@ export default function StockControlPage() {
       item.productId = value as string;
       item.productName = product?.name;
     } else {
-      item.quantity = Number(value);
+        const product = products.find(p => p.id === item.productId);
+        const newQuantity = Number(value);
+        if (product && newQuantity > product.stock) {
+            toast({
+                variant: "destructive",
+                title: "Stock Exceeded",
+                description: `Cannot transfer more than ${product.stock} units of ${product.name}.`
+            });
+            item.quantity = product.stock;
+        } else {
+            item.quantity = newQuantity;
+        }
     }
     setItems(newItems);
   };
@@ -151,6 +182,19 @@ export default function StockControlPage() {
     if (!transferTo || items.some(i => !i.productId || !i.quantity)) {
         toast({ variant: "destructive", title: "Error", description: "Please select a staff member and fill all item fields."});
         return;
+    }
+
+    // Final validation before submitting
+    for (const item of items) {
+        const product = products.find(p => p.id === item.productId);
+        if (!product || item.quantity! > product.stock) {
+            toast({
+                variant: "destructive",
+                title: "Validation Error",
+                description: `Stock for ${item.productName} is insufficient. Maximum: ${product?.stock}.`
+            });
+            return;
+        }
     }
 
     setIsSubmitting(true);
@@ -173,10 +217,13 @@ export default function StockControlPage() {
         setIsSalesRun(false);
         setNotes("");
         setItems([{ productId: "", quantity: 1 }]);
-        // Refetch transfers
+        // Refetch transfers and products (for stock update)
         const transfersQuery = query(collection(db, "transfers"), orderBy("date", "desc"));
         const transfersSnapshot = await getDocs(transfersQuery);
         setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer)));
+
+        const productsSnapshot = await getDocs(collection(db, "products"));
+        setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
 
     } else {
         toast({ variant: "destructive", title: "Error", description: result.error });
@@ -226,14 +273,14 @@ export default function StockControlPage() {
               <div className="grid md:grid-cols-2 gap-6">
                  <div className="space-y-2">
                     <Label htmlFor="transfer-to">Transfer to</Label>
-                    <Select value={transferTo} onValueChange={setTransferTo} disabled={isLoading}>
+                    <Select value={transferTo} onValueChange={handleTransferToChange} disabled={isLoading}>
                       <SelectTrigger id="transfer-to">
                         <SelectValue placeholder="Select a staff member" />
                       </SelectTrigger>
                       <SelectContent>
                         {staff.map((s) => (
                           <SelectItem key={s.staff_id} value={s.staff_id}>
-                            {s.name}
+                            {s.name} ({s.role})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -241,11 +288,11 @@ export default function StockControlPage() {
                  </div>
                  <div className="flex items-end pb-2">
                     <div className="flex items-center space-x-2">
-                        <Checkbox id="sales-run" checked={isSalesRun} onCheckedChange={(checked) => setIsSalesRun(checked as boolean)}/>
+                        <Checkbox id="sales-run" checked={isSalesRun} onCheckedChange={(checked) => setIsSalesRun(checked as boolean)} disabled={isSalesRunDisabled}/>
                         <div className="grid gap-1.5 leading-none">
                             <label
                             htmlFor="sales-run"
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            className={cn("text-sm font-medium leading-none", isSalesRunDisabled ? "text-muted-foreground" : "peer-disabled:cursor-not-allowed peer-disabled:opacity-70")}
                             >
                             This is for a sales run
                             </label>
@@ -263,7 +310,7 @@ export default function StockControlPage() {
                   {items.map((item, index) => (
                     <div
                       key={index}
-                      className="grid grid-cols-[1fr_100px_auto] gap-2 items-center"
+                      className="grid grid-cols-[1fr_120px_auto] gap-2 items-center"
                     >
                       <Select
                         value={item.productId}
@@ -278,7 +325,7 @@ export default function StockControlPage() {
                         <SelectContent>
                           {products.map((p) => (
                             <SelectItem key={p.id} value={p.id}>
-                              {p.name}
+                              {p.name} (Stock: {p.stock})
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -286,6 +333,7 @@ export default function StockControlPage() {
                       <Input
                         type="number"
                         placeholder="Qty"
+                        min="1"
                         value={item.quantity || ''}
                         onChange={(e) =>
                           handleItemChange(index, "quantity", e.target.value)

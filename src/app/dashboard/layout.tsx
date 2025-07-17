@@ -57,7 +57,7 @@ import {
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getAttendanceStatus, handleClockIn, handleClockOut, handleLogin } from '../actions';
 import { doc, getDoc } from 'firebase/firestore';
@@ -233,48 +233,70 @@ export default function DashboardLayout({
     setIsClocking(false);
   };
 
+  const navLinks = useMemo(() => {
+    const allLinks = [
+      { href: "/dashboard", icon: Home, label: "Dashboard", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper'] },
+      { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Manager', 'Supervisor', 'Showroom Staff'] },
+      { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor'] },
+      {
+        icon: Inbox, label: "Orders", roles: ['Manager', 'Supervisor', 'Showroom Staff'], sublinks: [
+          { href: "/dashboard/orders/regular", label: "Regular Orders" },
+          { href: "#", label: "Custom Orders" },
+        ]
+      },
+      {
+        icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper'], sublinks: [
+          { href: "/dashboard/inventory/products", label: "Products", icon: Cookie },
+          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList },
+          { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot },
+          { href: "/dashboard/inventory/suppliers", label: "Suppliers" },
+          { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks },
+          { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", icon: Archive },
+        ]
+      },
+      {
+        icon: Users, label: "Customers", roles: ['Manager', 'Supervisor'], sublinks: [
+          { href: "/dashboard/customers/profiles", label: "Profiles" },
+          { href: "#", label: "Feedback" },
+          { href: "#", label: "Loyalty Programs" },
+        ]
+      },
+       {
+        icon: Users2, label: "Staff", roles: ['Manager', 'Supervisor'], sublinks: [
+          { href: "/dashboard/staff/management", label: "Staff Management" },
+          { href: "/dashboard/staff/attendance", label: "Attendance" },
+          { href: "/dashboard/staff/payroll", label: "Payroll" },
+        ]
+      },
+      { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", roles: ['Manager', 'Supervisor', 'Delivery Staff'] },
+      { href: "/dashboard/accounting", icon: Wallet, label: "Accounting", roles: ['Manager', 'Accountant'] },
+      { href: "#", icon: GanttChartSquare, label: "AI Analytics", roles: ['Manager'] },
+      { href: "/dashboard/communication", icon: HelpingHand, label: "Communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper'] },
+      { href: "#", icon: BookOpen, label: "Documentation", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper'] },
+      { href: "/dashboard/settings", icon: Settings, label: "Settings", roles: ['Manager'] },
+    ];
 
-  const navLinks = [
-    { href: "/dashboard", icon: Home, label: "Dashboard" },
-    { href: "/dashboard/pos", icon: ShoppingBag, label: "POS" },
-    { href: "/dashboard/promotions", icon: LineChart, label: "Promotions" },
-    {
-      icon: Inbox, label: "Orders", sublinks: [
-        { href: "/dashboard/orders/regular", label: "Regular Orders" },
-        { href: "#", label: "Custom Orders" },
-      ]
-    },
-    {
-      icon: Package, label: "Inventory", sublinks: [
-        { href: "/dashboard/inventory/products", label: "Products", icon: Cookie },
-        { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList },
-        { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot },
-        { href: "/dashboard/inventory/suppliers", label: "Suppliers" },
-        { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks },
-        { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", icon: Archive },
-      ]
-    },
-    {
-      icon: Users, label: "Customers", sublinks: [
-        { href: "/dashboard/customers/profiles", label: "Profiles" },
-        { href: "#", label: "Feedback" },
-        { href: "#", label: "Loyalty Programs" },
-      ]
-    },
-     {
-      icon: Users2, label: "Staff", sublinks: [
-        { href: "/dashboard/staff/management", label: "Staff Management" },
-        { href: "/dashboard/staff/attendance", label: "Attendance" },
-        { href: "/dashboard/staff/payroll", label: "Payroll" },
-      ]
-    },
-    { href: "/dashboard/deliveries", icon: Car, label: "Deliveries" },
-    { href: "/dashboard/accounting", icon: Wallet, label: "Accounting" },
-    { href: "#", icon: GanttChartSquare, label: "AI Analytics" },
-    { href: "/dashboard/communication", icon: HelpingHand, label: "Communication" },
-    { href: "#", icon: BookOpen, label: "Documentation" },
-    { href: "/dashboard/settings", icon: Settings, label: "Settings" },
-  ];
+    if (!user) return [];
+
+    const filterLinks = (links: any[]) => {
+      return links.reduce((acc: any[], link) => {
+        if (!link.roles || link.roles.includes(user.role)) {
+          if (link.sublinks) {
+            const filteredSublinks = link.sublinks.filter((sublink: any) => !sublink.roles || sublink.roles.includes(user.role));
+            if (filteredSublinks.length > 0) {
+              acc.push({ ...link, sublinks: filteredSublinks });
+            }
+          } else {
+            acc.push(link);
+          }
+        }
+        return acc;
+      }, []);
+    };
+    
+    return filterLinks(allLinks);
+
+  }, [user]);
 
   if (!user) {
     return null;
@@ -372,5 +394,3 @@ export default function DashboardLayout({
     </div>
   );
 }
-
-    
