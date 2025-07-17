@@ -503,7 +503,7 @@ export default function POSPage() {
             <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
                 <DialogContent className="sm:max-w-md print:max-w-full print:border-none print:shadow-none">
                      <DialogHeader>
-                        <DialogTitle className="font-headline text-2xl text-center">Sweet Track</DialogTitle>
+                        <DialogTitle className="font-headline text-2xl text-center">BMS</DialogTitle>
                         <DialogDescription className="text-center">
                             Sale Receipt
                         </DialogDescription>
@@ -578,7 +578,7 @@ export default function POSPage() {
          {isReceiptOpen && lastCompletedOrder && (
           <div className="hidden print:block print-receipt">
             <div className="bg-white text-black p-8">
-              <h2 className="font-headline text-3xl text-center mb-2">Sweet Track</h2>
+              <h2 className="font-headline text-3xl text-center mb-2">BMS</h2>
               <p className="text-center mb-4">Sale Receipt</p>
               <div className="text-sm mb-4">
                   <p><strong>Order ID:</strong> {lastCompletedOrder.id}</p>

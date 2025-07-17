@@ -116,7 +116,7 @@ export default function DashboardLayout({
   const navLinks = [
     { href: "/dashboard", icon: Home, label: "Dashboard" },
     { href: "/dashboard/pos", icon: ShoppingBag, label: "POS" },
-    { href: "#", icon: LineChart, label: "Promotions" },
+    { href: "/dashboard/promotions", icon: LineChart, label: "Promotions" },
     {
       icon: Inbox, label: "Orders", sublinks: [
         { href: "/dashboard/orders/regular", label: "Regular Orders" },

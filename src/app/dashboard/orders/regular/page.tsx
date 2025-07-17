@@ -88,7 +88,7 @@ function Receipt({ order }: { order: CompletedOrder }) {
     <DialogContent className="sm:max-w-md">
       <div id={`receipt-${order.id}`}>
         <DialogHeader>
-          <DialogTitle className="font-headline text-2xl text-center">Sweet Track</DialogTitle>
+          <DialogTitle className="font-headline text-2xl text-center">BMS</DialogTitle>
           <DialogDescription className="text-center">
               Sale Receipt
           </DialogDescription>
