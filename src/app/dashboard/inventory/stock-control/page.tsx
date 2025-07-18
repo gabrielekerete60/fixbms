@@ -262,7 +262,7 @@ export default function StockControlPage() {
 
   useEffect(() => {
     fetchPageData();
-  }, [toast]);
+  }, []);
 
   const handleTransferToChange = (staffId: string) => {
     setTransferTo(staffId);

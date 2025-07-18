@@ -197,7 +197,7 @@ const seedData = {
         to_staff_name: "Mfon Staff",
         items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 5 }],
         date: daysAgo(1),
-        status: 'completed'
+        status: 'pending'
       },
       {
         id: "trans_3",
