@@ -292,6 +292,14 @@ const seedData = {
             { ingredientId: 'ing_6', quantity: 0.5, unit: 'kg' },
         ]
     }
+  ],
+  personal_stock_mfon: [
+    {
+        id: 'prod_1',
+        productId: 'prod_1',
+        productName: 'Family Loaf',
+        stock: 12
+    }
   ]
 };
 
@@ -301,10 +309,11 @@ export async function seedDatabase(): Promise<ActionResult> {
     const batch = writeBatch(db);
     
     for (const [collectionName, data] of Object.entries(seedData)) {
+        if (collectionName === 'personal_stock_mfon') continue;
+
         if (Array.isArray(data)) {
             data.forEach((item) => {
                 let docRef;
-                // Use a specific ID if provided, otherwise let Firestore generate one
                 if(item.id) {
                     docRef = doc(db, collectionName, item.id);
                 } else if (item.staff_id) {
@@ -312,28 +321,24 @@ export async function seedDatabase(): Promise<ActionResult> {
                 } else {
                     docRef = doc(collection(db, collectionName));
                 }
-                // Convert date strings to Timestamps for Firestore where needed
+                
                 const itemWithTimestamps = { ...item };
-                if (item.date && typeof item.date === 'string') {
-                    itemWithTimestamps.date = Timestamp.fromDate(new Date(item.date));
-                }
-                 if (item.joinedDate && typeof item.joinedDate === 'string') {
-                    itemWithTimestamps.joinedDate = Timestamp.fromDate(new Date(item.joinedDate));
-                }
-                if (item.startDate && typeof item.startDate === 'string') {
-                    itemWithTimestamps.startDate = Timestamp.fromDate(new Date(item.startDate));
-                }
-                 if (item.endDate && typeof item.endDate === 'string') {
-                    itemWithTimestamps.endDate = Timestamp.fromDate(new Date(item.endDate));
-                }
-                 if (item.timestamp && typeof item.timestamp === 'string') {
-                    itemWithTimestamps.timestamp = Timestamp.fromDate(new Date(item.timestamp));
-                }
-
+                Object.keys(itemWithTimestamps).forEach(key => {
+                    if ( (key.toLowerCase().includes('date') || key.toLowerCase().includes('timestamp')) && typeof itemWithTimestamps[key] === 'string') {
+                         itemWithTimestamps[key] = Timestamp.fromDate(new Date(itemWithTimestamps[key]));
+                    }
+                });
+                
                 batch.set(docRef, itemWithTimestamps);
             });
         }
     }
+    
+    // Seed Mfon's personal stock
+    seedData.personal_stock_mfon.forEach(item => {
+        const docRef = doc(db, "staff/400004/personal_stock", item.id);
+        batch.set(docRef, item);
+    });
 
     await batch.commit();
 
@@ -363,12 +368,11 @@ async function clearSubcollections(collectionPath: string, batch: writeBatch) {
 export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
-    const collectionsToClear = Object.keys(seedData);
+    const collectionsToClear = Object.keys(seedData).filter(k => !k.startsWith('personal_stock'));
     
     for (const collectionName of collectionsToClear) {
       const batch = writeBatch(db);
 
-      // Handle subcollections first if they exist
       if (collectionName === 'staff') {
         await clearSubcollections('staff', batch);
       }

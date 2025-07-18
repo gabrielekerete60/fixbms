@@ -46,7 +46,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, addDoc, writeBatch, doc, runTransaction, increment, getDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, writeBatch, doc, runTransaction, increment, getDoc, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { usePaystackPayment } from "react-paystack";
 
@@ -102,64 +102,106 @@ export default function POSPage() {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
 
-  const fetchProducts = async (currentUser: User) => {
-    setIsLoadingProducts(true);
-    try {
-      const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
-      const stockSnapshot = await getDocs(personalStockQuery);
-      
-      if (stockSnapshot.empty) {
-        setProducts([]);
-        setIsLoadingProducts(false);
-        return;
-      }
+  const fetchProductsForAdmin = async () => {
+    // Admin sees an aggregated stock view
+    const productsSnapshot = await getDocs(collection(db, "products"));
+    const allProducts = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
 
-      const productDetailsPromises = stockSnapshot.docs.map(stockDoc => {
-          const productId = stockDoc.data().productId;
-          return getDoc(doc(db, 'products', productId));
+    // Create a map to hold aggregated stock counts
+    const productStockMap = new Map<string, number>();
+
+    // Initialize map with main store stock
+    allProducts.forEach(p => productStockMap.set(p.id, p.stock));
+    
+    // Fetch all staff to iterate through their personal stock
+    const staffSnapshot = await getDocs(collection(db, "staff"));
+
+    for (const staffDoc of staffSnapshot.docs) {
+      const personalStockSnapshot = await getDocs(collection(db, 'staff', staffDoc.id, 'personal_stock'));
+      personalStockSnapshot.forEach(stockDoc => {
+        const { productId, stock } = stockDoc.data();
+        if (productId) {
+            const currentStock = productStockMap.get(productId) || 0;
+            productStockMap.set(productId, currentStock + stock);
+        }
       });
-      const productDetailsSnapshots = await Promise.all(productDetailsPromises);
-      
-      const productsList = stockSnapshot.docs.map((stockDoc, index) => {
-          const stockData = stockDoc.data();
-          const productDetailsDoc = productDetailsSnapshots[index];
-          
-          if (productDetailsDoc.exists()) {
-              const productDetails = productDetailsDoc.data();
-              return {
-                  id: productDetailsDoc.id,
-                  name: productDetails.name,
-                  price: productDetails.price,
-                  stock: stockData.stock, // Use personal stock amount
-                  category: productDetails.category,
-                  image: productDetails.image,
-                  'data-ai-hint': productDetails['data-ai-hint'],
-              } as Product;
-          }
-          return null;
-      }).filter((p): p is Product => p !== null);
-
-      setProducts(productsList);
-
-    } catch (error) {
-      console.error("Error fetching products:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not fetch your assigned products.",
-      });
-    } finally {
-      setIsLoadingProducts(false);
     }
-  };
+
+    // Update the products list with aggregated stock
+    const productsWithAggregatedStock = allProducts.map(p => ({
+        ...p,
+        stock: productStockMap.get(p.id) || p.stock,
+    }));
+    
+    setProducts(productsWithAggregatedStock);
+  }
+
+  const fetchProductsForStaff = async (currentUser: User) => {
+    // Regular staff see only their personal stock
+    const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
+    const stockSnapshot = await getDocs(personalStockQuery);
+    
+    if (stockSnapshot.empty) {
+      setProducts([]);
+      return;
+    }
+
+    const productDetailsPromises = stockSnapshot.docs.map(stockDoc => {
+        const productId = stockDoc.data().productId;
+        return getDoc(doc(db, 'products', productId));
+    });
+    const productDetailsSnapshots = await Promise.all(productDetailsPromises);
+    
+    const productsList = stockSnapshot.docs.map((stockDoc, index) => {
+        const stockData = stockDoc.data();
+        const productDetailsDoc = productDetailsSnapshots[index];
+        
+        if (productDetailsDoc.exists()) {
+            const productDetails = productDetailsDoc.data();
+            return {
+                id: productDetailsDoc.id,
+                name: productDetails.name,
+                price: productDetails.price,
+                stock: stockData.stock, // Use personal stock amount
+                category: productDetails.category,
+                image: productDetails.image,
+                'data-ai-hint': productDetails['data-ai-hint'],
+            } as Product;
+        }
+        return null;
+    }).filter((p): p is Product => p !== null);
+
+    setProducts(productsList);
+  }
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('loggedInUser');
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
-      fetchProducts(parsedUser);
-    }
+    const fetchProducts = async () => {
+      const storedUser = localStorage.getItem('loggedInUser');
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        setIsLoadingProducts(true);
+
+        try {
+            const adminRoles = ['Manager', 'Developer'];
+            if (adminRoles.includes(parsedUser.role)) {
+                await fetchProductsForAdmin();
+            } else {
+                await fetchProductsForStaff(parsedUser);
+            }
+        } catch (error) {
+            console.error("Error fetching products:", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Could not fetch products.",
+            });
+        } finally {
+            setIsLoadingProducts(false);
+        }
+      }
+    };
+    fetchProducts();
   }, [toast]);
 
 
@@ -301,7 +343,12 @@ export default function POSPage() {
       setCustomerName('');
 
       // Refresh product list to show updated stock
-      fetchProducts(user);
+      const adminRoles = ['Manager', 'Developer'];
+        if (adminRoles.includes(user.role)) {
+            await fetchProductsForAdmin();
+        } else {
+            await fetchProductsForStaff(user);
+        }
       
       return newOrder;
     } catch (error) {
