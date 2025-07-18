@@ -147,8 +147,8 @@ const seedData = {
         to_staff_id: "400004",
         to_staff_name: "Mfon Staff",
         items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 12 }],
-        date: Timestamp.now(),
-        status: 'pending'
+        date: daysAgo(2),
+        status: 'completed'
       },
        {
         id: "trans_2",
@@ -159,6 +159,16 @@ const seedData = {
         items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 5 }],
         date: daysAgo(1),
         status: 'completed'
+      },
+      {
+        id: "trans_3",
+        from_staff_id: "100001",
+        from_staff_name: "Chris Manager",
+        to_staff_id: "400004",
+        to_staff_name: "Mfon Staff",
+        items: [{ productId: "prod_3", productName: "Jumbo Loaf", quantity: 10 }],
+        date: Timestamp.now(),
+        status: 'pending'
       }
   ],
   payment_confirmations: [
