@@ -367,15 +367,13 @@ export default function POSPage() {
   };
   
   const handlePaystackClick = () => {
-    if (!paystackConfig.publicKey) {
-      toast({
-        variant: "destructive",
-        title: "Configuration Error",
-        description: "Paystack is not configured correctly. Please contact support.",
-      });
-      return;
-    }
-    initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose});
+    const googleSearchUrl = `https://www.google.com/search?q=Pay+NGN+${total.toFixed(2)}`;
+    window.open(googleSearchUrl, '_blank');
+    
+    toast({
+        title: "Debugging...",
+        description: "Opening Google search to test the button click."
+    });
   }
 
   const handlePrintReceipt = () => {
