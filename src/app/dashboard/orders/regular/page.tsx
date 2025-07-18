@@ -78,7 +78,7 @@ type CompletedOrder = {
   tax: number;
   total: number;
   date: string;
-  paymentMethod: 'Card';
+  paymentMethod: 'Card' | 'Cash';
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
@@ -337,6 +337,7 @@ export default function RegularOrdersPage() {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
   const [searchTerm, setSearchTerm] = useState("");
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
 
   const selectedOrdersRef = useRef<HTMLDivElement>(null);
 
@@ -373,9 +374,10 @@ export default function RegularOrdersPage() {
       const orderDate = new Date(order.date);
       const dateMatch = !date?.from || (orderDate >= date.from && (!date.to || orderDate <= date.to));
       const searchMatch = !searchTerm || order.id.toLowerCase().includes(searchTerm.toLowerCase()) || order.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
-      return dateMatch && searchMatch;
+      const paymentMatch = paymentMethodFilter === 'all' || order.paymentMethod === paymentMethodFilter;
+      return dateMatch && searchMatch && paymentMatch;
     });
-  }, [allOrders, date, searchTerm]);
+  }, [allOrders, date, searchTerm, paymentMethodFilter]);
 
   const handleSelectOne = (orderId: string, checked: boolean) => {
     setSelectedOrders(prev => {
@@ -509,6 +511,16 @@ export default function RegularOrdersPage() {
                             />
                             </PopoverContent>
                         </Popover>
+                         <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Filter by payment" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Payments</SelectItem>
+                                <SelectItem value="Cash">Cash</SelectItem>
+                                <SelectItem value="Card">Card</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </CardHeader>
                 <CardContent>

@@ -133,7 +133,7 @@ const seedData = {
       subtotal: 1100,
       tax: 82.5,
       total: 1182.5,
-      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       paymentMethod: 'Card',
       customerName: 'Adebisi Onyeka',
       status: 'Completed',
@@ -147,8 +147,8 @@ const seedData = {
       subtotal: 1500,
       tax: 112.5,
       total: 1612.5,
-      date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-      paymentMethod: 'Card',
+      date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      paymentMethod: 'Cash',
       customerName: 'Ngozi Okoro',
       status: 'Completed',
     },

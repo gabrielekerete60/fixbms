@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
-import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2 } from "lucide-react";
+import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -46,13 +46,9 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, addDoc, writeBatch, doc, runTransaction, increment, getDoc, query } from "firebase/firestore";
+import { collection, getDocs, doc, runTransaction, increment, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { usePaystackPayment } from "react-paystack";
-
-// IMPORTANT: Add your Paystack public key to your environment variables
-// Create a .env.local file in the root of your project and add:
-// NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 type Product = {
   id: string;
@@ -78,7 +74,7 @@ type CompletedOrder = {
   tax: number;
   total: number;
   date: string;
-  paymentMethod: 'Card';
+  paymentMethod: 'Card' | 'Cash';
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
@@ -101,19 +97,16 @@ export default function POSPage() {
   const [customerName, setCustomerName] = useState('');
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
 
   const fetchProductsForAdmin = async () => {
-    // Admin sees an aggregated stock view
     const productsSnapshot = await getDocs(collection(db, "products"));
     const allProducts = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
 
-    // Create a map to hold aggregated stock counts
     const productStockMap = new Map<string, number>();
-
-    // Initialize map with main store stock
     allProducts.forEach(p => productStockMap.set(p.id, p.stock));
     
-    // Fetch all staff to iterate through their personal stock
     const staffSnapshot = await getDocs(collection(db, "staff"));
 
     for (const staffDoc of staffSnapshot.docs) {
@@ -127,7 +120,6 @@ export default function POSPage() {
       });
     }
 
-    // Update the products list with aggregated stock
     const productsWithAggregatedStock = allProducts.map(p => ({
         ...p,
         stock: productStockMap.get(p.id) || p.stock,
@@ -137,7 +129,6 @@ export default function POSPage() {
   }
 
   const fetchProductsForStaff = async (currentUser: User) => {
-    // Regular staff see only their personal stock
     const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
     const stockSnapshot = await getDocs(personalStockQuery);
     
@@ -162,7 +153,7 @@ export default function POSPage() {
                 id: productDetailsDoc.id,
                 name: productDetails.name,
                 price: productDetails.price,
-                stock: stockData.stock, // Use personal stock amount
+                stock: stockData.stock,
                 category: productDetails.category,
                 image: productDetails.image,
                 'data-ai-hint': productDetails['data-ai-hint'],
@@ -208,7 +199,7 @@ export default function POSPage() {
   const categories = ['All', ...new Set(products.map(p => p.category))];
 
   const subtotal = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
-  const tax = useMemo(() => subtotal * 0.075, [subtotal]); // 7.5% VAT
+  const tax = useMemo(() => subtotal * 0.075, [subtotal]);
   const total = useMemo(() => subtotal + tax, [subtotal, tax]);
   
   const filteredProducts = useMemo(() => {
@@ -297,7 +288,7 @@ export default function POSPage() {
     setActiveTab('All');
   }
 
-  const completeOrder = async (paymentMethod: 'Card') => {
+  const completeOrder = async (paymentMethod: 'Card' | 'Cash') => {
     if (!user) {
         toast({ variant: "destructive", title: "Error", description: "User not identified. Cannot complete order." });
         return null;
@@ -319,7 +310,6 @@ export default function POSPage() {
     try {
       const orderRef = doc(collection(db, "orders"));
       await runTransaction(db, async (transaction) => {
-          // 1. Update personal stock for each item in the cart
           for (const item of cart) {
               const personalStockRef = doc(db, 'staff', user.staff_id, 'personal_stock', item.id);
               const personalStockDoc = await transaction.get(personalStockRef);
@@ -329,7 +319,6 @@ export default function POSPage() {
               transaction.update(personalStockRef, { stock: increment(-item.quantity) });
           }
           
-          // 2. Create the new order document
           transaction.set(orderRef, newOrderData);
       });
       
@@ -342,13 +331,12 @@ export default function POSPage() {
       setCart([]);
       setCustomerName('');
 
-      // Refresh product list to show updated stock
       const adminRoles = ['Manager', 'Developer'];
-        if (adminRoles.includes(user.role)) {
-            await fetchProductsForAdmin();
-        } else {
-            await fetchProductsForStaff(user);
-        }
+      if (adminRoles.includes(user.role)) {
+          await fetchProductsForAdmin();
+      } else {
+          await fetchProductsForStaff(user);
+      }
       
       return newOrder;
     } catch (error) {
@@ -363,16 +351,26 @@ export default function POSPage() {
     }
   }
 
+  const handleCashPayment = async () => {
+    setIsCashConfirmOpen(false);
+    const completed = await completeOrder('Cash');
+    if (completed) {
+        toast({ title: 'Order Successful', description: 'The order has been completed.' });
+        setIsReceiptOpen(true);
+    }
+  }
+
   const paystackConfig = {
       reference: new Date().getTime().toString(),
-      email: "customer@example.com", // Paystack requires an email.
-      amount: total * 100, // Amount in kobo
+      email: "customer@example.com",
+      amount: total * 100,
       publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
   };
 
   const initializePayment = usePaystackPayment(paystackConfig);
 
   const onPaystackSuccess = async () => {
+    setIsCheckoutOpen(false);
     const completed = await completeOrder('Card');
     if (completed) {
       setIsReceiptOpen(true);
@@ -650,14 +648,52 @@ export default function POSPage() {
                     </AlertDialogContent>
                 </AlertDialog>
             </div>
-             <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !paystackConfig.publicKey} onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
-                <CreditCard className="mr-2"/> Checkout
+             <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0} onClick={() => setIsCheckoutOpen(true)}>
+                Checkout
              </Button>
         </CardFooter>
       </Card>
       </div>
 
        {/* ---- DIALOGS ---- */}
+
+        {/* Checkout Method Dialog */}
+        <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Select Payment Method</DialogTitle>
+                    <DialogDescription>
+                        Total Amount: <span className="font-bold text-foreground">₦{total.toFixed(2)}</span>
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid grid-cols-2 gap-4 py-4">
+                     <Button variant="outline" className="h-24 text-lg" onClick={() => { setIsCheckoutOpen(false); setIsCashConfirmOpen(true); }}>
+                        <Wallet className="mr-2 h-6 w-6" />
+                        Pay with Cash
+                    </Button>
+                    <Button className="h-24 text-lg" onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
+                        <CreditCard className="mr-2 h-6 w-6" />
+                        Pay with Card
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+        
+        {/* Cash Confirmation Dialog */}
+        <AlertDialog open={isCashConfirmOpen} onOpenChange={setIsCashConfirmOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Confirm Cash Payment</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Have you received <strong>₦{total.toFixed(2)}</strong> in cash from the customer?
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>No, Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleCashPayment}>Yes, I've received it</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
 
         {/* Receipt Dialog */}
         {lastCompletedOrder && (
@@ -725,4 +761,3 @@ export default function POSPage() {
      </>
   );
 }
-
