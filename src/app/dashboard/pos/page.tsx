@@ -93,9 +93,6 @@ type SelectableStaff = {
     role: string;
 };
 
-// DEBUG: Log the Paystack public key to ensure it's loaded from .env.local
-console.log("Paystack Public Key:", process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY);
-
 export default function POSPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -157,9 +154,6 @@ export default function POSPage() {
   }
 
   useEffect(() => {
-    // DEBUG: Log POS page initialization
-    console.log("POSPage component mounted.");
-    
     const initializePos = async () => {
       const storedUser = localStorage.getItem('loggedInUser');
       if (storedUser) {
@@ -350,14 +344,9 @@ export default function POSPage() {
       publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
   };
 
-  // DEBUG: Log the config object passed to the hook
-  console.log("Paystack Config:", paystackConfig);
-
   const initializePayment = usePaystackPayment(paystackConfig);
 
   const onPaystackSuccess = async () => {
-    // DEBUG: Log success callback
-    console.log("Paystack payment successful. Completing order...");
     setIsCheckoutOpen(false);
     const completed = await completeOrder('Card');
     if (completed) {
@@ -370,8 +359,6 @@ export default function POSPage() {
   };
 
   const onPaystackClose = () => {
-     // DEBUG: Log close callback
-    console.log("Paystack modal closed by user.");
     toast({
       variant: "destructive",
       title: "Payment Cancelled",
@@ -380,11 +367,7 @@ export default function POSPage() {
   };
   
   const handlePaystackClick = () => {
-    // DEBUG: Log button click and config
-    console.log("'Pay with Paystack' button clicked.");
-    console.log("Initializing payment with config:", paystackConfig);
     if (!paystackConfig.publicKey) {
-      console.error("Paystack Public Key is missing!");
       toast({
         variant: "destructive",
         title: "Configuration Error",
