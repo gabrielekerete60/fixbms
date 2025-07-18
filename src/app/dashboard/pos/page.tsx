@@ -46,9 +46,11 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, doc, runTransaction, increment, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, runTransaction, increment, getDoc, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { usePaystackPayment } from "react-paystack";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 type Product = {
   id: string;
@@ -85,6 +87,12 @@ type User = {
   staff_id: string;
 };
 
+type SelectableStaff = {
+    staff_id: string;
+    name: string;
+    role: string;
+};
+
 export default function POSPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -100,40 +108,19 @@ export default function POSPage() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
 
-  const fetchProductsForAdmin = async () => {
-    const productsSnapshot = await getDocs(collection(db, "products"));
-    const allProducts = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+  // New state for manager's POS session
+  const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
 
-    const productStockMap = new Map<string, number>();
-    allProducts.forEach(p => productStockMap.set(p.id, p.stock));
-    
-    const staffSnapshot = await getDocs(collection(db, "staff"));
-
-    for (const staffDoc of staffSnapshot.docs) {
-      const personalStockSnapshot = await getDocs(collection(db, 'staff', staffDoc.id, 'personal_stock'));
-      personalStockSnapshot.forEach(stockDoc => {
-        const { productId, stock } = stockDoc.data();
-        if (productId) {
-            const currentStock = productStockMap.get(productId) || 0;
-            productStockMap.set(productId, currentStock + stock);
-        }
-      });
-    }
-
-    const productsWithAggregatedStock = allProducts.map(p => ({
-        ...p,
-        stock: productStockMap.get(p.id) || p.stock,
-    }));
-    
-    setProducts(productsWithAggregatedStock);
-  }
-
-  const fetchProductsForStaff = async (currentUser: User) => {
-    const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
+  const fetchProductsForStaff = async (staffId: string) => {
+    setIsLoadingProducts(true);
+    const personalStockQuery = collection(db, 'staff', staffId, 'personal_stock');
     const stockSnapshot = await getDocs(personalStockQuery);
     
     if (stockSnapshot.empty) {
       setProducts([]);
+      setIsLoadingProducts(false);
       return;
     }
 
@@ -160,39 +147,34 @@ export default function POSPage() {
             } as Product;
         }
         return null;
-    }).filter((p): p is Product => p !== null);
+    }).filter((p): p is Product => p !== null && p.stock > 0);
 
     setProducts(productsList);
+    setIsLoadingProducts(false);
   }
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const initializePos = async () => {
       const storedUser = localStorage.getItem('loggedInUser');
       if (storedUser) {
-        const parsedUser = JSON.parse(storedUser);
+        const parsedUser: User = JSON.parse(storedUser);
         setUser(parsedUser);
-        setIsLoadingProducts(true);
 
-        try {
-            const adminRoles = ['Manager', 'Developer'];
-            if (adminRoles.includes(parsedUser.role)) {
-                await fetchProductsForAdmin();
-            } else {
-                await fetchProductsForStaff(parsedUser);
-            }
-        } catch (error) {
-            console.error("Error fetching products:", error);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Could not fetch products.",
-            });
-        } finally {
-            setIsLoadingProducts(false);
+        const adminRoles = ['Manager', 'Developer'];
+        if (adminRoles.includes(parsedUser.role)) {
+          // Manager/Dev: Fetch all staff to choose from
+          const staffQuery = query(collection(db, "staff"), where("role", "in", ["Showroom Staff", "Delivery Staff"]));
+          const staffSnapshot = await getDocs(staffQuery);
+          setAllStaff(staffSnapshot.docs.map(d => ({ staff_id: d.id, ...d.data() } as SelectableStaff)));
+          setIsStaffSelectionOpen(true);
+        } else {
+          // Regular staff: Load their own inventory
+          setSelectedStaffId(parsedUser.staff_id);
+          fetchProductsForStaff(parsedUser.staff_id);
         }
       }
     };
-    fetchProducts();
+    initializePos();
   }, [toast]);
 
 
@@ -214,7 +196,7 @@ export default function POSPage() {
       toast({
         variant: "destructive",
         title: "Out of Stock",
-        description: `${product.name} is currently unavailable in your inventory.`,
+        description: `${product.name} is currently unavailable in this inventory.`,
       });
       return;
     };
@@ -289,8 +271,8 @@ export default function POSPage() {
   }
 
   const completeOrder = async (paymentMethod: 'Card' | 'Cash') => {
-    if (!user) {
-        toast({ variant: "destructive", title: "Error", description: "User not identified. Cannot complete order." });
+    if (!user || !selectedStaffId) {
+        toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
         return null;
     }
 
@@ -303,15 +285,15 @@ export default function POSPage() {
       paymentMethod,
       customerName: customerName || 'Walk-in',
       status: 'Completed' as const,
-      staff_id: user.staff_id,
-      staff_name: user.name
+      staff_id: selectedStaffId,
+      staff_name: allStaff.find(s => s.staff_id === selectedStaffId)?.name || user.name
     };
   
     try {
       const orderRef = doc(collection(db, "orders"));
       await runTransaction(db, async (transaction) => {
           for (const item of cart) {
-              const personalStockRef = doc(db, 'staff', user.staff_id, 'personal_stock', item.id);
+              const personalStockRef = doc(db, 'staff', selectedStaffId, 'personal_stock', item.id);
               const personalStockDoc = await transaction.get(personalStockRef);
               if (!personalStockDoc.exists() || personalStockDoc.data().stock < item.quantity) {
                   throw new Error(`Not enough stock for ${item.name}.`);
@@ -331,12 +313,7 @@ export default function POSPage() {
       setCart([]);
       setCustomerName('');
 
-      const adminRoles = ['Manager', 'Developer'];
-      if (adminRoles.includes(user.role)) {
-          await fetchProductsForAdmin();
-      } else {
-          await fetchProductsForStaff(user);
-      }
+      await fetchProductsForStaff(selectedStaffId);
       
       return newOrder;
     } catch (error) {
@@ -432,6 +409,15 @@ export default function POSPage() {
     }
   }
 
+  const handleSelectStaff = (staffId: string) => {
+    setSelectedStaffId(staffId);
+    fetchProductsForStaff(staffId);
+    setIsStaffSelectionOpen(false);
+  }
+
+  const selectedStaffName = allStaff.find(s => s.staff_id === selectedStaffId)?.name || user?.name;
+
+
   return (
      <>
      <div className="grid grid-cols-1 xl:grid-cols-[1fr_450px] gap-6 h-[calc(100vh_-_8rem)] print:hidden">
@@ -439,7 +425,10 @@ export default function POSPage() {
       <Card className="flex flex-col">
         <CardContent className="p-4 flex flex-col gap-4 flex-grow">
           <header className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold font-headline">Point of Sale</h1>
+              <div>
+                <h1 className="text-2xl font-bold font-headline">Point of Sale</h1>
+                {selectedStaffId && <p className="text-sm text-muted-foreground">Operating as: <span className="font-semibold text-primary">{selectedStaffName}</span></p>}
+              </div>
                <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <Input placeholder="Search products..." className="pl-10 w-64" />
@@ -448,11 +437,11 @@ export default function POSPage() {
           <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList>
                   {categories.map(category => (
-                      <TabsTrigger key={category} value={category}>
+                      <TabsTrigger key={category} value={category} disabled={!selectedStaffId}>
                           {category}
                       </TabsTrigger>
                   ))}
-                  <TabsTrigger value="held-orders" className="flex gap-2">
+                  <TabsTrigger value="held-orders" className="flex gap-2" disabled={!selectedStaffId}>
                       Held Orders <Badge>{heldOrders.length}</Badge>
                   </TabsTrigger>
               </TabsList>
@@ -498,8 +487,8 @@ export default function POSPage() {
                             ))}
                             </div>
                         ) : (
-                            <div className="flex items-center justify-center h-full text-muted-foreground">
-                                <p>No products in your assigned inventory.</p>
+                             <div className="flex items-center justify-center h-full text-muted-foreground">
+                                <p>{selectedStaffId ? "No products in this staff's inventory." : "Select a staff member to begin."}</p>
                             </div>
                         )
                       )}
@@ -625,12 +614,12 @@ export default function POSPage() {
                 </div>
             </div>
             <div className="grid grid-cols-2 gap-2 w-full">
-                <Button variant="outline" onClick={holdOrder} disabled={cart.length === 0}>
+                <Button variant="outline" onClick={holdOrder} disabled={cart.length === 0 || !selectedStaffId}>
                     <Hand /> Hold
                 </Button>
                  <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={cart.length === 0}>
+                        <Button variant="destructive" disabled={cart.length === 0 || !selectedStaffId}>
                             <Trash2/> Clear
                         </Button>
                     </AlertDialogTrigger>
@@ -648,7 +637,7 @@ export default function POSPage() {
                     </AlertDialogContent>
                 </AlertDialog>
             </div>
-             <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0} onClick={() => setIsCheckoutOpen(true)}>
+             <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId} onClick={() => setIsCheckoutOpen(true)}>
                 Checkout
              </Button>
         </CardFooter>
@@ -656,6 +645,33 @@ export default function POSPage() {
       </div>
 
        {/* ---- DIALOGS ---- */}
+
+        {/* Manager Staff Selection Dialog */}
+        <Dialog open={isStaffSelectionOpen} onOpenChange={setIsStaffSelectionOpen}>
+            <DialogContent onInteractOutside={(e) => e.preventDefault()}>
+                <DialogHeader>
+                    <DialogTitle>Select Staff POS</DialogTitle>
+                    <DialogDescription>
+                        Choose a staff member to operate the Point of Sale on their behalf. Sales will be deducted from their inventory.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                     <Select onValueChange={handleSelectStaff}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a staff member..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {allStaff.map(staff => (
+                                <SelectItem key={staff.staff_id} value={staff.staff_id}>
+                                    {staff.name} ({staff.role})
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </DialogContent>
+        </Dialog>
+
 
         {/* Checkout Method Dialog */}
         <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
@@ -761,3 +777,5 @@ export default function POSPage() {
      </>
   );
 }
+
+    
