@@ -773,4 +773,146 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
         return { success: false, error: errorMessage };
      }
 }
+
+export type ProductionBatch = {
+    id: string;
+    recipeId: string;
+    recipeName: string;
+    productId: string;
+    productName: string;
+    requestedById: string;
+    requestedByName: string;
+    quantityToProduce: number;
+    status: 'pending_approval' | 'in_production' | 'completed';
+    createdAt: Timestamp;
+    ingredients: { ingredientId: string, quantity: number, unit: string }[];
+    successfullyProduced?: number;
+    wasted?: number;
+};
+
+
+export async function getProductionBatches(): Promise<{ pending: ProductionBatch[], in_production: ProductionBatch[] }> {
+    try {
+        const q = query(collection(db, 'production_batches'), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        const allBatches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductionBatch));
+        
+        const pending = allBatches.filter(b => b.status === 'pending_approval');
+        const in_production = allBatches.filter(b => b.status === 'in_production');
+
+        return { pending, in_production };
+    } catch (error) {
+        console.error("Error fetching production batches:", error);
+        return { pending: [], in_production: [] };
+    }
+}
+
+export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 'status' | 'createdAt'>): Promise<{success: boolean, error?: string}> {
+    try {
+        await addDoc(collection(db, "production_batches"), {
+            ...data,
+            status: 'pending_approval',
+            createdAt: serverTimestamp()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error starting production batch:", error);
+        return { success: false, error: "Failed to start production batch." };
+    }
+}
+
+export async function approveIngredientRequest(batchId: string, ingredients: ProductionBatch['ingredients']): Promise<{success: boolean, error?: string}> {
+    try {
+        await runTransaction(db, async (transaction) => {
+            const batchRef = doc(db, 'production_batches', batchId);
+            const batchDoc = await transaction.get(batchRef);
+            if (!batchDoc.exists() || batchDoc.data().status !== 'pending_approval') {
+                throw new Error("Batch is not pending approval.");
+            }
+
+            // Check stock and prepare updates
+            for (const ing of ingredients) {
+                const ingRef = doc(db, 'ingredients', ing.ingredientId);
+                const ingDoc = await transaction.get(ingRef);
+                if (!ingDoc.exists() || ingDoc.data().stock < ing.quantity) {
+                    throw new Error(`Not enough stock for ingredient ID: ${ing.ingredientId}`);
+                }
+                transaction.update(ingRef, { stock: increment(-ing.quantity) });
+            }
+
+            // Update batch status
+            transaction.update(batchRef, { status: 'in_production' });
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error approving ingredient request:", error);
+        const errorMessage = error instanceof Error ? error.message : "Failed to approve request.";
+        return { success: false, error: errorMessage };
+    }
+}
+
+type CompleteBatchData = {
+    batchId: string;
+    productId: string;
+    productName: string;
+    successfullyProduced: number;
+    wasted: number;
+    storekeeperId: string; // ID for the storekeeper role
+}
+
+export async function completeProductionBatch(data: CompleteBatchData, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+    try {
+        await runTransaction(db, async (transaction) => {
+            const batchRef = doc(db, 'production_batches', data.batchId);
+            
+            // 1. Update the production batch document
+            transaction.update(batchRef, {
+                status: 'completed',
+                successfullyProduced: data.successfullyProduced,
+                wasted: data.wasted
+            });
+
+            // 2. Create a transfer to the main inventory (for storekeeper to accept)
+            if (data.successfullyProduced > 0) {
+                const transferRef = doc(collection(db, 'transfers'));
+                transaction.set(transferRef, {
+                    from_staff_id: user.staff_id,
+                    from_staff_name: user.name,
+                    to_staff_id: data.storekeeperId,
+                    to_staff_name: 'Main Store',
+                    items: [{
+                        productId: data.productId,
+                        productName: data.productName,
+                        quantity: data.successfullyProduced
+                    }],
+                    date: serverTimestamp(),
+                    status: 'pending',
+                    is_sales_run: false, // This is a production return, not a sales run
+                    notes: `Return from production batch ${data.batchId}`
+                });
+            }
+
+            // 3. Create a waste log for any wasted items
+            if (data.wasted > 0) {
+                const wasteLogRef = doc(collection(db, 'waste_logs'));
+                transaction.set(wasteLogRef, {
+                    productId: data.productId,
+                    productName: data.productName,
+                    productCategory: 'Breads', // Assuming this for now
+                    quantity: data.wasted,
+                    reason: 'Burnt', // Default reason for production waste
+                    notes: `From production batch ${data.batchId}`,
+                    staffId: user.staff_id,
+                    staffName: user.name,
+                    date: serverTimestamp()
+                });
+            }
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error completing production batch:", error);
+        return { success: false, error: "Failed to complete production batch." };
+    }
+}
+
     

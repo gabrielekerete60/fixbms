@@ -8,6 +8,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter
 } from "@/components/ui/card";
 import {
   Table,
@@ -18,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2, Beaker, Hourglass } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, Beaker, Hourglass, Check, X, ShieldCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +53,16 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { startProductionBatch, getProductionBatches, approveIngredientRequest, completeProductionBatch } from "@/app/actions";
+import type { ProductionBatch } from "@/app/actions";
+import { Badge } from "@/components/ui/badge";
+
+type User = {
+    name: string;
+    role: string;
+    staff_id: string;
+};
 
 type Product = {
   id: string;
@@ -223,33 +233,170 @@ function RecipeDialog({
     );
 }
 
+function StartBatchDialog({ recipe, user, onStarted, children }: { recipe: Recipe, user: User, onStarted: () => void, children: React.ReactNode }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [quantity, setQuantity] = useState(10);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async () => {
+        if (!quantity || quantity <= 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please enter a valid quantity.' });
+            return;
+        }
+        setIsSubmitting(true);
+        const result = await startProductionBatch({
+            recipeId: recipe.id,
+            recipeName: recipe.name,
+            productId: recipe.productId,
+            productName: recipe.productName,
+            requestedById: user.staff_id,
+            requestedByName: user.name,
+            quantityToProduce: quantity,
+            ingredients: recipe.ingredients,
+        });
+
+        if (result.success) {
+            toast({ title: 'Success', description: 'Batch sent for ingredient approval.' });
+            onStarted();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>{children}</DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Start Production Batch</DialogTitle>
+                    <DialogDescription>How many units of <span className="font-bold">{recipe.productName}</span> do you want to produce?</DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <Label htmlFor="quantity">Quantity to Produce</Label>
+                    <Input id="quantity" type="number" value={quantity} onChange={e => setQuantity(Number(e.target.value))} />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Request Ingredients
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function CompleteBatchDialog({ batch, user, onCompleted }: { batch: ProductionBatch, user: User, onCompleted: () => void }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [successfullyProduced, setSuccessfullyProduced] = useState<number | string>(batch.quantityToProduce);
+    const [wasted, setWasted] = useState<number | string>(0);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSuccessChange = (value: number) => {
+        if (value > batch.quantityToProduce) value = batch.quantityToProduce;
+        if (value < 0) value = 0;
+        setSuccessfullyProduced(value);
+        setWasted(batch.quantityToProduce - value);
+    }
+    
+    const handleWastedChange = (value: number) => {
+        if (value > batch.quantityToProduce) value = batch.quantityToProduce;
+        if (value < 0) value = 0;
+        setWasted(value);
+        setSuccessfullyProduced(batch.quantityToProduce - value);
+    }
+
+    const handleSubmit = async () => {
+        setIsSubmitting(true);
+        // This is a placeholder for the storekeeper ID. In a real app, this might be dynamically determined.
+        const storekeeperId = "700008"; 
+
+        const result = await completeProductionBatch({
+            batchId: batch.id,
+            productId: batch.productId,
+            productName: batch.productName,
+            successfullyProduced: Number(successfullyProduced),
+            wasted: Number(wasted),
+            storekeeperId,
+        }, user);
+
+        if (result.success) {
+            toast({ title: 'Success', description: 'Batch completed and sent for stock reconciliation.' });
+            onCompleted();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild><Button size="sm" variant="secondary">Complete Batch</Button></DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Complete Production Batch: {batch.recipeName}</DialogTitle>
+                    <DialogDescription>
+                        Reconcile the items from the initial quantity of <span className="font-bold">{batch.quantityToProduce}</span>.
+                    </DialogDescription>
+                </DialogHeader>
+                 <div className="grid grid-cols-2 gap-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="successful">Successfully Produced</Label>
+                        <Input id="successful" type="number" value={successfullyProduced} onChange={e => handleSuccessChange(Number(e.target.value))} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="wasted">Wasted Items</Label>
+                        <Input id="wasted" type="number" value={wasted} onChange={e => handleWastedChange(Number(e.target.value))} />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Confirm and Update Stock
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function RecipesPage() {
     const { toast } = useToast();
+    const [user, setUser] = useState<User | null>(null);
     const [recipes, setRecipes] = useState<Recipe[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+    const [pendingBatches, setPendingBatches] = useState<ProductionBatch[]>([]);
+    const [inProductionBatches, setInProductionBatches] = useState<ProductionBatch[]>([]);
+    
     const [isLoading, setIsLoading] = useState(true);
     const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
+    const [actionState, setActionState] = useState<{ id: string, type: 'approve' | 'decline', ingredients: ProductionBatch['ingredients'] } | null>(null);
 
     const fetchAllData = async () => {
         setIsLoading(true);
         try {
-            const recipesCollection = collection(db, "recipes");
-            const recipeSnapshot = await getDocs(recipesCollection);
-            const recipesList = recipeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Recipe[];
-            setRecipes(recipesList);
+            const [recipeSnapshot, productSnapshot, ingredientSnapshot, batchData] = await Promise.all([
+                getDocs(collection(db, "recipes")),
+                getDocs(collection(db, "products")),
+                getDocs(collection(db, "ingredients")),
+                getProductionBatches()
+            ]);
 
-            const productsCollection = collection(db, "products");
-            const productSnapshot = await getDocs(productsCollection);
-            const productsList = productSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, category: doc.data().category })) as Product[];
-            setProducts(productsList);
-
-            const ingredientsCollection = collection(db, "ingredients");
-            const ingredientSnapshot = await getDocs(ingredientsCollection);
-            const ingredientsList = ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[];
-            setIngredients(ingredientsList);
+            setRecipes(recipeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Recipe[]);
+            setProducts(productSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, category: doc.data().category })) as Product[]);
+            setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[]);
+            setPendingBatches(batchData.pending);
+            setInProductionBatches(batchData.in_production);
 
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -260,8 +407,33 @@ export default function RecipesPage() {
     };
 
     useEffect(() => {
+        const storedUser = localStorage.getItem('loggedInUser');
+        if (storedUser) {
+            setUser(JSON.parse(storedUser));
+        }
         fetchAllData();
     }, []);
+
+    const handleApproval = async () => {
+        if (!actionState) return;
+        const { id, type, ingredients } = actionState;
+
+        if (type === 'decline') {
+            // Placeholder for decline logic (e.g., update status to declined)
+            toast({ title: 'Info', description: 'Decline functionality not implemented yet.' });
+            setActionState(null);
+            return;
+        }
+
+        const result = await approveIngredientRequest(id, ingredients);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Batch approved and moved to production.' });
+            fetchAllData();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setActionState(null);
+    }
 
     const recipesWithCost = useMemo(() => {
         const ingredientsMap = new Map(ingredients.map(i => [i.id, i]));
@@ -269,7 +441,6 @@ export default function RecipesPage() {
             const cost = recipe.ingredients.reduce((acc, currentIng) => {
                 const ingredientData = ingredientsMap.get(currentIng.ingredientId);
                 if (!ingredientData) return acc;
-                // This is a naive conversion, a proper system would have unit conversion rates
                 let quantityInBaseUnit = currentIng.quantity;
                 if (ingredientData.unit.toLowerCase() === 'kg' && currentIng.unit.toLowerCase() === 'g') {
                     quantityInBaseUnit = currentIng.quantity / 1000;
@@ -323,9 +494,26 @@ export default function RecipesPage() {
         setEditingRecipe(recipe);
         setIsDialogOpen(true);
     };
+    
+    if (!user) return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
+    const canApprove = user.role === 'Storekeeper' || user.role === 'Manager' || user.role === 'Developer';
 
     return (
         <div className="flex flex-col gap-4">
+             <AlertDialog open={!!actionState} onOpenChange={() => setActionState(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure you want to {actionState?.type}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           Approving will deduct ingredients from main inventory. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleApproval}>Yes, {actionState?.type}</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold font-headline">Recipes & Production</h1>
                 <Button onClick={openAddDialog}>
@@ -351,57 +539,101 @@ export default function RecipesPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2"><Beaker className="h-5 w-5"/> Batches in Production</CardTitle>
-                            <CardDescription>Monitor and complete ongoing production batches. 0 active.</CardDescription>
+                            <CardDescription>Monitor and complete ongoing production batches. {inProductionBatches.length} active.</CardDescription>
                         </CardHeader>
-                        <CardContent className="flex items-center justify-center h-24 text-muted-foreground">
-                            <p>No batches currently in production.</p>
+                        <CardContent>
+                             {isLoading ? <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin" /></div> : inProductionBatches.length > 0 ? (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow><TableHead>Batch</TableHead><TableHead>Quantity</TableHead><TableHead>Requested By</TableHead><TableHead className="text-right">Action</TableHead></TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {inProductionBatches.map(batch => (
+                                            <TableRow key={batch.id}>
+                                                <TableCell className="font-medium">{batch.recipeName}</TableCell>
+                                                <TableCell>{batch.quantityToProduce}</TableCell>
+                                                <TableCell>{batch.requestedByName}</TableCell>
+                                                <TableCell className="text-right">
+                                                   <CompleteBatchDialog batch={batch} user={user} onCompleted={fetchAllData} />
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                             ) : (
+                                <div className="flex items-center justify-center h-24 text-muted-foreground">No batches currently in production.</div>
+                             )}
                         </CardContent>
                     </Card>
                      <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2"><Hourglass className="h-5 w-5"/> Pending Ingredient Approval</CardTitle>
-                            <CardDescription>Batches waiting for a storekeeper to approve and release ingredients. 0 pending.</CardDescription>
+                            <CardDescription>Batches waiting for a storekeeper to approve and release ingredients. {pendingBatches.length} pending.</CardDescription>
                         </CardHeader>
-                        <CardContent className="flex items-center justify-center h-24 text-muted-foreground">
-                             <p>No batches are pending ingredient approval.</p>
+                        <CardContent>
+                             {isLoading ? <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin" /></div> : pendingBatches.length > 0 ? (
+                                <Table>
+                                     <TableHeader>
+                                        <TableRow><TableHead>Batch</TableHead><TableHead>Quantity</TableHead><TableHead>Requested By</TableHead><TableHead className="text-right">Action</TableHead></TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                         {pendingBatches.map(batch => (
+                                            <TableRow key={batch.id}>
+                                                <TableCell className="font-medium">{batch.recipeName}</TableCell>
+                                                <TableCell>{batch.quantityToProduce}</TableCell>
+                                                <TableCell>{batch.requestedByName}</TableCell>
+                                                <TableCell className="text-right">
+                                                    {canApprove ? (
+                                                        <div className="space-x-2">
+                                                            <Button size="icon" variant="destructive" onClick={() => setActionState({ id: batch.id, type: 'decline', ingredients: batch.ingredients })}><X className="h-4 w-4"/></Button>
+                                                            <Button size="icon" variant="secondary" onClick={() => setActionState({ id: batch.id, type: 'approve', ingredients: batch.ingredients })}><Check className="h-4 w-4"/></Button>
+                                                        </div>
+                                                    ) : <Badge variant="outline">Pending</Badge>}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                             ) : (
+                                <div className="flex items-center justify-center h-24 text-muted-foreground">No batches are pending ingredient approval.</div>
+                             )}
                         </CardContent>
                     </Card>
                     <Card>
                         <CardHeader>
                             <CardTitle>All Recipes</CardTitle>
-                            <CardDescription>Manage your product recipes and their ingredients.</CardDescription>
+                            <CardDescription>Manage your product recipes and their ingredients. Click "Start Batch" to begin production.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Recipe Name</TableHead>
-                                        <TableHead>Makes Product</TableHead>
-                                        <TableHead>No. of Ingredients</TableHead>
-                                        <TableHead>Total Recipe Cost</TableHead>
-                                        <TableHead><span className="sr-only">Actions</span></TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (
-                                        <TableRow>
-                                            <TableCell colSpan={5} className="h-24 text-center">
-                                                <Loader2 className="mx-auto h-8 w-8 animate-spin" />
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : recipesWithCost.length > 0 ? (
-                                        recipesWithCost.map(recipe => (
-                                            <TableRow key={recipe.id}>
-                                                <TableCell className="font-medium">{recipe.name}</TableCell>
-                                                <TableCell>{recipe.productName}</TableCell>
-                                                <TableCell>{recipe.ingredients.length} items</TableCell>
-                                                <TableCell>₦{recipe.cost.toFixed(2)}</TableCell>
-                                                <TableCell>
-                                                    <DropdownMenu>
+                            {isLoading ? (
+                                <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                            ) : recipesWithCost.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {recipesWithCost.map(recipe => (
+                                        <Card key={recipe.id} className="flex flex-col">
+                                            <CardHeader>
+                                                <div className="aspect-[4/3] bg-muted rounded-md mb-4 flex items-center justify-center">
+                                                    <img src="https://placehold.co/400x300.png" alt={recipe.productName} className="rounded-md object-cover" data-ai-hint="bread loaf"/>
+                                                </div>
+                                                <CardTitle>{recipe.name}</CardTitle>
+                                                <CardDescription>For: {recipe.productName}</CardDescription>
+                                            </CardHeader>
+                                            <CardContent className="flex-grow">
+                                                <p className="text-sm text-muted-foreground">{recipe.description}</p>
+                                            </CardContent>
+                                            <CardFooter className="flex justify-between items-center">
+                                                <div className="text-sm">
+                                                    <span className="text-muted-foreground">Cost/unit: </span>
+                                                    <span className="font-bold">₦{recipe.cost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                     <StartBatchDialog recipe={recipe} user={user} onStarted={fetchAllData}>
+                                                        <Button>Start Batch</Button>
+                                                     </StartBatchDialog>
+                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
                                                             <Button aria-haspopup="true" size="icon" variant="ghost">
                                                                 <MoreHorizontal className="h-4 w-4" />
-                                                                <span className="sr-only">Toggle menu</span>
                                                             </Button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end">
@@ -411,18 +643,14 @@ export default function RecipesPage() {
                                                             <DropdownMenuItem className="text-destructive" onSelect={() => setRecipeToDelete(recipe)}>Delete</DropdownMenuItem>
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={5} className="h-24 text-center">
-                                                No recipes found. Create one to get started.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
+                                                </div>
+                                            </CardFooter>
+                                        </Card>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="h-24 text-center flex items-center justify-center text-muted-foreground">No recipes found. Create one to get started.</div>
+                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>

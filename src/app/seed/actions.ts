@@ -57,6 +57,45 @@ const seedData = {
             { ingredientId: "ing_2", ingredientName: "Granulated Sugar", quantity: 0.02, unit: "kg" },
             { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.005, unit: "kg" },
         ]
+     },
+     { 
+        id: "rec_2", 
+        name: "Standard Burger Loaf", 
+        description: "The recipe for our burger loaves.",
+        productId: "prod_2",
+        productName: "Burger Loaf",
+        ingredients: [
+            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 0.4, unit: "kg" },
+            { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.01, unit: "kg" },
+            { ingredientId: "ing_2", ingredientName: "Granulated Sugar", quantity: 0.02, unit: "kg" },
+            { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.005, unit: "kg" },
+        ]
+     },
+     { 
+        id: "rec_3", 
+        name: "Standard Jumbo Loaf", 
+        description: "The recipe for our jumbo loaf.",
+        productId: "prod_3",
+        productName: "Jumbo Loaf",
+        ingredients: [
+            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 1, unit: "kg" },
+            { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.02, unit: "kg" },
+            { ingredientId: "ing_2", ingredientName: "Granulated Sugar", quantity: 0.04, unit: "kg" },
+            { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.01, unit: "kg" },
+        ]
+     },
+     { 
+        id: "rec_4", 
+        name: "Standard Round Loaf", 
+        description: "The recipe for our round loaf.",
+        productId: "prod_4",
+        productName: "Round Loaf",
+        ingredients: [
+            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 0.45, unit: "kg" },
+            { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.01, unit: "kg" },
+            { ingredientId: "ing_2", ingredientName: "Granulated Sugar", quantity: 0.02, unit: "kg" },
+            { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.005, unit: "kg" },
+        ]
      }
   ],
   ingredients: [
@@ -235,6 +274,24 @@ const seedData = {
           staffName: 'Mfon Staff',
           date: Timestamp.fromDate(new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)),
       }
+  ],
+  production_batches: [
+    {
+        id: 'batch_1',
+        recipeId: 'rec_1',
+        recipeName: 'Standard Family Loaf',
+        productId: 'prod_1',
+        productName: 'Family Loaf',
+        requestedById: '500006',
+        requestedByName: 'Blessing Baker',
+        quantityToProduce: 50,
+        status: 'pending_approval',
+        createdAt: daysAgo(1),
+        ingredients: [
+            { ingredientId: 'ing_1', quantity: 25, unit: 'kg' },
+            { ingredientId: 'ing_6', quantity: 0.5, unit: 'kg' },
+        ]
+    }
   ]
 };
 
