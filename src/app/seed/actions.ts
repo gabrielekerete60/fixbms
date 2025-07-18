@@ -45,9 +45,9 @@ const seedData = {
     { id: "sup_3", name: "Local Yeast Supplier", contactPerson: "Mama Chichi", phone: "07011223344", email: "chichisyeast@email.com", address: "Uyo Main Market", amountOwed: 50000, amountPaid: 20000 },
   ],
   recipes: [
-     { 
-        id: "rec_1", 
-        name: "Standard Family Loaf", 
+     {
+        id: "rec_1",
+        name: "Standard Family Loaf",
         description: "The recipe for our signature family loaf.",
         productId: "prod_1",
         productName: "Family Loaf",
@@ -58,9 +58,9 @@ const seedData = {
             { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.005, unit: "kg" },
         ]
      },
-     { 
-        id: "rec_2", 
-        name: "Standard Burger Loaf", 
+     {
+        id: "rec_2",
+        name: "Standard Burger Loaf",
         description: "The recipe for our burger loaves.",
         productId: "prod_2",
         productName: "Burger Loaf",
@@ -71,9 +71,9 @@ const seedData = {
             { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.005, unit: "kg" },
         ]
      },
-     { 
-        id: "rec_3", 
-        name: "Standard Jumbo Loaf", 
+     {
+        id: "rec_3",
+        name: "Standard Jumbo Loaf",
         description: "The recipe for our jumbo loaf.",
         productId: "prod_3",
         productName: "Jumbo Loaf",
@@ -84,9 +84,9 @@ const seedData = {
             { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.01, unit: "kg" },
         ]
      },
-     { 
-        id: "rec_4", 
-        name: "Standard Round Loaf", 
+     {
+        id: "rec_4",
+        name: "Standard Round Loaf",
         description: "The recipe for our round loaf.",
         productId: "prod_4",
         productName: "Round Loaf",
@@ -211,7 +211,7 @@ const seedData = {
       }
   ],
   payment_confirmations: [
-      { 
+      {
         id: "pc_1",
         date: Timestamp.now(),
         driverId: "400005",
@@ -307,7 +307,7 @@ export async function seedDatabase(): Promise<ActionResult> {
   console.log("Attempting to seed database...");
   try {
     const batch = writeBatch(db);
-    
+
     for (const [collectionName, data] of Object.entries(seedData)) {
         if (collectionName === 'personal_stock_mfon') continue;
 
@@ -321,19 +321,19 @@ export async function seedDatabase(): Promise<ActionResult> {
                 } else {
                     docRef = doc(collection(db, collectionName));
                 }
-                
+
                 const itemWithTimestamps = { ...item };
                 Object.keys(itemWithTimestamps).forEach(key => {
                     if ( (key.toLowerCase().includes('date') || key.toLowerCase().includes('timestamp')) && typeof itemWithTimestamps[key] === 'string') {
                          itemWithTimestamps[key] = Timestamp.fromDate(new Date(itemWithTimestamps[key]));
                     }
                 });
-                
+
                 batch.set(docRef, itemWithTimestamps);
             });
         }
     }
-    
+
     // Seed Mfon's personal stock
     seedData.personal_stock_mfon.forEach(item => {
         const docRef = doc(db, "staff/400004/personal_stock", item.id);
@@ -369,14 +369,14 @@ export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
     const collectionsToClear = Object.keys(seedData).filter(k => !k.startsWith('personal_stock'));
-    
+
     for (const collectionName of collectionsToClear) {
       const batch = writeBatch(db);
 
       if (collectionName === 'staff') {
         await clearSubcollections('staff', batch);
       }
-      
+
       const querySnapshot = await getDocs(collection(db, collectionName));
       querySnapshot.forEach((doc) => {
         batch.delete(doc.ref);
@@ -384,7 +384,7 @@ export async function clearDatabase(): Promise<ActionResult> {
       await batch.commit();
       console.log(`Cleared collection: ${collectionName}`);
     }
-    
+
     console.log("Database cleared successfully.");
     return { success: true };
   } catch (error)
