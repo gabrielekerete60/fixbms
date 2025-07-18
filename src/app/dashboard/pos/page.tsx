@@ -689,7 +689,7 @@ export default function POSPage() {
                     </Button>
                     <Button className="h-24 text-lg" onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
                         <CreditCard className="mr-2 h-6 w-6" />
-                        Pay with Card
+                        Pay with Paystack
                     </Button>
                 </div>
             </DialogContent>
@@ -777,5 +777,3 @@ export default function POSPage() {
      </>
   );
 }
-
-    
