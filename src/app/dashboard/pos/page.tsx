@@ -86,6 +86,7 @@ type User = {
   name: string;
   role: string;
   staff_id: string;
+  email: string;
 };
 
 type SelectableStaff = {
@@ -162,7 +163,7 @@ export default function POSPage() {
       if (storedUser) {
         const parsedUser: User = JSON.parse(storedUser);
         setUser(parsedUser);
-        setCustomerEmail(parsedUser.email); // Default to logged in user's email
+        setCustomerEmail(parsedUser.email || ''); // Default to logged in user's email
 
         const adminRoles = ['Manager', 'Developer'];
         if (adminRoles.includes(parsedUser.role)) {
@@ -275,8 +276,10 @@ export default function POSPage() {
   }
 
   const completeOrder = async (paymentMethod: 'Card' | 'Cash') => {
+    setIsProcessingPayment(true);
     if (!user || !selectedStaffId) {
         toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
+        setIsProcessingPayment(false);
         return null;
     }
 
@@ -318,7 +321,7 @@ export default function POSPage() {
       setCustomerName('');
 
       await fetchProductsForStaff(selectedStaffId);
-      
+      setIsProcessingPayment(false);
       return newOrder;
     } catch (error) {
       console.error("Error saving order:", error);
@@ -328,6 +331,7 @@ export default function POSPage() {
         title: "Order Failed",
         description: errorMessage,
       });
+      setIsProcessingPayment(false);
       return null;
     }
   }
@@ -346,23 +350,27 @@ export default function POSPage() {
     setIsCheckoutOpen(false);
 
     const transaction = await initializePaystackTransaction(total, customerEmail);
+    
     if (transaction.success && transaction.access_code) {
         const paystack = new PaystackPop();
-        paystack.resumeTransaction(transaction.access_code);
-        // How to handle the success/close now? Paystack docs mention webhooks for server-side verification.
-        // For client-side, we might need a different approach. The inline-js doesn't seem to have direct callbacks in this flow.
-        // For now, let's assume it works and complete the order optimistically.
-        // A robust solution would involve a webhook or polling a verification endpoint.
-        const completed = await completeOrder('Card');
-        if (completed) {
-            toast({ title: "Payment Initialized", description: "Waiting for payment confirmation." });
-            setIsReceiptOpen(true);
-        }
-
+        paystack.resumeTransaction({
+            access_code: transaction.access_code,
+            onSuccess: async () => {
+                const completed = await completeOrder('Card');
+                if (completed) {
+                    toast({ title: "Payment Successful", description: "The order has been completed." });
+                    setIsReceiptOpen(true);
+                }
+            },
+            onCancel: () => {
+                 toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment process was cancelled." });
+                 setIsProcessingPayment(false);
+            }
+        });
     } else {
         toast({ variant: "destructive", title: "Paystack Error", description: transaction.error || "Could not initialize transaction." });
+        setIsProcessingPayment(false);
     }
-    setIsProcessingPayment(false);
   }
 
   
@@ -782,5 +790,3 @@ export default function POSPage() {
      </>
   );
 }
-
-    
