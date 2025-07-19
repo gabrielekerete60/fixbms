@@ -19,7 +19,7 @@ import { collection, getDocs, doc, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from '@/components/ui/alert-dialog';
 
 type Customer = {
   id: string;
@@ -68,7 +68,8 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
                 amountOwed: 0,
                 amountPaid: 0,
             });
-            onCustomerCreated({ id: newCustomerRef.id, name, phone, email, address });
+            const newCustomer = { id: newCustomerRef.id, name, phone, email, address };
+            onCustomerCreated(newCustomer);
             toast({ title: 'Success', description: 'New customer created.' });
             setIsOpen(false);
         } catch(error) {
@@ -589,5 +590,3 @@ export default function SalesRunPage() {
         </div>
     );
 }
-
-    
