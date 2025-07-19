@@ -117,6 +117,8 @@ function POSPageContent() {
   const [selectedStaffId, setSelectedStaffId] = useLocalStorage<string | null>('posSelectedStaff', null);
   const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
 
+  const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
+
   const fetchProductsForStaff = async (staffId: string) => {
     setIsLoadingProducts(true);
     const personalStockQuery = collection(db, 'staff', staffId, 'personal_stock');
@@ -228,7 +230,7 @@ function POSPageContent() {
 
     const newOrderData = {
       items: cart,
-      subtotal: total, // No tax, subtotal is total
+      subtotal: total,
       total: total,
       date: new Date().toISOString(),
       paymentMethod,
@@ -276,15 +278,13 @@ function POSPageContent() {
         setIsProcessingPayment(false);
     }
   }
-
+  
   const paystackConfig = {
     reference: new Date().getTime().toString(),
     email: customerEmail,
     amount: Math.round(total * 100), // Amount in kobo
     publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
   };
-
-  const initializePayment = usePaystackPayment(paystackConfig);
 
   const onPaystackSuccess = async () => {
     setIsProcessingPayment(true);
@@ -309,8 +309,10 @@ function POSPageContent() {
     });
   };
 
+  const initializePayment = usePaystackPayment(paystackConfig);
+
+
   const categories = ['All', ...new Set(products.map(p => p.category))];
-  const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
   
   const filteredProducts = useMemo(() => {
     if (activeTab === 'All') return products;
@@ -732,7 +734,13 @@ function POSPageContent() {
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
-                    <Button className="h-24 text-lg" onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
+                    <Button className="h-24 text-lg" onClick={() => {
+                        setIsCheckoutOpen(false);
+                        initializePayment({
+                            onSuccess: onPaystackSuccess, 
+                            onClose: onPaystackClose
+                        });
+                    }}>
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with Card
                     </Button>
