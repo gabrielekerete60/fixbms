@@ -1,4 +1,3 @@
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -956,8 +955,8 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             
             const transfer = transferDoc.data() as Transfer;
 
-            const productRefs: doc[] = [];
-            const staffStockRefs: doc[] = [];
+            const productRefs: any[] = [];
+            const staffStockRefs: any[] = [];
             const productDocsPromises: Promise<any>[] = [];
             const staffStockDocsPromises: Promise<any>[] = [];
 
@@ -1228,4 +1227,3 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
     
     return { requiredIndexes: Array.from(missingIndexes) };
 }
-    
