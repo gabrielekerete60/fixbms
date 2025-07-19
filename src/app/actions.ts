@@ -465,36 +465,51 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
 
 export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'yearly'): Promise<{ totalSales: number }> {
     const now = new Date();
-    let from: Date, to: Date;
+    let from: Timestamp, to: Timestamp;
 
     switch (filter) {
         case 'daily':
-            from = startOfDay(now);
-            to = endOfDay(now);
+            from = Timestamp.fromDate(startOfDay(now));
+            to = Timestamp.fromDate(endOfDay(now));
             break;
         case 'weekly':
-            from = startOfWeek(now, { weekStartsOn: 1 });
-            to = endOfWeek(now, { weekStartsOn: 1 });
+            from = Timestamp.fromDate(startOfWeek(now, { weekStartsOn: 1 }));
+            to = Timestamp.fromDate(endOfWeek(now, { weekStartsOn: 1 }));
             break;
         case 'monthly':
-            from = startOfMonth(now);
-            to = endOfMonth(now);
+            from = Timestamp.fromDate(startOfMonth(now));
+            to = Timestamp.fromDate(endOfMonth(now));
             break;
         case 'yearly':
-            from = startOfYear(now);
-            to = endOfYear(now);
+            from = Timestamp.fromDate(startOfYear(now));
+            to = Timestamp.fromDate(endOfYear(now));
             break;
     }
     
     try {
         const q = query(
-            collection(db, "orders"),
-            where("date", ">=", from.toISOString()),
-            where("date", "<=", to.toISOString()),
-            where("status", "==", "Completed")
+            collection(db, "transfers"),
+            where("is_sales_run", "==", true),
+            where("date", ">=", from),
+            where("date", "<=", to),
+            where("status", "in", ["completed", "active"])
         );
         const snapshot = await getDocs(q);
-        const totalSales = snapshot.docs.reduce((sum, doc) => sum + doc.data().total, 0);
+        
+        let totalSales = 0;
+        const productPrices: Record<string, number> = {};
+
+        for (const runDoc of snapshot.docs) {
+            const runData = runDoc.data();
+            for (const item of runData.items) {
+                if (!productPrices[item.productId]) {
+                    const productDoc = await getDoc(doc(db, 'products', item.productId));
+                    productPrices[item.productId] = productDoc.exists() ? productDoc.data().price : 0;
+                }
+                totalSales += (productPrices[item.productId] || 0) * item.quantity;
+            }
+        }
+        
         return { totalSales };
     } catch (error) {
         console.error("Error fetching sales stats:", error);
@@ -1440,6 +1455,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 
 
     
+
 
 
 
