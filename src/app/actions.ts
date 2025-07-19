@@ -977,7 +977,3 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
         return { success: false, error: "Failed to complete production batch." };
     }
 }
-
-    
-
-    

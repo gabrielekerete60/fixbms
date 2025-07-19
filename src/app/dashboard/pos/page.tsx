@@ -50,7 +50,7 @@ import { collection, getDocs, doc, runTransaction, increment, getDoc, query, whe
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter, useSearchParams } from "next/navigation";
-import { usePaystackPayment } from "react-paystack";
+import { initializePaystackTransaction } from "@/app/actions";
 
 
 type Product = {
@@ -278,38 +278,36 @@ function POSPageContent() {
         setIsProcessingPayment(false);
     }
   }
-  
-  const paystackConfig = {
-    reference: new Date().getTime().toString(),
-    email: customerEmail,
-    amount: Math.round(total * 100), // Amount in kobo
-    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-  };
 
-  const onPaystackSuccess = async () => {
-    setIsProcessingPayment(true);
+  const handleCardPayment = async () => {
     setIsCheckoutOpen(false);
-    const completed = await completeOrder('Card');
-    if (completed) {
-      setIsReceiptOpen(true);
-      toast({
-        title: "Payment Successful",
-        description: "The order has been completed.",
-      });
+    setIsProcessingPayment(true);
+    
+    if (!user || !selectedStaffId) {
+        toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
+        setIsProcessingPayment(false);
+        return;
     }
-    setIsProcessingPayment(false);
-  };
+    
+    const orderPayload = {
+      items: cart,
+      subtotal: total,
+      total: total,
+      email: customerEmail,
+      staff_id: selectedStaffId,
+      staff_name: allStaff.find(s => s.staff_id === selectedStaffId)?.name || user.name,
+      customerName: customerName || 'Walk-in',
+    };
 
-  const onPaystackClose = () => {
-    setIsProcessingPayment(false);
-    toast({
-      variant: "destructive",
-      title: "Payment Cancelled",
-      description: "The payment process was cancelled.",
-    });
+    const result = await initializePaystackTransaction(orderPayload);
+    
+    if (result.success && result.authorization_url) {
+        window.location.href = result.authorization_url;
+    } else {
+        toast({ variant: "destructive", title: "Payment Initialization Failed", description: result.error || "Could not connect to Paystack." });
+        setIsProcessingPayment(false);
+    }
   };
-
-  const initializePayment = usePaystackPayment(paystackConfig);
 
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
@@ -734,13 +732,7 @@ function POSPageContent() {
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
-                    <Button className="h-24 text-lg" onClick={() => {
-                        setIsCheckoutOpen(false);
-                        initializePayment({
-                            onSuccess: onPaystackSuccess, 
-                            onClose: onPaystackClose
-                        });
-                    }}>
+                    <Button className="h-24 text-lg" onClick={handleCardPayment}>
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with Card
                     </Button>

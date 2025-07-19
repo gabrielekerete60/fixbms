@@ -131,8 +131,7 @@ const seedData = {
       id: "ord_1",
       items: [{ id: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }],
       subtotal: 1100,
-      tax: 82.5,
-      total: 1182.5,
+      total: 1100,
       date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       paymentMethod: 'Card',
       customerName: 'Adebisi Onyeka',
@@ -145,8 +144,7 @@ const seedData = {
         { id: "prod_5", name: "Coca-Cola (50cl)", price: 300, quantity: 2, costPrice: 200 },
       ],
       subtotal: 1500,
-      tax: 112.5,
-      total: 1612.5,
+      total: 1500,
       date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
       paymentMethod: 'Cash',
       customerName: 'Ngozi Okoro',
@@ -295,15 +293,14 @@ const seedData = {
   ],
   personal_stock_mfon: [
     {
-        id: 'prod_1',
         productId: 'prod_1',
         productName: 'Family Loaf',
         stock: 12
     }
   ],
   personal_stock_akan: [
-      { id: 'prod_2', productId: 'prod_2', productName: 'Burger Loaf', stock: 20 },
-      { id: 'prod_5', productId: 'prod_5', productName: 'Coca-Cola (50cl)', stock: 50 }
+      { productId: 'prod_2', productName: 'Burger Loaf', stock: 20 },
+      { productId: 'prod_5', productName: 'Coca-Cola (50cl)', stock: 50 }
   ]
 };
 
