@@ -366,16 +366,6 @@ export default function POSPage() {
     });
   };
   
-  const handlePaystackClick = () => {
-    const googleSearchUrl = `https://www.google.com/search?q=Pay+NGN+${total.toFixed(2)}`;
-    window.open(googleSearchUrl, '_blank');
-    
-    toast({
-        title: "Debugging...",
-        description: "Opening Google search to test the button click."
-    });
-  }
-
   const handlePrintReceipt = () => {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
@@ -697,7 +687,7 @@ export default function POSPage() {
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
-                    <Button className="h-24 text-lg" onClick={handlePaystackClick}>
+                    <Button className="h-24 text-lg" onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with Paystack
                     </Button>
