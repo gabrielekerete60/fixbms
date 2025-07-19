@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
+import { startOfMonth, endOfMonth, startOfDay, endOfDay, startOfWeek, eachDayOfInterval, format } from "date-fns";
 import { db } from "@/lib/firebase";
 import fetch from 'node-fetch';
 
@@ -241,32 +241,38 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
 
         // Weekly Revenue for chart
-        const weeklyRevenueData: { [key: string]: number } = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 };
-        const today = new Date();
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Monday as start of week
-        startOfWeek.setHours(0, 0, 0, 0);
+        const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
+        const weekEnd = endOfDay(now);
+        const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-        const weeklyOrdersQuery = query(collection(db, "orders"), where("date", ">=", startOfWeek.toISOString()));
+        const weeklyRevenueData = daysInWeek.map(day => ({
+            day: format(day, 'E'), // Mon, Tue, etc.
+            revenue: 0,
+        }));
+        
+        const weeklyOrdersQuery = query(
+            collection(db, "orders"), 
+            where("date", ">=", weekStart.toISOString()),
+            where("date", "<=", weekEnd.toISOString())
+        );
         const weeklyOrdersSnapshot = await getDocs(weeklyOrdersQuery);
         
         weeklyOrdersSnapshot.forEach(orderDoc => {
             const order = orderDoc.data();
             const orderDate = new Date(order.date);
-            const dayOfWeek = orderDate.toLocaleString('en-US', { weekday: 'short' }); // Mon, Tue, etc.
-            if (dayOfWeek in weeklyRevenueData) {
-                weeklyRevenueData[dayOfWeek] += order.total;
+            const dayOfWeek = format(orderDate, 'E'); 
+            const index = weeklyRevenueData.findIndex(d => d.day === dayOfWeek);
+            if (index !== -1) {
+                weeklyRevenueData[index].revenue += order.total;
             }
         });
-        
-        const weeklyRevenue = Object.entries(weeklyRevenueData).map(([day, revenue]) => ({ day, revenue }));
         
         return {
             revenue,
             customers: customersSnapshot.size,
             sales: ordersSnapshot.size,
             activeOrders,
-            weeklyRevenue,
+            weeklyRevenue: weeklyRevenueData,
         };
     } catch (error) {
         console.error("Error fetching dashboard stats:", error);
@@ -1467,6 +1473,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 
 
     
+
 
 
 

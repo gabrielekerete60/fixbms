@@ -133,9 +133,8 @@ const seedData = {
     {
       id: "ord_1",
       items: [{ id: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }],
-      subtotal: 1100,
       total: 1100,
-      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      date: new Date(new Date().setDate(new Date().getDate() - 2)).toISOString(), // 2 days ago
       paymentMethod: 'Card',
       customerName: 'Adebisi Onyeka',
       customerId: 'cust_1',
@@ -147,9 +146,8 @@ const seedData = {
         { id: "prod_3", name: "Jumbo Loaf", price: 900, quantity: 1, costPrice: 500 },
         { id: "prod_5", name: "Coca-Cola (50cl)", price: 300, quantity: 2, costPrice: 200 },
       ],
-      subtotal: 1500,
       total: 1500,
-      date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      date: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(), // yesterday
       paymentMethod: 'Cash',
       customerName: 'Ngozi Okoro',
       customerId: 'cust_2',
@@ -158,9 +156,8 @@ const seedData = {
     {
       id: "ord_3",
       items: [{ id: "prod_4", name: "Round Loaf", price: 500, quantity: 10, costPrice: 280 }],
-      subtotal: 5000,
       total: 5000,
-      date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString(), // 3 days ago
       paymentMethod: 'Card',
       customerName: 'Chinedu Eze',
       customerId: 'cust_3',
@@ -169,9 +166,8 @@ const seedData = {
      {
       id: "ord_4",
       items: [{ id: "prod_2", name: "Burger Loaf", price: 450, quantity: 5, costPrice: 250 }],
-      subtotal: 2250,
       total: 2250,
-      date: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // 10 minutes ago
+      date: new Date().toISOString(), // today
       paymentMethod: 'Card',
       customerName: 'Walk-in',
       customerId: 'walk-in',
