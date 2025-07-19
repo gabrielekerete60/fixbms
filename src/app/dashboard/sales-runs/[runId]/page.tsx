@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordPaymentForRun, initializePaystackTransaction } from '@/app/actions';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction } from '@/app/actions';
 import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
@@ -344,10 +344,11 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
     )
 }
 
-function RecordPaymentDialog({ run, customers, onPaymentMade }: { run: SalesRun, customers: RunCustomer[], onPaymentMade: () => void }) {
+function RecordPaymentDialog({ run, user, customers, onPaymentMade }: { run: SalesRun, user: User | null, customers: RunCustomer[], onPaymentMade: () => void }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
 
     const [selectedCustomerId, setSelectedCustomerId] = useState('');
     const [amount, setAmount] = useState<number | string>('');
@@ -355,24 +356,23 @@ function RecordPaymentDialog({ run, customers, onPaymentMade }: { run: SalesRun,
     const debtors = customers.filter(c => (c.totalSold - c.totalPaid) > 0);
     const selectedDebtor = debtors.find(d => d.customerId === selectedCustomerId);
     const balance = selectedDebtor ? selectedDebtor.totalSold - selectedDebtor.totalPaid : 0;
-
-    const handleSubmit = async () => {
-        if (!selectedCustomerId || !amount || Number(amount) <= 0) {
+    
+    const handleCashSubmit = async () => {
+        if (!user || !selectedCustomerId || !amount || Number(amount) <= 0) {
             toast({ variant: 'destructive', title: 'Error', description: 'Please select a debtor and enter a valid amount.'});
             return;
         }
-        if (Number(amount) > balance) {
-            toast({ variant: 'destructive', title: 'Error', description: `Cannot pay more than the outstanding balance of ₦${balance.toLocaleString()}.`});
-            return;
-        }
         setIsLoading(true);
-        const result = await handleRecordPaymentForRun({
+        const result = await handleRecordCashPaymentForRun({
             runId: run.id,
             customerId: selectedCustomerId,
+            customerName: selectedDebtor?.customerName || 'Unknown',
+            driverId: user.staff_id,
+            driverName: user.name,
             amount: Number(amount)
         });
         if (result.success) {
-            toast({ title: 'Success', description: 'Payment recorded successfully.' });
+            toast({ title: 'Success', description: 'Cash payment submitted for approval.' });
             onPaymentMade();
             setIsOpen(false);
             setAmount('');
@@ -381,8 +381,29 @@ function RecordPaymentDialog({ run, customers, onPaymentMade }: { run: SalesRun,
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
         setIsLoading(false);
+        setIsCashConfirmOpen(false);
     }
     
+    const handleCardPayment = async () => {
+        if (!user || !selectedDebtor || !amount || Number(amount) <= 0) return;
+
+        setIsLoading(true);
+        const paystackResult = await initializePaystackTransaction({
+            isDebtPayment: true,
+            runId: run.id,
+            customerId: selectedDebtor.customerId,
+            total: Number(amount),
+            email: "debt-payment@example.com" // Placeholder email
+        });
+
+        if (paystackResult.success && paystackResult.authorization_url) {
+            window.location.href = paystackResult.authorization_url;
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
+            setIsLoading(false);
+        }
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
@@ -411,13 +432,29 @@ function RecordPaymentDialog({ run, customers, onPaymentMade }: { run: SalesRun,
                         <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={`Outstanding: ₦${balance.toLocaleString()}`} />
                     </div>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isLoading || debtors.length === 0}>
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Confirm Payment
+                <DialogFooter className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="h-16" onClick={() => setIsCashConfirmOpen(true)} disabled={isLoading || !selectedCustomerId || !amount}>
+                        <Wallet className="mr-2 h-5 w-5"/> Pay with Cash
+                    </Button>
+                     <Button className="h-16" onClick={handleCardPayment} disabled={isLoading || !selectedCustomerId || !amount}>
+                        {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <CreditCard className="mr-2 h-5 w-5"/>}
+                        Pay with Card
                     </Button>
                 </DialogFooter>
+                 <AlertDialog open={isCashConfirmOpen} onOpenChange={setIsCashConfirmOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Confirm Cash Received</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Have you collected ₦{Number(amount).toLocaleString()} in cash? This will be sent to the accountant for approval.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleCashSubmit}>Yes, Submit for Approval</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </DialogContent>
         </Dialog>
     )
@@ -505,7 +542,7 @@ export default function SalesRunPage() {
                         <h3 className="font-semibold text-lg mb-2">Run Actions</h3>
                          <div className="grid grid-cols-2 gap-4">
                             <SellToCustomerDialog run={runDetails} user={user} onSaleMade={fetchData}/>
-                            <RecordPaymentDialog run={runDetails} customers={runCustomers} onPaymentMade={fetchData}/>
+                            <RecordPaymentDialog run={runDetails} user={user} customers={runCustomers} onPaymentMade={fetchData}/>
                          </div>
                      </div>
                 </CardContent>

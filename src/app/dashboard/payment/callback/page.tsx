@@ -7,9 +7,9 @@ import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, writeBatch, collection, runTransaction, increment, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, runTransaction, increment, deleteDoc, updateDoc } from 'firebase/firestore';
 
-type VerificationStatus = 'verifying' | 'success' | 'failed';
+type VerificationStatus = 'verifying' | 'success' | 'failed' | 'cancelled';
 type VerificationResult = {
     status: VerificationStatus;
     message: string;
@@ -17,6 +17,8 @@ type VerificationResult = {
 };
 
 async function verifyPaystackTransaction(reference: string): Promise<any> {
+    // This function should be a server action for security, but for simplicity we keep it here.
+    // In a real app, move this to a server action and call it.
     const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
     const url = `https://api.paystack.co/transaction/verify/${reference}`;
     
@@ -41,6 +43,14 @@ function PaymentCallback() {
 
     useEffect(() => {
         const reference = searchParams.get('reference');
+        const paymentStatus = searchParams.get('payment_status');
+
+        if (paymentStatus === 'cancelled') {
+             setResult({ status: 'cancelled', message: 'Payment was cancelled. Your cart has been cleared.' });
+             // Here you might want to clear a stored cart from localStorage if you have one
+             return;
+        }
+
         if (!reference) {
             setResult({ status: 'failed', message: 'No payment reference found.' });
             return;
@@ -51,10 +61,8 @@ function PaymentCallback() {
 
             if (verificationResponse?.data?.status !== 'success') {
                 setResult({ status: 'failed', message: verificationResponse.message || 'Payment verification failed.' });
-                // Optionally delete the temp_order
                 const tempOrderRef = doc(db, 'temp_orders', reference);
-                await deleteDoc(tempOrderRef);
-                router.push(`/dashboard/pos?payment_status=failed&message=${encodeURIComponent(verificationResponse.message || 'Payment verification failed.')}`);
+                await deleteDoc(tempOrderRef).catch(console.error);
                 return;
             }
 
@@ -67,51 +75,55 @@ function PaymentCallback() {
                         throw new Error("Order details not found or already processed.");
                     }
                     const orderData = tempOrderDoc.data();
-
-                    // Verify amount
+                    
                     const expectedAmount = Math.round(orderData.total * 100);
                     if (verificationResponse.data.amount !== expectedAmount) {
                         throw new Error(`Amount mismatch. Expected ${expectedAmount}, got ${verificationResponse.data.amount}.`);
                     }
+                    
+                    if (orderData.isDebtPayment) {
+                        // This is a payment for an existing debt
+                        const runRef = doc(db, 'transfers', orderData.runId);
+                        transaction.update(runRef, { totalCollected: increment(orderData.total) });
 
-                    // Decrement stock
-                    for (const item of orderData.items) {
-                        const personalStockRef = doc(db, 'staff', orderData.staff_id, 'personal_stock', item.id || item.productId);
-                        const personalStockDoc = await transaction.get(personalStockRef);
-                        if (!personalStockDoc.exists() || personalStockDoc.data().stock < item.quantity) {
-                            throw new Error(`Not enough stock for ${item.name}.`);
+                        if (orderData.customerId) {
+                            const customerRef = doc(db, 'customers', orderData.customerId);
+                            transaction.update(customerRef, { amountPaid: increment(orderData.total) });
                         }
-                        transaction.update(personalStockRef, { stock: increment(-item.quantity) });
-                    }
-                    
-                    // Create permanent order record
-                    const finalOrderRef = doc(db, "orders", reference);
-                    transaction.set(finalOrderRef, {
-                        ...orderData,
-                        paymentMethod: 'Card',
-                        status: 'Completed',
-                        id: reference,
-                    });
-                    
-                    // Delete temporary order record
-                    transaction.delete(tempOrderRef);
+                    } else {
+                        // This is a new sale
+                        for (const item of orderData.items) {
+                            const personalStockRef = doc(db, 'staff', orderData.staffId, 'personal_stock', item.productId);
+                            const personalStockDoc = await transaction.get(personalStockRef);
+                            if (!personalStockDoc.exists() || personalStockDoc.data().stock < item.quantity) {
+                                throw new Error(`Not enough stock for ${item.name}.`);
+                            }
+                            transaction.update(personalStockRef, { stock: increment(-item.quantity) });
+                        }
+                        
+                        const finalOrderRef = doc(db, "orders", reference);
+                        transaction.set(finalOrderRef, {
+                            ...orderData,
+                            paymentMethod: 'Card',
+                            status: 'Completed',
+                            id: reference,
+                        });
 
-                    // If it's a sales run, update the run's financials
-                    if (orderData.runId) {
-                      const runRef = doc(db, 'transfers', orderData.runId);
-                      transaction.update(runRef, { totalCollected: increment(orderData.total) });
+                        if (orderData.runId) {
+                            const runRef = doc(db, 'transfers', orderData.runId);
+                            transaction.update(runRef, { totalCollected: increment(orderData.total) });
+                        }
                     }
+                    
+                    transaction.delete(tempOrderRef);
                 });
                 
-                setResult({ status: 'success', message: 'Payment successful! Your order has been placed.', orderId: reference });
-                router.push(`/dashboard/pos?payment_status=success&order_id=${reference}`);
-
+                setResult({ status: 'success', message: 'Payment successful! Your transaction has been recorded.', orderId: reference });
 
             } catch (error) {
                 console.error("Error completing transaction:", error);
                 const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
                 setResult({ status: 'failed', message: `Transaction completion failed: ${errorMessage}`, orderId: reference });
-                router.push(`/dashboard/pos?payment_status=failed&message=${encodeURIComponent(errorMessage)}`);
             }
         };
 
@@ -126,17 +138,21 @@ function PaymentCallback() {
                     {result.status === 'verifying' && <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />}
                     {result.status === 'success' && <CheckCircle className="mx-auto h-12 w-12 text-green-500" />}
                     {result.status === 'failed' && <XCircle className="mx-auto h-12 w-12 text-destructive" />}
+                    {result.status === 'cancelled' && <XCircle className="mx-auto h-12 w-12 text-yellow-500" />}
                     <CardTitle className="mt-4">{
                         {
                             verifying: 'Processing Payment',
                             success: 'Payment Successful',
-                            failed: 'Payment Failed'
+                            failed: 'Payment Failed',
+                            cancelled: 'Payment Cancelled'
                         }[result.status]
                     }</CardTitle>
                     <CardDescription>{result.message}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-sm text-center text-muted-foreground">You will be redirected shortly...</p>
+                    {result.status !== 'verifying' && (
+                        <Button onClick={() => router.back()} className="w-full">Go Back</Button>
+                    )}
                 </CardContent>
             </Card>
         </main>

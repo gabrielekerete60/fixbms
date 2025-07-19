@@ -88,7 +88,7 @@ export async function initializePaystackTransaction(orderPayload: any): Promise<
         callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payment/callback`,
         metadata: {
             orderId: reference,
-            cancel_action: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/pos?payment_status=cancelled`,
+            cancel_action: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/sales-runs/${orderPayload.runId}?payment_status=cancelled`,
         }
     };
 
@@ -363,7 +363,6 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
             collection(db, 'transfers'),
             where('is_sales_run', '==', true),
             where('to_staff_id', '==', staffId),
-            where('status', 'in', ['active', 'completed']),
             orderBy('date', 'desc')
         );
         const querySnapshot = await getDocs(q);
@@ -401,9 +400,14 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
     } catch (error: any) {
         console.error("Error in getSalesRuns:", error);
         if (error.code === 'failed-precondition') {
-            return { active: [], completed: [], error: error.message, indexUrl: error.message.match(/(https?:\/\/[^\s]+)/)?.[0] };
+            // Log the full error to the server console to ensure visibility
+            console.error("Firestore Index Missing:", error.toString());
+            // Attempt to extract the URL from the message for the UI
+            const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
+            const indexUrl = urlMatch ? urlMatch[0] : undefined;
+            return { active: [], completed: [], error: "A database index is required. Please check the server logs for a link to create it.", indexUrl };
         }
-        return { active: [], completed: [], error: 'An unexpected error occurred.' };
+        return { active: [], completed: [], error: 'An unexpected error occurred while fetching sales runs.' };
     }
 }
 
@@ -618,9 +622,11 @@ export type PaymentConfirmation = {
   date: Timestamp;
   driverId: string;
   driverName: string;
-  saleId: string;
+  runId: string;
   amount: number;
   status: 'pending' | 'approved' | 'declined';
+  customerName: string;
+  items: { productId: string; quantity: number, price: number, name: string }[];
 };
 
 export async function getPaymentConfirmations(): Promise<PaymentConfirmation[]> {
@@ -645,19 +651,60 @@ export async function getPaymentConfirmations(): Promise<PaymentConfirmation[]> 
 }
 
 export async function handlePaymentConfirmation(confirmationId: string, action: 'approve' | 'decline'): Promise<{ success: boolean; error?: string }> {
-  try {
     const confirmationRef = doc(db, 'payment_confirmations', confirmationId);
-    const newStatus = action === 'approve' ? 'approved' : 'declined';
-    
-    // In a real app, 'approving' might also trigger updating a customer's balance or creating a formal sales record.
-    // For now, we just update the status.
-    await updateDoc(confirmationRef, { status: newStatus });
 
-    return { success: true };
-  } catch (error) {
-    console.error("Error handling payment confirmation:", error);
-    return { success: false, error: `Failed to ${action} payment.` };
-  }
+    try {
+        await runTransaction(db, async (transaction) => {
+            const confirmationDoc = await transaction.get(confirmationRef);
+            if (!confirmationDoc.exists() || confirmationDoc.data().status !== 'pending') {
+                throw new Error("This confirmation has already been processed.");
+            }
+            const confirmationData = confirmationDoc.data() as PaymentConfirmation;
+            const newStatus = action === 'approve' ? 'approved' : 'declined';
+            
+            if (action === 'approve') {
+                // If approved, create a formal order and update the sales run
+                const orderData = {
+                    salesRunId: confirmationData.runId,
+                    customerId: confirmationData.items[0]?.customerId || 'walk-in', // A bit of a guess here
+                    customerName: confirmationData.customerName,
+                    items: confirmationData.items,
+                    total: confirmationData.amount,
+                    paymentMethod: 'Cash',
+                    date: new Date().toISOString(),
+                    staffId: confirmationData.driverId,
+                    status: 'Completed',
+                };
+                
+                const runRef = doc(db, 'transfers', confirmationData.runId);
+                const newOrderRef = doc(collection(db, 'orders'));
+
+                // Decrement stock from the driver's personal inventory
+                for (const item of confirmationData.items) {
+                    const stockRef = doc(db, 'staff', confirmationData.driverId, 'personal_stock', item.productId);
+                    const stockDoc = await transaction.get(stockRef);
+                    if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
+                    throw new Error(`Not enough stock for ${item.name}.`);
+                    }
+                    transaction.update(stockRef, { stock: increment(-item.quantity) });
+                }
+                
+                // Create the order document
+                transaction.set(newOrderRef, orderData);
+
+                // Update the sales run financials
+                transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+            }
+
+            // Update the confirmation status regardless
+            transaction.update(confirmationRef, { status: newStatus });
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error handling payment confirmation:", error);
+        return { success: false, error: `Failed to ${action} payment. ${(error as Error).message}` };
+    }
 }
 
 export type Announcement = {
@@ -1188,7 +1235,7 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
 export async function checkForMissingIndexes(): Promise<{ requiredIndexes: string[] }> {
     const checks = [
         () => getDocs(query(collection(db, 'transfers'), where('is_sales_run', '==', true), orderBy('date', 'desc'))),
-        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('is_sales_run', '==', true), where('status', 'in', ['active', 'completed']), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('is_sales_run', '==', true), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'waste_logs'), where('staffId', '==', 'test'), orderBy('date', 'desc'))),
     ];
 
@@ -1227,7 +1274,7 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
       }
       
       salesByCustomer[customerId].totalSold += order.total;
-      if (order.paymentMethod === 'Cash') {
+      if (order.paymentMethod === 'Cash' || order.paymentMethod === 'Card') {
         salesByCustomer[customerId].totalPaid += order.total;
       }
     });
@@ -1322,25 +1369,32 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
 type PaymentData = {
     runId: string;
     customerId: string;
+    customerName: string;
+    driverId: string;
+    driverName: string;
     amount: number;
 }
-export async function handleRecordPaymentForRun(data: PaymentData): Promise<{ success: boolean; error?: string }> {
+export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<{ success: boolean; error?: string }> {
     try {
-        await runTransaction(db, async (transaction) => {
-            const runRef = doc(db, 'transfers', data.runId);
-            const customerRef = doc(db, 'customers', data.customerId);
-
-            // Update sales run collected amount
-            transaction.update(runRef, { totalCollected: increment(data.amount) });
-            // Update customer's paid amount
-            transaction.update(customerRef, { amountPaid: increment(data.amount) });
+        await addDoc(collection(db, 'payment_confirmations'), {
+            runId: data.runId,
+            customerId: data.customerId,
+            customerName: data.customerName,
+            amount: data.amount,
+            driverId: data.driverId,
+            driverName: data.driverName,
+            date: serverTimestamp(),
+            status: 'pending',
+            items: [], // Not a new sale, so no items
+            isDebtPayment: true,
         });
         return { success: true };
     } catch (error) {
-        console.error("Error recording payment:", error);
-        return { success: false, error: (error as Error).message };
+        console.error("Error recording cash payment:", error);
+        return { success: false, error: "Failed to submit cash payment for approval." };
     }
 }
     
 
     
+
