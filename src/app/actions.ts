@@ -856,6 +856,7 @@ export async function getWasteLogsForStaff(staffId: string): Promise<WasteLog[]>
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
             console.error("Firestore index missing for getWasteLogsForStaff. Please create it in the Firebase console.", error.message);
+            return []; // Intentionally return empty on index error to avoid crash
         } else {
             console.error("Error fetching waste logs for staff:", error);
         }
@@ -963,6 +964,7 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
 
      try {
         await runTransaction(db, async (transaction) => {
+            // --- 1. All READ operations first ---
             const transferDoc = await transaction.get(transferRef);
             if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
             if (transferDoc.data().status !== 'pending') throw new Error("This transfer has already been processed.");
@@ -974,7 +976,6 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             const productDocsPromises: Promise<any>[] = [];
             const staffStockDocsPromises: Promise<any>[] = [];
 
-            // --- 1. All READ operations first ---
             for (const item of transfer.items) {
                 const productRef = doc(db, 'products', item.productId);
                 productRefs.push(productRef);
@@ -1218,9 +1219,9 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
 
 export async function checkForMissingIndexes(): Promise<{ requiredIndexes: string[] }> {
     const checks = [
-        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'pending'), orderBy('date', 'desc'))),
-        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'completed'), orderBy('date', 'desc'))),
-        () => getDocs(query(collection(db, 'transfers'), where('is_sales_run', '==', true), where('to_staff_id', '==', 'test'), where('status', 'in', ['active', 'completed']), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'transfers'), where('is_sales_run', '==', true), where('status', 'in', ['active', 'completed']), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('is_sales_run', '==', true), where('status', '==', 'active'), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('is_sales_run', '==', true), where('status', '==', 'completed'), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'waste_logs'), where('staffId', '==', 'test'), orderBy('date', 'desc'))),
     ];
 
@@ -1241,4 +1242,3 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
     
     return { requiredIndexes: Array.from(missingIndexes) };
 }
-
