@@ -338,32 +338,31 @@ export default function POSPage() {
   }
 
   const initializePayment = usePaystackPayment({
-      reference: new Date().getTime().toString(),
-      email: "customer@example.com", // This should be dynamic in a real app
-      amount: Math.round(total * 100), // Amount in kobo
-      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+    reference: new Date().getTime().toString(),
+    email: "customer@example.com",
+    amount: Math.round(total * 100),
+    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+    onSuccess: async () => {
+        setIsCheckoutOpen(false);
+        const completed = await completeOrder('Card');
+        if (completed) {
+          setIsReceiptOpen(true);
+          toast({
+            title: "Payment Successful",
+            description: "The order has been completed.",
+          });
+        }
+      },
+    onClose: () => {
+        setIsCheckoutOpen(false);
+        toast({
+          variant: "destructive",
+          title: "Payment Cancelled",
+          description: "The payment process was cancelled.",
+        });
+      },
   });
 
-  const onPaystackSuccess = async () => {
-    setIsCheckoutOpen(false);
-    const completed = await completeOrder('Card');
-    if (completed) {
-      setIsReceiptOpen(true);
-      toast({
-        title: "Payment Successful",
-        description: "The order has been completed.",
-      });
-    }
-  };
-
-  const onPaystackClose = () => {
-    setIsCheckoutOpen(false);
-    toast({
-      variant: "destructive",
-      title: "Payment Cancelled",
-      description: "The payment process was cancelled.",
-    });
-  };
   
   const handlePrintReceipt = () => {
     const printWindow = window.open('', '_blank');
@@ -686,7 +685,7 @@ export default function POSPage() {
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
-                    <Button className="h-24 text-lg" onClick={() => initializePayment({onSuccess, onClose})}>
+                    <Button className="h-24 text-lg" onClick={() => initializePayment()}>
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with Paystack
                     </Button>
