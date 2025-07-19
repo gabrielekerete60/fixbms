@@ -175,7 +175,7 @@ export default function POSPage() {
       }
     };
     initializePos();
-  }, [toast]);
+  }, []);
 
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
@@ -337,14 +337,12 @@ export default function POSPage() {
     }
   }
 
-  const paystackConfig = {
+  const initializePayment = usePaystackPayment({
       reference: new Date().getTime().toString(),
-      email: "customer@example.com",
+      email: "customer@example.com", // This should be dynamic in a real app
       amount: Math.round(total * 100), // Amount in kobo
       publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-  };
-
-  const initializePayment = usePaystackPayment(paystackConfig);
+  });
 
   const onPaystackSuccess = async () => {
     setIsCheckoutOpen(false);
@@ -359,6 +357,7 @@ export default function POSPage() {
   };
 
   const onPaystackClose = () => {
+    setIsCheckoutOpen(false);
     toast({
       variant: "destructive",
       title: "Payment Cancelled",
@@ -687,11 +686,7 @@ export default function POSPage() {
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
-                    <Button className="h-24 text-lg" onClick={() => {
-                        console.log("Paystack button clicked.");
-                        console.log("Paystack Config:", paystackConfig);
-                        initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose});
-                    }}>
+                    <Button className="h-24 text-lg" onClick={() => initializePayment({onSuccess, onClose})}>
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with Paystack
                     </Button>
@@ -781,4 +776,3 @@ export default function POSPage() {
      </>
   );
 }
-
