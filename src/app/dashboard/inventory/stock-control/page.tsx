@@ -233,7 +233,7 @@ export default function StockControlPage() {
                  // Fetch transfers initiated by the user for the log
                 const transfersQuery = query(collection(db, "transfers"), where('from_staff_id', '==', currentUser.staff_id), orderBy("date", "desc"));
                 const transfersSnapshot = await getDocs(transfersQuery);
-                setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer)));
+                setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: doc.data().date.toDate().toISOString() } as Transfer)));
             } else {
                 // Other staff see their personal stock for waste reporting
                 const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
@@ -446,7 +446,7 @@ export default function StockControlPage() {
                                     ) : (
                                         pendingTransfers.map(t => (
                                             <TableRow key={t.id}>
-                                                <TableCell>{format(t.date.toDate(), 'Pp')}</TableCell>
+                                                <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
                                                 <TableCell>{t.from_staff_name}</TableCell>
                                                 <TableCell>
                                                     <ul className="list-disc pl-5">
@@ -489,7 +489,7 @@ export default function StockControlPage() {
                                     ) : (
                                         completedTransfers.map(t => (
                                             <TableRow key={t.id}>
-                                                <TableCell>{format(t.date.toDate(), 'Pp')}</TableCell>
+                                                <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
                                                 <TableCell>{t.from_staff_name}</TableCell>
                                                 <TableCell>
                                                     <ul className="list-disc pl-5">
@@ -532,7 +532,7 @@ export default function StockControlPage() {
                                     ) : (
                                         myWasteLogs.map(log => (
                                             <TableRow key={log.id}>
-                                                <TableCell>{format(log.date.toDate(), 'PPP')}</TableCell>
+                                                <TableCell>{format(new Date(log.date), 'PPP')}</TableCell>
                                                 <TableCell>{log.productName}</TableCell>
                                                 <TableCell>{log.quantity}</TableCell>
                                                 <TableCell>{log.reason}</TableCell>
@@ -781,7 +781,7 @@ export default function StockControlPage() {
                     ) : initiatedTransfers.length > 0 ? (
                         initiatedTransfers.map((transfer) => (
                              <TableRow key={transfer.id}>
-                                <TableCell>{transfer.date ? format(transfer.date.toDate(), 'PPpp') : 'N/A'}</TableCell>
+                                <TableCell>{transfer.date ? format(new Date(transfer.date), 'PPpp') : 'N/A'}</TableCell>
                                 <TableCell>{transfer.from_staff_name}</TableCell>
                                 <TableCell>{transfer.to_staff_name}</TableCell>
                                 <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
