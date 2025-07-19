@@ -353,18 +353,14 @@ export type SalesRun = {
 type SalesRunResult = {
     active: SalesRun[];
     completed: SalesRun[];
-    error?: string;
-    indexUrl?: string;
 }
 
 export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
     try {
-        // A simpler, more resilient query.
         const q = query(
             collection(db, 'transfers'),
             where('is_sales_run', '==', true),
             where('to_staff_id', '==', staffId),
-            where('status', 'in', ['active', 'completed']),
             orderBy('date', 'desc')
         );
 
@@ -401,13 +397,8 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
         return { active, completed };
 
     } catch (error: any) {
-        console.error("RAW ERROR in getSalesRuns:", error);
-        if (error.code === 'failed-precondition') {
-            const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
-            return { active: [], completed: [], error: error.message, indexUrl: urlMatch ? urlMatch[0] : undefined };
-        } else {
-            return { active: [], completed: [], error: "An unexpected error occurred while fetching sales runs." };
-        }
+        console.error("Error in getSalesRuns:", error);
+        throw error;
     }
 }
 
@@ -416,7 +407,6 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
         const q = query(
             collection(db, 'transfers'), 
             where('is_sales_run', '==', true),
-            where('status', 'in', ['active', 'completed']),
             orderBy('date', 'desc')
         );
 
@@ -451,14 +441,8 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
 
         return { active, completed };
     } catch (error: any) {
-        if (error.code === 'failed-precondition') {
-            const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
-            console.error("Firestore index missing for getAllSalesRuns.", error.message);
-            return { active: [], completed: [], error: error.message, indexUrl: urlMatch ? urlMatch[0] : undefined };
-        } else {
-            console.error("Error fetching all sales runs:", error);
-            return { active: [], completed: [], error: "An unexpected error occurred while fetching all sales runs." };
-        }
+        console.error("Error fetching all sales runs:", error);
+        throw error;
     }
 }
 
@@ -1196,9 +1180,8 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
 
 export async function checkForMissingIndexes(): Promise<{ requiredIndexes: string[] }> {
     const checks = [
-        () => getDocs(query(collection(db, 'transfers'), where('is_sales_run', '==', true), where('status', 'in', ['active', 'completed']), orderBy('date', 'desc'))),
-        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('is_sales_run', '==', true), where('status', '==', 'active'), orderBy('date', 'desc'))),
-        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('is_sales_run', '==', true), where('status', '==', 'completed'), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'transfers'), where('is_sales_run', '==', true), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('is_sales_run', '==', true), where('status', 'in', ['active', 'completed']), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'waste_logs'), where('staffId', '==', 'test'), orderBy('date', 'desc'))),
     ];
 

@@ -5,14 +5,13 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Package2, Car, AlertTriangle, Users, DollarSign, Filter } from 'lucide-react';
+import { Loader2, Package2, Car, Users, DollarSign, Filter } from 'lucide-react';
 import { getSalesRuns, getAllSalesRuns } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import type { SalesRun as SalesRunType } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
@@ -22,29 +21,6 @@ type User = {
     role: string;
     staff_id: string;
 };
-
-function IndexWarning({ error, indexUrl }: { error: string, indexUrl?: string }) {
-    if (!error) return null;
-
-    return (
-        <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Database Configuration Required</AlertTitle>
-            <AlertDescription>
-                <p className="mb-2">
-                    A query failed because a required database index has not been created.
-                </p>
-                {indexUrl ? (
-                     <a href={indexUrl} target="_blank" rel="noopener noreferrer" className="underline font-medium">
-                        Click here to create the required database index in the Firebase console.
-                    </a>
-                ) : (
-                    <p className="text-xs font-mono bg-muted p-2 rounded-md">{error}</p>
-                )}
-            </AlertDescription>
-        </Alert>
-    )
-}
 
 function EmptyState({ title, description }: { title: string, description: string }) {
     return (
@@ -93,7 +69,7 @@ function RunCard({ run }: { run: SalesRunType }) {
     );
 }
 
-function ManagerView({ allRuns, isLoading, apiError, indexUrl }: { allRuns: SalesRunType[], isLoading: boolean, apiError: string | null, indexUrl?: string }) {
+function ManagerView({ allRuns, isLoading }: { allRuns: SalesRunType[], isLoading: boolean }) {
     const [filterDriver, setFilterDriver] = useState('all');
     const [sort, setSort] = useState('date_desc');
 
@@ -124,7 +100,6 @@ function ManagerView({ allRuns, isLoading, apiError, indexUrl }: { allRuns: Sale
 
     return (
         <div className="flex flex-col gap-4">
-            {apiError && <IndexWarning error={apiError} indexUrl={indexUrl} />}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -150,7 +125,7 @@ function ManagerView({ allRuns, isLoading, apiError, indexUrl }: { allRuns: Sale
                         <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{drivers.length - 1}</div>
+                        <div className="text-2xl font-bold">{drivers.length > 1 ? drivers.length - 1 : 0}</div>
                     </CardContent>
                 </Card>
             </div>
@@ -214,29 +189,20 @@ function ManagerView({ allRuns, isLoading, apiError, indexUrl }: { allRuns: Sale
     )
 }
 
-function DriverView({ user, onFocus }: { user: User, onFocus: () => void }) {
+function DriverView({ user }: { user: User }) {
     const [activeRuns, setActiveRuns] = useState<SalesRunType[]>([]);
     const [completedRuns, setCompletedRuns] = useState<SalesRunType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [apiError, setApiError] = useState<string | null>(null);
-    const [indexUrl, setIndexUrl] = useState<string | undefined>(undefined);
     const { toast } = useToast();
 
     const fetchRuns = useCallback(async () => {
         setIsLoading(true);
-        setApiError(null);
-        setIndexUrl(undefined);
         try {
-            const { active, completed, error, indexUrl } = await getSalesRuns(user.staff_id);
-            if(error) {
-                setApiError(error);
-                setIndexUrl(indexUrl);
-            }
+            const { active, completed } = await getSalesRuns(user.staff_id);
             setActiveRuns(active);
             setCompletedRuns(completed);
         } catch (error) {
             console.error("Error fetching runs:", error);
-            setApiError('An unexpected error occurred. Please try again later.');
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales runs.' });
         } finally {
             setIsLoading(false);
@@ -245,21 +211,17 @@ function DriverView({ user, onFocus }: { user: User, onFocus: () => void }) {
     
     useEffect(() => {
         if(user.staff_id) fetchRuns();
-    }, [user, fetchRuns]);
 
-    useEffect(() => {
         window.addEventListener('focus', fetchRuns);
         return () => {
             window.removeEventListener('focus', fetchRuns);
         };
-    }, [fetchRuns]);
+    }, [user, fetchRuns]);
     
     return (
         <div className="flex flex-col gap-4">
             <h1 className="text-2xl font-bold font-headline">My Sales Runs</h1>
             
-            {apiError && <IndexWarning error={apiError} indexUrl={indexUrl} />}
-
             <Tabs defaultValue="active">
                 <TabsList>
                     <TabsTrigger value="active">Active Runs ({activeRuns.length})</TabsTrigger>
@@ -273,9 +235,7 @@ function DriverView({ user, onFocus }: { user: User, onFocus: () => void }) {
                             {activeRuns.map(run => <RunCard key={run.id} run={run} />)}
                         </div>
                     ) : (
-                        !apiError && (
-                            <Card><CardContent className="p-6"><EmptyState title="No Active Sales Runs" description="Accepted sales runs will appear here." /></CardContent></Card>
-                        )
+                        <Card><CardContent className="p-6"><EmptyState title="No Active Sales Runs" description="Accepted sales runs will appear here." /></CardContent></Card>
                     )}
                 </TabsContent>
                 <TabsContent value="completed" className="mt-4">
@@ -286,9 +246,7 @@ function DriverView({ user, onFocus }: { user: User, onFocus: () => void }) {
                             {completedRuns.map(run => <RunCard key={run.id} run={run} />)}
                         </div>
                     ) : (
-                        !apiError && (
-                             <Card><CardContent className="p-6"><EmptyState title="No Completed Runs" description="Your completed sales runs will appear here." /></CardContent></Card>
-                        )
+                         <Card><CardContent className="p-6"><EmptyState title="No Completed Runs" description="Your completed sales runs will appear here." /></CardContent></Card>
                     )}
                 </TabsContent>
             </Tabs>
@@ -300,25 +258,16 @@ export default function DeliveriesPage() {
     const [user, setUser] = useState<User | null>(null);
     const [allRuns, setAllRuns] = useState<SalesRunType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [apiError, setApiError] = useState<string | null>(null);
-    const [indexUrl, setIndexUrl] = useState<string | undefined>(undefined);
     const { toast } = useToast();
 
     const fetchAllRunsForManager = useCallback(async () => {
         setIsLoading(true);
-        setApiError(null);
-        setIndexUrl(undefined);
         try {
-            const { active, completed, error, indexUrl } = await getAllSalesRuns();
-             if(error) {
-                setApiError(error);
-                setIndexUrl(indexUrl);
-            }
+            const { active, completed } = await getAllSalesRuns();
             setAllRuns([...active, ...completed]);
         } catch (error) {
              console.error("Error fetching all runs:", error);
-             setApiError('An unexpected error occurred. Please try again later.');
-             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales runs.' });
+             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales runs for manager view.' });
         } finally {
             setIsLoading(false);
         }
@@ -332,26 +281,15 @@ export default function DeliveriesPage() {
             const managerRoles = ['Manager', 'Developer', 'Supervisor'];
             if(managerRoles.includes(parsedUser.role)) {
                 fetchAllRunsForManager();
+            } else {
+                setIsLoading(false); // Not a manager, no need to load all runs
             }
         } else {
              toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
+             setIsLoading(false);
         }
-        setIsLoading(false);
     }, [fetchAllRunsForManager, toast]);
 
-    const handleFocus = useCallback(() => {
-        if (user) {
-            const managerRoles = ['Manager', 'Developer', 'Supervisor'];
-            if(managerRoles.includes(user.role)) {
-                fetchAllRunsForManager();
-            }
-        }
-    }, [user, fetchAllRunsForManager]);
-
-    useEffect(() => {
-        window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus);
-    }, [handleFocus]);
 
     if(isLoading || !user) {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
@@ -359,8 +297,8 @@ export default function DeliveriesPage() {
 
     const managerRoles = ['Manager', 'Developer', 'Supervisor'];
     if(managerRoles.includes(user.role)) {
-        return <ManagerView allRuns={allRuns} isLoading={isLoading} apiError={apiError} indexUrl={indexUrl} />;
+        return <ManagerView allRuns={allRuns} isLoading={isLoading} />;
     }
     
-    return <DriverView user={user} onFocus={handleFocus} />;
+    return <DriverView user={user} />;
 }

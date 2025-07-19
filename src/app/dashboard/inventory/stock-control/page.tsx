@@ -34,6 +34,7 @@ import {
   Check,
   X,
   Truck,
+  Eye,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -53,10 +54,11 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, getWasteLogsForStaff, WasteLog } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import Link from "next/link";
 
 type User = {
     name: string;
@@ -83,6 +85,14 @@ type Product = {
 };
 
 function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void }) {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleAction = (action: 'accept' | 'decline') => {
+        setIsSubmitting(true);
+        onAccept(transfer.id, action);
+        // The dialog will close on its own if the parent component rerenders and this dialog is no longer there
+    }
+
     return (
         <Dialog>
             <DialogTrigger asChild>
@@ -90,7 +100,7 @@ function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept:
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Acknowledge Sales Run: {transfer.id.substring(0, 6).toUpperCase()}</DialogTitle>
+                    <DialogTitle>Acknowledge Transfer: {transfer.id.substring(0, 6).toUpperCase()}</DialogTitle>
                     <DialogDescription>
                         You are about to accept responsibility for the following items. This action cannot be undone.
                     </DialogDescription>
@@ -109,7 +119,7 @@ function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept:
                                 <TableRow key={item.productId}>
                                     <TableCell>{item.productName}</TableCell>
                                     <TableCell>{item.quantity}</TableCell>
-                                    <TableCell className="text-right">₦{(item.price! * item.quantity).toLocaleString()}</TableCell>
+                                    <TableCell className="text-right">₦{((item.price || 0) * item.quantity).toLocaleString()}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -117,11 +127,15 @@ function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept:
                 </div>
                 <div className="font-bold text-lg flex justify-between border-t pt-4">
                     <span>Total Run Value:</span>
-                    <span>₦{transfer.totalValue?.toLocaleString()}</span>
+                    <span>₦{(transfer.totalValue || 0).toLocaleString()}</span>
                 </div>
                 <DialogFooter className="mt-4">
-                     <Button variant="destructive" onClick={() => onAccept(transfer.id, 'decline')}>Decline Run</Button>
-                     <Button onClick={() => onAccept(transfer.id, 'accept')}>Accept Run</Button>
+                     <Button variant="destructive" onClick={() => handleAction('decline')} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Decline
+                    </Button>
+                     <Button onClick={() => handleAction('accept')} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Accept
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -415,7 +429,7 @@ export default function StockControlPage() {
   const handleAcknowledge = async (id: string, type: 'accept' | 'decline') => {
     const result = await handleAcknowledgeTransfer(id, type);
     if (result.success) {
-        const message = type === 'accept' ? 'Transfer accepted and moved to active runs.' : 'Transfer has been declined.';
+        const message = type === 'accept' ? 'Transfer accepted.' : 'Transfer has been declined.';
         toast({ title: 'Success', description: message });
         fetchPageData();
     } else {
@@ -439,7 +453,7 @@ export default function StockControlPage() {
                 <TabsList className="grid grid-cols-4 w-full">
                     <TabsTrigger value="acknowledge" className="relative">
                         Acknowledge Stock
-                        {pendingTransfers.length > 0 && <Badge className="ml-2">{pendingTransfers.length}</Badge>}
+                        {pendingTransfers.length > 0 && <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full">{pendingTransfers.length}</Badge>}
                     </TabsTrigger>
                      <TabsTrigger value="history">
                         My Transfer History
@@ -479,7 +493,7 @@ export default function StockControlPage() {
                                                 <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
                                                 <TableCell>{t.from_staff_name}</TableCell>
                                                 <TableCell>
-                                                    {t.is_sales_run ? <Badge variant="secondary">Sales Run</Badge> : <Badge variant="outline">Stock</Badge>}
+                                                    {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
                                                 </TableCell>
                                                 <TableCell>
                                                     {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
@@ -507,26 +521,32 @@ export default function StockControlPage() {
                                     <TableRow>
                                         <TableHead>Date</TableHead>
                                         <TableHead>From</TableHead>
-                                        <TableHead>Items</TableHead>
+                                        <TableHead>Type</TableHead>
                                         <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Action</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                      {isLoading ? (
-                                        <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
                                     ) : completedTransfers.length === 0 ? (
-                                        <TableRow><TableCell colSpan={4} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
                                     ) : (
                                         completedTransfers.map(t => (
                                             <TableRow key={t.id}>
                                                 <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
                                                 <TableCell>{t.from_staff_name}</TableCell>
                                                 <TableCell>
-                                                    <ul className="list-disc pl-5">
-                                                        {t.items.map(i => <li key={i.productId}>{i.quantity} x {i.productName}</li>)}
-                                                    </ul>
+                                                    {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
                                                 </TableCell>
                                                 <TableCell><Badge>{t.status}</Badge></TableCell>
+                                                <TableCell className="text-right">
+                                                    {t.is_sales_run && t.status === 'completed' && (
+                                                        <Button variant="outline" size="sm" asChild>
+                                                            <Link href={`/dashboard/sales-runs/${t.id}`}><Eye className="mr-2 h-4 w-4"/>View Details</Link>
+                                                        </Button>
+                                                    )}
+                                                </TableCell>
                                             </TableRow>
                                         ))
                                     )}
