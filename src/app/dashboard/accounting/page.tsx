@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { format, subMonths, startOfDay, endOfDay } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { Separator } from "@/components/ui/separator";
-import { getAccountingReport, AccountingReport, getCreditors, Creditor, getExpenses, Expense, handleLogPayment, handleAddExpense, getPaymentConfirmations, PaymentConfirmation, handlePaymentConfirmation, getDebtors, Debtor } from "@/app/actions";
+import { getCreditors, Creditor, getExpenses, Expense, handleLogPayment, handleAddExpense, getPaymentConfirmations, PaymentConfirmation, handlePaymentConfirmation, getDebtors, Debtor } from "@/app/actions";
 import {
   Table,
   TableBody,
@@ -49,21 +49,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-
-// --- P&L Components ---
-function StatRow({ label, value, isNegative, isBold }: { label: string, value: number, isNegative?: boolean, isBold?: boolean }) {
-    const formattedValue = `₦${Math.abs(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    const finalValue = isNegative ? `-${formattedValue}` : formattedValue;
-    const valueColor = isNegative ? 'text-destructive' : '';
-    const fontWeight = isBold ? 'font-bold' : '';
-
-    return (
-        <div className={`flex justify-between py-2 text-sm ${fontWeight}`}>
-            <span>{label}</span>
-            <span className={valueColor}>{finalValue}</span>
-        </div>
-    );
-}
 
 // --- Creditors Components ---
 function PayCreditorDialog({ creditor, onPaymentMade }: { creditor: Creditor, onPaymentMade: () => void }) {
@@ -314,7 +299,6 @@ export default function AccountingPage() {
         to: new Date(),
     });
     const [isLoading, setIsLoading] = useState(true);
-    const [report, setReport] = useState<AccountingReport | null>(null);
     const [creditors, setCreditors] = useState<Creditor[]>([]);
     const [debtors, setDebtors] = useState<Debtor[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -326,13 +310,12 @@ export default function AccountingPage() {
         const fromISO = startOfDay(date.from).toISOString();
         const toISO = endOfDay(date.to).toISOString();
 
-        const [reportData, creditorsData, expensesData, debtorsData] = await Promise.all([
-            getAccountingReport({ from: fromISO, to: toISO }),
+        const [creditorsData, expensesData, debtorsData] = await Promise.all([
             getCreditors(),
             getExpenses({ from: date.from, to: date.to }),
             getDebtors()
         ]);
-        setReport(reportData);
+        
         setCreditors(creditorsData);
         setDebtors(debtorsData);
         setExpenses(expensesData);
@@ -346,32 +329,6 @@ export default function AccountingPage() {
     }, [date]);
 
     // --- Content Renderers ---
-    const PnLContent = () => {
-        if (isLoading) return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-        if (!report) return <div className="flex items-center justify-center h-96 text-muted-foreground"><p>Could not load accounting report.</p></div>;
-        
-        return (
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-                <div className="space-y-2">
-                    <h3 className="font-semibold text-lg">Trading Account</h3>
-                    <StatRow label="Sales" value={report.sales} />
-                    <Separator />
-                    <StatRow label="Less: Cost of Goods Sold" value={report.costOfGoodsSold} />
-                     <Separator />
-                    <StatRow label="Gross Profit" value={report.grossProfit} isNegative={report.grossProfit < 0} isBold />
-                </div>
-                 <div className="space-y-2">
-                    <h3 className="font-semibold text-lg">Profit &amp; Loss Account</h3>
-                     <StatRow label="Gross Profit b/f" value={report.grossProfit} isNegative={report.grossProfit < 0} />
-                    <Separator />
-                    <StatRow label="Less: Expenses" value={report.expenses} />
-                    <Separator />
-                    <StatRow label={report.netProfit >= 0 ? "Net Profit" : "Net Loss"} value={report.netProfit} isNegative={report.netProfit < 0} isBold />
-                </div>
-             </div>
-        );
-    }
-    
     const DebtorsContent = () => {
         if (isLoading) return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -570,10 +527,9 @@ export default function AccountingPage() {
         </div>
       </div>
       
-      <Tabs defaultValue="profit-loss">
+      <Tabs defaultValue="debtors-creditors">
         <div className="flex items-center justify-between">
             <TabsList>
-              <TabsTrigger value="profit-loss">Profit &amp; Loss</TabsTrigger>
               <TabsTrigger value="debtors-creditors">Debtors/Creditors</TabsTrigger>
               <TabsTrigger value="expenses">Expenses</TabsTrigger>
               <TabsTrigger value="payments-requests">Payments &amp; Requests</TabsTrigger>
@@ -582,19 +538,6 @@ export default function AccountingPage() {
                 <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
             </Button>
         </div>
-        <TabsContent value="profit-loss" className="mt-4">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Trading Profit or Loss Account</CardTitle>
-                    <CardDescription>
-                       Generated for the period: {date?.from ? format(date.from, "PPP") : ''} - {date?.to ? format(date.to, "PPP") : ''}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <PnLContent />
-                </CardContent>
-            </Card>
-        </TabsContent>
          <TabsContent value="debtors-creditors" className="mt-4 space-y-4">
             <DebtorsContent />
             <CreditorsContent />
