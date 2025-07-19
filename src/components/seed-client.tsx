@@ -1,10 +1,11 @@
+
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { clearDatabase, seedDatabase } from "@/app/seed/actions";
-import { Loader2 } from "lucide-react";
+import { clearDatabase, seedDatabase, verifySeedPassword } from "@/app/seed/actions";
+import { Loader2, KeyRound } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,11 +16,35 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export function SeedClient() {
   const [isPending, startTransition] = useTransition();
+  const [isVerifying, startVerification] = useTransition();
+  const [password, setPassword] = useState("");
+  const [isVerified, setIsVerified] = useState(false);
   const { toast } = useToast();
+  
+  const handleVerify = () => {
+    startVerification(async () => {
+      const result = await verifySeedPassword(password);
+      if (result.success) {
+        setIsVerified(true);
+        toast({
+          title: "Verified!",
+          description: "You can now use the database tools.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result.error || "Invalid password.",
+        });
+      }
+    });
+  }
 
   const handleSeed = () => {
     startTransition(async () => {
@@ -56,6 +81,32 @@ export function SeedClient() {
       }
     });
   };
+
+  if (!isVerified) {
+    return (
+       <div className="flex flex-col space-y-4">
+        <div className="space-y-2">
+            <Label htmlFor="seed-password">Admin Password</Label>
+            <div className="relative">
+                 <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                 <Input 
+                    id="seed-password" 
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter seed password"
+                    className="pl-10"
+                    onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+                 />
+            </div>
+        </div>
+         <Button onClick={handleVerify} disabled={isVerifying || !password} className="w-full font-headline">
+            {isVerifying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Verify
+          </Button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col space-y-4">

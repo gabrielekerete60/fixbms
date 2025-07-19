@@ -314,6 +314,21 @@ const seedData = {
   ]
 };
 
+export async function verifySeedPassword(password: string): Promise<ActionResult> {
+  const seedPassword = process.env.SEED_PASSWORD;
+
+  if (!seedPassword) {
+    // If no password is set in the environment, deny access for security.
+    return { success: false, error: "Seed password is not configured on the server." };
+  }
+  
+  if (password === seedPassword) {
+    return { success: true };
+  } else {
+    return { success: false, error: "Invalid password." };
+  }
+}
+
 export async function seedDatabase(): Promise<ActionResult> {
   console.log("Attempting to seed database...");
   try {
