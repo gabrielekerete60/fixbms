@@ -343,9 +343,6 @@ export default function POSPage() {
       amount: Math.round(total * 100), // Amount in kobo
       publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
   };
-  
-  // DEBUGGING: Log the config right before initializing the hook
-  console.log("Paystack Config:", paystackConfig);
 
   const initializePayment = usePaystackPayment(paystackConfig);
 
@@ -416,11 +413,6 @@ export default function POSPage() {
     setSelectedStaffId(staffId);
     fetchProductsForStaff(staffId);
     setIsStaffSelectionOpen(false);
-  }
-
-  const handlePaystackClick = () => {
-      console.log("Pay with Paystack button clicked. Initializing payment...");
-      initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose});
   }
 
   const selectedStaffName = allStaff.find(s => s.staff_id === selectedStaffId)?.name || user?.name;
@@ -695,7 +687,11 @@ export default function POSPage() {
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
-                    <Button className="h-24 text-lg" onClick={handlePaystackClick}>
+                    <Button className="h-24 text-lg" onClick={() => {
+                        console.log("Paystack button clicked.");
+                        console.log("Paystack Config:", paystackConfig);
+                        initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose});
+                    }}>
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with Paystack
                     </Button>
@@ -785,3 +781,4 @@ export default function POSPage() {
      </>
   );
 }
+
