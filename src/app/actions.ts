@@ -236,7 +236,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         });
 
         // New Customers
-        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfCurrentMonth), where("joinedDate", "<=", endOfCurrentMonth));
+        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfCurrentMonth.toISOString()), where("joinedDate", "<=", endOfCurrentMonth.toISOString()));
         const customersSnapshot = await getDocs(customersQuery);
 
 
@@ -604,13 +604,13 @@ export type Expense = {
 }
 
 export async function getExpenses(dateRange: { from: Date, to: Date }): Promise<Expense[]> {
-     const from = startOfDay(dateRange.from);
-     const to = endOfDay(dateRange.to);
+     const from = startOfDay(dateRange.from).toISOString();
+     const to = endOfDay(dateRange.to).toISOString();
      try {
         const q = query(
             collection(db, "expenses"),
-            where("date", ">=", from.toISOString()),
-            where("date", "<=", to.toISOString()),
+            where("date", ">=", from),
+            where("date", "<=", to),
             orderBy("date", "desc")
         );
         const snapshot = await getDocs(q);
@@ -1465,6 +1465,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 
 
     
+
 
 
 
