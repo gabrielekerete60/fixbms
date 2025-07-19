@@ -337,7 +337,7 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
 
 export type SalesRun = {
     id: string;
-    date: Timestamp;
+    date: string;
     status: 'pending' | 'completed' | 'cancelled';
     items: { productId: string; productName: string; quantity: number }[];
     notes?: string;
@@ -355,7 +355,15 @@ export async function getSalesRuns(staffId: string): Promise<{active: SalesRun[]
         );
 
         const querySnapshot = await getDocs(q);
-        const runs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SalesRun));
+        const runs = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            const date = data.date as Timestamp;
+            return {
+                id: doc.id,
+                ...data,
+                date: date.toDate().toISOString(),
+            } as SalesRun;
+        });
         
         const active = runs.filter(run => run.status === 'pending');
         const completed = runs.filter(run => run.status !== 'pending');
@@ -532,7 +540,7 @@ export async function handleAddExpense(expenseData: Omit<Expense, 'id' | 'date'>
 
 export type PaymentConfirmation = {
   id: string;
-  date: Timestamp;
+  date: string;
   driverId: string;
   driverName: string;
   saleId: string;
@@ -548,7 +556,15 @@ export async function getPaymentConfirmations(): Promise<PaymentConfirmation[]> 
       orderBy('date', 'desc')
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentConfirmation));
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = data.date as Timestamp;
+        return { 
+            id: doc.id,
+             ...data,
+            date: date.toDate().toISOString(),
+        } as PaymentConfirmation
+    });
   } catch (error) {
     console.error("Error fetching payment confirmations:", error);
     return [];
@@ -705,14 +721,22 @@ export type WasteLog = {
     notes?: string;
     staffId: string;
     staffName: string;
-    date: Timestamp;
+    date: string;
 }
 
 export async function getWasteLogs(): Promise<WasteLog[]> {
     try {
         const q = query(collection(db, 'waste_logs'), orderBy('date', 'desc'));
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WasteLog));
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            const date = data.date as Timestamp;
+            return {
+                id: doc.id,
+                ...data,
+                date: date.toDate().toISOString(),
+            } as WasteLog;
+        });
     } catch (error) {
         console.error("Error fetching waste logs:", error);
         return [];
@@ -727,7 +751,15 @@ export async function getWasteLogsForStaff(staffId: string): Promise<WasteLog[]>
             orderBy('date', 'desc')
         );
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WasteLog));
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            const date = data.date as Timestamp;
+            return {
+                id: doc.id,
+                ...data,
+                date: date.toDate().toISOString(),
+            } as WasteLog;
+        });
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
             console.error("Firestore index missing for getWasteLogsForStaff. Please create it in the Firebase console.", error.toString());
@@ -746,7 +778,7 @@ export type Transfer = {
   to_staff_id: string;
   to_staff_name: string;
   items: { productId: string; productName: string; quantity: number }[];
-  date: Timestamp;
+  date: string;
   status: 'pending' | 'completed' | 'cancelled';
 };
 
@@ -760,7 +792,15 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
             orderBy('date', 'desc')
         );
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer));
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            const date = data.date as Timestamp;
+            return { 
+                id: doc.id,
+                ...data,
+                date: date.toDate().toISOString(),
+             } as Transfer
+        });
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
             console.error("Firestore index missing for getPendingTransfersForStaff. Please create it in the Firebase console.", error.toString());
@@ -780,7 +820,15 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
             orderBy('date', 'desc')
         );
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer));
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            const date = data.date as Timestamp;
+            return { 
+                id: doc.id,
+                ...data,
+                date: date.toDate().toISOString(),
+             } as Transfer
+        });
     } catch (error: any) {
          if (error.code === 'failed-precondition') {
             console.error("Firestore index missing for getCompletedTransfersForStaff. Please create it in the Firebase console.", error.toString());
@@ -815,7 +863,7 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                 throw new Error("This transfer has already been processed.");
             }
             
-            const transfer = transferDoc.data() as Omit<Transfer, 'id'>;
+            const transfer = transferDoc.data() as Omit<Transfer, 'id' | 'date'>;
 
             for (const item of transfer.items) {
                 // 1. Decrement main inventory
@@ -1028,4 +1076,3 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
     return { requiredIndexes: Array.from(missingIndexes) };
 }
     
-
