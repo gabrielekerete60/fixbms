@@ -4,11 +4,6 @@
 import { db } from "@/lib/firebase";
 import { collection, getDocs, writeBatch, doc, Timestamp } from "firebase/firestore";
 
-type ActionResult = {
-  success: boolean;
-  error?: string;
-};
-
 // Helper to create timestamps for recent days
 const daysAgo = (days: number) => Timestamp.fromDate(new Date(new Date().setDate(new Date().getDate() - days)));
 
@@ -240,6 +235,19 @@ const seedData = {
         status: "pending",
         isDebtPayment: false,
         items: [{ productId: "prod_1", name: "Family Loaf", price: 550, quantity: 1, costPrice: 300 }]
+      },
+      {
+        id: "pc_3_approved",
+        date: daysAgo(2),
+        driverId: "400005",
+        driverName: "Akan Staff",
+        runId: "tsr_4_owing",
+        customerId: "cust_1",
+        customerName: "Adebisi Onyeka",
+        amount: 1100.00,
+        status: "approved",
+        isDebtPayment: false,
+        items: [{ productId: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }]
       }
   ],
   announcements: [
@@ -477,3 +485,4 @@ export async function seedEmptyData(): Promise<ActionResult> {
 }
 
     
+

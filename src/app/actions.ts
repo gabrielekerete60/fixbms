@@ -478,7 +478,7 @@ export async function getAccountingReport(dateRange: { from: Date, to: Date }): 
     const to = endOfDay(dateRange.to);
 
     try {
-        // --- Calculate Sales ---
+        // --- Calculate Sales & COGS---
         const ordersQuery = query(
             collection(db, "orders"),
             where("date", ">=", from.toISOString()),
@@ -486,24 +486,16 @@ export async function getAccountingReport(dateRange: { from: Date, to: Date }): 
             where("status", "==", "Completed")
         );
         const ordersSnapshot = await getDocs(ordersQuery);
+        
         let sales = 0;
         let costOfGoodsSold = 0;
         
-        const productCosts: Record<string, number> = {};
-
         for(const orderDoc of ordersSnapshot.docs) {
             const order = orderDoc.data();
             sales += order.total;
             for(const item of order.items) {
-                if (!productCosts[item.productId]) {
-                    const productDoc = await getDoc(doc(db, 'products', item.productId));
-                    if (productDoc.exists()) {
-                        productCosts[item.productId] = productDoc.data().costPrice || 0;
-                    } else {
-                        productCosts[item.productId] = 0;
-                    }
-                }
-                costOfGoodsSold += (productCosts[item.productId] || 0) * item.quantity;
+                // Use the cost price stored *at the time of sale* in the order document
+                costOfGoodsSold += (item.costPrice || 0) * item.quantity;
             };
         };
         
@@ -1473,6 +1465,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 
 
     
+
 
 
 
