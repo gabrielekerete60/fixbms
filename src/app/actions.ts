@@ -227,8 +227,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         
         let revenue = 0;
         let activeOrders = 0;
-        ordersSnapshot.forEach(doc => {
-            const order = doc.data();
+        ordersSnapshot.forEach(orderDoc => {
+            const order = orderDoc.data();
             revenue += order.total;
             if (order.status === 'Pending') {
                 activeOrders++;
@@ -250,8 +250,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         const weeklyOrdersQuery = query(collection(db, "orders"), where("date", ">=", startOfWeek.toISOString()));
         const weeklyOrdersSnapshot = await getDocs(weeklyOrdersQuery);
         
-        weeklyOrdersSnapshot.forEach(doc => {
-            const order = doc.data();
+        weeklyOrdersSnapshot.forEach(orderDoc => {
+            const order = orderDoc.data();
             const orderDate = new Date(order.date);
             const dayOfWeek = orderDate.toLocaleString('en-US', { weekday: 'short' }); // Mon, Tue, etc.
             if (dayOfWeek in weeklyRevenueData) {
@@ -366,8 +366,8 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
 
         const querySnapshot = await getDocs(q);
 
-        const runs = await Promise.all(querySnapshot.docs.map(async (doc: any) => {
-            const data = doc.data();
+        const runs = await Promise.all(querySnapshot.docs.map(async (transferDoc: any) => {
+            const data = transferDoc.data();
             const date = data.date as Timestamp;
 
             let totalRevenue = 0;
@@ -381,7 +381,7 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
             );
 
             return {
-                id: doc.id,
+                id: transferDoc.id,
                 ...data,
                 date: date.toDate().toISOString(),
                 items: itemsWithPrices,
@@ -411,8 +411,8 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
         );
 
         const querySnapshot = await getDocs(q);
-        const runs = await Promise.all(querySnapshot.docs.map(async (doc) => {
-            const data = doc.data();
+        const runs = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
+            const data = transferDoc.data();
             const date = data.date as Timestamp;
 
             let totalRevenue = 0;
@@ -426,7 +426,7 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
             );
 
             return {
-                id: doc.id,
+                id: transferDoc.id,
                 ...data,
                 date: date.toDate().toISOString(),
                 items: itemsWithPrices,
@@ -470,8 +470,8 @@ export async function getAccountingReport(dateRange: { from: Date, to: Date }): 
         const ordersSnapshot = await getDocs(ordersQuery);
         let sales = 0;
         let costOfGoodsSold = 0;
-        ordersSnapshot.forEach(doc => {
-            const order = doc.data();
+        ordersSnapshot.forEach(orderDoc => {
+            const order = orderDoc.data();
             sales += order.total;
             order.items.forEach((item: any) => {
                 // This assumes product costPrice is stored with the product.
@@ -1202,3 +1202,5 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
     
     return { requiredIndexes: Array.from(missingIndexes) };
 }
+
+    
