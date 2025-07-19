@@ -111,7 +111,7 @@ function POSPageContent() {
   const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useLocalStorage('isProcessingPayment', false);
 
   const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useLocalStorage<string | null>('posSelectedStaff', null);
@@ -163,7 +163,7 @@ function POSPageContent() {
     const initializePos = async () => {
       const storedUser = localStorage.getItem('loggedInUser');
       if (storedUser) {
-        const parsedUser: User = JSON.parse(storedUser);
+        const parsedUser: User = JSON.parse(parsedUser);
         setUser(parsedUser);
         
         if(!customerEmail) {
@@ -195,6 +195,8 @@ function POSPageContent() {
     const orderId = searchParams.get('order_id');
     
     const handlePaymentResult = async () => {
+        setIsProcessingPayment(false); // Always stop processing when returning
+        
         if (paymentStatus === 'success' && orderId) {
             toast({ title: "Payment Successful", description: "Order completed." });
             const orderDoc = await getDoc(doc(db, 'orders', orderId));
@@ -202,6 +204,8 @@ function POSPageContent() {
                 setLastCompletedOrder(orderDoc.data() as CompletedOrder);
                 setIsReceiptOpen(true);
             }
+        } else if (paymentStatus === 'cancelled') {
+            toast({ variant: 'destructive', title: "Transaction Cancelled", description: "Your payment was cancelled. Please try again." });
         } else if (paymentStatus === 'failed') {
             const message = searchParams.get('message');
             toast({ variant: 'destructive', title: "Payment Failed", description: message || "An unknown error occurred." });
@@ -224,7 +228,6 @@ function POSPageContent() {
   const completeOrder = async (paymentMethod: 'Card' | 'Cash') => {
     if (!user || !selectedStaffId) {
         toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
-        setIsProcessingPayment(false);
         return null;
     }
 
@@ -274,20 +277,18 @@ function POSPageContent() {
         description: errorMessage,
       });
       return null;
-    } finally {
-        setIsProcessingPayment(false);
     }
   }
 
   const handleCardPayment = async () => {
     setIsCheckoutOpen(false);
-    setIsProcessingPayment(true);
     
     if (!user || !selectedStaffId) {
         toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
-        setIsProcessingPayment(false);
         return;
     }
+    
+    setIsProcessingPayment(true);
     
     const orderPayload = {
       items: cart,
@@ -404,6 +405,7 @@ function POSPageContent() {
         toast({ title: 'Order Successful', description: 'The order has been completed.' });
         setIsReceiptOpen(true);
     }
+    setIsProcessingPayment(false);
   }
 
   const handlePrintReceipt = () => {
@@ -470,7 +472,7 @@ function POSPageContent() {
                 {selectedStaffId && (
                     <div 
                       className="text-sm text-muted-foreground hover:text-primary cursor-pointer" 
-                      onClick={() => setIsStaffSelectionOpen(true)}
+                      onClick={() => user?.role === 'Manager' || user?.role === 'Developer' ? setIsStaffSelectionOpen(true) : null}
                     >
                       Operating as: <span className="font-semibold">{selectedStaffName}</span>
                     </div>
@@ -656,12 +658,12 @@ function POSPageContent() {
                 </div>
             </div>
             <div className="grid grid-cols-2 gap-2 w-full">
-                <Button variant="outline" onClick={holdOrder} disabled={cart.length === 0 || !selectedStaffId}>
+                <Button variant="outline" onClick={holdOrder} disabled={cart.length === 0 || !selectedStaffId || isProcessingPayment}>
                     <Hand /> Hold
                 </Button>
                  <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={cart.length === 0 || !selectedStaffId}>
+                        <Button variant="destructive" disabled={cart.length === 0 || !selectedStaffId || isProcessingPayment}>
                             <Trash2/> Clear
                         </Button>
                     </AlertDialogTrigger>
@@ -683,6 +685,11 @@ function POSPageContent() {
                 {isProcessingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                 Checkout
              </Button>
+             {isProcessingPayment && (
+                <Button variant="outline" size="sm" className="w-full" onClick={() => setIsProcessingPayment(false)}>
+                    Cancel Payment
+                </Button>
+             )}
         </CardFooter>
       </Card>
       </div>

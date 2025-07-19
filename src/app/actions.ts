@@ -88,7 +88,7 @@ export async function initializePaystackTransaction(orderPayload: any): Promise<
         callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payment/callback`,
         metadata: {
             orderId: reference,
-            cancel_action: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/pos`,
+            cancel_action: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/pos?payment_status=cancelled`,
         }
     };
 
