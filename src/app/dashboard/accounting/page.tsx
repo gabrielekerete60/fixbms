@@ -534,3 +534,5 @@ export default function AccountingPage() {
     </div>
   );
 }
+
+    
