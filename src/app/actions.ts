@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear, eachDayOfInterval, format, subDays } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay, endOfYear, eachDayOfInterval, format, subDays } from "date-fns";
 import { db } from "@/lib/firebase";
 import fetch from 'node-fetch';
 
@@ -215,13 +215,28 @@ type DashboardStats = {
     weeklyRevenue: { day: string, revenue: number }[];
 };
 
-export async function getDashboardStats(): Promise<DashboardStats> {
+export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'monthly'): Promise<DashboardStats> {
     try {
         const now = new Date();
-        const startOfCurrentMonth = startOfMonth(now);
-        
-        // Revenue, Sales, Active Orders
-        const ordersQuery = query(collection(db, "orders"), where("date", ">=", startOfCurrentMonth.toISOString()));
+        let startOfPeriod: Date;
+
+        switch (filter) {
+            case 'daily':
+                startOfPeriod = startOfDay(now);
+                break;
+            case 'weekly':
+                startOfPeriod = startOfWeek(now, { weekStartsOn: 1 });
+                break;
+            case 'monthly':
+            default:
+                startOfPeriod = startOfMonth(now);
+                break;
+            case 'yearly':
+                startOfPeriod = startOfYear(now);
+                break;
+        }
+
+        const ordersQuery = query(collection(db, "orders"), where("date", ">=", startOfPeriod.toISOString()));
         const ordersSnapshot = await getDocs(ordersQuery);
         
         let revenue = 0;
@@ -234,18 +249,15 @@ export async function getDashboardStats(): Promise<DashboardStats> {
             }
         });
 
-        // New Customers
-        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfCurrentMonth.toISOString()));
+        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfPeriod.toISOString()));
         const customersSnapshot = await getDocs(customersQuery);
 
-
-        // Weekly Revenue for chart
-        const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
+        const weekStart = startOfWeek(now, { weekStartsOn: 1 });
         const weekEnd = endOfDay(now);
         const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
         const weeklyRevenueData = daysInWeek.map(day => ({
-            day: format(day, 'E'), // Mon, Tue, etc.
+            day: format(day, 'E'),
             revenue: 0,
         }));
         
@@ -275,16 +287,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         };
     } catch (error) {
         console.error("Error fetching dashboard stats:", error);
-        // Return zeroed-out data on error
         return {
-            revenue: 0,
-            customers: 0,
-            sales: 0,
-            activeOrders: 0,
-            weeklyRevenue: [
-                { day: 'Mon', revenue: 0 }, { day: 'Tue', revenue: 0 }, { day: 'Wed', revenue: 0 },
-                { day: 'Thu', revenue: 0 }, { day: 'Fri', revenue: 0 }, { day: 'Sat', revenue: 0 }, { day: 'Sun', revenue: 0 },
-            ]
+            revenue: 0, customers: 0, sales: 0, activeOrders: 0,
+            weeklyRevenue: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => ({ day, revenue: 0 })),
         };
     }
 }
@@ -499,7 +504,6 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
         let totalSales = 0;
         snapshot.forEach(runDoc => {
             const runData = runDoc.data();
-            // Use the pre-calculated totalRevenue if it exists, otherwise calculate it.
             if (runData.totalRevenue) {
                 totalSales += runData.totalRevenue;
             }
@@ -725,9 +729,9 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         paymentMethod: 'Cash',
                         date: new Date().toISOString(),
                         staffId: confirmationData.driverId,
-                        id: newOrderRef.id,
                         status: 'Completed',
-                        items: itemsWithCost
+                        items: itemsWithCost,
+                        id: newOrderRef.id,
                     };
                     
                     for (const item of confirmationData.items) {
@@ -1442,24 +1446,3 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
         return { success: false, error: "Failed to submit cash payment for approval." };
     }
 }
-    
-
-    
-
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
