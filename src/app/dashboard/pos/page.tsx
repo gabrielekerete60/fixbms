@@ -48,9 +48,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, runTransaction, increment, getDoc, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { initializePaystackTransaction } from "@/app/actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter, useSearchParams } from "next/navigation";
+import { usePaystackPayment } from "react-paystack";
 
 
 type Product = {
@@ -74,7 +74,6 @@ type CompletedOrder = {
   id: string;
   items: CartItem[];
   subtotal: number;
-  tax: number;
   total: number;
   date: string;
   paymentMethod: 'Card' | 'Cash';
@@ -229,9 +228,8 @@ function POSPageContent() {
 
     const newOrderData = {
       items: cart,
-      subtotal,
-      tax,
-      total,
+      subtotal: total, // No tax, subtotal is total
+      total: total,
       date: new Date().toISOString(),
       paymentMethod,
       customerName: customerName || 'Walk-in',
@@ -278,38 +276,41 @@ function POSPageContent() {
         setIsProcessingPayment(false);
     }
   }
-  
-  const handlePaystackPayment = async () => {
-      setIsProcessingPayment(true);
-      setIsCheckoutOpen(false);
 
-      const orderPayload = {
-          total: total,
-          email: customerEmail,
-          items: cart,
-          subtotal,
-          tax,
-          customerName: customerName || 'Walk-in',
-          staff_id: selectedStaffId,
-          staff_name: allStaff.find(s => s.staff_id === selectedStaffId)?.name || user?.name
-      };
+  const paystackConfig = {
+    reference: new Date().getTime().toString(),
+    email: customerEmail,
+    amount: Math.round(total * 100), // Amount in kobo
+    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+  };
 
-      const result = await initializePaystackTransaction(orderPayload);
-      if(result.success && result.authorization_url) {
-          router.push(result.authorization_url);
-      } else {
-          toast({ variant: 'destructive', title: 'Payment Error', description: result.error || "Could not initialize payment."});
-          setIsProcessingPayment(false);
-      }
-  }
+  const initializePayment = usePaystackPayment(paystackConfig);
 
+  const onPaystackSuccess = async () => {
+    setIsProcessingPayment(true);
+    setIsCheckoutOpen(false);
+    const completed = await completeOrder('Card');
+    if (completed) {
+      setIsReceiptOpen(true);
+      toast({
+        title: "Payment Successful",
+        description: "The order has been completed.",
+      });
+    }
+    setIsProcessingPayment(false);
+  };
 
+  const onPaystackClose = () => {
+    setIsProcessingPayment(false);
+    toast({
+      variant: "destructive",
+      title: "Payment Cancelled",
+      description: "The payment process was cancelled.",
+    });
+  };
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
-
-  const subtotal = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
-  const tax = useMemo(() => subtotal * 0.075, [subtotal]);
-  const total = useMemo(() => subtotal + tax, [subtotal, tax]);
+  const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
   
   const filteredProducts = useMemo(() => {
     if (activeTab === 'All') return products;
@@ -649,15 +650,6 @@ function POSPageContent() {
 
         <CardFooter className="p-4 flex flex-col gap-4 border-t bg-muted/20">
             <div className="w-full space-y-2 text-sm">
-                <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span className="font-medium">₦{subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tax (7.5%)</span>
-                    <span className="font-medium">₦{tax.toFixed(2)}</span>
-                </div>
-                <Separator className="my-2" />
                 <div className="flex justify-between font-bold text-lg">
                     <span>Total</span>
                     <span>₦{total.toFixed(2)}</span>
@@ -740,9 +732,9 @@ function POSPageContent() {
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
-                    <Button className="h-24 text-lg" onClick={handlePaystackPayment}>
+                    <Button className="h-24 text-lg" onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
                         <CreditCard className="mr-2 h-6 w-6" />
-                        Pay with Paystack
+                        Pay with Card
                     </Button>
                 </div>
             </DialogContent>
@@ -803,14 +795,6 @@ function POSPageContent() {
                             </Table>
                             <Separator />
                             <div className="w-full space-y-1 text-sm pr-2">
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Subtotal</span>
-                                    <span className="font-medium">₦{lastCompletedOrder.subtotal.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Tax (7.5%)</span>
-                                    <span className="font-medium">₦{lastCompletedOrder.tax.toFixed(2)}</span>
-                                </div>
                                 <div className="flex justify-between font-bold text-base mt-1">
                                     <span>Total</span>
                                     <span>₦{lastCompletedOrder.total.toFixed(2)}</span>

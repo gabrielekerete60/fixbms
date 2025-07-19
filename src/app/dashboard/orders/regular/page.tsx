@@ -129,14 +129,6 @@ function Receipt({ order }: { order: CompletedOrder }) {
               </Table>
                   <Separator />
                   <div className="w-full space-y-1 text-sm pr-2">
-                  <div className="flex justify-between">
-                      <span className="text-muted-foreground">Subtotal</span>
-                      <span className="font-medium">₦{order.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tax (7.5%)</span>
-                      <span className="font-medium">₦{order.tax.toFixed(2)}</span>
-                  </div>
                   <div className="flex justify-between font-bold text-base mt-1">
                       <span>Total</span>
                       <span>₦{order.total.toFixed(2)}</span>
@@ -566,8 +558,6 @@ export default function RegularOrdersPage() {
                          <Separator className="my-4" />
                         <div className="flex justify-end">
                             <div className="w-1/3 space-y-2">
-                                <div className="flex justify-between"><span>Subtotal:</span><span>₦{order.subtotal.toFixed(2)}</span></div>
-                                <div className="flex justify-between"><span>Tax:</span><span>₦{order.tax.toFixed(2)}</span></div>
                                 <div className="flex justify-between font-bold text-lg"><span>Total:</span><span>₦{order.total.toFixed(2)}</span></div>
                             </div>
                         </div>
