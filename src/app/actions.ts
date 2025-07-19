@@ -619,7 +619,7 @@ export async function handleAddExpense(expenseData: Omit<Expense, 'id' | 'date'>
 
 export type PaymentConfirmation = {
   id: string;
-  date: string; // Changed from Timestamp
+  date: string;
   driverId: string;
   driverName: string;
   runId: string;
@@ -627,7 +627,10 @@ export type PaymentConfirmation = {
   status: 'pending' | 'approved' | 'declined';
   customerName: string;
   items: { productId: string; quantity: number, price: number, name: string }[];
+  isDebtPayment?: boolean;
+  customerId?: string;
 };
+
 
 export async function getPaymentConfirmations(): Promise<PaymentConfirmation[]> {
   try {
@@ -665,40 +668,54 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
             if (action === 'approve') {
-                // If approved, create a formal order and update the sales run
-                const orderData = {
-                    salesRunId: confirmationData.runId,
-                    customerId: confirmationData.items[0]?.customerId || 'walk-in', // A bit of a guess here
-                    customerName: confirmationData.customerName,
-                    items: confirmationData.items,
-                    total: confirmationData.amount,
-                    paymentMethod: 'Cash',
-                    date: new Date().toISOString(),
-                    staffId: confirmationData.driverId,
-                    status: 'Completed',
-                };
-                
                 const runRef = doc(db, 'transfers', confirmationData.runId);
-                const newOrderRef = doc(collection(db, 'orders'));
 
-                // Decrement stock from the driver's personal inventory
-                for (const item of confirmationData.items) {
-                    const stockRef = doc(db, 'staff', confirmationData.driverId, 'personal_stock', item.productId);
-                    const stockDoc = await transaction.get(stockRef);
-                    if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
-                    throw new Error(`Not enough stock for ${item.name}.`);
+                // --- Handle Debt Payment ---
+                if (confirmationData.isDebtPayment) {
+                    if (confirmationData.customerId) {
+                        const customerRef = doc(db, 'customers', confirmationData.customerId);
+                        // Using increment with negative value to reduce amountOwed is one way,
+                        // or incrementing amountPaid. Let's increment amountPaid.
+                        transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                     }
-                    transaction.update(stockRef, { stock: increment(-item.quantity) });
-                }
-                
-                // Create the order document
-                transaction.set(newOrderRef, orderData);
+                    // Update the sales run financials for debt payment
+                    transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+                } 
+                // --- Handle New Sale ---
+                else {
+                    const orderData = {
+                        salesRunId: confirmationData.runId,
+                        customerId: confirmationData.customerId || 'walk-in',
+                        customerName: confirmationData.customerName,
+                        items: confirmationData.items,
+                        total: confirmationData.amount,
+                        paymentMethod: 'Cash',
+                        date: new Date().toISOString(),
+                        staffId: confirmationData.driverId,
+                        status: 'Completed',
+                    };
+                    
+                    const newOrderRef = doc(collection(db, 'orders'));
 
-                // Update the sales run financials
-                transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+                    // Decrement stock from the driver's personal inventory
+                    for (const item of confirmationData.items) {
+                        const stockRef = doc(db, 'staff', confirmationData.driverId, 'personal_stock', item.productId);
+                        const stockDoc = await transaction.get(stockRef);
+                        if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
+                           throw new Error(`Not enough stock for ${item.name}.`);
+                        }
+                        transaction.update(stockRef, { stock: increment(-item.quantity) });
+                    }
+                    
+                    // Create the order document
+                    transaction.set(newOrderRef, orderData);
+
+                    // Update the sales run financials for new sale
+                    transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+                }
             }
 
-            // Update the confirmation status regardless
+            // Update the confirmation status regardless of sale type
             transaction.update(confirmationRef, { status: newStatus });
         });
 
@@ -1401,3 +1418,6 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
     
 
 
+
+
+    
