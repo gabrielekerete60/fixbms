@@ -411,6 +411,7 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
 
         return { active, completed };
     } catch (error: any) {
+        console.error("RAW ERROR in getSalesRuns:", error);
         if (error.code === 'failed-precondition') {
             const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
             console.error("Firestore index missing for getSalesRuns.", error.message);
@@ -964,7 +965,6 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
 
      try {
         await runTransaction(db, async (transaction) => {
-            // --- 1. All READ operations first ---
             const transferDoc = await transaction.get(transferRef);
             if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
             if (transferDoc.data().status !== 'pending') throw new Error("This transfer has already been processed.");
@@ -973,22 +973,15 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
 
             const productRefs: any[] = [];
             const staffStockRefs: any[] = [];
-            const productDocsPromises: Promise<any>[] = [];
-            const staffStockDocsPromises: Promise<any>[] = [];
-
-            for (const item of transfer.items) {
-                const productRef = doc(db, 'products', item.productId);
-                productRefs.push(productRef);
-                productDocsPromises.push(transaction.get(productRef));
-                
-                const staffStockRef = doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId);
-                staffStockRefs.push(staffStockRef);
-                staffStockDocsPromises.push(transaction.get(staffStockRef));
-            }
-            const productDocs = await Promise.all(productDocsPromises);
-            const staffStockDocs = await Promise.all(staffStockDocsPromises);
             
-            // --- 2. Validation ---
+            for (const item of transfer.items) {
+                productRefs.push(doc(db, 'products', item.productId));
+                staffStockRefs.push(doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId));
+            }
+
+            const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
+            const staffStockDocs = await Promise.all(staffStockRefs.map(ref => transaction.get(ref)));
+            
             for (let i = 0; i < transfer.items.length; i++) {
                 const item = transfer.items[i];
                 const productDoc = productDocs[i];
@@ -997,17 +990,14 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                 }
             }
             
-            // --- 3. All WRITE operations last ---
             for (let i = 0; i < transfer.items.length; i++) {
                 const item = transfer.items[i];
                 const productRef = productRefs[i];
                 const staffStockRef = staffStockRefs[i];
                 const staffStockDoc = staffStockDocs[i];
 
-                // Decrement main inventory
                 transaction.update(productRef, { stock: increment(-item.quantity) });
 
-                // Increment staff's personal inventory
                 if (staffStockDoc.exists()) {
                     transaction.update(staffStockRef, { stock: increment(item.quantity) });
                 } else {
@@ -1019,7 +1009,6 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                 }
             }
             
-            // Update transfer status
             const newStatus = transferDoc.data().is_sales_run ? 'active' : 'completed';
             transaction.update(transferRef, { status: newStatus });
         });
