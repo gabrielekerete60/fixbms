@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { collection, getDocs, doc, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type Customer = {
   id: string;
