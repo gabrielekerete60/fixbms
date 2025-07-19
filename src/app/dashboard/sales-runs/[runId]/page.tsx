@@ -78,6 +78,7 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
     }
 
     return (
+       <>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent>
@@ -109,6 +110,7 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+       </>
     )
 }
 
@@ -124,6 +126,8 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
     const [selectedCustomerId, setSelectedCustomerId] = useState('');
     const [cart, setCart] = useState<{ productId: string, quantity: number, price: number, name: string }[]>([]);
     const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Card'>('Cash');
+    const [itemQuantities, setItemQuantities] = useState<Record<string, number | string>>({});
+
 
     const fetchCustomers = async () => {
         const snapshot = await getDocs(collection(db, "customers"));
@@ -137,13 +141,31 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
     }, [isOpen]);
 
     const handleAddToCart = (item: { productId: string, name: string, price: number, quantity: number }) => {
+        const quantityToAdd = Number(itemQuantities[item.productId] || 1);
+        if (isNaN(quantityToAdd) || quantityToAdd <= 0) {
+            toast({ variant: 'destructive', title: 'Invalid Quantity', description: 'Please enter a valid number.' });
+            return;
+        }
+
+        const itemInRun = run.items.find(p => p.productId === item.productId);
+        const itemInCart = cart.find(p => p.productId === item.productId);
+        const currentInCart = itemInCart?.quantity || 0;
+        const availableStock = itemInRun?.quantity || 0;
+
+        if ((currentInCart + quantityToAdd) > availableStock) {
+            toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${availableStock - currentInCart} more units of ${item.name} available.`});
+            return;
+        }
+
         setCart(prev => {
             const existing = prev.find(p => p.productId === item.productId);
             if (existing) {
-                return prev.map(p => p.productId === item.productId ? { ...p, quantity: p.quantity + 1 } : p);
+                return prev.map(p => p.productId === item.productId ? { ...p, quantity: p.quantity + quantityToAdd } : p);
             }
-            return [...prev, { ...item, quantity: 1 }];
+            return [...prev, { ...item, quantity: quantityToAdd }];
         });
+        // Reset input for that item
+        setItemQuantities(prev => ({...prev, [item.productId]: ''}));
     };
 
     const handleRemoveFromCart = (productId: string) => {
@@ -240,7 +262,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                     <span>Sell to Customer</span>
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>Record Sale</DialogTitle>
                     <DialogDescription>Select products from this run and sell to a customer.</DialogDescription>
@@ -251,12 +273,22 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                         <h4 className="font-semibold">Available Items</h4>
                         <div className="border rounded-md max-h-96 overflow-y-auto">
                             {run.items.map(item => (
-                                <div key={item.productId} className="p-2 flex justify-between items-center border-b">
+                                <div key={item.productId} className="p-2 flex justify-between items-center border-b gap-2">
                                     <div>
                                         <p>{item.productName}</p>
-                                        <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                                        <p className="text-sm text-muted-foreground">In Stock: {item.quantity}</p>
                                     </div>
-                                    <Button size="icon" variant="outline" onClick={() => handleAddToCart(item)}><PlusCircle className="h-4 w-4"/></Button>
+                                    <div className="flex items-center gap-2">
+                                        <Input 
+                                            type="number" 
+                                            className="w-20 h-9" 
+                                            placeholder="1"
+                                            value={itemQuantities[item.productId] || ''}
+                                            onChange={(e) => setItemQuantities(prev => ({...prev, [item.productId]: e.target.value}))}
+                                            min="1"
+                                        />
+                                        <Button size="icon" variant="outline" onClick={() => handleAddToCart(item)}><PlusCircle className="h-4 w-4"/></Button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
