@@ -16,7 +16,7 @@ import { Calendar as CalendarIcon, FileDown, Loader2, PlusCircle, Users, Refresh
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { format, subMonths } from "date-fns";
+import { format, subMonths, startOfDay, endOfDay } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { Separator } from "@/components/ui/separator";
 import { getAccountingReport, AccountingReport, getCreditors, Creditor, getExpenses, Expense, handleLogPayment, handleAddExpense, getPaymentConfirmations, PaymentConfirmation, handlePaymentConfirmation, getDebtors, Debtor } from "@/app/actions";
@@ -322,8 +322,12 @@ export default function AccountingPage() {
     const fetchData = async () => {
         if (!date?.from || !date?.to) return;
         setIsLoading(true);
+
+        const fromISO = startOfDay(date.from).toISOString();
+        const toISO = endOfDay(date.to).toISOString();
+
         const [reportData, creditorsData, expensesData, debtorsData] = await Promise.all([
-            getAccountingReport({ from: date.from, to: date.to }),
+            getAccountingReport({ from: fromISO, to: toISO }),
             getCreditors(),
             getExpenses({ from: date.from, to: date.to }),
             getDebtors()
@@ -357,7 +361,7 @@ export default function AccountingPage() {
                     <StatRow label="Gross Profit" value={report.grossProfit} isNegative={report.grossProfit < 0} isBold />
                 </div>
                  <div className="space-y-2">
-                    <h3 className="font-semibold text-lg">Profit & Loss Account</h3>
+                    <h3 className="font-semibold text-lg">Profit &amp; Loss Account</h3>
                      <StatRow label="Gross Profit b/f" value={report.grossProfit} isNegative={report.grossProfit < 0} />
                     <Separator />
                     <StatRow label="Less: Expenses" value={report.expenses} />

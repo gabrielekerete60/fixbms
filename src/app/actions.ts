@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfDay, endOfDay, startOfWeek, eachDayOfInterval, format } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, eachDayOfInterval, format } from "date-fns";
 import { db } from "@/lib/firebase";
 import fetch from 'node-fetch';
 
@@ -473,9 +473,8 @@ export type AccountingReport = {
     netProfit: number;
 }
 
-export async function getAccountingReport(dateRange: { from: Date, to: Date }): Promise<AccountingReport> {
-    const from = startOfDay(dateRange.from).toISOString();
-    const to = endOfDay(dateRange.to).toISOString();
+export async function getAccountingReport(dateRange: { from: string, to: string }): Promise<AccountingReport> {
+    const { from, to } = dateRange;
 
     try {
         // --- Calculate Sales & COGS---
@@ -493,10 +492,12 @@ export async function getAccountingReport(dateRange: { from: Date, to: Date }): 
         for(const orderDoc of ordersSnapshot.docs) {
             const order = orderDoc.data();
             sales += order.total;
-            for(const item of order.items) {
-                // Use the cost price stored *at the time of sale* in the order document
-                costOfGoodsSold += (item.costPrice || 0) * item.quantity;
-            };
+            // The check 'order.items && Array.isArray(order.items)' is important for robustness
+            if (order.items && Array.isArray(order.items)) {
+                for(const item of order.items) {
+                    costOfGoodsSold += (item.costPrice || 0) * item.quantity;
+                };
+            }
         };
         
         // --- Calculate Expenses ---
@@ -604,8 +605,8 @@ export type Expense = {
 }
 
 export async function getExpenses(dateRange: { from: Date, to: Date }): Promise<Expense[]> {
-     const from = startOfDay(dateRange.from).toISOString();
-     const to = endOfDay(dateRange.to).toISOString();
+     const from = dateRange.from.toISOString();
+     const to = dateRange.to.toISOString();
      try {
         const q = query(
             collection(db, "expenses"),
@@ -737,9 +738,9 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         salesRunId: confirmationData.runId,
                         customerId: confirmationData.customerId || 'walk-in',
                         customerName: confirmationData.customerName,
-                        items: itemsWithCost, // Use items with cost price
+                        items: itemsWithCost,
                         total: confirmationData.amount,
-                        paymentMethod: 'Cash', // Approved cash sales are logged
+                        paymentMethod: 'Cash',
                         date: new Date().toISOString(),
                         staffId: confirmationData.driverId,
                         status: 'Completed',
@@ -1465,6 +1466,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 
 
     
+
 
 
 
