@@ -163,7 +163,7 @@ function POSPageContent() {
     const initializePos = async () => {
       const storedUser = localStorage.getItem('loggedInUser');
       if (storedUser) {
-        const parsedUser: User = JSON.parse(parsedUser);
+        const parsedUser: User = JSON.parse(storedUser);
         setUser(parsedUser);
         
         if(!customerEmail) {
@@ -217,7 +217,7 @@ function POSPageContent() {
     if(paymentStatus) {
         handlePaymentResult();
     }
-  }, [searchParams, router, toast]);
+  }, [searchParams, router, toast, setIsProcessingPayment]);
 
   const clearCartAndStorage = () => {
     setCart([]);
@@ -471,7 +471,7 @@ function POSPageContent() {
                 <h1 className="text-2xl font-bold font-headline">Point of Sale</h1>
                 {selectedStaffId && (
                     <div 
-                      className="text-sm text-muted-foreground hover:text-primary cursor-pointer" 
+                      className={cn("text-sm text-muted-foreground", (user?.role === 'Manager' || user?.role === 'Developer') && "hover:text-primary cursor-pointer")}
                       onClick={() => user?.role === 'Manager' || user?.role === 'Developer' ? setIsStaffSelectionOpen(true) : null}
                     >
                       Operating as: <span className="font-semibold">{selectedStaffName}</span>
