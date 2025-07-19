@@ -847,7 +847,7 @@ export type ProductionBatch = {
     requestedByName: string;
     quantityToProduce: number;
     status: 'pending_approval' | 'in_production' | 'completed';
-    createdAt: Timestamp;
+    createdAt: string; // Changed from Timestamp
     ingredients: { ingredientId: string, quantity: number, unit: string }[];
     successfullyProduced?: number;
     wasted?: number;
@@ -858,7 +858,15 @@ export async function getProductionBatches(): Promise<{ pending: ProductionBatch
     try {
         const q = query(collection(db, 'production_batches'), orderBy('createdAt', 'desc'));
         const snapshot = await getDocs(q);
-        const allBatches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductionBatch));
+        const allBatches = snapshot.docs.map(doc => {
+            const data = doc.data();
+            const createdAt = data.createdAt as Timestamp;
+            return {
+                id: doc.id,
+                ...data,
+                createdAt: createdAt.toDate().toISOString(), // Convert to string
+            } as ProductionBatch;
+        });
         
         const pending = allBatches.filter(b => b.status === 'pending_approval');
         const in_production = allBatches.filter(b => b.status === 'in_production');
@@ -977,3 +985,5 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
         return { success: false, error: "Failed to complete production batch." };
     }
 }
+
+    
