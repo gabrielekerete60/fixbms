@@ -802,6 +802,7 @@ export type Transfer = {
   date: string;
   status: 'pending' | 'active' | 'completed' | 'cancelled';
   totalValue?: number;
+  is_sales_run?: boolean;
 };
 
 
@@ -815,7 +816,7 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
         );
         const querySnapshot = await getDocs(q);
         
-        return await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
+        const transfers = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
             const data = transferDoc.data();
             const date = data.date as Timestamp;
             let totalValue = 0;
@@ -837,6 +838,8 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
                 date: date.toDate().toISOString(),
              } as Transfer;
         }));
+        return transfers;
+
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
             console.error("Firestore index missing for getPendingTransfersForStaff. Please create it in the Firebase console.", error.toString());
@@ -891,40 +894,51 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
      // Handle 'accept' case within a transaction
      try {
         await runTransaction(db, async (transaction) => {
+            // --- 1. All READ operations first ---
             const transferDoc = await transaction.get(transferRef);
-            if (!transferDoc.exists()) {
-                throw new Error("Transfer does not exist.");
-            }
-            if (transferDoc.data().status !== 'pending') {
-                throw new Error("This transfer has already been processed.");
-            }
+            if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
+            if (transferDoc.data().status !== 'pending') throw new Error("This transfer has already been processed.");
             
-            const transfer = transferDoc.data() as Omit<Transfer, 'id' | 'date'>;
+            const transfer = transferDoc.data() as Transfer;
 
-            for (const item of transfer.items) {
-                // 1. Decrement main inventory (this logic is simplified, assumes a central stock model)
-                const productRef = doc(db, 'products', item.productId);
-                const productDoc = await transaction.get(productRef);
+            const productRefs = transfer.items.map(item => doc(db, 'products', item.productId));
+            const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
+
+            const staffStockRefs = transfer.items.map(item => doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId));
+            const staffStockDocs = await Promise.all(staffStockRefs.map(ref => transaction.get(ref)));
+
+            // --- 2. Validation ---
+            for (let i = 0; i < transfer.items.length; i++) {
+                const item = transfer.items[i];
+                const productDoc = productDocs[i];
                 if (!productDoc.exists() || productDoc.data().stock < item.quantity) {
                     throw new Error(`Not enough stock for ${item.productName} in main inventory.`);
                 }
+            }
+            
+            // --- 3. All WRITE operations last ---
+            for (let i = 0; i < transfer.items.length; i++) {
+                const item = transfer.items[i];
+                const productRef = productRefs[i];
+                const staffStockRef = staffStockRefs[i];
+                const staffStockDoc = staffStockDocs[i];
+
+                // Decrement main inventory
                 transaction.update(productRef, { stock: increment(-item.quantity) });
 
-                // 2. Increment staff's personal inventory
-                const staffStockRef = doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId);
-                const staffStockDoc = await transaction.get(staffStockRef);
-                if(staffStockDoc.exists()) {
-                     transaction.update(staffStockRef, { stock: increment(item.quantity) });
+                // Increment staff's personal inventory
+                if (staffStockDoc.exists()) {
+                    transaction.update(staffStockRef, { stock: increment(item.quantity) });
                 } else {
-                     transaction.set(staffStockRef, { 
+                    transaction.set(staffStockRef, { 
                         productId: item.productId,
                         productName: item.productName,
                         stock: item.quantity
-                     });
+                    });
                 }
             }
             
-            // 3. Update transfer status
+            // Update transfer status
             const newStatus = transferDoc.data().is_sales_run ? 'active' : 'completed';
             transaction.update(transferRef, { status: newStatus });
         });
@@ -1126,7 +1140,7 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
     const checks = [
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'pending'), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'completed'), orderBy('date', 'desc'))),
-        () => getDocs(query(collection(db, 'transfers'), where('is_sales_run', '==', true), where('to_staff_id', '==', 'test'), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'transfers'), where('is_sales_run', '==', true), where('to_staff_id', '==', 'test'), where('status', 'in', ['active', 'completed']), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'waste_logs'), where('staffId', '==', 'test'), orderBy('date', 'desc'))),
     ];
 
