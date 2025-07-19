@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -27,7 +28,7 @@ function EmptyState({ title, description }: { title: string, description: string
 }
 
 function RunCard({ run }: { run: SalesRunType }) {
-    const runDate = run.date ? new Date(run.date.toDate()) : new Date();
+    const runDate = run.date ? new Date(run.date) : new Date();
 
     return (
         <Card>
@@ -99,7 +100,7 @@ export default function DeliveriesPage() {
 
         return completedRuns.filter(run => {
             if (!run.date) return false;
-            const runDate = run.date.toDate();
+            const runDate = new Date(run.date);
             return runDate >= from && runDate <= to;
         });
     }, [completedRuns, date]);
