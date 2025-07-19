@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import Image from "next/image";
 import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,7 @@ import { collection, getDocs, doc, runTransaction, increment, getDoc, query, whe
 import { db } from "@/lib/firebase";
 import { initializePaystackTransaction } from "@/app/actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 
 type Product = {
@@ -95,9 +95,10 @@ type SelectableStaff = {
     role: string;
 };
 
-export default function POSPage() {
+function POSPageContent() {
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
@@ -170,7 +171,7 @@ export default function POSPage() {
 
         const adminRoles = ['Manager', 'Developer'];
         if (adminRoles.includes(parsedUser.role)) {
-          const staffQuery = query(collection(db, "staff"), where("role", "in", ["Showroom Staff", "Delivery Staff"]));
+          const staffQuery = query(collection(db, "staff"), where("role", "==", "Showroom Staff"));
           const staffSnapshot = await getDocs(staffQuery);
           setAllStaff(staffSnapshot.docs.map(d => ({ staff_id: d.id, ...d.data() } as SelectableStaff)));
           if (!selectedStaffId) {
@@ -186,6 +187,32 @@ export default function POSPage() {
     };
     initializePos();
   }, []);
+  
+  // Handle payment status from redirect
+  useEffect(() => {
+    const paymentStatus = searchParams.get('payment_status');
+    const orderId = searchParams.get('order_id');
+    
+    const handlePaymentResult = async () => {
+        if (paymentStatus === 'success' && orderId) {
+            toast({ title: "Payment Successful", description: "Order completed." });
+            const orderDoc = await getDoc(doc(db, 'orders', orderId));
+            if (orderDoc.exists()) {
+                setLastCompletedOrder(orderDoc.data() as CompletedOrder);
+                setIsReceiptOpen(true);
+            }
+        } else if (paymentStatus === 'failed') {
+            const message = searchParams.get('message');
+            toast({ variant: 'destructive', title: "Payment Failed", description: message || "An unknown error occurred." });
+        }
+        // Clean URL after handling
+        router.replace('/dashboard/pos', {scroll: false});
+    }
+
+    if(paymentStatus) {
+        handlePaymentResult();
+    }
+  }, [searchParams, router, toast]);
 
   const clearCartAndStorage = () => {
     setCart([]);
@@ -439,7 +466,14 @@ export default function POSPage() {
           <header className="flex justify-between items-center">
               <div>
                 <h1 className="text-2xl font-bold font-headline">Point of Sale</h1>
-                {selectedStaffId && <p className="text-sm text-muted-foreground">Operating as: <span className="font-semibold text-primary">{selectedStaffName}</span></p>}
+                {selectedStaffId && (
+                    <div 
+                      className="text-sm text-muted-foreground hover:text-primary cursor-pointer" 
+                      onClick={() => setIsStaffSelectionOpen(true)}
+                    >
+                      Operating as: <span className="font-semibold">{selectedStaffName}</span>
+                    </div>
+                )}
               </div>
                <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -665,11 +699,13 @@ export default function POSPage() {
 
         {/* Manager Staff Selection Dialog */}
         <Dialog open={isStaffSelectionOpen} onOpenChange={setIsStaffSelectionOpen}>
-            <DialogContent onInteractOutside={(e) => e.preventDefault()}>
+            <DialogContent onInteractOutside={(e) => {
+                if(!selectedStaffId) e.preventDefault();
+            }}>
                 <DialogHeader>
                     <DialogTitle>Select Staff POS</DialogTitle>
                     <DialogDescription>
-                        Choose a staff member to operate the Point of Sale on their behalf. Sales will be deducted from their inventory.
+                        Choose a showroom staff member to operate the Point of Sale on their behalf. Sales will be deducted from their inventory.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
@@ -795,3 +831,10 @@ export default function POSPage() {
   );
 }
 
+export default function POSPage() {
+    return (
+        <Suspense fallback={<div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>}>
+            <POSPageContent />
+        </Suspense>
+    )
+}

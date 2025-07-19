@@ -7,7 +7,7 @@ import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, writeBatch, collection, runTransaction, increment } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, runTransaction, increment, deleteDoc } from 'firebase/firestore';
 
 type VerificationStatus = 'verifying' | 'success' | 'failed';
 type VerificationResult = {
@@ -54,6 +54,7 @@ function PaymentCallback() {
                 // Optionally delete the temp_order
                 const tempOrderRef = doc(db, 'temp_orders', reference);
                 await deleteDoc(tempOrderRef);
+                router.push(`/dashboard/pos?payment_status=failed&message=${encodeURIComponent(verificationResponse.message || 'Payment verification failed.')}`);
                 return;
             }
 
@@ -97,17 +98,20 @@ function PaymentCallback() {
                 });
                 
                 setResult({ status: 'success', message: 'Payment successful! Your order has been placed.', orderId: reference });
+                router.push(`/dashboard/pos?payment_status=success&order_id=${reference}`);
+
 
             } catch (error) {
                 console.error("Error completing transaction:", error);
                 const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
                 setResult({ status: 'failed', message: `Transaction completion failed: ${errorMessage}`, orderId: reference });
+                router.push(`/dashboard/pos?payment_status=failed&message=${encodeURIComponent(errorMessage)}`);
             }
         };
 
         completeTransaction();
 
-    }, [searchParams]);
+    }, [searchParams, router]);
 
     return (
         <main className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -126,9 +130,7 @@ function PaymentCallback() {
                     <CardDescription>{result.message}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Button className="w-full" onClick={() => router.push('/dashboard/pos')}>
-                        Back to POS
-                    </Button>
+                    <p className="text-sm text-center text-muted-foreground">You will be redirected shortly...</p>
                 </CardContent>
             </Card>
         </main>
