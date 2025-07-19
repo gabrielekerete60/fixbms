@@ -2,12 +2,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Package2, Calendar as CalendarIcon } from 'lucide-react';
+import { Loader2, Package2, Calendar as CalendarIcon, Car, TrendingUp } from 'lucide-react';
 import { getSalesRuns } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-import { doc, getDoc } from 'firebase/firestore';
 import type { SalesRun as SalesRunType } from '@/app/actions';
 import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -16,6 +16,8 @@ import { cn } from '@/lib/utils';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import { db } from '@/lib/firebase';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 
 function EmptyState({ title, description }: { title: string, description: string }) {
     return (
@@ -27,7 +29,44 @@ function EmptyState({ title, description }: { title: string, description: string
     );
 }
 
-function RunCard({ run }: { run: SalesRunType }) {
+function RunCard({ run, user }: { run: SalesRunType, user: {name: string, staff_id: string} | null }) {
+    const totalItems = run.items.reduce((sum, item) => sum + item.quantity, 0);
+    const soldItems = 0; // Placeholder for now
+    const progress = totalItems > 0 ? (soldItems / totalItems) * 100 : 0;
+    
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-start justify-between">
+                <div>
+                    <CardTitle className="flex items-center gap-2">
+                        <Car /> Run: {run.id.substring(0, 6).toUpperCase()}
+                    </CardTitle>
+                    <CardDescription>Driver: {user?.name}</CardDescription>
+                </div>
+                <Badge>Active</Badge>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div>
+                    <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium">Sales Progress</span>
+                        <span>{soldItems} / {totalItems} items</span>
+                    </div>
+                    <Progress value={progress} />
+                </div>
+                <div className="text-sm space-y-1">
+                    <div className="flex justify-between"><span>Total Revenue:</span><span className="font-semibold">₦{run.totalRevenue.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span>Total Collected:</span><span className="font-semibold text-green-500">₦{run.totalCollected.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span>Total Outstanding:</span><span className="font-semibold text-destructive">₦{run.totalOutstanding.toLocaleString()}</span></div>
+                </div>
+                <Link href={`/dashboard/sales-runs/${run.id}`} passHref>
+                    <Button className="w-full">Manage Run</Button>
+                </Link>
+            </CardContent>
+        </Card>
+    );
+}
+
+function CompletedRunCard({ run }: { run: SalesRunType }) {
     const runDate = run.date ? new Date(run.date) : new Date();
 
     return (
@@ -39,7 +78,7 @@ function RunCard({ run }: { run: SalesRunType }) {
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <p>{run.items.reduce((sum, item) => sum + item.quantity, 0)} items to deliver.</p>
+                <p>{run.items.reduce((sum, item) => sum + item.quantity, 0)} items delivered.</p>
                 {run.notes && <p className="mt-2 text-sm text-muted-foreground italic">Notes: {run.notes}</p>}
             </CardContent>
         </Card>
@@ -47,42 +86,19 @@ function RunCard({ run }: { run: SalesRunType }) {
 }
 
 export default function DeliveriesPage() {
+    const [user, setUser] = useState<{name: string, staff_id: string} | null>(null);
     const [activeRuns, setActiveRuns] = useState<SalesRunType[]>([]);
     const [completedRuns, setCompletedRuns] = useState<SalesRunType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [date, setDate] = useState<DateRange | undefined>();
     const { toast } = useToast();
 
-    const fetchRuns = useCallback(async () => {
+    const fetchRuns = useCallback(async (userId: string) => {
         setIsLoading(true);
-        const userStr = localStorage.getItem('loggedInUser');
-        if (!userStr) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
-            setIsLoading(false);
-            return;
-        }
-        const user = JSON.parse(userStr);
-
         try {
-            const { active, completed } = await getSalesRuns(user.staff_id);
-
-             // Fetch the initiator's name for each run
-            const fetchInitiatorNames = async (runs: SalesRunType[]) => {
-                const runsWithNames = await Promise.all(runs.map(async (run: any) => {
-                    if (run.from_staff_id) {
-                        const staffDoc = await getDoc(doc(db, 'staff', run.from_staff_id));
-                        return { ...run, from_staff_name: staffDoc.exists() ? staffDoc.data().name : 'Unknown' };
-                    }
-                    return run;
-                }));
-                return runsWithNames;
-            };
-
-            const activeWithName = await fetchInitiatorNames(active);
-            const completedWithName = await fetchInitiatorNames(completed);
-
-            setActiveRuns(activeWithName);
-            setCompletedRuns(completedWithName);
+            const { active, completed } = await getSalesRuns(userId);
+            setActiveRuns(active);
+            setCompletedRuns(completed);
         } catch (error) {
             console.error("Error fetching runs:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales runs.' });
@@ -106,8 +122,16 @@ export default function DeliveriesPage() {
     }, [completedRuns, date]);
 
     useEffect(() => {
-        fetchRuns();
-    }, [fetchRuns]);
+        const userStr = localStorage.getItem('loggedInUser');
+        if (userStr) {
+            const parsedUser = JSON.parse(userStr);
+            setUser(parsedUser);
+            fetchRuns(parsedUser.staff_id);
+        } else {
+             toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
+             setIsLoading(false);
+        }
+    }, [fetchRuns, toast]);
 
     return (
         <div className="flex flex-col gap-4">
@@ -125,12 +149,12 @@ export default function DeliveriesPage() {
                         </div>
                     ) : activeRuns.length > 0 ? (
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {activeRuns.map(run => <RunCard key={run.id} run={run} />)}
+                            {activeRuns.map(run => <RunCard key={run.id} run={run} user={user} />)}
                         </div>
                     ) : (
                         <Card>
                             <CardContent className="p-6">
-                                <EmptyState title="No Active Sales Runs" description="Acknowledged sales runs will appear here." />
+                                <EmptyState title="No Active Sales Runs" description="Accepted sales runs will appear here." />
                             </CardContent>
                         </Card>
                     )}
@@ -180,7 +204,7 @@ export default function DeliveriesPage() {
                         </div>
                     ) : filteredCompletedRuns.length > 0 ? (
                          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {filteredCompletedRuns.map(run => <RunCard key={run.id} run={run} />)}
+                            {filteredCompletedRuns.map(run => <CompletedRunCard key={run.id} run={run} />)}
                         </div>
                     ) : (
                        <Card>

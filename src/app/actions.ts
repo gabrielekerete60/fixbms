@@ -338,35 +338,56 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
 export type SalesRun = {
     id: string;
     date: string;
-    status: 'pending' | 'completed' | 'cancelled';
-    items: { productId: string; productName: string; quantity: number }[];
+    status: 'pending' | 'active' | 'completed' | 'cancelled';
+    items: { productId: string; productName: string; price: number; quantity: number }[];
     notes?: string;
-    from_staff_name?: string; // Who initiated it
+    from_staff_name?: string; 
     from_staff_id?: string;
+    totalRevenue: number;
+    totalCollected: number;
+    totalOutstanding: number;
 };
 
 export async function getSalesRuns(staffId: string): Promise<{active: SalesRun[], completed: SalesRun[]}> {
     try {
+        // Fetch runs that are either 'active' or 'completed'
         const q = query(
             collection(db, 'transfers'), 
             where('is_sales_run', '==', true),
             where('to_staff_id', '==', staffId),
+            where('status', 'in', ['active', 'completed']),
             orderBy('date', 'desc')
         );
 
         const querySnapshot = await getDocs(q);
-        const runs = querySnapshot.docs.map(doc => {
+        const runs = await Promise.all(querySnapshot.docs.map(async (doc) => {
             const data = doc.data();
             const date = data.date as Timestamp;
+
+            // Fetch product prices to calculate total revenue
+            let totalRevenue = 0;
+            const itemsWithPrices = await Promise.all(
+              data.items.map(async (item: any) => {
+                const productDoc = await getDoc(doc(db, 'products', item.productId));
+                const price = productDoc.exists() ? productDoc.data().price : 0;
+                totalRevenue += price * item.quantity;
+                return { ...item, price };
+              })
+            );
+
             return {
                 id: doc.id,
                 ...data,
                 date: date.toDate().toISOString(),
+                items: itemsWithPrices,
+                totalRevenue,
+                totalCollected: data.totalCollected || 0,
+                totalOutstanding: totalRevenue - (data.totalCollected || 0),
             } as SalesRun;
-        });
+        }));
         
-        const active = runs.filter(run => run.status === 'pending');
-        const completed = runs.filter(run => run.status !== 'pending');
+        const active = runs.filter(run => run.status === 'active');
+        const completed = runs.filter(run => run.status === 'completed');
 
         return { active, completed };
     } catch (error: any) {
@@ -777,9 +798,10 @@ export type Transfer = {
   from_staff_name: string;
   to_staff_id: string;
   to_staff_name: string;
-  items: { productId: string; productName: string; quantity: number }[];
+  items: { productId: string; productName: string; quantity: number, price?: number }[];
   date: string;
-  status: 'pending' | 'completed' | 'cancelled';
+  status: 'pending' | 'active' | 'completed' | 'cancelled';
+  totalValue?: number;
 };
 
 
@@ -792,15 +814,29 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
             orderBy('date', 'desc')
         );
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => {
-            const data = doc.data();
+        
+        return await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
+            const data = transferDoc.data();
             const date = data.date as Timestamp;
+            let totalValue = 0;
+
+            const itemsWithPrices = await Promise.all(
+                data.items.map(async (item: any) => {
+                    const productDoc = await getDoc(doc(db, 'products', item.productId));
+                    const price = productDoc.exists() ? productDoc.data().price : 0;
+                    totalValue += price * item.quantity;
+                    return { ...item, price };
+                })
+            );
+
             return { 
-                id: doc.id,
+                id: transferDoc.id,
                 ...data,
+                items: itemsWithPrices,
+                totalValue,
                 date: date.toDate().toISOString(),
-             } as Transfer
-        });
+             } as Transfer;
+        }));
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
             console.error("Firestore index missing for getPendingTransfersForStaff. Please create it in the Firebase console.", error.toString());
@@ -866,7 +902,7 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             const transfer = transferDoc.data() as Omit<Transfer, 'id' | 'date'>;
 
             for (const item of transfer.items) {
-                // 1. Decrement main inventory
+                // 1. Decrement main inventory (this logic is simplified, assumes a central stock model)
                 const productRef = doc(db, 'products', item.productId);
                 const productDoc = await transaction.get(productRef);
                 if (!productDoc.exists() || productDoc.data().stock < item.quantity) {
@@ -889,7 +925,8 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             }
             
             // 3. Update transfer status
-            transaction.update(transferRef, { status: 'completed' });
+            const newStatus = transferDoc.data().is_sales_run ? 'active' : 'completed';
+            transaction.update(transferRef, { status: newStatus });
         });
 
         return { success: true };
@@ -911,7 +948,7 @@ export type ProductionBatch = {
     requestedByName: string;
     quantityToProduce: number;
     status: 'pending_approval' | 'in_production' | 'completed';
-    createdAt: string; // Changed from Timestamp
+    createdAt: string; 
     ingredients: { ingredientId: string, quantity: number, unit: string }[];
     successfullyProduced?: number;
     wasted?: number;
@@ -928,7 +965,7 @@ export async function getProductionBatches(): Promise<{ pending: ProductionBatch
             return {
                 id: doc.id,
                 ...data,
-                createdAt: createdAt.toDate().toISOString(), // Convert to string
+                createdAt: createdAt.toDate().toISOString(),
             } as ProductionBatch;
         });
         
@@ -1049,6 +1086,41 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
         return { success: false, error: "Failed to complete production batch." };
     }
 }
+
+export async function getSalesRunDetails(runId: string): Promise<SalesRun | null> {
+    try {
+        const runDoc = await getDoc(doc(db, 'transfers', runId));
+        if (!runDoc.exists()) {
+            return null;
+        }
+
+        const data = runDoc.data();
+        let totalRevenue = 0;
+        const itemsWithPrices = await Promise.all(
+          data.items.map(async (item: any) => {
+            const productDoc = await getDoc(doc(db, 'products', item.productId));
+            const price = productDoc.exists() ? productDoc.data().price : 0;
+            totalRevenue += price * item.quantity;
+            return { ...item, price };
+          })
+        );
+        
+        return {
+            id: runDoc.id,
+            ...data,
+            date: (data.date as Timestamp).toDate().toISOString(),
+            items: itemsWithPrices,
+            totalRevenue,
+            totalCollected: data.totalCollected || 0,
+            totalOutstanding: totalRevenue - (data.totalCollected || 0),
+        } as SalesRun;
+
+    } catch (error) {
+        console.error("Error fetching sales run details:", error);
+        return null;
+    }
+}
+
 
 export async function checkForMissingIndexes(): Promise<{ requiredIndexes: string[] }> {
     const checks = [

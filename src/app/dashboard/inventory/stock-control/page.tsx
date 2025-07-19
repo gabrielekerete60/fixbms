@@ -33,6 +33,7 @@ import {
   Loader2,
   Check,
   X,
+  Truck,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -55,6 +56,7 @@ import { useToast } from "@/hooks/use-toast";
 import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, getWasteLogsForStaff, WasteLog } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 type User = {
     name: string;
@@ -80,6 +82,51 @@ type Product = {
   stock: number;
 };
 
+function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void }) {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button size="sm">View & Acknowledge</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Acknowledge Sales Run: {transfer.id.substring(0, 6).toUpperCase()}</DialogTitle>
+                    <DialogDescription>
+                        You are about to accept responsibility for the following items. This action cannot be undone.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 max-h-[400px] overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Quantity</TableHead>
+                                <TableHead className="text-right">Value</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {transfer.items.map(item => (
+                                <TableRow key={item.productId}>
+                                    <TableCell>{item.productName}</TableCell>
+                                    <TableCell>{item.quantity}</TableCell>
+                                    <TableCell className="text-right">₦{(item.price! * item.quantity).toLocaleString()}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                <div className="font-bold text-lg flex justify-between border-t pt-4">
+                    <span>Total Run Value:</span>
+                    <span>₦{transfer.totalValue?.toLocaleString()}</span>
+                </div>
+                <DialogFooter className="mt-4">
+                     <Button variant="destructive" onClick={() => onAccept(transfer.id, 'decline')}>Decline Run</Button>
+                     <Button onClick={() => onAccept(transfer.id, 'accept')}>Accept Run</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
 
 function ReportWasteTab({ products, user, onWasteReported }: { products: Product[], user: User | null, onWasteReported: () => void }) {
     const { toast } = useToast();
@@ -205,8 +252,7 @@ export default function StockControlPage() {
   const [date, setDate] = useState<DateRange | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [actionState, setActionState] = useState<{ id: string, type: 'accept' | 'decline' } | null>(null);
-
+  
   const fetchPageData = async () => {
         setIsLoading(true);
         const userStr = localStorage.getItem('loggedInUser');
@@ -233,7 +279,7 @@ export default function StockControlPage() {
                  // Fetch transfers initiated by the user for the log
                 const transfersQuery = query(collection(db, "transfers"), where('from_staff_id', '==', currentUser.staff_id), orderBy("date", "desc"));
                 const transfersSnapshot = await getDocs(transfersQuery);
-                setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: doc.data().date.toDate().toISOString() } as Transfer)));
+                setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
             } else {
                 // Other staff see their personal stock for waste reporting
                 const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
@@ -366,18 +412,15 @@ export default function StockControlPage() {
     setIsSubmitting(false);
   };
   
-  const handleAcknowledge = async () => {
-    if (!actionState) return;
-    const { id, type } = actionState;
-
+  const handleAcknowledge = async (id: string, type: 'accept' | 'decline') => {
     const result = await handleAcknowledgeTransfer(id, type);
     if (result.success) {
-        toast({ title: 'Success', description: `Transfer has been ${type}ed.` });
+        const message = type === 'accept' ? 'Transfer accepted and moved to active runs.' : 'Transfer has been declined.';
+        toast({ title: 'Success', description: message });
         fetchPageData();
     } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
     }
-    setActionState(null);
   };
 
   const userRole = user?.role;
@@ -392,24 +435,10 @@ export default function StockControlPage() {
      return (
          <div className="flex flex-col gap-4">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
-              <AlertDialog open={!!actionState} onOpenChange={() => setActionState(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            You are about to {actionState?.type} this stock transfer. This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleAcknowledge}>Yes, {actionState?.type}</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
              <Tabs defaultValue="acknowledge">
                 <TabsList className="grid grid-cols-4 w-full">
                     <TabsTrigger value="acknowledge" className="relative">
-                        Acknowledge Transfers 
+                        Acknowledge Stock
                         {pendingTransfers.length > 0 && <Badge className="ml-2">{pendingTransfers.length}</Badge>}
                     </TabsTrigger>
                      <TabsTrigger value="history">
@@ -426,7 +455,7 @@ export default function StockControlPage() {
                      <Card>
                         <CardHeader>
                             <CardTitle>Acknowledge Incoming Stock</CardTitle>
-                            <CardDescription>Review and acknowledge stock transferred to you. This stock will be added to your personal inventory.</CardDescription>
+                            <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
                         </CardHeader>
                         <CardContent>
                              <Table>
@@ -434,28 +463,29 @@ export default function StockControlPage() {
                                     <TableRow>
                                         <TableHead>Date</TableHead>
                                         <TableHead>From</TableHead>
+                                        <TableHead>Type</TableHead>
                                         <TableHead>Items</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {isLoading ? (
-                                        <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
                                     ) : pendingTransfers.length === 0 ? (
-                                        <TableRow><TableCell colSpan={4} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
                                     ) : (
                                         pendingTransfers.map(t => (
                                             <TableRow key={t.id}>
                                                 <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
                                                 <TableCell>{t.from_staff_name}</TableCell>
                                                 <TableCell>
-                                                    <ul className="list-disc pl-5">
-                                                        {t.items.map(i => <li key={i.productId}>{i.quantity} x {i.productName}</li>)}
-                                                    </ul>
+                                                    {t.is_sales_run ? <Badge variant="secondary">Sales Run</Badge> : <Badge variant="outline">Stock</Badge>}
                                                 </TableCell>
-                                                <TableCell className="text-right space-x-2">
-                                                    <Button variant="destructive" size="sm" onClick={() => setActionState({ id: t.id, type: 'decline' })}>Decline</Button>
-                                                    <Button size="sm" onClick={() => setActionState({ id: t.id, type: 'accept' })}>Accept</Button>
+                                                <TableCell>
+                                                    {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <AcceptRunDialog transfer={t} onAccept={handleAcknowledge} />
                                                 </TableCell>
                                             </TableRow>
                                         ))
@@ -785,7 +815,7 @@ export default function StockControlPage() {
                                 <TableCell>{transfer.from_staff_name}</TableCell>
                                 <TableCell>{transfer.to_staff_name}</TableCell>
                                 <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
-                                <TableCell><Badge variant={transfer.status === 'pending' ? 'secondary' : transfer.status === 'completed' ? 'default' : 'destructive'}>{transfer.status}</Badge></TableCell>
+                                <TableCell><Badge variant={transfer.status === 'pending' ? 'secondary' : transfer.status === 'completed' || transfer.status === 'active' ? 'default' : 'destructive'}>{transfer.status}</Badge></TableCell>
                             </TableRow>
                         ))
                     ) : (
