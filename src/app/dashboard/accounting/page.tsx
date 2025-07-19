@@ -27,6 +27,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter
 } from "@/components/ui/table";
 import {
   Dialog,
@@ -395,13 +396,13 @@ export default function AccountingPage() {
                                 ))
                             )}
                         </TableBody>
-                         <CardFooter className="p-4 bg-muted/50">
+                        <TableFooter className="bg-muted/50">
                             <TableRow>
                                 <TableCell colSpan={4} className="text-right font-bold">Total Outstanding Balance</TableCell>
                                 <TableCell className="text-right font-bold text-destructive">₦{totalBalance.toLocaleString()}</TableCell>
                                 <TableCell></TableCell>
                             </TableRow>
-                        </CardFooter>
+                        </TableFooter>
                     </Table>
                 </CardContent>
             </Card>
@@ -448,12 +449,12 @@ export default function AccountingPage() {
                                 ))
                             )}
                         </TableBody>
-                        <CardFooter className="p-4 bg-muted/50">
+                        <TableFooter className="bg-muted/50">
                             <TableRow>
                                 <TableCell colSpan={3} className="text-right font-bold">Total Expenses</TableCell>
                                 <TableCell className="text-right font-bold">₦{totalExpenses.toLocaleString()}</TableCell>
                             </TableRow>
-                        </CardFooter>
+                        </TableFooter>
                     </Table>
                 </CardContent>
             </Card>
