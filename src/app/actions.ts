@@ -732,8 +732,10 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         const costPrice = productDocs[index].exists() ? productDocs[index].data()?.costPrice : 0;
                         return {...item, costPrice };
                     });
-
+                    
+                    const newOrderRef = doc(collection(db, 'orders'));
                     const orderData = {
+                        id: newOrderRef.id,
                         salesRunId: confirmationData.runId,
                         customerId: confirmationData.customerId || 'walk-in',
                         customerName: confirmationData.customerName,
@@ -745,8 +747,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         status: 'Completed',
                     };
                     
-                    const newOrderRef = doc(collection(db, 'orders'));
-
                     for (const item of confirmationData.items) {
                         const stockRef = doc(db, 'staff', confirmationData.driverId, 'personal_stock', item.productId);
                         const stockDoc = await transaction.get(stockRef);
@@ -1467,5 +1467,6 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 
 
     
+
 
 
