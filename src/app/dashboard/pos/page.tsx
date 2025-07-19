@@ -120,7 +120,6 @@ export default function POSPage() {
   const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
-  const [paymentVerification, setPaymentVerification] = useState<PaymentVerification | null>(null);
 
   const fetchProductsForStaff = async (staffId: string) => {
     setIsLoadingProducts(true);
@@ -186,24 +185,32 @@ export default function POSPage() {
   }, []);
 
   useEffect(() => {
-    const handleOrderCompletion = async () => {
-        if (paymentVerification?.status === 'success') {
-            const completed = await completeOrder('Card');
-            if (completed) {
-                toast({ title: "Payment Successful", description: "The order has been completed." });
-                setIsReceiptOpen(true);
-            }
-        } else if (paymentVerification?.status === 'cancelled') {
-            toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment process was cancelled." });
+    const handlePaymentSuccess = async (event: Event) => {
+        const e = event as CustomEvent;
+        console.log("Payment success event received:", e.detail);
+        toast({ title: "Payment Successful", description: "Completing order..." });
+        
+        const completed = await completeOrder('Card');
+        if (completed) {
+            setIsReceiptOpen(true);
         }
-        setPaymentVerification(null); 
         setIsProcessingPayment(false);
     };
 
-    if(paymentVerification) {
-        handleOrderCompletion();
+    const handlePaymentCancelled = () => {
+        console.log("Payment cancelled event received");
+        toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment process was cancelled." });
+        setIsProcessingPayment(false);
     }
-  }, [paymentVerification]);
+
+    window.addEventListener('paymentSuccess', handlePaymentSuccess);
+    window.addEventListener('paymentCancelled', handlePaymentCancelled);
+
+    return () => {
+      window.removeEventListener('paymentSuccess', handlePaymentSuccess);
+      window.removeEventListener('paymentCancelled', handlePaymentCancelled);
+    };
+  }, [cart, user, selectedStaffId]); // Add dependencies to ensure correct context
 
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
@@ -378,8 +385,14 @@ export default function POSPage() {
         const paystack = new PaystackPop();
         paystack.resumeTransaction({
             access_code: transaction.access_code,
-            onSuccess: (res) => setPaymentVerification({ reference: res.reference, status: 'success' }),
-            onCancel: () => setPaymentVerification({ reference: '', status: 'cancelled' }),
+            onSuccess: (res) => {
+                const event = new CustomEvent('paymentSuccess', { detail: res });
+                window.dispatchEvent(event);
+            },
+            onCancel: () => {
+                 const event = new CustomEvent('paymentCancelled');
+                window.dispatchEvent(event);
+            },
         });
     } else {
         toast({ variant: "destructive", title: "Paystack Error", description: transaction.error || "Could not initialize transaction." });
@@ -710,7 +723,7 @@ export default function POSPage() {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-4 py-4">
-                     <Button variant="outline" className="h-24 text-lg" onClick={handleCashPayment}>
+                     <Button variant="outline" className="h-24 text-lg" onClick={() => setIsCashConfirmOpen(true)}>
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
