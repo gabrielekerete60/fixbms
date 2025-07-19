@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay, startOfYear, endOfYear, eachDayOfInterval, format } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear, eachDayOfInterval, format, subDays } from "date-fns";
 import { db } from "@/lib/firebase";
 import fetch from 'node-fetch';
 
@@ -465,24 +465,24 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
 
 export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'yearly'): Promise<{ totalSales: number }> {
     const now = new Date();
-    let from: Timestamp, to: Timestamp;
+    let from: Date, to: Date;
 
     switch (filter) {
         case 'daily':
-            from = Timestamp.fromDate(startOfDay(now));
-            to = Timestamp.fromDate(endOfDay(now));
+            from = startOfDay(now);
+            to = endOfDay(now);
             break;
         case 'weekly':
-            from = Timestamp.fromDate(startOfWeek(now, { weekStartsOn: 1 }));
-            to = Timestamp.fromDate(endOfWeek(now, { weekStartsOn: 1 }));
+            from = startOfWeek(now, { weekStartsOn: 1 });
+            to = endOfWeek(now, { weekStartsOn: 1 });
             break;
         case 'monthly':
-            from = Timestamp.fromDate(startOfMonth(now));
-            to = Timestamp.fromDate(endOfMonth(now));
+            from = startOfMonth(now);
+            to = endOfMonth(now);
             break;
         case 'yearly':
-            from = Timestamp.fromDate(startOfYear(now));
-            to = Timestamp.fromDate(endOfYear(now));
+            from = startOfYear(now);
+            to = endOfYear(now);
             break;
     }
     
@@ -497,18 +497,13 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
         const snapshot = await getDocs(q);
         
         let totalSales = 0;
-        const productPrices: Record<string, number> = {};
-
-        for (const runDoc of snapshot.docs) {
+        snapshot.forEach(runDoc => {
             const runData = runDoc.data();
-            for (const item of runData.items) {
-                if (!productPrices[item.productId]) {
-                    const productDoc = await getDoc(doc(db, 'products', item.productId));
-                    productPrices[item.productId] = productDoc.exists() ? productDoc.data().price : 0;
-                }
-                totalSales += (productPrices[item.productId] || 0) * item.quantity;
+            // Use the pre-calculated totalRevenue if it exists, otherwise calculate it.
+            if (runData.totalRevenue) {
+                totalSales += runData.totalRevenue;
             }
-        }
+        });
         
         return { totalSales };
     } catch (error) {
@@ -1455,6 +1450,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 
 
     
+
 
 
 
