@@ -474,15 +474,15 @@ export type AccountingReport = {
 }
 
 export async function getAccountingReport(dateRange: { from: Date, to: Date }): Promise<AccountingReport> {
-    const from = startOfDay(dateRange.from);
-    const to = endOfDay(dateRange.to);
+    const from = startOfDay(dateRange.from).toISOString();
+    const to = endOfDay(dateRange.to).toISOString();
 
     try {
         // --- Calculate Sales & COGS---
         const ordersQuery = query(
             collection(db, "orders"),
-            where("date", ">=", from.toISOString()),
-            where("date", "<=", to.toISOString()),
+            where("date", ">=", from),
+            where("date", "<=", to),
             where("status", "==", "Completed")
         );
         const ordersSnapshot = await getDocs(ordersQuery);
@@ -502,8 +502,8 @@ export async function getAccountingReport(dateRange: { from: Date, to: Date }): 
         // --- Calculate Expenses ---
         const expensesQuery = query(
             collection(db, "expenses"),
-            where("date", ">=", from.toISOString()),
-            where("date", "<=", to.toISOString())
+            where("date", ">=", from),
+            where("date", "<=", to)
         );
         const expensesSnapshot = await getDocs(expensesQuery);
         const expenses = expensesSnapshot.docs.reduce((sum, expenseDoc) => sum + expenseDoc.data().amount, 0);
@@ -1465,6 +1465,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 
 
     
+
 
 
 

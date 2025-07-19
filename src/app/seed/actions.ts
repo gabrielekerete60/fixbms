@@ -6,6 +6,7 @@ import { collection, getDocs, writeBatch, doc, Timestamp } from "firebase/firest
 
 // Helper to create timestamps for recent days
 const daysAgo = (days: number) => Timestamp.fromDate(new Date(new Date().setDate(new Date().getDate() - days)));
+const daysAgoISO = (days: number) => new Date(new Date().setDate(new Date().getDate() - days)).toISOString();
 
 const seedData = {
   products: [
@@ -129,7 +130,7 @@ const seedData = {
       id: "ord_1",
       items: [{ id: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }],
       total: 1100,
-      date: new Date(new Date().setDate(new Date().getDate() - 2)).toISOString(), // 2 days ago
+      date: daysAgoISO(2), // 2 days ago
       paymentMethod: 'Card',
       customerName: 'Adebisi Onyeka',
       customerId: 'cust_1',
@@ -142,7 +143,7 @@ const seedData = {
         { id: "prod_5", name: "Coca-Cola (50cl)", price: 300, quantity: 2, costPrice: 200 },
       ],
       total: 1500,
-      date: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(), // yesterday
+      date: daysAgoISO(1), // yesterday
       paymentMethod: 'Cash',
       customerName: 'Ngozi Okoro',
       customerId: 'cust_2',
@@ -152,7 +153,7 @@ const seedData = {
       id: "ord_3",
       items: [{ id: "prod_4", name: "Round Loaf", price: 500, quantity: 10, costPrice: 280 }],
       total: 5000,
-      date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString(), // 3 days ago
+      date: daysAgoISO(3), // 3 days ago
       paymentMethod: 'Card',
       customerName: 'Chinedu Eze',
       customerId: 'cust_3',
@@ -485,4 +486,3 @@ export async function seedEmptyData(): Promise<ActionResult> {
 }
 
     
-
