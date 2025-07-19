@@ -482,16 +482,24 @@ export async function getAccountingReport(dateRange: { from: Date, to: Date }): 
         const ordersSnapshot = await getDocs(ordersQuery);
         let sales = 0;
         let costOfGoodsSold = 0;
-        ordersSnapshot.forEach(orderDoc => {
+        
+        const productCosts: Record<string, number> = {};
+
+        for(const orderDoc of ordersSnapshot.docs) {
             const order = orderDoc.data();
             sales += order.total;
-            order.items.forEach((item: any) => {
-                // This assumes product costPrice is stored with the product.
-                // A more robust system might snapshot cost at time of sale.
-                // This is a simplification.
-                costOfGoodsSold += (item.costPrice || (item.price * 0.6)) * item.quantity;
-            });
-        });
+            for(const item of order.items) {
+                if (!productCosts[item.productId]) {
+                    const productDoc = await getDoc(doc(db, 'products', item.productId));
+                    if (productDoc.exists()) {
+                        productCosts[item.productId] = productDoc.data().costPrice || 0;
+                    } else {
+                        productCosts[item.productId] = 0;
+                    }
+                }
+                costOfGoodsSold += (productCosts[item.productId] || 0) * item.quantity;
+            };
+        };
         
         // --- Calculate Expenses ---
         const expensesQuery = query(
@@ -562,24 +570,24 @@ export type Debtor = {
 
 export async function getDebtors(): Promise<Debtor[]> {
     try {
-        // Query for customers where amountOwed > 0
-        const q = query(collection(db, "customers"), where("amountOwed", ">", 0));
+        // Query for customers where amountOwed > amountPaid
+        const q = query(collection(db, "customers"));
         const snapshot = await getDocs(q);
 
         return snapshot.docs
             .map(docSnap => {
                 const data = docSnap.data();
-                const balance = (data.amountOwed || 0) - (data.amountPaid || 0);
+                const amountOwed = data.amountOwed || 0;
+                const amountPaid = data.amountPaid || 0;
                 return {
                     id: docSnap.id,
                     name: data.name,
                     phone: data.phone,
-                    amountOwed: data.amountOwed || 0,
-                    amountPaid: data.amountPaid || 0,
-                    balance: balance
+                    amountOwed: amountOwed,
+                    amountPaid: amountPaid,
+                    balance: amountOwed - amountPaid
                 };
             })
-            // Filter again to ensure we only return those with a positive balance
             .filter(d => d.balance > 0);
 
     } catch (error) {
@@ -657,7 +665,7 @@ export async function handleAddExpense(expenseData: Omit<Expense, 'id' | 'date'>
 
 export type PaymentConfirmation = {
   id: string;
-  date: string;
+  date: string; // Changed to string
   driverId: string;
   driverName: string;
   runId: string;
@@ -684,7 +692,7 @@ export async function getPaymentConfirmations(): Promise<PaymentConfirmation[]> 
         return { 
             id: docSnap.id,
              ...data,
-            date: date.toDate().toISOString(),
+            date: date.toDate().toISOString(), // Convert to string
         } as PaymentConfirmation
     });
   } catch (error) {
@@ -708,26 +716,30 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             if (action === 'approve') {
                 const runRef = doc(db, 'transfers', confirmationData.runId);
 
-                // --- Handle Debt Payment ---
                 if (confirmationData.isDebtPayment) {
+                    // --- Handle Debt Payment ---
                     if (confirmationData.customerId) {
                         const customerRef = doc(db, 'customers', confirmationData.customerId);
-                        // Using increment with negative value to reduce amountOwed is one way,
-                        // or incrementing amountPaid. Let's increment amountPaid.
                         transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                     }
-                    // Update the sales run financials for debt payment
                     transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
-                } 
-                // --- Handle New Sale ---
-                else {
+
+                } else {
+                    // --- Handle New Sale ---
+                    const productCostPromises = confirmationData.items.map(item => getDoc(doc(db, 'products', item.productId)));
+                    const productDocs = await Promise.all(productCostPromises);
+                    const itemsWithCost = confirmationData.items.map((item, index) => {
+                        const costPrice = productDocs[index].exists() ? productDocs[index].data()?.costPrice : 0;
+                        return {...item, costPrice };
+                    });
+
                     const orderData = {
                         salesRunId: confirmationData.runId,
                         customerId: confirmationData.customerId || 'walk-in',
                         customerName: confirmationData.customerName,
-                        items: confirmationData.items,
+                        items: itemsWithCost, // Use items with cost price
                         total: confirmationData.amount,
-                        paymentMethod: 'Cash',
+                        paymentMethod: 'Cash', // Approved cash sales are logged
                         date: new Date().toISOString(),
                         staffId: confirmationData.driverId,
                         status: 'Completed',
@@ -735,7 +747,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     
                     const newOrderRef = doc(collection(db, 'orders'));
 
-                    // Decrement stock from the driver's personal inventory
                     for (const item of confirmationData.items) {
                         const stockRef = doc(db, 'staff', confirmationData.driverId, 'personal_stock', item.productId);
                         const stockDoc = await transaction.get(stockRef);
@@ -745,10 +756,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         transaction.update(stockRef, { stock: increment(-item.quantity) });
                     }
                     
-                    // Create the order document
                     transaction.set(newOrderRef, orderData);
-
-                    // Update the sales run financials for new sale
                     transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
                 }
             }
@@ -1459,3 +1467,4 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 
 
     
+

@@ -124,7 +124,7 @@ const seedData = {
     { id: "sup_os_4", name: "Disinfectant", stock: 5, unit: 'L', costPerUnit: 5000.00, category: "Cleaning" },
   ],
   customers: [
-      { id: 'cust_1', name: 'Adebisi Onyeka', phone: '08012345678', email: 'a.onyeka@example.com', address: '123, Allen Avenue, Ikeja', joinedDate: '2023-01-15T10:00:00Z', totalSpent: 150000, amountOwed: 5000, amountPaid: 145000 },
+      { id: 'cust_1', name: 'Adebisi Onyeka', phone: '08012345678', email: 'a.onyeka@example.com', address: '123, Allen Avenue, Ikeja', joinedDate: '2023-01-15T10:00:00Z', totalSpent: 150000, amountOwed: 5000, amountPaid: 0 },
       { id: 'cust_2', name: 'Ngozi Okoro', phone: '09087654321', email: 'n.okoro@example.com', address: '45, Lekki Phase 1', joinedDate: '2023-02-20T11:30:00Z', totalSpent: 75000, amountOwed: 0, amountPaid: 75000 },
       { id: 'cust_3', name: 'Chinedu Eze', phone: '07011223344', email: 'c.eze@example.com', address: '78, Surulere, Lagos', joinedDate: '2023-03-10T09:00:00Z', totalSpent: 250000, amountOwed: 20000, amountPaid: 230000 },
       { id: 'cust_4', name: 'Fatima Bello', phone: '08122334455', email: 'f.bello@example.com', address: '10, Garki, Abuja', joinedDate: '2023-04-05T14:00:00Z', totalSpent: 30000, amountOwed: 0, amountPaid: 30000 },
@@ -138,6 +138,7 @@ const seedData = {
       date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       paymentMethod: 'Card',
       customerName: 'Adebisi Onyeka',
+      customerId: 'cust_1',
       status: 'Completed',
     },
     {
@@ -151,6 +152,7 @@ const seedData = {
       date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
       paymentMethod: 'Cash',
       customerName: 'Ngozi Okoro',
+      customerId: 'cust_2',
       status: 'Completed',
     },
     {
@@ -161,6 +163,7 @@ const seedData = {
       date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
       paymentMethod: 'Card',
       customerName: 'Chinedu Eze',
+      customerId: 'cust_3',
       status: 'Completed',
     },
      {
@@ -171,6 +174,7 @@ const seedData = {
       date: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // 10 minutes ago
       paymentMethod: 'Card',
       customerName: 'Walk-in',
+      customerId: 'walk-in',
       status: 'Pending',
     },
   ],
@@ -217,7 +221,7 @@ const seedData = {
   payment_confirmations: [
       {
         id: "pc_1",
-        date: Timestamp.now(),
+        date: daysAgo(1),
         driverId: "400005",
         driverName: "Akan Staff",
         runId: "tsr_5_active",
@@ -230,7 +234,7 @@ const seedData = {
       },
       {
         id: "pc_2",
-        date: daysAgo(1),
+        date: Timestamp.now(),
         driverId: "400005",
         driverName: "Akan Staff",
         runId: "tsr_5_active",
@@ -239,7 +243,7 @@ const seedData = {
         amount: 550.00,
         status: "pending",
         isDebtPayment: false,
-        items: [{ productId: "prod_1", name: "Family Loaf", price: 550, quantity: 1 }]
+        items: [{ productId: "prod_1", name: "Family Loaf", price: 550, quantity: 1, costPrice: 300 }]
       }
   ],
   announcements: [
