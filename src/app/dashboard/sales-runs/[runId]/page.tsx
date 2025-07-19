@@ -2,11 +2,11 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordPaymentForRun } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2 } from 'lucide-react';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordPaymentForRun, initializePaystackTransaction } from '@/app/actions';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -19,10 +19,14 @@ import { collection, getDocs, doc, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 type Customer = {
   id: string;
   name: string;
+  phone: string;
+  email: string;
+  address: string;
 };
 
 type RunCustomer = {
@@ -36,27 +40,96 @@ type User = {
     name: string;
     role: string;
     staff_id: string;
+    email: string;
 };
+
+function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreated: (customer: Customer) => void, children: React.ReactNode }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [name, setName] = useState('');
+    const [phone, setPhone] = useState('');
+    const [email, setEmail] = useState('');
+    const [address, setAddress] = useState('');
+    
+    const handleSave = async () => {
+        if (!name || !phone) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Customer name and phone are required.'});
+            return;
+        }
+        
+        try {
+            const newCustomerRef = await addDoc(collection(db, "customers"), {
+                name,
+                phone,
+                email,
+                address,
+                joinedDate: new Date().toISOString(),
+                totalSpent: 0,
+                amountOwed: 0,
+                amountPaid: 0,
+            });
+            onCustomerCreated({ id: newCustomerRef.id, name, phone, email, address });
+            toast({ title: 'Success', description: 'New customer created.' });
+            setIsOpen(false);
+        } catch(error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to create new customer.'});
+        }
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>{children}</DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create New Customer</DialogTitle>
+                    <DialogDescription>Add a new customer to your database. This will be saved permanently.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label>Customer Name</Label>
+                        <Input value={name} onChange={e => setName(e.target.value)} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label>Phone Number</Label>
+                        <Input value={phone} onChange={e => setPhone(e.target.value)} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label>Email (Optional)</Label>
+                        <Input type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Address (Optional)</Label>
+                        <Input value={address} onChange={e => setAddress(e.target.value)} />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSave}>Create Customer</Button>
+                </DialogFooter>
+            </DialogContent>
+        )
+}
 
 function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: User | null, onSaleMade: () => void }) {
     const { toast } = useToast();
+    const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
     
     // Form state
     const [selectedCustomerId, setSelectedCustomerId] = useState('');
-    const [isNewCustomer, setIsNewCustomer] = useState(false);
-    const [newCustomerName, setNewCustomerName] = useState('');
     const [cart, setCart] = useState<{ productId: string, quantity: number, price: number, name: string }[]>([]);
-    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit'>('Cash');
+    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Card'>('Cash');
+
+    const fetchCustomers = async () => {
+        const snapshot = await getDocs(collection(db, "customers"));
+        setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
+    };
 
     useEffect(() => {
         if (isOpen) {
-            const fetchCustomers = async () => {
-                const snapshot = await getDocs(collection(db, "customers"));
-                setCustomers(snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
-            };
             fetchCustomers();
         }
     }, [isOpen]);
@@ -76,48 +149,78 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
     }
     
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
     const handleSubmit = async () => {
         if (!user) return;
-        setIsLoading(true);
-
-        let customerId = selectedCustomerId;
-        let customerName = customers.find(c => c.id === customerId)?.name || '';
-
-        if (isNewCustomer) {
-            if (!newCustomerName) {
-                toast({ variant: 'destructive', title: 'Error', description: 'New customer name is required.' });
-                setIsLoading(false);
-                return;
-            }
-            const newCustomerRef = await addDoc(collection(db, "customers"), {
-                name: newCustomerName,
-                joinedDate: new Date().toISOString(),
-                totalSpent: 0,
-                amountOwed: 0,
-                amountPaid: 0,
-            });
-            customerId = newCustomerRef.id;
-            customerName = newCustomerName;
-        }
-
-        if (!customerId) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please select or create a customer.' });
-            setIsLoading(false);
+        
+        if (!selectedCustomerId) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please select a customer.' });
             return;
         }
+
+        if (paymentMethod === 'Cash') {
+            setIsCashConfirmOpen(true);
+            return;
+        }
+
+        setIsLoading(true);
+
+        const saleData = {
+            runId: run.id,
+            items: cart,
+            customerId: selectedCustomerId,
+            customerName: selectedCustomer?.name || 'Unknown',
+            paymentMethod,
+            staffId: user.staff_id,
+            total,
+        };
+
+        if (paymentMethod === 'Card') {
+            const paystackResult = await initializePaystackTransaction({
+                ...saleData,
+                email: selectedCustomer?.email
+            });
+            if (paystackResult.success && paystackResult.authorization_url) {
+                router.push(paystackResult.authorization_url);
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
+                setIsLoading(false);
+            }
+            return;
+        }
+
+        // Handle Credit Sale
+        const result = await handleSellToCustomer(saleData);
+
+        if (result.success) {
+            toast({ title: 'Success', description: 'Credit sale recorded successfully.' });
+            onSaleMade();
+            setIsOpen(false);
+            setCart([]);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    };
+    
+    const handleCashConfirmation = async () => {
+        if (!user || !selectedCustomer) return;
+        setIsCashConfirmOpen(false);
+        setIsLoading(true);
 
         const result = await handleSellToCustomer({
             runId: run.id,
             items: cart,
-            customerId,
-            customerName,
-            paymentMethod,
+            customerId: selectedCustomerId,
+            customerName: selectedCustomer.name,
+            paymentMethod: 'Cash',
             staffId: user.staff_id,
+            total,
         });
 
         if (result.success) {
-            toast({ title: 'Success', description: 'Sale recorded successfully.' });
+            toast({ title: 'Pending Approval', description: 'Cash payment has been submitted for accountant approval.' });
             onSaleMade();
             setIsOpen(false);
             setCart([]);
@@ -163,14 +266,20 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                          {/* Customer Selection */}
                         <div className="space-y-2">
                             <Label>Customer</Label>
-                            <Select value={selectedCustomerId} onValueChange={v => {setSelectedCustomerId(v); setIsNewCustomer(v === 'new');}}>
-                                <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
-                                <SelectContent>
-                                    {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                    <SelectItem value="new">Create New Customer</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            {isNewCustomer && <Input placeholder="New customer name" value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} />}
+                             <div className="flex gap-2">
+                                <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                                    <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
+                                    <SelectContent>
+                                        {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                 <CreateCustomerDialog onCustomerCreated={(newCust) => {
+                                    fetchCustomers();
+                                    setSelectedCustomerId(newCust.id);
+                                }}>
+                                    <Button variant="outline">New</Button>
+                                </CreateCustomerDialog>
+                            </div>
                         </div>
 
                          {/* Cart */}
@@ -196,10 +305,11 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                         </div>
                         <div className="space-y-2">
                             <Label>Payment Method</Label>
-                            <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'Cash' | 'Credit')}>
+                            <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'Cash' | 'Credit' | 'Card')}>
                                 <SelectTrigger><SelectValue placeholder="Select payment method" /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Cash">Cash</SelectItem>
+                                    <SelectItem value="Cash"><Wallet className="inline-block mr-2 h-4 w-4" />Cash</SelectItem>
+                                    <SelectItem value="Card"><CreditCard className="inline-block mr-2 h-4 w-4"/>Card (Paystack)</SelectItem>
                                     <SelectItem value="Credit">Credit</SelectItem>
                                 </SelectContent>
                             </Select>
@@ -213,6 +323,20 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                         Confirm Sale
                     </Button>
                 </DialogFooter>
+                 <AlertDialog open={isCashConfirmOpen} onOpenChange={setIsCashConfirmOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Confirm Cash Received</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Have you collected ₦{total.toLocaleString()} in cash? This will be sent to the accountant for approval.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleCashConfirmation}>Yes, Submit for Approval</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </DialogContent>
         </Dialog>
     )

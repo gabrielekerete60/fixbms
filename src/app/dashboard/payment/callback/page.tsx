@@ -76,7 +76,7 @@ function PaymentCallback() {
 
                     // Decrement stock
                     for (const item of orderData.items) {
-                        const personalStockRef = doc(db, 'staff', orderData.staff_id, 'personal_stock', item.id);
+                        const personalStockRef = doc(db, 'staff', orderData.staff_id, 'personal_stock', item.id || item.productId);
                         const personalStockDoc = await transaction.get(personalStockRef);
                         if (!personalStockDoc.exists() || personalStockDoc.data().stock < item.quantity) {
                             throw new Error(`Not enough stock for ${item.name}.`);
@@ -95,6 +95,12 @@ function PaymentCallback() {
                     
                     // Delete temporary order record
                     transaction.delete(tempOrderRef);
+
+                    // If it's a sales run, update the run's financials
+                    if (orderData.runId) {
+                      const runRef = doc(db, 'transfers', orderData.runId);
+                      transaction.update(runRef, { totalCollected: increment(orderData.total) });
+                    }
                 });
                 
                 setResult({ status: 'success', message: 'Payment successful! Your order has been placed.', orderId: reference });

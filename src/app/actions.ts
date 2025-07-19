@@ -615,7 +615,7 @@ export async function handleAddExpense(expenseData: Omit<Expense, 'id' | 'date'>
 
 export type PaymentConfirmation = {
   id: string;
-  date: string;
+  date: Timestamp;
   driverId: string;
   driverName: string;
   saleId: string;
@@ -636,7 +636,6 @@ export async function getPaymentConfirmations(): Promise<PaymentConfirmation[]> 
         return { 
             id: docSnap.id,
              ...data,
-            date: (data.date as Timestamp).toDate().toISOString(),
         } as PaymentConfirmation
     });
   } catch (error) {
@@ -870,8 +869,8 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
         );
         const querySnapshot = await getDocs(q);
         
-        const transfers = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
-            const data = transferDoc.data();
+        const transfers = await Promise.all(querySnapshot.docs.map(async (docSnap) => {
+            const data = docSnap.data();
             let totalValue = 0;
 
             const itemsWithPrices = await Promise.all(
@@ -884,7 +883,7 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
             );
 
             return { 
-                id: transferDoc.id,
+                id: docSnap.id,
                 ...data,
                 items: itemsWithPrices,
                 totalValue,
@@ -1245,20 +1244,38 @@ type SaleData = {
     items: { productId: string; quantity: number; price: number, name: string }[];
     customerId: string;
     customerName: string;
-    paymentMethod: 'Cash' | 'Credit';
+    paymentMethod: 'Cash' | 'Credit' | 'Card';
     staffId: string;
+    total: number;
 }
 
 export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string }> {
   try {
-    const total = data.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    // If cash, create a confirmation request instead of an order
+    if (data.paymentMethod === 'Cash') {
+      const confirmationRef = doc(collection(db, 'payment_confirmations'));
+      await setDoc(confirmationRef, {
+        runId: data.runId,
+        customerId: data.customerId,
+        customerName: data.customerName,
+        items: data.items,
+        amount: data.total,
+        driverId: data.staffId,
+        driverName: (await getDoc(doc(db, 'staff', data.staffId))).data()?.name || 'Unknown',
+        date: serverTimestamp(),
+        status: 'pending'
+      });
+      return { success: true };
+    }
 
+    // For Card and Credit, create the order directly
     const orderData = {
       salesRunId: data.runId,
       customerId: data.customerId,
       customerName: data.customerName,
       items: data.items,
-      total,
+      total: data.total,
       paymentMethod: data.paymentMethod,
       date: new Date().toISOString(),
       staffId: data.staffId,
@@ -1272,6 +1289,10 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       // Decrement stock from the driver's personal inventory
       for (const item of data.items) {
         const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
+        const stockDoc = await transaction.get(stockRef);
+        if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
+          throw new Error(`Not enough stock for ${item.name}.`);
+        }
         transaction.update(stockRef, { stock: increment(-item.quantity) });
       }
 
@@ -1279,14 +1300,14 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       transaction.set(newOrderRef, orderData);
 
       // Update the sales run financials
-      if (data.paymentMethod === 'Cash') {
-        transaction.update(runRef, { totalCollected: increment(total) });
+      if (data.paymentMethod === 'Card') {
+        transaction.update(runRef, { totalCollected: increment(data.total) });
       }
       
       // Update the customer's overall balance if it's a credit sale
       if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
         const customerRef = doc(db, 'customers', data.customerId);
-        transaction.update(customerRef, { amountOwed: increment(total) });
+        transaction.update(customerRef, { amountOwed: increment(data.total) });
       }
     });
 
