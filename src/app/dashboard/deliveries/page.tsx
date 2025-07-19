@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Package2, Calendar as CalendarIcon, Car, TrendingUp } from 'lucide-react';
+import { Loader2, Package2, Calendar as CalendarIcon, Car, AlertTriangle } from 'lucide-react';
 import { getSalesRuns } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import type { SalesRun as SalesRunType } from '@/app/actions';
@@ -15,9 +15,30 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
-import { db } from '@/lib/firebase';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+
+function IndexWarning({ error, indexUrl }: { error: string, indexUrl?: string }) {
+    if (!error) return null;
+
+    return (
+        <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Database Configuration Required</AlertTitle>
+            <AlertDescription>
+                <p className="mb-2">
+                    {error}
+                </p>
+                {indexUrl && (
+                     <a href={indexUrl} target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                        Click here to create the required database index.
+                    </a>
+                )}
+            </AlertDescription>
+        </Alert>
+    )
+}
 
 function EmptyState({ title, description }: { title: string, description: string }) {
     return (
@@ -91,16 +112,25 @@ export default function DeliveriesPage() {
     const [completedRuns, setCompletedRuns] = useState<SalesRunType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [date, setDate] = useState<DateRange | undefined>();
+    const [apiError, setApiError] = useState<string | null>(null);
+    const [indexUrl, setIndexUrl] = useState<string | undefined>(undefined);
     const { toast } = useToast();
 
     const fetchRuns = useCallback(async (userId: string) => {
         setIsLoading(true);
+        setApiError(null);
+        setIndexUrl(undefined);
         try {
-            const { active, completed } = await getSalesRuns(userId);
+            const { active, completed, error, indexUrl } = await getSalesRuns(userId);
+            if(error) {
+                setApiError(error);
+                setIndexUrl(indexUrl);
+            }
             setActiveRuns(active);
             setCompletedRuns(completed);
         } catch (error) {
             console.error("Error fetching runs:", error);
+            setApiError('An unexpected error occurred. Please try again later.');
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales runs.' });
         } finally {
             setIsLoading(false);
@@ -150,6 +180,8 @@ export default function DeliveriesPage() {
     return (
         <div className="flex flex-col gap-4">
             <h1 className="text-2xl font-bold font-headline">Field Sales Runs</h1>
+            
+            {apiError && <IndexWarning error={apiError} indexUrl={indexUrl} />}
 
             <Tabs defaultValue="active">
                 <TabsList>
@@ -166,11 +198,13 @@ export default function DeliveriesPage() {
                             {activeRuns.map(run => <RunCard key={run.id} run={run} user={user} />)}
                         </div>
                     ) : (
-                        <Card>
-                            <CardContent className="p-6">
-                                <EmptyState title="No Active Sales Runs" description="Accepted sales runs will appear here." />
-                            </CardContent>
-                        </Card>
+                        !apiError && (
+                            <Card>
+                                <CardContent className="p-6">
+                                    <EmptyState title="No Active Sales Runs" description="Accepted sales runs will appear here." />
+                                </CardContent>
+                            </Card>
+                        )
                     )}
                 </TabsContent>
                 <TabsContent value="completed" className="mt-4">
@@ -221,11 +255,13 @@ export default function DeliveriesPage() {
                             {filteredCompletedRuns.map(run => <CompletedRunCard key={run.id} run={run} />)}
                         </div>
                     ) : (
-                       <Card>
-                            <CardContent className="p-6">
-                                <EmptyState title="No Completed Runs" description="Your completed sales runs will appear here." />
-                            </CardContent>
-                        </Card>
+                        !apiError && (
+                            <Card>
+                                <CardContent className="p-6">
+                                    <EmptyState title="No Completed Runs" description="Your completed sales runs will appear here." />
+                                </CardContent>
+                            </Card>
+                        )
                     )}
                 </TabsContent>
             </Tabs>
