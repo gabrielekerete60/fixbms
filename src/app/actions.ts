@@ -359,49 +359,62 @@ type SalesRunResult = {
 
 export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
     try {
-        const q = query(
+        const activeQuery = query(
             collection(db, 'transfers'), 
             where('is_sales_run', '==', true),
             where('to_staff_id', '==', staffId),
-            where('status', 'in', ['active', 'completed']),
+            where('status', '==', 'active'),
+            orderBy('date', 'desc')
+        );
+        const completedQuery = query(
+            collection(db, 'transfers'), 
+            where('is_sales_run', '==', true),
+            where('to_staff_id', '==', staffId),
+            where('status', '==', 'completed'),
             orderBy('date', 'desc')
         );
 
-        const querySnapshot = await getDocs(q);
-        const runs = await Promise.all(querySnapshot.docs.map(async (doc) => {
-            const data = doc.data();
-            const date = data.date as Timestamp;
+        const [activeSnapshot, completedSnapshot] = await Promise.all([
+            getDocs(activeQuery),
+            getDocs(completedQuery)
+        ]);
 
-            let totalRevenue = 0;
-            const itemsWithPrices = await Promise.all(
-              data.items.map(async (item: any) => {
-                const productDoc = await getDoc(doc(db, 'products', item.productId));
-                const price = productDoc.exists() ? productDoc.data().price : 0;
-                totalRevenue += price * item.quantity;
-                return { ...item, price };
-              })
-            );
+        const processSnapshot = async (snapshot: any) => {
+             return await Promise.all(snapshot.docs.map(async (doc: any) => {
+                const data = doc.data();
+                const date = data.date as Timestamp;
 
-            return {
-                id: doc.id,
-                ...data,
-                date: date.toDate().toISOString(),
-                items: itemsWithPrices,
-                totalRevenue,
-                totalCollected: data.totalCollected || 0,
-                totalOutstanding: totalRevenue - (data.totalCollected || 0),
-            } as SalesRun;
-        }));
+                let totalRevenue = 0;
+                const itemsWithPrices = await Promise.all(
+                  data.items.map(async (item: any) => {
+                    const productDoc = await getDoc(doc(db, 'products', item.productId));
+                    const price = productDoc.exists() ? productDoc.data().price : 0;
+                    totalRevenue += price * item.quantity;
+                    return { ...item, price };
+                  })
+                );
+
+                return {
+                    id: doc.id,
+                    ...data,
+                    date: date.toDate().toISOString(),
+                    items: itemsWithPrices,
+                    totalRevenue,
+                    totalCollected: data.totalCollected || 0,
+                    totalOutstanding: totalRevenue - (data.totalCollected || 0),
+                } as SalesRun;
+            }));
+        }
         
-        const active = runs.filter(run => run.status === 'active');
-        const completed = runs.filter(run => run.status === 'completed');
+        const active = await processSnapshot(activeSnapshot);
+        const completed = await processSnapshot(completedSnapshot);
 
         return { active, completed };
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
-            const urlMatch = error.toString().match(/(https?:\/\/[^\s]+)/);
-            console.error("Firestore index missing for getSalesRuns.", error.toString());
-            return { active: [], completed: [], error: error.toString(), indexUrl: urlMatch ? urlMatch[0] : undefined };
+            const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
+            console.error("Firestore index missing for getSalesRuns.", error.message);
+            return { active: [], completed: [], error: error.message, indexUrl: urlMatch ? urlMatch[0] : undefined };
         } else {
             console.error("Error fetching sales runs:", error);
             return { active: [], completed: [], error: "An unexpected error occurred while fetching sales runs." };
@@ -450,9 +463,9 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
         return { active, completed };
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
-            const urlMatch = error.toString().match(/(https?:\/\/[^\s]+)/);
-            console.error("Firestore index missing for getAllSalesRuns.", error.toString());
-            return { active: [], completed: [], error: error.toString(), indexUrl: urlMatch ? urlMatch[0] : undefined };
+            const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
+            console.error("Firestore index missing for getAllSalesRuns.", error.message);
+            return { active: [], completed: [], error: error.message, indexUrl: urlMatch ? urlMatch[0] : undefined };
         } else {
             console.error("Error fetching all sales runs:", error);
             return { active: [], completed: [], error: "An unexpected error occurred while fetching all sales runs." };
@@ -842,7 +855,7 @@ export async function getWasteLogsForStaff(staffId: string): Promise<WasteLog[]>
         });
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
-            console.error("Firestore index missing for getWasteLogsForStaff. Please create it in the Firebase console.", error.toString());
+            console.error("Firestore index missing for getWasteLogsForStaff. Please create it in the Firebase console.", error.message);
         } else {
             console.error("Error fetching waste logs for staff:", error);
         }
@@ -900,7 +913,7 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
 
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
-            console.error("Firestore index missing for getPendingTransfersForStaff. Please create it in the Firebase console.", error.toString());
+            console.error("Firestore index missing for getPendingTransfersForStaff. Please create it in the Firebase console.", error.message);
         } else {
             console.error("Error fetching pending transfers:", error);
         }
@@ -927,7 +940,7 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         });
     } catch (error: any) {
          if (error.code === 'failed-precondition') {
-            console.error("Firestore index missing for getCompletedTransfersForStaff. Please create it in the Firebase console.", error.toString());
+            console.error("Firestore index missing for getCompletedTransfersForStaff. Please create it in the Firebase console.", error.message);
         } else {
             console.error("Error fetching completed transfers:", error);
         }
@@ -1218,7 +1231,7 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
             await check();
         } catch (error: any) {
             if (error.code === 'failed-precondition') {
-                const urlMatch = error.toString().match(/(https?:\/\/[^\s]+)/);
+                const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
                 if (urlMatch) {
                     missingIndexes.add(urlMatch[0]);
                 }
@@ -1228,3 +1241,4 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
     
     return { requiredIndexes: Array.from(missingIndexes) };
 }
+

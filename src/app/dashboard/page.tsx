@@ -54,18 +54,19 @@ function IndexWarning({ indexes }: { indexes: string[] }) {
     if (indexes.length === 0) return null;
 
     return (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="mb-6">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Database Configuration Required</AlertTitle>
+            <AlertTitle>Action Required: Database Configuration Needed</AlertTitle>
             <AlertDescription>
                 <p className="mb-2">
-                Your Firestore database is missing indexes required for some queries to run efficiently. Please create them to ensure all parts of the application function correctly.
+                Your application requires one or more database indexes to function correctly. Without them, some pages or features may not load data.
                 </p>
-                <ul className="list-disc pl-5 space-y-1">
+                <p>Please click the link(s) below to create the necessary indexes in your Firebase console:</p>
+                <ul className="list-disc pl-5 space-y-2 mt-2">
                     {indexes.map((url, index) => (
                         <li key={index}>
-                             <a href={url} target="_blank" rel="noopener noreferrer" className="underline font-medium">
-                                Create Index #{index + 1}
+                             <a href={url} target="_blank" rel="noopener noreferrer" className="font-semibold underline hover:text-destructive-foreground">
+                                Create Required Index #{index + 1}
                             </a>
                         </li>
                     ))}
