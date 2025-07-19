@@ -619,7 +619,7 @@ export async function handleAddExpense(expenseData: Omit<Expense, 'id' | 'date'>
 
 export type PaymentConfirmation = {
   id: string;
-  date: Timestamp;
+  date: string; // Changed from Timestamp
   driverId: string;
   driverName: string;
   runId: string;
@@ -639,9 +639,11 @@ export async function getPaymentConfirmations(): Promise<PaymentConfirmation[]> 
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docSnap => {
         const data = docSnap.data();
+        const date = data.date as Timestamp;
         return { 
             id: docSnap.id,
              ...data,
+            date: date.toDate().toISOString(),
         } as PaymentConfirmation
     });
   } catch (error) {
@@ -1397,4 +1399,5 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
     
 
     
+
 

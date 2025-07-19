@@ -254,7 +254,7 @@ function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void
                             <TableRow>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Driver</TableHead>
-                                <TableHead>Sale ID</TableHead>
+                                <TableHead>Run ID</TableHead>
                                 <TableHead>Amount</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
@@ -265,9 +265,9 @@ function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void
                             ) : (
                                 confirmations.map(c => (
                                     <TableRow key={c.id}>
-                                        <TableCell>{format(c.date.toDate(), 'PPp')}</TableCell>
+                                        <TableCell>{format(new Date(c.date), 'PPp')}</TableCell>
                                         <TableCell>{c.driverName}</TableCell>
-                                        <TableCell>{c.saleId}</TableCell>
+                                        <TableCell>{c.runId.substring(0, 7)}...</TableCell>
                                         <TableCell>₦{c.amount.toLocaleString()}</TableCell>
                                         <TableCell className="text-right space-x-2">
                                             <Button variant="destructive" size="sm" onClick={() => setActionState({ id: c.id, type: 'decline' })}>Decline</Button>
