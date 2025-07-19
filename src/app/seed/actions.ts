@@ -169,6 +169,18 @@ const seedData = {
       customerId: 'walk-in',
       status: 'Pending',
     },
+    {
+        id: "pc_3_approved",
+        items: [{ productId: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }],
+        total: 1100,
+        date: daysAgoISO(2), // 2 days ago
+        paymentMethod: 'Cash',
+        customerName: 'Adebisi Onyeka',
+        customerId: 'cust_1',
+        salesRunId: 'tsr_4_owing',
+        staffId: '400005',
+        status: 'Completed'
+    }
   ],
   supply_logs: [
     { id: 'log_1', supplierId: 'sup_1', supplierName: 'Flour Mills of Nigeria', ingredientId: 'ing_1', ingredientName: 'All-Purpose Flour', quantity: 20, unit: 'kg', costPerUnit: 500, totalCost: 10000, date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), invoiceNumber: 'FMN-123' },
@@ -236,19 +248,6 @@ const seedData = {
         status: "pending",
         isDebtPayment: false,
         items: [{ productId: "prod_1", name: "Family Loaf", price: 550, quantity: 1, costPrice: 300 }]
-      },
-      {
-        id: "pc_3_approved",
-        date: daysAgo(2),
-        driverId: "400005",
-        driverName: "Akan Staff",
-        runId: "tsr_4_owing",
-        customerId: "cust_1",
-        customerName: "Adebisi Onyeka",
-        amount: 1100.00,
-        status: "approved",
-        isDebtPayment: false,
-        items: [{ productId: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }]
       }
   ],
   announcements: [
