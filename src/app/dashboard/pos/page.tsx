@@ -187,7 +187,6 @@ export default function POSPage() {
   useEffect(() => {
     const handlePaymentSuccess = async (event: Event) => {
         const e = event as CustomEvent;
-        console.log("Payment success event received:", e.detail);
         toast({ title: "Payment Successful", description: "Completing order..." });
         
         const completed = await completeOrder('Card');
@@ -198,7 +197,6 @@ export default function POSPage() {
     };
 
     const handlePaymentCancelled = () => {
-        console.log("Payment cancelled event received");
         toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment process was cancelled." });
         setIsProcessingPayment(false);
     }
