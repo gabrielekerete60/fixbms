@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, FileDown, Loader2, PlusCircle, Users } from "lucide-react";
+import { Calendar as CalendarIcon, FileDown, Loader2, PlusCircle, Users, RefreshCw } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -567,12 +567,17 @@ export default function AccountingPage() {
       </div>
       
       <Tabs defaultValue="profit-loss">
-        <TabsList>
-          <TabsTrigger value="profit-loss">Profit &amp; Loss</TabsTrigger>
-          <TabsTrigger value="debtors-creditors">Debtors/Creditors</TabsTrigger>
-          <TabsTrigger value="expenses">Expenses</TabsTrigger>
-          <TabsTrigger value="payments-requests">Payments &amp; Requests</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+            <TabsList>
+              <TabsTrigger value="profit-loss">Profit &amp; Loss</TabsTrigger>
+              <TabsTrigger value="debtors-creditors">Debtors/Creditors</TabsTrigger>
+              <TabsTrigger value="expenses">Expenses</TabsTrigger>
+              <TabsTrigger value="payments-requests">Payments &amp; Requests</TabsTrigger>
+            </TabsList>
+            <Button variant="ghost" onClick={fetchData} disabled={isLoading}>
+                <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
+            </Button>
+        </div>
         <TabsContent value="profit-loss" className="mt-4">
             <Card>
                 <CardHeader>
