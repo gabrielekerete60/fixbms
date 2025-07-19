@@ -126,12 +126,26 @@ export default function DeliveriesPage() {
         if (userStr) {
             const parsedUser = JSON.parse(userStr);
             setUser(parsedUser);
-            fetchRuns(parsedUser.staff_id);
+            if (parsedUser.staff_id) {
+                fetchRuns(parsedUser.staff_id);
+            }
         } else {
              toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
              setIsLoading(false);
         }
-    }, [fetchRuns, toast]);
+    }, []);
+
+    useEffect(() => {
+        const handleFocus = () => {
+            if (user?.staff_id) {
+                fetchRuns(user.staff_id);
+            }
+        };
+        window.addEventListener('focus', handleFocus);
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [user, fetchRuns]);
 
     return (
         <div className="flex flex-col gap-4">
