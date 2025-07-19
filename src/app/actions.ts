@@ -140,8 +140,8 @@ export async function getAttendanceStatus(staffId: string): Promise<AttendanceSt
 
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-        const doc = querySnapshot.docs[0];
-        return { attendanceId: doc.id };
+        const docSnap = querySnapshot.docs[0];
+        return { attendanceId: docSnap.id };
     }
     return null;
 }
@@ -353,6 +353,8 @@ export type SalesRun = {
 type SalesRunResult = {
     active: SalesRun[];
     completed: SalesRun[];
+    error?: string;
+    indexUrl?: string;
 }
 
 export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
@@ -361,12 +363,12 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
             collection(db, 'transfers'),
             where('is_sales_run', '==', true),
             where('to_staff_id', '==', staffId),
+            where('status', 'in', ['active', 'completed']),
             orderBy('date', 'desc')
         );
-
         const querySnapshot = await getDocs(q);
 
-        const runs = await Promise.all(querySnapshot.docs.map(async (transferDoc: any) => {
+        const runs = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
             const data = transferDoc.data();
             const date = data.date as Timestamp;
 
@@ -398,7 +400,10 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
 
     } catch (error: any) {
         console.error("Error in getSalesRuns:", error);
-        throw error;
+        if (error.code === 'failed-precondition') {
+            return { active: [], completed: [], error: error.message, indexUrl: error.message.match(/(https?:\/\/[^\s]+)/)?.[0] };
+        }
+        return { active: [], completed: [], error: 'An unexpected error occurred.' };
     }
 }
 
@@ -442,7 +447,10 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
         return { active, completed };
     } catch (error: any) {
         console.error("Error fetching all sales runs:", error);
-        throw error;
+        if (error.code === 'failed-precondition') {
+            return { active: [], completed: [], error: error.message, indexUrl: error.message.match(/(https?:\/\/[^\s]+)/)?.[0] };
+        }
+        return { active: [], completed: [], error: 'An unexpected error occurred.' };
     }
 }
 
@@ -488,7 +496,7 @@ export async function getAccountingReport(dateRange: { from: Date, to: Date }): 
             where("date", "<=", to.toISOString())
         );
         const expensesSnapshot = await getDocs(expensesQuery);
-        const expenses = expensesSnapshot.docs.reduce((sum, doc) => sum + doc.data().amount, 0);
+        const expenses = expensesSnapshot.docs.reduce((sum, expenseDoc) => sum + expenseDoc.data().amount, 0);
         
         // --- Final Calculations ---
         const grossProfit = sales - costOfGoodsSold;
@@ -521,11 +529,11 @@ export async function getCreditors(): Promise<Creditor[]> {
     try {
         const q = query(collection(db, "suppliers"), where("amountOwed", ">", 0));
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => {
-            const data = doc.data();
+        return snapshot.docs.map(docSnap => {
+            const data = docSnap.data();
             const balance = (data.amountOwed || 0) - (data.amountPaid || 0);
             return {
-                id: doc.id,
+                id: docSnap.id,
                 name: data.name,
                 contactPerson: data.contactPerson,
                 amountOwed: data.amountOwed || 0,
@@ -558,7 +566,7 @@ export async function getExpenses(dateRange: { from: Date, to: Date }): Promise<
             orderBy("date", "desc")
         );
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
+        return snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Expense));
      } catch(error) {
         console.error("Error fetching expenses:", error);
         return [];
@@ -623,10 +631,10 @@ export async function getPaymentConfirmations(): Promise<PaymentConfirmation[]> 
       orderBy('date', 'desc')
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => {
-        const data = doc.data();
+    return snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
         return { 
-            id: doc.id,
+            id: docSnap.id,
              ...data,
             date: (data.date as Timestamp).toDate().toISOString(),
         } as PaymentConfirmation
@@ -665,11 +673,11 @@ export async function getAnnouncements(): Promise<Announcement[]> {
     try {
         const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => {
-            const data = doc.data();
+        return snapshot.docs.map(docSnap => {
+            const data = docSnap.data();
             const timestamp = data.timestamp as Timestamp;
             return { 
-                id: doc.id,
+                id: docSnap.id,
                 staffId: data.staffId,
                 staffName: data.staffName,
                 message: data.message,
@@ -794,11 +802,11 @@ export async function getWasteLogs(): Promise<WasteLog[]> {
     try {
         const q = query(collection(db, 'waste_logs'), orderBy('date', 'desc'));
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => {
-            const data = doc.data();
+        return snapshot.docs.map(docSnap => {
+            const data = docSnap.data();
             const date = data.date as Timestamp;
             return {
-                id: doc.id,
+                id: docSnap.id,
                 ...data,
                 date: date.toDate().toISOString(),
             } as WasteLog;
@@ -817,11 +825,11 @@ export async function getWasteLogsForStaff(staffId: string): Promise<WasteLog[]>
             orderBy('date', 'desc')
         );
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => {
-            const data = doc.data();
+        return snapshot.docs.map(docSnap => {
+            const data = docSnap.data();
             const date = data.date as Timestamp;
             return {
-                id: doc.id,
+                id: docSnap.id,
                 ...data,
                 date: date.toDate().toISOString(),
             } as WasteLog;
@@ -904,10 +912,10 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
             orderBy('date', 'desc')
         );
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => {
-            const data = doc.data();
+        return querySnapshot.docs.map(docSnap => {
+            const data = docSnap.data();
             return { 
-                id: doc.id,
+                id: docSnap.id,
                 ...data,
                 date: (data.date as Timestamp).toDate().toISOString(),
              } as Transfer
@@ -1015,11 +1023,11 @@ export async function getProductionBatches(): Promise<{ pending: ProductionBatch
     try {
         const q = query(collection(db, 'production_batches'), orderBy('createdAt', 'desc'));
         const snapshot = await getDocs(q);
-        const allBatches = snapshot.docs.map(doc => {
-            const data = doc.data();
+        const allBatches = snapshot.docs.map(docSnap => {
+            const data = docSnap.data();
             const createdAt = data.createdAt as Timestamp;
             return {
-                id: doc.id,
+                id: docSnap.id,
                 ...data,
                 createdAt: createdAt.toDate().toISOString(),
             } as ProductionBatch;
@@ -1202,5 +1210,116 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
     
     return { requiredIndexes: Array.from(missingIndexes) };
 }
+
+export async function getCustomersForRun(runId: string): Promise<any[]> {
+  try {
+    const q = query(collection(db, "orders"), where("salesRunId", "==", runId));
+    const snapshot = await getDocs(q);
+    
+    const salesByCustomer: Record<string, { customerId: string, customerName: string, totalSold: number, totalPaid: number }> = {};
+
+    snapshot.docs.forEach(docSnap => {
+      const order = docSnap.data();
+      const customerId = order.customerId || 'walk-in';
+      const customerName = order.customerName || 'Walk-in';
+      
+      if (!salesByCustomer[customerId]) {
+        salesByCustomer[customerId] = { customerId, customerName, totalSold: 0, totalPaid: 0 };
+      }
+      
+      salesByCustomer[customerId].totalSold += order.total;
+      if (order.paymentMethod === 'Cash') {
+        salesByCustomer[customerId].totalPaid += order.total;
+      }
+    });
+
+    return Object.values(salesByCustomer);
+  } catch (error) {
+    console.error("Error fetching customers for run:", error);
+    return [];
+  }
+}
+
+type SaleData = {
+    runId: string;
+    items: { productId: string; quantity: number; price: number, name: string }[];
+    customerId: string;
+    customerName: string;
+    paymentMethod: 'Cash' | 'Credit';
+    staffId: string;
+}
+
+export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const total = data.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    const orderData = {
+      salesRunId: data.runId,
+      customerId: data.customerId,
+      customerName: data.customerName,
+      items: data.items,
+      total,
+      paymentMethod: data.paymentMethod,
+      date: new Date().toISOString(),
+      staffId: data.staffId,
+      status: 'Completed',
+    };
+
+    await runTransaction(db, async (transaction) => {
+      const runRef = doc(db, 'transfers', data.runId);
+      const newOrderRef = doc(collection(db, 'orders'));
+
+      // Decrement stock from the driver's personal inventory
+      for (const item of data.items) {
+        const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
+        transaction.update(stockRef, { stock: increment(-item.quantity) });
+      }
+
+      // Create the order document
+      transaction.set(newOrderRef, orderData);
+
+      // Update the sales run financials
+      if (data.paymentMethod === 'Cash') {
+        transaction.update(runRef, { totalCollected: increment(total) });
+      }
+      
+      // Update the customer's overall balance if it's a credit sale
+      if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
+        const customerRef = doc(db, 'customers', data.customerId);
+        transaction.update(customerRef, { amountOwed: increment(total) });
+      }
+    });
+
+    return { success: true };
+
+  } catch (error) {
+    console.error("Error selling to customer:", error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+type PaymentData = {
+    runId: string;
+    customerId: string;
+    amount: number;
+}
+export async function handleRecordPaymentForRun(data: PaymentData): Promise<{ success: boolean; error?: string }> {
+    try {
+        await runTransaction(db, async (transaction) => {
+            const runRef = doc(db, 'transfers', data.runId);
+            const customerRef = doc(db, 'customers', data.customerId);
+
+            // Update sales run collected amount
+            transaction.update(runRef, { totalCollected: increment(data.amount) });
+            // Update customer's paid amount
+            transaction.update(customerRef, { amountPaid: increment(data.amount) });
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error recording payment:", error);
+        return { success: false, error: (error as Error).message };
+    }
+}
+    
 
     
