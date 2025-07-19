@@ -345,6 +345,14 @@ export default function POSPage() {
     }
   }
 
+  const handleSuccessfulPayment = async () => {
+    const completed = await completeOrder('Card');
+    if (completed) {
+        toast({ title: "Payment Successful", description: "The order has been completed." });
+        setIsReceiptOpen(true);
+    }
+  }
+
   const handlePaystackPayment = async () => {
     setIsProcessingPayment(true);
     setIsCheckoutOpen(false);
@@ -355,13 +363,7 @@ export default function POSPage() {
         const paystack = new PaystackPop();
         paystack.resumeTransaction({
             access_code: transaction.access_code,
-            onSuccess: async () => {
-                const completed = await completeOrder('Card');
-                if (completed) {
-                    toast({ title: "Payment Successful", description: "The order has been completed." });
-                    setIsReceiptOpen(true);
-                }
-            },
+            onSuccess: () => handleSuccessfulPayment(),
             onCancel: () => {
                  toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment process was cancelled." });
                  setIsProcessingPayment(false);
