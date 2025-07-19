@@ -12,14 +12,14 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, FileDown, Loader2, PlusCircle } from "lucide-react";
+import { Calendar as CalendarIcon, FileDown, Loader2, PlusCircle, Users } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format, subMonths } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { Separator } from "@/components/ui/separator";
-import { getAccountingReport, AccountingReport, getCreditors, Creditor, getExpenses, Expense, handleLogPayment, handleAddExpense, getPaymentConfirmations, PaymentConfirmation, handlePaymentConfirmation } from "@/app/actions";
+import { getAccountingReport, AccountingReport, getCreditors, Creditor, getExpenses, Expense, handleLogPayment, handleAddExpense, getPaymentConfirmations, PaymentConfirmation, handlePaymentConfirmation, getDebtors, Debtor } from "@/app/actions";
 import {
   Table,
   TableBody,
@@ -313,18 +313,21 @@ export default function AccountingPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [report, setReport] = useState<AccountingReport | null>(null);
     const [creditors, setCreditors] = useState<Creditor[]>([]);
+    const [debtors, setDebtors] = useState<Debtor[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
 
     const fetchData = async () => {
         if (!date?.from || !date?.to) return;
         setIsLoading(true);
-        const [reportData, creditorsData, expensesData] = await Promise.all([
+        const [reportData, creditorsData, expensesData, debtorsData] = await Promise.all([
             getAccountingReport({ from: date.from, to: date.to }),
             getCreditors(),
-            getExpenses({ from: date.from, to: date.to })
+            getExpenses({ from: date.from, to: date.to }),
+            getDebtors()
         ]);
         setReport(reportData);
         setCreditors(creditorsData);
+        setDebtors(debtorsData);
         setExpenses(expensesData);
         setIsLoading(false);
     };
@@ -360,6 +363,55 @@ export default function AccountingPage() {
         );
     }
     
+    const DebtorsContent = () => {
+        if (isLoading) return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
+        const totalBalance = debtors.reduce((sum, d) => sum + d.balance, 0);
+
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Users /> Debtors (Customers who owe you)</CardTitle>
+                    <CardDescription>A list of all customers with an outstanding balance.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Customer</TableHead>
+                                <TableHead>Phone</TableHead>
+                                <TableHead className="text-right">Total Owed</TableHead>
+                                <TableHead className="text-right">Total Paid</TableHead>
+                                <TableHead className="text-right">Balance</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {debtors.length === 0 ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No outstanding debtors.</TableCell></TableRow>
+                            ) : (
+                                debtors.map(d => (
+                                    <TableRow key={d.id}>
+                                        <TableCell className="font-medium">{d.name}</TableCell>
+                                        <TableCell>{d.phone}</TableCell>
+                                        <TableCell className="text-right">₦{d.amountOwed.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right">₦{d.amountPaid.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right text-destructive font-semibold">₦{d.balance.toLocaleString()}</TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                        <TableFooter>
+                            <TableRow>
+                                <TableCell colSpan={4} className="font-bold text-right">Total Outstanding Balance</TableCell>
+                                <TableCell className="text-right font-bold text-destructive">₦{totalBalance.toLocaleString()}</TableCell>
+                            </TableRow>
+                        </TableFooter>
+                    </Table>
+                </CardContent>
+            </Card>
+        );
+    }
+
     const CreditorsContent = () => {
         if (isLoading) return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin" /></div>;
         
@@ -396,7 +448,7 @@ export default function AccountingPage() {
                                 ))
                             )}
                         </TableBody>
-                        <TableFooter className="bg-muted/50">
+                        <TableFooter>
                             <TableRow>
                                 <TableCell colSpan={4} className="text-right font-bold">Total Outstanding Balance</TableCell>
                                 <TableCell className="text-right font-bold text-destructive">₦{totalBalance.toLocaleString()}</TableCell>
@@ -449,7 +501,7 @@ export default function AccountingPage() {
                                 ))
                             )}
                         </TableBody>
-                        <TableFooter className="bg-muted/50">
+                        <TableFooter>
                             <TableRow>
                                 <TableCell colSpan={3} className="text-right font-bold">Total Expenses</TableCell>
                                 <TableCell className="text-right font-bold">₦{totalExpenses.toLocaleString()}</TableCell>
@@ -530,12 +582,7 @@ export default function AccountingPage() {
             </Card>
         </TabsContent>
          <TabsContent value="debtors-creditors" className="mt-4 space-y-4">
-            <Card>
-                <CardHeader><CardTitle>Debtors (Customers who owe you)</CardTitle></CardHeader>
-                 <CardContent className="flex items-center justify-center h-24 text-muted-foreground">
-                    <p>No outstanding debtors.</p>
-                </CardContent>
-            </Card>
+            <DebtorsContent />
             <CreditorsContent />
         </TabsContent>
          <TabsContent value="expenses" className="mt-4">

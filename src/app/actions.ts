@@ -551,6 +551,44 @@ export async function getCreditors(): Promise<Creditor[]> {
     }
 }
 
+export type Debtor = {
+    id: string;
+    name: string;
+    phone: string;
+    amountOwed: number;
+    amountPaid: number;
+    balance: number;
+}
+
+export async function getDebtors(): Promise<Debtor[]> {
+    try {
+        // Query for customers where amountOwed > 0
+        const q = query(collection(db, "customers"), where("amountOwed", ">", 0));
+        const snapshot = await getDocs(q);
+
+        return snapshot.docs
+            .map(docSnap => {
+                const data = docSnap.data();
+                const balance = (data.amountOwed || 0) - (data.amountPaid || 0);
+                return {
+                    id: docSnap.id,
+                    name: data.name,
+                    phone: data.phone,
+                    amountOwed: data.amountOwed || 0,
+                    amountPaid: data.amountPaid || 0,
+                    balance: balance
+                };
+            })
+            // Filter again to ensure we only return those with a positive balance
+            .filter(d => d.balance > 0);
+
+    } catch (error) {
+        console.error("Error fetching debtors:", error);
+        return [];
+    }
+}
+
+
 export type Expense = {
     id: string;
     category: string;

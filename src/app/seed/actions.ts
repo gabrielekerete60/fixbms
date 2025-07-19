@@ -220,9 +220,26 @@ const seedData = {
         date: Timestamp.now(),
         driverId: "400005",
         driverName: "Akan Staff",
-        saleId: "FSALE-1752768719625",
-        amount: 1000.00,
-        status: "pending"
+        runId: "tsr_5_active",
+        customerId: "cust_3",
+        customerName: "Chinedu Eze",
+        amount: 2000.00,
+        status: "pending",
+        isDebtPayment: true,
+        items: []
+      },
+      {
+        id: "pc_2",
+        date: daysAgo(1),
+        driverId: "400005",
+        driverName: "Akan Staff",
+        runId: "tsr_5_active",
+        customerId: "cust_1",
+        customerName: "Adebisi Onyeka",
+        amount: 550.00,
+        status: "pending",
+        isDebtPayment: false,
+        items: [{ productId: "prod_1", name: "Family Loaf", price: 550, quantity: 1 }]
       }
   ],
   announcements: [
