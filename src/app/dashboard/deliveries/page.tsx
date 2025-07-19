@@ -28,12 +28,14 @@ function IndexWarning({ error, indexUrl }: { error: string, indexUrl?: string })
             <AlertTitle>Database Configuration Required</AlertTitle>
             <AlertDescription>
                 <p className="mb-2">
-                    {error}
+                    A query failed because the required database index has not been created.
                 </p>
-                {indexUrl && (
+                {indexUrl ? (
                      <a href={indexUrl} target="_blank" rel="noopener noreferrer" className="underline font-medium">
-                        Click here to create the required database index.
+                        Click here to create the required database index in the Firebase console.
                     </a>
+                ) : (
+                    <p>{error}</p>
                 )}
             </AlertDescription>
         </Alert>
@@ -88,7 +90,7 @@ function RunCard({ run, user }: { run: SalesRunType, user: {name: string, staff_
 }
 
 function CompletedRunCard({ run }: { run: SalesRunType }) {
-    const runDate = run.date ? new Date(run.date) : new Date();
+    const runDate = new Date(run.date);
 
     return (
         <Card>

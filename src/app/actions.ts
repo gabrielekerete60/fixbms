@@ -401,7 +401,8 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
         if (error.code === 'failed-precondition') {
             console.error("Firestore index missing for getSalesRuns. Please create it in the Firebase console.", error.toString());
             const urlMatch = error.toString().match(/(https?:\/\/[^\s]+)/);
-            return { active: [], completed: [], error: "A database index is required to view sales runs.", indexUrl: urlMatch ? urlMatch[0] : undefined };
+            // Return the full error message so the UI can display it
+            return { active: [], completed: [], error: error.message, indexUrl: urlMatch ? urlMatch[0] : undefined };
         } else {
             console.error("Error fetching sales runs:", error);
             return { active: [], completed: [], error: "An unexpected error occurred while fetching sales runs." };
