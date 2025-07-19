@@ -4,7 +4,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { clearDatabase, seedDatabase, verifySeedPassword } from "@/app/seed/actions";
+import { clearDatabase, seedDatabase, verifySeedPassword, seedEmptyData } from "@/app/seed/actions";
 import { Loader2, KeyRound } from "lucide-react";
 import {
   AlertDialog,
@@ -82,6 +82,24 @@ export function SeedClient() {
     });
   };
 
+  const handleSeedEmpty = () => {
+    startTransition(async () => {
+      const result = await seedEmptyData();
+      if (result.success) {
+        toast({
+          title: "Success!",
+          description: "Empty collections have been created.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result.error || "An unknown error occurred.",
+        });
+      }
+    });
+  };
+
   if (!isVerified) {
     return (
        <div className="flex flex-col space-y-4">
@@ -127,6 +145,27 @@ export function SeedClient() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleSeed}>Continue</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" disabled={isPending} className="w-full font-headline">
+            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Seed Empty Data
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-headline">Seed empty structure?</AlertDialogTitle>
+            <AlertDialogDescription className="font-body">
+              This will create all necessary collections in the database but will not add any data. This is useful for a clean production setup.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSeedEmpty}>Continue</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

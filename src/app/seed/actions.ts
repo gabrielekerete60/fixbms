@@ -426,3 +426,25 @@ export async function clearDatabase(): Promise<ActionResult> {
     return { success: false, error: `Failed to clear database: ${errorMessage}` };
   }
 }
+
+export async function seedEmptyData(): Promise<ActionResult> {
+  console.log("Attempting to seed empty collections...");
+  const collectionsToCreate = Object.keys(seedData).filter(k => !k.startsWith('personal_stock'));
+  
+  try {
+    for (const collectionName of collectionsToCreate) {
+      const placeholderRef = doc(collection(db, collectionName), '__placeholder__');
+      const batch = writeBatch(db);
+      batch.set(placeholderRef, { exists: true });
+      batch.delete(placeholderRef);
+      await batch.commit();
+      console.log(`Created empty collection: ${collectionName}`);
+    }
+    console.log("Empty collections created successfully.");
+    return { success: true };
+  } catch (error) {
+    console.error("Error seeding empty collections:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+    return { success: false, error: `Failed to seed empty collections: ${errorMessage}` };
+  }
+}
