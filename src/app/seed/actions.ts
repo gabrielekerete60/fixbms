@@ -43,6 +43,8 @@ const seedData = {
     { id: "sup_1", name: "Flour Mills of Nigeria", contactPerson: "Mr. Adebayo", phone: "08012345678", email: "sales@fmnplc.com", address: "Apapa, Lagos", amountOwed: 500000, amountPaid: 450000 },
     { id: "sup_2", name: "Dangote Sugar", contactPerson: "Hajiya Bello", phone: "08087654321", email: "sugar@dangote.com", address: "Ikeja, Lagos", amountOwed: 250000, amountPaid: 250000 },
     { id: "sup_3", name: "Local Yeast Supplier", contactPerson: "Mama Chichi", phone: "07011223344", email: "chichisyeast@email.com", address: "Uyo Main Market", amountOwed: 50000, amountPaid: 20000 },
+    { id: "sup_4", name: "Packaging Pro", contactPerson: "Mr. Frank", phone: "09012345678", email: "frank@packpro.ng", address: "Ilupeju, Lagos", amountOwed: 15000, amountPaid: 15000 },
+    { id: "sup_5", name: "Okomu Oil Palm", contactPerson: "Dr. Evelyn", phone: "08055554444", email: "sales@okomuoil.com", address: "Benin City", amountOwed: 80000, amountPaid: 0 },
   ],
   recipes: [
      {
@@ -122,9 +124,10 @@ const seedData = {
     { id: "sup_os_4", name: "Disinfectant", stock: 5, unit: 'L', costPerUnit: 5000.00, category: "Cleaning" },
   ],
   customers: [
-      { id: 'cust_1', name: 'Adebisi Onyeka', phone: '08012345678', email: 'a.onyeka@example.com', address: '123, Allen Avenue, Ikeja', joinedDate: '2023-01-15T10:00:00Z', totalSpent: 150000 },
-      { id: 'cust_2', name: 'Ngozi Okoro', phone: '09087654321', email: 'n.okoro@example.com', address: '45, Lekki Phase 1', joinedDate: '2023-02-20T11:30:00Z', totalSpent: 75000 },
-      { id: 'cust_3', name: 'Chinedu Eze', phone: '07011223344', email: 'c.eze@example.com', address: '78, Surulere, Lagos', joinedDate: '2023-03-10T09:00:00Z', totalSpent: 250000 },
+      { id: 'cust_1', name: 'Adebisi Onyeka', phone: '08012345678', email: 'a.onyeka@example.com', address: '123, Allen Avenue, Ikeja', joinedDate: '2023-01-15T10:00:00Z', totalSpent: 150000, amountOwed: 5000, amountPaid: 145000 },
+      { id: 'cust_2', name: 'Ngozi Okoro', phone: '09087654321', email: 'n.okoro@example.com', address: '45, Lekki Phase 1', joinedDate: '2023-02-20T11:30:00Z', totalSpent: 75000, amountOwed: 0, amountPaid: 75000 },
+      { id: 'cust_3', name: 'Chinedu Eze', phone: '07011223344', email: 'c.eze@example.com', address: '78, Surulere, Lagos', joinedDate: '2023-03-10T09:00:00Z', totalSpent: 250000, amountOwed: 20000, amountPaid: 230000 },
+      { id: 'cust_4', name: 'Fatima Bello', phone: '08122334455', email: 'f.bello@example.com', address: '10, Garki, Abuja', joinedDate: '2023-04-05T14:00:00Z', totalSpent: 30000, amountOwed: 0, amountPaid: 30000 },
   ],
    orders: [
     {
@@ -150,6 +153,26 @@ const seedData = {
       customerName: 'Ngozi Okoro',
       status: 'Completed',
     },
+    {
+      id: "ord_3",
+      items: [{ id: "prod_4", name: "Round Loaf", price: 500, quantity: 10, costPrice: 280 }],
+      subtotal: 5000,
+      total: 5000,
+      date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      paymentMethod: 'Card',
+      customerName: 'Chinedu Eze',
+      status: 'Completed',
+    },
+     {
+      id: "ord_4",
+      items: [{ id: "prod_2", name: "Burger Loaf", price: 450, quantity: 5, costPrice: 250 }],
+      subtotal: 2250,
+      total: 2250,
+      date: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // 10 minutes ago
+      paymentMethod: 'Card',
+      customerName: 'Walk-in',
+      status: 'Pending',
+    },
   ],
   supply_logs: [
     { id: 'log_1', supplierId: 'sup_1', supplierName: 'Flour Mills of Nigeria', ingredientId: 'ing_1', ingredientName: 'All-Purpose Flour', quantity: 20, unit: 'kg', costPerUnit: 500, totalCost: 10000, date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), invoiceNumber: 'FMN-123' },
@@ -158,7 +181,8 @@ const seedData = {
   expenses: [
     { id: 'exp_1', category: 'Utilities', description: 'Monthly electricity bill', amount: 50000, date: new Date(new Date().setDate(1)).toISOString() },
     { id: 'exp_2', category: 'Logistics', description: 'Carriage Inward for flour delivery', amount: 7500, date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
-    { id: 'exp_3', category: 'Salaries', description: 'Monthly staff salaries', amount: 1210000, date: new Date(new Date().setDate(28)).toISOString() }
+    { id: 'exp_3', category: 'Salaries', description: 'Monthly staff salaries', amount: 1210000, date: new Date(new Date().setDate(28)).toISOString() },
+    { id: 'exp_4', category: 'Maintenance', description: 'Repair of delivery van', amount: 25000, date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() }
   ],
   attendance: [
     // Staff 100001 (Manager) - Attended 4 days this week
@@ -177,36 +201,18 @@ const seedData = {
     { staff_id: '500006', clock_in_time: daysAgo(3), clock_out_time: daysAgo(3), date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString().split('T')[0] },
   ],
   transfers: [
-      {
-        id: "trans_1",
-        from_staff_id: "100001",
-        from_staff_name: "Chris Manager",
-        to_staff_id: "400004",
-        to_staff_name: "Mfon Staff",
-        items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 12 }],
-        date: daysAgo(2),
-        status: 'completed'
-      },
-       {
-        id: "trans_2",
-        from_staff_id: "100001",
-        from_staff_name: "Chris Manager",
-        to_staff_id: "400004",
-        to_staff_name: "Mfon Staff",
-        items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 5 }],
-        date: daysAgo(1),
-        status: 'pending'
-      },
-      {
-        id: "trans_3",
-        from_staff_id: "100001",
-        from_staff_name: "Chris Manager",
-        to_staff_id: "400004",
-        to_staff_name: "Mfon Staff",
-        items: [{ productId: "prod_3", productName: "Jumbo Loaf", quantity: 10 }],
-        date: Timestamp.now(),
-        status: 'pending'
-      }
+      // Completed, Fully Paid
+      { id: "tsr_1_paid", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 20 }], date: daysAgo(5), status: 'completed', is_sales_run: true, notes: "Morning sales run to Lekki" },
+      { id: "tsr_2_paid", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_5", productName: "Coca-Cola (50cl)", quantity: 24 }], date: daysAgo(4), status: 'completed', is_sales_run: true, notes: "Drinks for VI" },
+      // Completed, Owing
+      { id: "tsr_3_owing", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_3", productName: "Jumbo Loaf", quantity: 15 }], date: daysAgo(3), status: 'completed', is_sales_run: true, notes: "Bulk order for Chinedu Eze" },
+      { id: "tsr_4_owing", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_4", productName: "Round Loaf", quantity: 30 }], date: daysAgo(2), status: 'completed', is_sales_run: true, notes: "Supply for Adebisi Onyeka's shop" },
+      // Active Sales Runs
+      { id: "tsr_5_active", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 25 }, { productId: "prod_2", productName: "Burger Loaf", quantity: 25 }], date: daysAgo(1), status: 'pending', is_sales_run: true, notes: "Today's main sales run" },
+      { id: "tsr_6_active", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_6", productName: "Bottled Water (75cl)", quantity: 48 }], date: Timestamp.now(), status: 'pending', is_sales_run: true, notes: "Urgent water supply for event" },
+      // Regular stock transfer (not a sales run)
+      { id: "trans_1", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400004", to_staff_name: "Mfon Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 12 }], date: daysAgo(2), status: 'completed', is_sales_run: false },
+      { id: "trans_2", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400004", to_staff_name: "Mfon Staff", items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 5 }], date: daysAgo(1), status: 'pending', is_sales_run: false },
   ],
   payment_confirmations: [
       {
@@ -309,8 +315,12 @@ const seedData = {
     }
   ],
   personal_stock_akan: [
+      { productId: 'prod_1', productName: 'Family Loaf', stock: 50 },
       { productId: 'prod_2', productName: 'Burger Loaf', stock: 20 },
-      { productId: 'prod_5', productName: 'Coca-Cola (50cl)', stock: 50 }
+      { productId: 'prod_5', productName: 'Coca-Cola (50cl)', stock: 50 },
+      { productId: 'prod_6', productName: 'Bottled Water (75cl)', stock: 100 },
+      { productId: 'prod_3', productName: 'Jumbo Loaf', stock: 15 },
+      { productId: 'prod_4', productName: 'Round Loaf', stock: 30 },
   ]
 };
 
