@@ -141,7 +141,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
         }
     }, [isOpen]);
 
-    const handleAddToCart = (item: { productId: string, name: string, price: number, quantity: number }) => {
+    const handleAddToCart = (item: { productId: string, productName: string, price: number, quantity: number }) => {
         const quantityToAdd = Number(itemQuantities[item.productId] || 1);
         if (isNaN(quantityToAdd) || quantityToAdd <= 0) {
             toast({ variant: 'destructive', title: 'Invalid Quantity', description: 'Please enter a valid number.' });
@@ -154,7 +154,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
         const availableStock = itemInRun?.quantity || 0;
 
         if ((currentInCart + quantityToAdd) > availableStock) {
-            toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${availableStock - currentInCart} more units of ${item.name} available.`});
+            toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${availableStock - currentInCart} more units of ${item.productName} available.`});
             return;
         }
 
@@ -163,7 +163,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
             if (existing) {
                 return prev.map(p => p.productId === item.productId ? { ...p, quantity: p.quantity + quantityToAdd } : p);
             }
-            return [...prev, { ...item, quantity: quantityToAdd }];
+            return [...prev, { productId: item.productId, price: item.price, name: item.productName, quantity: quantityToAdd }];
         });
         // Reset input for that item
         setItemQuantities(prev => ({...prev, [item.productId]: ''}));
@@ -204,7 +204,8 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
         if (paymentMethod === 'Card') {
             const paystackResult = await initializePaystackTransaction({
                 ...saleData,
-                email: selectedCustomer?.email
+                email: selectedCustomer?.email,
+                runId: run.id, // Make sure runId is passed
             });
             if (paystackResult.success && paystackResult.authorization_url) {
                 window.location.href = paystackResult.authorization_url;
@@ -660,4 +661,3 @@ export default function SalesRunPage() {
         </div>
     );
 }
-
