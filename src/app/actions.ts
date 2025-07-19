@@ -343,6 +343,8 @@ export type SalesRun = {
     notes?: string;
     from_staff_name?: string; 
     from_staff_id?: string;
+    to_staff_name?: string;
+    to_staff_id?: string;
     totalRevenue: number;
     totalCollected: number;
     totalOutstanding: number;
@@ -357,7 +359,6 @@ type SalesRunResult = {
 
 export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
     try {
-        // Fetch runs that are either 'active' or 'completed'
         const q = query(
             collection(db, 'transfers'), 
             where('is_sales_run', '==', true),
@@ -371,7 +372,6 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
             const data = doc.data();
             const date = data.date as Timestamp;
 
-            // Fetch product prices to calculate total revenue
             let totalRevenue = 0;
             const itemsWithPrices = await Promise.all(
               data.items.map(async (item: any) => {
@@ -399,13 +399,63 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
         return { active, completed };
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
-            console.error("Firestore index missing for getSalesRuns. Please create it in the Firebase console.", error.toString());
             const urlMatch = error.toString().match(/(https?:\/\/[^\s]+)/);
-            // Return the full error message so the UI can display it
-            return { active: [], completed: [], error: error.message, indexUrl: urlMatch ? urlMatch[0] : undefined };
+            console.error("Firestore index missing for getSalesRuns.", error.toString());
+            return { active: [], completed: [], error: error.toString(), indexUrl: urlMatch ? urlMatch[0] : undefined };
         } else {
             console.error("Error fetching sales runs:", error);
             return { active: [], completed: [], error: "An unexpected error occurred while fetching sales runs." };
+        }
+    }
+}
+
+export async function getAllSalesRuns(): Promise<SalesRunResult> {
+    try {
+        const q = query(
+            collection(db, 'transfers'), 
+            where('is_sales_run', '==', true),
+            where('status', 'in', ['active', 'completed']),
+            orderBy('date', 'desc')
+        );
+
+        const querySnapshot = await getDocs(q);
+        const runs = await Promise.all(querySnapshot.docs.map(async (doc) => {
+            const data = doc.data();
+            const date = data.date as Timestamp;
+
+            let totalRevenue = 0;
+            const itemsWithPrices = await Promise.all(
+              data.items.map(async (item: any) => {
+                const productDoc = await getDoc(doc(db, 'products', item.productId));
+                const price = productDoc.exists() ? productDoc.data().price : 0;
+                totalRevenue += price * item.quantity;
+                return { ...item, price };
+              })
+            );
+
+            return {
+                id: doc.id,
+                ...data,
+                date: date.toDate().toISOString(),
+                items: itemsWithPrices,
+                totalRevenue,
+                totalCollected: data.totalCollected || 0,
+                totalOutstanding: totalRevenue - (data.totalCollected || 0),
+            } as SalesRun;
+        }));
+        
+        const active = runs.filter(run => run.status === 'active');
+        const completed = runs.filter(run => run.status === 'completed');
+
+        return { active, completed };
+    } catch (error: any) {
+        if (error.code === 'failed-precondition') {
+            const urlMatch = error.toString().match(/(https?:\/\/[^\s]+)/);
+            console.error("Firestore index missing for getAllSalesRuns.", error.toString());
+            return { active: [], completed: [], error: error.toString(), indexUrl: urlMatch ? urlMatch[0] : undefined };
+        } else {
+            console.error("Error fetching all sales runs:", error);
+            return { active: [], completed: [], error: "An unexpected error occurred while fetching all sales runs." };
         }
     }
 }
@@ -589,11 +639,10 @@ export async function getPaymentConfirmations(): Promise<PaymentConfirmation[]> 
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => {
         const data = doc.data();
-        const date = data.date as Timestamp;
         return { 
             id: doc.id,
              ...data,
-            date: date.toDate().toISOString(),
+            date: (data.date as Timestamp).toDate().toISOString(),
         } as PaymentConfirmation
     });
   } catch (error) {
@@ -828,7 +877,6 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
         
         const transfers = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
             const data = transferDoc.data();
-            const date = data.date as Timestamp;
             let totalValue = 0;
 
             const itemsWithPrices = await Promise.all(
@@ -845,7 +893,7 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
                 ...data,
                 items: itemsWithPrices,
                 totalValue,
-                date: date.toDate().toISOString(),
+                date: (data.date as Timestamp).toDate().toISOString(),
              } as Transfer;
         }));
         return transfers;
@@ -871,11 +919,10 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => {
             const data = doc.data();
-            const date = data.date as Timestamp;
             return { 
                 id: doc.id,
                 ...data,
-                date: date.toDate().toISOString(),
+                date: (data.date as Timestamp).toDate().toISOString(),
              } as Transfer
         });
     } catch (error: any) {
@@ -901,22 +948,32 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
         }
      }
 
-     // Handle 'accept' case within a transaction
      try {
         await runTransaction(db, async (transaction) => {
-            // --- 1. All READ operations first ---
             const transferDoc = await transaction.get(transferRef);
             if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
             if (transferDoc.data().status !== 'pending') throw new Error("This transfer has already been processed.");
             
             const transfer = transferDoc.data() as Transfer;
 
-            const productRefs = transfer.items.map(item => doc(db, 'products', item.productId));
-            const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
+            const productRefs: doc[] = [];
+            const staffStockRefs: doc[] = [];
+            const productDocsPromises: Promise<any>[] = [];
+            const staffStockDocsPromises: Promise<any>[] = [];
 
-            const staffStockRefs = transfer.items.map(item => doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId));
-            const staffStockDocs = await Promise.all(staffStockRefs.map(ref => transaction.get(ref)));
-
+            // --- 1. All READ operations first ---
+            for (const item of transfer.items) {
+                const productRef = doc(db, 'products', item.productId);
+                productRefs.push(productRef);
+                productDocsPromises.push(transaction.get(productRef));
+                
+                const staffStockRef = doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId);
+                staffStockRefs.push(staffStockRef);
+                staffStockDocsPromises.push(transaction.get(staffStockRef));
+            }
+            const productDocs = await Promise.all(productDocsPromises);
+            const staffStockDocs = await Promise.all(staffStockDocsPromises);
+            
             // --- 2. Validation ---
             for (let i = 0; i < transfer.items.length; i++) {
                 const item = transfer.items[i];

@@ -5,19 +5,23 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Package2, Calendar as CalendarIcon, Car, AlertTriangle } from 'lucide-react';
-import { getSalesRuns } from '@/app/actions';
+import { Loader2, Package2, Car, AlertTriangle, Users, DollarSign, Filter } from 'lucide-react';
+import { getSalesRuns, getAllSalesRuns } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import type { SalesRun as SalesRunType } from '@/app/actions';
-import { DateRange } from 'react-day-picker';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { format, startOfDay, endOfDay } from 'date-fns';
-import { Calendar } from '@/components/ui/calendar';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { format } from 'date-fns';
+
+type User = {
+    name: string;
+    role: string;
+    staff_id: string;
+};
 
 function IndexWarning({ error, indexUrl }: { error: string, indexUrl?: string }) {
     if (!error) return null;
@@ -28,14 +32,14 @@ function IndexWarning({ error, indexUrl }: { error: string, indexUrl?: string })
             <AlertTitle>Database Configuration Required</AlertTitle>
             <AlertDescription>
                 <p className="mb-2">
-                    A query failed because the required database index has not been created.
+                    A query failed because a required database index has not been created.
                 </p>
                 {indexUrl ? (
                      <a href={indexUrl} target="_blank" rel="noopener noreferrer" className="underline font-medium">
                         Click here to create the required database index in the Firebase console.
                     </a>
                 ) : (
-                    <p>{error}</p>
+                    <p className="text-xs font-mono bg-muted p-2 rounded-md">{error}</p>
                 )}
             </AlertDescription>
         </Alert>
@@ -52,7 +56,7 @@ function EmptyState({ title, description }: { title: string, description: string
     );
 }
 
-function RunCard({ run, user }: { run: SalesRunType, user: {name: string, staff_id: string} | null }) {
+function RunCard({ run }: { run: SalesRunType }) {
     const totalItems = run.items.reduce((sum, item) => sum + item.quantity, 0);
     const soldItems = 0; // Placeholder for now
     const progress = totalItems > 0 ? (soldItems / totalItems) * 100 : 0;
@@ -64,7 +68,7 @@ function RunCard({ run, user }: { run: SalesRunType, user: {name: string, staff_
                     <CardTitle className="flex items-center gap-2">
                         <Car /> Run: {run.id.substring(0, 6).toUpperCase()}
                     </CardTitle>
-                    <CardDescription>Driver: {user?.name}</CardDescription>
+                    <CardDescription>Driver: {run.to_staff_name}</CardDescription>
                 </div>
                 <Badge>Active</Badge>
             </CardHeader>
@@ -89,41 +93,141 @@ function RunCard({ run, user }: { run: SalesRunType, user: {name: string, staff_
     );
 }
 
-function CompletedRunCard({ run }: { run: SalesRunType }) {
-    const runDate = new Date(run.date);
+function ManagerView({ allRuns, isLoading, apiError, indexUrl }: { allRuns: SalesRunType[], isLoading: boolean, apiError: string | null, indexUrl?: string }) {
+    const [filterDriver, setFilterDriver] = useState('all');
+    const [sort, setSort] = useState('date_desc');
+
+    const drivers = useMemo(() => {
+        const driverSet = new Set(allRuns.map(run => run.to_staff_name).filter(Boolean));
+        return ['all', ...Array.from(driverSet)] as string[];
+    }, [allRuns]);
+
+    const filteredAndSortedRuns = useMemo(() => {
+        let runs = [...allRuns];
+        if (filterDriver !== 'all') {
+            runs = runs.filter(run => run.to_staff_name === filterDriver);
+        }
+        
+        runs.sort((a, b) => {
+            switch (sort) {
+                case 'value_desc': return b.totalRevenue - a.totalRevenue;
+                case 'value_asc': return a.totalRevenue - b.totalRevenue;
+                case 'date_asc': return new Date(a.date).getTime() - new Date(b.date).getTime();
+                default: return new Date(b.date).getTime() - new Date(a.date).getTime();
+            }
+        });
+        return runs;
+    }, [allRuns, filterDriver, sort]);
+
+    const activeRuns = filteredAndSortedRuns.filter(r => r.status === 'active');
+    const totalOutstanding = activeRuns.reduce((sum, run) => sum + run.totalOutstanding, 0);
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Run ID: {run.id.substring(0, 7)}...</CardTitle>
-                <CardDescription>
-                    Assigned on {runDate.toLocaleString()} by {run.from_staff_name || 'Storekeeper'}
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <p>{run.items.reduce((sum, item) => sum + item.quantity, 0)} items delivered.</p>
-                {run.notes && <p className="mt-2 text-sm text-muted-foreground italic">Notes: {run.notes}</p>}
-            </CardContent>
-        </Card>
-    );
+        <div className="flex flex-col gap-4">
+            {apiError && <IndexWarning error={apiError} indexUrl={indexUrl} />}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Active Sales Runs</CardTitle>
+                        <Car className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{activeRuns.length}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">₦{totalOutstanding.toLocaleString()}</div>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Drivers Active</CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{drivers.length - 1}</div>
+                    </CardContent>
+                </Card>
+            </div>
+            
+            <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle>All Sales Runs</CardTitle>
+                            <CardDescription>Monitor all active and completed sales runs across all drivers.</CardDescription>
+                        </div>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild><Button variant="outline"><Filter className="mr-2"/> Filter & Sort</Button></DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuLabel>Filter by Driver</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {drivers.map(d => <DropdownMenuItem key={d} onSelect={() => setFilterDriver(d)}>{d === 'all' ? 'All Drivers' : d}</DropdownMenuItem>)}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuLabel>Sort By</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => setSort('date_desc')}>Newest First</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setSort('date_asc')}>Oldest First</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setSort('value_desc')}>Highest Value</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setSort('value_asc')}>Lowest Value</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                     {isLoading ? (
+                        <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                     ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Driver</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Items</TableHead>
+                                    <TableHead className="text-right">Value</TableHead>
+                                    <TableHead className="text-right">Outstanding</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredAndSortedRuns.map(run => (
+                                    <TableRow key={run.id}>
+                                        <TableCell>{run.to_staff_name}</TableCell>
+                                        <TableCell>{format(new Date(run.date), 'PPP')}</TableCell>
+                                        <TableCell><Badge variant={run.status === 'active' ? 'default' : 'secondary'}>{run.status}</Badge></TableCell>
+                                        <TableCell>{run.items.reduce((sum, i) => sum + i.quantity, 0)}</TableCell>
+                                        <TableCell className="text-right">₦{run.totalRevenue.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right text-destructive font-semibold">₦{run.totalOutstanding.toLocaleString()}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                     )}
+                </CardContent>
+            </Card>
+        </div>
+    )
 }
 
-export default function DeliveriesPage() {
-    const [user, setUser] = useState<{name: string, staff_id: string} | null>(null);
+function DriverView({ user, onFocus }: { user: User, onFocus: () => void }) {
     const [activeRuns, setActiveRuns] = useState<SalesRunType[]>([]);
     const [completedRuns, setCompletedRuns] = useState<SalesRunType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [date, setDate] = useState<DateRange | undefined>();
     const [apiError, setApiError] = useState<string | null>(null);
     const [indexUrl, setIndexUrl] = useState<string | undefined>(undefined);
     const { toast } = useToast();
 
-    const fetchRuns = useCallback(async (userId: string) => {
+    const fetchRuns = useCallback(async () => {
         setIsLoading(true);
         setApiError(null);
         setIndexUrl(undefined);
         try {
-            const { active, completed, error, indexUrl } = await getSalesRuns(userId);
+            const { active, completed, error, indexUrl } = await getSalesRuns(user.staff_id);
             if(error) {
                 setApiError(error);
                 setIndexUrl(indexUrl);
@@ -137,136 +241,126 @@ export default function DeliveriesPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [toast]);
-
-    const filteredCompletedRuns = useMemo(() => {
-        if (!date?.from) {
-            return completedRuns;
-        }
-        const from = startOfDay(date.from);
-        const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
-
-        return completedRuns.filter(run => {
-            if (!run.date) return false;
-            const runDate = new Date(run.date);
-            return runDate >= from && runDate <= to;
-        });
-    }, [completedRuns, date]);
-
+    }, [toast, user.staff_id]);
+    
     useEffect(() => {
-        const userStr = localStorage.getItem('loggedInUser');
-        if (userStr) {
-            const parsedUser = JSON.parse(userStr);
-            setUser(parsedUser);
-            if (parsedUser.staff_id) {
-                fetchRuns(parsedUser.staff_id);
-            }
-        } else {
-             toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
-             setIsLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        const handleFocus = () => {
-            if (user?.staff_id) {
-                fetchRuns(user.staff_id);
-            }
-        };
-        window.addEventListener('focus', handleFocus);
-        return () => {
-            window.removeEventListener('focus', handleFocus);
-        };
+        if(user.staff_id) fetchRuns();
     }, [user, fetchRuns]);
 
+    useEffect(() => {
+        window.addEventListener('focus', fetchRuns);
+        return () => {
+            window.removeEventListener('focus', fetchRuns);
+        };
+    }, [fetchRuns]);
+    
     return (
         <div className="flex flex-col gap-4">
-            <h1 className="text-2xl font-bold font-headline">Field Sales Runs</h1>
+            <h1 className="text-2xl font-bold font-headline">My Sales Runs</h1>
             
             {apiError && <IndexWarning error={apiError} indexUrl={indexUrl} />}
 
             <Tabs defaultValue="active">
                 <TabsList>
                     <TabsTrigger value="active">Active Runs ({activeRuns.length})</TabsTrigger>
-                    <TabsTrigger value="completed">Completed Runs ({filteredCompletedRuns.length})</TabsTrigger>
+                    <TabsTrigger value="completed">Completed Runs ({completedRuns.length})</TabsTrigger>
                 </TabsList>
                 <TabsContent value="active" className="mt-4">
                     {isLoading ? (
-                        <div className="flex justify-center items-center h-64">
-                            <Loader2 className="h-8 w-8 animate-spin" />
-                        </div>
+                        <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
                     ) : activeRuns.length > 0 ? (
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {activeRuns.map(run => <RunCard key={run.id} run={run} user={user} />)}
+                            {activeRuns.map(run => <RunCard key={run.id} run={run} />)}
                         </div>
                     ) : (
                         !apiError && (
-                            <Card>
-                                <CardContent className="p-6">
-                                    <EmptyState title="No Active Sales Runs" description="Accepted sales runs will appear here." />
-                                </CardContent>
-                            </Card>
+                            <Card><CardContent className="p-6"><EmptyState title="No Active Sales Runs" description="Accepted sales runs will appear here." /></CardContent></Card>
                         )
                     )}
                 </TabsContent>
                 <TabsContent value="completed" className="mt-4">
-                    <div className="flex justify-end mb-4">
-                         <Popover>
-                            <PopoverTrigger asChild>
-                            <Button
-                                id="date"
-                                variant={"outline"}
-                                className={cn(
-                                "w-[260px] justify-start text-left font-normal",
-                                !date && "text-muted-foreground"
-                                )}
-                            >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {date?.from ? (
-                                date.to ? (
-                                    <>
-                                    {format(date.from, "LLL dd, y")} -{" "}
-                                    {format(date.to, "LLL dd, y")}
-                                    </>
-                                ) : (
-                                    format(date.from, "LLL dd, y")
-                                )
-                                ) : (
-                                <span>Filter by date</span>
-                                )}
-                            </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="end">
-                            <Calendar
-                                initialFocus
-                                mode="range"
-                                defaultMonth={date?.from}
-                                selected={date}
-                                onSelect={setDate}
-                                numberOfMonths={2}
-                            />
-                            </PopoverContent>
-                        </Popover>
-                    </div>
                     {isLoading ? (
-                        <div className="flex justify-center items-center h-64">
-                            <Loader2 className="h-8 w-8 animate-spin" />
-                        </div>
-                    ) : filteredCompletedRuns.length > 0 ? (
+                        <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                    ) : completedRuns.length > 0 ? (
                          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {filteredCompletedRuns.map(run => <CompletedRunCard key={run.id} run={run} />)}
+                            {completedRuns.map(run => <RunCard key={run.id} run={run} />)}
                         </div>
                     ) : (
                         !apiError && (
-                            <Card>
-                                <CardContent className="p-6">
-                                    <EmptyState title="No Completed Runs" description="Your completed sales runs will appear here." />
-                                </CardContent>
-                            </Card>
+                             <Card><CardContent className="p-6"><EmptyState title="No Completed Runs" description="Your completed sales runs will appear here." /></CardContent></Card>
                         )
                     )}
                 </TabsContent>
             </Tabs>
         </div>
     );
+}
+
+export default function DeliveriesPage() {
+    const [user, setUser] = useState<User | null>(null);
+    const [allRuns, setAllRuns] = useState<SalesRunType[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [apiError, setApiError] = useState<string | null>(null);
+    const [indexUrl, setIndexUrl] = useState<string | undefined>(undefined);
+    const { toast } = useToast();
+
+    const fetchAllRunsForManager = useCallback(async () => {
+        setIsLoading(true);
+        setApiError(null);
+        setIndexUrl(undefined);
+        try {
+            const { active, completed, error, indexUrl } = await getAllSalesRuns();
+             if(error) {
+                setApiError(error);
+                setIndexUrl(indexUrl);
+            }
+            setAllRuns([...active, ...completed]);
+        } catch (error) {
+             console.error("Error fetching all runs:", error);
+             setApiError('An unexpected error occurred. Please try again later.');
+             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales runs.' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        const userStr = localStorage.getItem('loggedInUser');
+        if (userStr) {
+            const parsedUser = JSON.parse(userStr);
+            setUser(parsedUser);
+            const managerRoles = ['Manager', 'Developer', 'Supervisor'];
+            if(managerRoles.includes(parsedUser.role)) {
+                fetchAllRunsForManager();
+            }
+        } else {
+             toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
+        }
+        setIsLoading(false);
+    }, [fetchAllRunsForManager, toast]);
+
+    const handleFocus = useCallback(() => {
+        if (user) {
+            const managerRoles = ['Manager', 'Developer', 'Supervisor'];
+            if(managerRoles.includes(user.role)) {
+                fetchAllRunsForManager();
+            }
+        }
+    }, [user, fetchAllRunsForManager]);
+
+    useEffect(() => {
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }, [handleFocus]);
+
+    if(isLoading || !user) {
+        return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
+    }
+
+    const managerRoles = ['Manager', 'Developer', 'Supervisor'];
+    if(managerRoles.includes(user.role)) {
+        return <ManagerView allRuns={allRuns} isLoading={isLoading} apiError={apiError} indexUrl={indexUrl} />;
+    }
+    
+    return <DriverView user={user} onFocus={handleFocus} />;
 }
