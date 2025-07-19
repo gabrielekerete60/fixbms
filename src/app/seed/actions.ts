@@ -300,6 +300,10 @@ const seedData = {
         productName: 'Family Loaf',
         stock: 12
     }
+  ],
+  personal_stock_akan: [
+      { id: 'prod_2', productId: 'prod_2', productName: 'Burger Loaf', stock: 20 },
+      { id: 'prod_5', productId: 'prod_5', productName: 'Coca-Cola (50cl)', stock: 50 }
   ]
 };
 
@@ -309,7 +313,7 @@ export async function seedDatabase(): Promise<ActionResult> {
     const batch = writeBatch(db);
 
     for (const [collectionName, data] of Object.entries(seedData)) {
-        if (collectionName === 'personal_stock_mfon') continue;
+        if (collectionName.startsWith('personal_stock')) continue;
 
         if (Array.isArray(data)) {
             data.forEach((item) => {
@@ -334,9 +338,15 @@ export async function seedDatabase(): Promise<ActionResult> {
         }
     }
 
-    // Seed Mfon's personal stock
+    // Seed Mfon's personal stock (Showroom Staff)
     seedData.personal_stock_mfon.forEach(item => {
-        const docRef = doc(db, "staff/400004/personal_stock", item.id);
+        const docRef = doc(db, "staff/400004/personal_stock", item.productId);
+        batch.set(docRef, item);
+    });
+    
+    // Seed Akan's personal stock (Delivery Staff)
+    seedData.personal_stock_akan.forEach(item => {
+        const docRef = doc(db, "staff/400005/personal_stock", item.productId);
         batch.set(docRef, item);
     });
 
