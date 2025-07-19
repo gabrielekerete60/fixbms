@@ -201,13 +201,14 @@ function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void
     const [isLoading, setIsLoading] = useState(true);
     const [actionState, setActionState] = useState<{ id: string, type: 'approve' | 'decline' } | null>(null);
 
+    const fetchConfirmations = async () => {
+        setIsLoading(true);
+        const data = await getPaymentConfirmations();
+        setConfirmations(data);
+        setIsLoading(false);
+    }
+    
     useEffect(() => {
-        const fetchConfirmations = async () => {
-            setIsLoading(true);
-            const data = await getPaymentConfirmations();
-            setConfirmations(data);
-            setIsLoading(false);
-        }
         fetchConfirmations();
     }, []);
 
@@ -220,6 +221,8 @@ function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void
             toast({ title: 'Success', description: `Payment has been ${type}d.` });
             setConfirmations(prev => prev.filter(c => c.id !== id));
             onDataChange();
+             // Dispatch a custom event to notify other components like the dashboard
+            window.dispatchEvent(new CustomEvent('dataChanged'));
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -334,6 +337,8 @@ export default function AccountingPage() {
     
     useEffect(() => {
         fetchData();
+        window.addEventListener('dataChanged', fetchData);
+        return () => window.removeEventListener('dataChanged', fetchData);
     }, [date]);
 
     // --- Content Renderers ---

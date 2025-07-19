@@ -81,8 +81,7 @@ function ManagementDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [missingIndexes, setMissingIndexes] = useState<string[]>([]);
 
-  useEffect(() => {
-    async function fetchData() {
+  const fetchData = async () => {
       setIsLoading(true);
       const [data, indexData] = await Promise.all([
         getDashboardStats(),
@@ -92,7 +91,13 @@ function ManagementDashboard() {
       setMissingIndexes(indexData.requiredIndexes);
       setIsLoading(false);
     }
+
+  useEffect(() => {
     fetchData();
+    window.addEventListener('dataChanged', fetchData);
+    return () => {
+        window.removeEventListener('dataChanged', fetchData);
+    }
   }, []);
 
   if (isLoading || !stats) {
