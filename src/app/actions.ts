@@ -4,6 +4,7 @@
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction } from "firebase/firestore";
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
 import { db } from "@/lib/firebase";
+import fetch from 'node-fetch';
 
 type LoginResult = {
   success: boolean;
@@ -12,6 +13,7 @@ type LoginResult = {
     name: string;
     role: string;
     staff_id: string;
+    email: string;
   }
 };
 
@@ -47,6 +49,7 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
         name: userData.name,
         role: userData.role,
         staff_id: userDoc.id,
+        email: userData.email,
       } 
     };
   } catch (error) {
@@ -55,6 +58,50 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
     return { success: false, error: errorMessage };
   }
 }
+
+type InitializePaystackResult = {
+    success: boolean;
+    access_code?: string;
+    error?: string;
+}
+
+export async function initializePaystackTransaction(total: number, email: string): Promise<InitializePaystackResult> {
+    const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
+    if (!secretKey) {
+        return { success: false, error: "Paystack secret key is not configured." };
+    }
+
+    const url = "https://api.paystack.co/transaction/initialize";
+    const amountInKobo = Math.round(total * 100);
+
+    const fields = {
+        email: email || 'customer@example.com',
+        amount: amountInKobo.toString(),
+    };
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${secretKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(fields),
+        });
+
+        const result = await response.json() as any;
+
+        if (result.status === true) {
+            return { success: true, access_code: result.data.access_code };
+        } else {
+            return { success: false, error: result.message };
+        }
+    } catch (error) {
+        console.error("Paystack initialization error:", error);
+        return { success: false, error: "Failed to connect to Paystack." };
+    }
+}
+
 
 type AttendanceStatusResult = {
     attendanceId: string;
@@ -914,5 +961,7 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
         return { success: false, error: "Failed to complete production batch." };
     }
 }
+
+    
 
     
