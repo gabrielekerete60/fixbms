@@ -3,7 +3,6 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
-import PaystackPop from '@paystack/inline-js';
 import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +50,7 @@ import { collection, getDocs, doc, runTransaction, increment, getDoc, query, whe
 import { db } from "@/lib/firebase";
 import { initializePaystackTransaction } from "@/app/actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useRouter } from "next/navigation";
 
 
 type Product = {
@@ -95,22 +95,18 @@ type SelectableStaff = {
     role: string;
 };
 
-type PaymentVerification = {
-    reference: string;
-    status: 'success' | 'cancelled';
-}
-
 export default function POSPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useLocalStorage<CartItem[]>('posCart', []);
   const [heldOrders, setHeldOrders] = useLocalStorage<CartItem[][]>('heldOrders', []);
   const [activeTab, setActiveTab] = useState('All');
   const [customerType, setCustomerType] = useState<'walk-in' | 'registered'>('walk-in');
-  const [customerName, setCustomerName] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerName, setCustomerName] = useLocalStorage('posCustomerName', '');
+  const [customerEmail, setCustomerEmail] = useLocalStorage('posCustomerEmail', '');
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -118,7 +114,7 @@ export default function POSPage() {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
-  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useLocalStorage<string | null>('posSelectedStaff', null);
   const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
 
   const fetchProductsForStaff = async (staffId: string) => {
@@ -167,14 +163,21 @@ export default function POSPage() {
       if (storedUser) {
         const parsedUser: User = JSON.parse(storedUser);
         setUser(parsedUser);
-        setCustomerEmail(parsedUser.email || '');
+        
+        if(!customerEmail) {
+            setCustomerEmail(parsedUser.email || '');
+        }
 
         const adminRoles = ['Manager', 'Developer'];
         if (adminRoles.includes(parsedUser.role)) {
           const staffQuery = query(collection(db, "staff"), where("role", "in", ["Showroom Staff", "Delivery Staff"]));
           const staffSnapshot = await getDocs(staffQuery);
           setAllStaff(staffSnapshot.docs.map(d => ({ staff_id: d.id, ...d.data() } as SelectableStaff)));
-          setIsStaffSelectionOpen(true);
+          if (!selectedStaffId) {
+            setIsStaffSelectionOpen(true);
+          } else {
+            fetchProductsForStaff(selectedStaffId);
+          }
         } else {
           setSelectedStaffId(parsedUser.staff_id);
           fetchProductsForStaff(parsedUser.staff_id);
@@ -184,31 +187,95 @@ export default function POSPage() {
     initializePos();
   }, []);
 
-  useEffect(() => {
-    const handlePaymentSuccess = async (event: Event) => {
-        const e = event as CustomEvent;
-        toast({ title: "Payment Successful", description: "Completing order..." });
-        
-        const completed = await completeOrder('Card');
-        if (completed) {
-            setIsReceiptOpen(true);
-        }
-        setIsProcessingPayment(false);
-    };
+  const clearCartAndStorage = () => {
+    setCart([]);
+    setCustomerName('');
+    setCustomerEmail(user?.email || '');
+  }
 
-    const handlePaymentCancelled = () => {
-        toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment process was cancelled." });
+  const completeOrder = async (paymentMethod: 'Card' | 'Cash') => {
+    if (!user || !selectedStaffId) {
+        toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
         setIsProcessingPayment(false);
+        return null;
     }
 
-    window.addEventListener('paymentSuccess', handlePaymentSuccess);
-    window.addEventListener('paymentCancelled', handlePaymentCancelled);
-
-    return () => {
-      window.removeEventListener('paymentSuccess', handlePaymentSuccess);
-      window.removeEventListener('paymentCancelled', handlePaymentCancelled);
+    const newOrderData = {
+      items: cart,
+      subtotal,
+      tax,
+      total,
+      date: new Date().toISOString(),
+      paymentMethod,
+      customerName: customerName || 'Walk-in',
+      status: 'Completed' as const,
+      staff_id: selectedStaffId,
+      staff_name: allStaff.find(s => s.staff_id === selectedStaffId)?.name || user.name
     };
-  }, [cart, user, selectedStaffId]); // Add dependencies to ensure correct context
+  
+    try {
+      const orderRef = doc(collection(db, "orders"));
+      await runTransaction(db, async (transaction) => {
+          for (const item of cart) {
+              const personalStockRef = doc(db, 'staff', selectedStaffId, 'personal_stock', item.id);
+              const personalStockDoc = await transaction.get(personalStockRef);
+              if (!personalStockDoc.exists() || personalStockDoc.data().stock < item.quantity) {
+                  throw new Error(`Not enough stock for ${item.name}.`);
+              }
+              transaction.update(personalStockRef, { stock: increment(-item.quantity) });
+          }
+          
+          transaction.set(orderRef, newOrderData);
+      });
+      
+      const newOrder: CompletedOrder = {
+        id: orderRef.id,
+        ...newOrderData,
+      };
+      
+      setLastCompletedOrder(newOrder);
+      clearCartAndStorage();
+
+      await fetchProductsForStaff(selectedStaffId);
+      return newOrder;
+    } catch (error) {
+      console.error("Error saving order:", error);
+      const errorMessage = error instanceof Error ? error.message : "There was a problem saving the order to the database.";
+      toast({
+        variant: "destructive",
+        title: "Order Failed",
+        description: errorMessage,
+      });
+      return null;
+    } finally {
+        setIsProcessingPayment(false);
+    }
+  }
+  
+  const handlePaystackPayment = async () => {
+      setIsProcessingPayment(true);
+      setIsCheckoutOpen(false);
+
+      const orderPayload = {
+          total: total,
+          email: customerEmail,
+          items: cart,
+          subtotal,
+          tax,
+          customerName: customerName || 'Walk-in',
+          staff_id: selectedStaffId,
+          staff_name: allStaff.find(s => s.staff_id === selectedStaffId)?.name || user?.name
+      };
+
+      const result = await initializePaystackTransaction(orderPayload);
+      if(result.success && result.authorization_url) {
+          router.push(result.authorization_url);
+      } else {
+          toast({ variant: 'destructive', title: 'Payment Error', description: result.error || "Could not initialize payment."});
+          setIsProcessingPayment(false);
+      }
+  }
+
 
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
@@ -269,8 +336,7 @@ export default function POSPage() {
   
   const clearCart = () => {
     if (cart.length === 0) return;
-    setCart([]);
-    setCustomerName('');
+    clearCartAndStorage();
     toast({
         title: "Cart Cleared",
         description: "All items have been removed from the cart.",
@@ -280,8 +346,7 @@ export default function POSPage() {
   const holdOrder = () => {
     if (cart.length === 0) return;
     setHeldOrders(prev => [...prev, cart]);
-    setCart([]);
-    setCustomerName('');
+    clearCartAndStorage();
      toast({
         title: "Order Held",
         description: "The current cart has been saved.",
@@ -303,66 +368,6 @@ export default function POSPage() {
     setActiveTab('All');
   }
 
-  const completeOrder = async (paymentMethod: 'Card' | 'Cash') => {
-    if (!user || !selectedStaffId) {
-        toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
-        setIsProcessingPayment(false);
-        return null;
-    }
-
-    const newOrderData = {
-      items: cart,
-      subtotal,
-      tax,
-      total,
-      date: new Date().toISOString(),
-      paymentMethod,
-      customerName: customerName || 'Walk-in',
-      status: 'Completed' as const,
-      staff_id: selectedStaffId,
-      staff_name: allStaff.find(s => s.staff_id === selectedStaffId)?.name || user.name
-    };
-  
-    try {
-      const orderRef = doc(collection(db, "orders"));
-      await runTransaction(db, async (transaction) => {
-          for (const item of cart) {
-              const personalStockRef = doc(db, 'staff', selectedStaffId, 'personal_stock', item.id);
-              const personalStockDoc = await transaction.get(personalStockRef);
-              if (!personalStockDoc.exists() || personalStockDoc.data().stock < item.quantity) {
-                  throw new Error(`Not enough stock for ${item.name}.`);
-              }
-              transaction.update(personalStockRef, { stock: increment(-item.quantity) });
-          }
-          
-          transaction.set(orderRef, newOrderData);
-      });
-      
-      const newOrder: CompletedOrder = {
-        id: orderRef.id,
-        ...newOrderData,
-      };
-      
-      setLastCompletedOrder(newOrder);
-      setCart([]);
-      setCustomerName('');
-
-      await fetchProductsForStaff(selectedStaffId);
-      return newOrder;
-    } catch (error) {
-      console.error("Error saving order:", error);
-      const errorMessage = error instanceof Error ? error.message : "There was a problem saving the order to the database.";
-      toast({
-        variant: "destructive",
-        title: "Order Failed",
-        description: errorMessage,
-      });
-      return null;
-    } finally {
-        setIsProcessingPayment(false);
-    }
-  }
-
   const handleCashPayment = async () => {
     setIsCashConfirmOpen(false);
     setIsProcessingPayment(true);
@@ -373,32 +378,6 @@ export default function POSPage() {
     }
   }
 
-  const handlePaystackPayment = async () => {
-    setIsProcessingPayment(true);
-    setIsCheckoutOpen(false);
-
-    const transaction = await initializePaystackTransaction(total, customerEmail);
-    
-    if (transaction.success && transaction.access_code) {
-        const paystack = new PaystackPop();
-        paystack.resumeTransaction({
-            access_code: transaction.access_code,
-            onSuccess: (res) => {
-                const event = new CustomEvent('paymentSuccess', { detail: res });
-                window.dispatchEvent(event);
-            },
-            onCancel: () => {
-                 const event = new CustomEvent('paymentCancelled');
-                window.dispatchEvent(event);
-            },
-        });
-    } else {
-        toast({ variant: "destructive", title: "Paystack Error", description: transaction.error || "Could not initialize transaction." });
-        setIsProcessingPayment(false);
-    }
-  }
-
-  
   const handlePrintReceipt = () => {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
@@ -815,3 +794,4 @@ export default function POSPage() {
      </>
   );
 }
+

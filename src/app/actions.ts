@@ -61,22 +61,35 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
 
 type InitializePaystackResult = {
     success: boolean;
-    access_code?: string;
+    authorization_url?: string;
     error?: string;
 }
 
-export async function initializePaystackTransaction(total: number, email: string): Promise<InitializePaystackResult> {
+export async function initializePaystackTransaction(orderPayload: any): Promise<InitializePaystackResult> {
     const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
     if (!secretKey) {
+        console.error("Paystack secret key is not configured.");
         return { success: false, error: "Paystack secret key is not configured." };
     }
 
     const url = "https://api.paystack.co/transaction/initialize";
-    const amountInKobo = Math.round(total * 100);
+    const amountInKobo = Math.round(orderPayload.total * 100);
+
+    // Create a temporary order document to get an ID for the reference
+    const tempOrderRef = doc(collection(db, "temp_orders"));
+    await setDoc(tempOrderRef, { ...orderPayload, createdAt: serverTimestamp() });
+    
+    const reference = tempOrderRef.id;
 
     const fields = {
-        email: email || 'customer@example.com',
+        email: orderPayload.email || 'customer@example.com',
         amount: amountInKobo.toString(),
+        reference: reference,
+        callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payment/callback`,
+        metadata: {
+            orderId: reference,
+            cancel_action: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/pos`,
+        }
     };
 
     try {
@@ -92,12 +105,15 @@ export async function initializePaystackTransaction(total: number, email: string
         const result = await response.json() as any;
 
         if (result.status === true) {
-            return { success: true, access_code: result.data.access_code };
+            return { success: true, authorization_url: result.data.authorization_url };
         } else {
+            console.error("Paystack API Error:", result.message);
+            // Clean up the temporary order if initialization fails
+            await deleteDoc(tempOrderRef);
             return { success: false, error: result.message };
         }
     } catch (error) {
-        console.error("Paystack initialization error:", error);
+        console.error("Paystack connection error:", error);
         return { success: false, error: "Failed to connect to Paystack." };
     }
 }
