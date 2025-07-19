@@ -1002,4 +1002,30 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
     }
 }
 
+export async function checkForMissingIndexes(): Promise<{ requiredIndexes: string[] }> {
+    const checks = [
+        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'pending'), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'completed'), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'transfers'), where('is_sales_run', '==', true), where('to_staff_id', '==', 'test'), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'waste_logs'), where('staffId', '==', 'test'), orderBy('date', 'desc'))),
+    ];
+
+    const missingIndexes = new Set<string>();
+
+    for (const check of checks) {
+        try {
+            await check();
+        } catch (error: any) {
+            if (error.code === 'failed-precondition') {
+                const urlMatch = error.toString().match(/(https?:\/\/[^\s]+)/);
+                if (urlMatch) {
+                    missingIndexes.add(urlMatch[0]);
+                }
+            }
+        }
+    }
     
+    return { requiredIndexes: Array.from(missingIndexes) };
+}
+    
+

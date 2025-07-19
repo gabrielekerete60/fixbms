@@ -16,6 +16,7 @@ import {
   PackageCheck,
   Trash2,
   Users,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   Card,
@@ -33,7 +34,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RevenueChart } from '@/components/revenue-chart';
-import { getDashboardStats, getStaffDashboardStats } from '../actions';
+import { getDashboardStats, getStaffDashboardStats, checkForMissingIndexes } from '../actions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 type User = {
   name: string;
@@ -48,15 +50,45 @@ type User = {
   staff_id: string;
 };
 
+function IndexWarning({ indexes }: { indexes: string[] }) {
+    if (indexes.length === 0) return null;
+
+    return (
+        <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Database Configuration Required</AlertTitle>
+            <AlertDescription>
+                <p className="mb-2">
+                Your Firestore database is missing indexes required for some queries to run efficiently. Please create them to ensure all parts of the application function correctly.
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                    {indexes.map((url, index) => (
+                        <li key={index}>
+                             <a href={url} target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                                Create Index #{index + 1}
+                            </a>
+                        </li>
+                    ))}
+                </ul>
+            </AlertDescription>
+        </Alert>
+    )
+}
+
 function ManagementDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [missingIndexes, setMissingIndexes] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchData() {
       setIsLoading(true);
-      const data = await getDashboardStats();
+      const [data, indexData] = await Promise.all([
+        getDashboardStats(),
+        checkForMissingIndexes()
+      ]);
       setStats(data);
+      setMissingIndexes(indexData.requiredIndexes);
       setIsLoading(false);
     }
     fetchData();
@@ -72,6 +104,7 @@ function ManagementDashboard() {
 
   return (
     <>
+      <IndexWarning indexes={missingIndexes} />
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
