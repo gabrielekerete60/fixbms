@@ -296,6 +296,16 @@ const seedData = {
         productId: 'prod_1',
         productName: 'Family Loaf',
         stock: 12
+    },
+    {
+        productId: 'prod_2',
+        productName: 'Burger Loaf',
+        stock: 20
+    },
+    {
+        productId: 'prod_5',
+        productName: 'Coca-Cola (50cl)',
+        stock: 50
     }
   ],
   personal_stock_akan: [
