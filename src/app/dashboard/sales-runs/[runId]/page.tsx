@@ -7,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -79,8 +79,7 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
     }
 
     return (
-       <>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+       <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent>
                 <DialogHeader>
@@ -111,7 +110,6 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-       </>
     )
 }
 
@@ -171,6 +169,21 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
 
     const handleRemoveFromCart = (productId: string) => {
         setCart(prev => prev.filter(p => p.productId !== productId));
+    }
+
+    const updateCartQuantity = (productId: string, newQuantity: number) => {
+        if (newQuantity <= 0) {
+            handleRemoveFromCart(productId);
+            return;
+        }
+
+        const itemInRun = run.items.find(p => p.productId === productId);
+        if (itemInRun && newQuantity > itemInRun.quantity) {
+             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.quantity} units of ${itemInRun.productName} available.`});
+             return;
+        }
+
+        setCart(prev => prev.map(item => item.productId === productId ? {...item, quantity: newQuantity} : item));
     }
     
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -323,12 +336,15 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                            {cart.length === 0 ? <p className="text-center text-muted-foreground text-sm p-4">Cart is empty</p> : (
                                 <>
                                     {cart.map(item => (
-                                        <div key={item.productId} className="flex justify-between items-center">
-                                            <span>{item.name} x {item.quantity}</span>
+                                        <div key={item.productId} className="flex justify-between items-center text-sm">
+                                            <span className="flex-1">{item.name}</span>
                                             <div className="flex items-center gap-2">
-                                                <span>₦{(item.price * item.quantity).toLocaleString()}</span>
-                                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleRemoveFromCart(item.productId)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateCartQuantity(item.productId, item.quantity - 1)}><Minus className="h-4 w-4" /></Button>
+                                                <span className="font-bold">{item.quantity}</span>
+                                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateCartQuantity(item.productId, item.quantity + 1)}><Plus className="h-4 w-4" /></Button>
                                             </div>
+                                            <span className="w-20 text-right font-medium">₦{(item.price * item.quantity).toLocaleString()}</span>
+                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleRemoveFromCart(item.productId)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
                                         </div>
                                     ))}
                                 </>
