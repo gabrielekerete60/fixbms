@@ -119,7 +119,7 @@ export default function WasteLogsPage() {
                             ) : (
                                 filteredLogs.map(log => (
                                     <TableRow key={log.id}>
-                                        <TableCell>{format(log.date.toDate(), 'PPP')}</TableCell>
+                                        <TableCell>{format(new Date(log.date), 'PPP')}</TableCell>
                                         <TableCell>{log.staffName}</TableCell>
                                         <TableCell>{log.productName}</TableCell>
                                         <TableCell>{log.quantity}</TableCell>
@@ -135,3 +135,5 @@ export default function WasteLogsPage() {
         </div>
     );
 }
+
+    

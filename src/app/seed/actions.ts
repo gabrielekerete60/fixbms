@@ -208,8 +208,8 @@ const seedData = {
       { id: "tsr_3_owing", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_3", productName: "Jumbo Loaf", quantity: 15 }], date: daysAgo(3), status: 'completed', is_sales_run: true, notes: "Bulk order for Chinedu Eze - Owing" },
       { id: "tsr_4_owing", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_4", productName: "Round Loaf", quantity: 30 }], date: daysAgo(2), status: 'completed', is_sales_run: true, notes: "Supply for Adebisi Onyeka's shop - Owing" },
       // Active Sales Runs
-      { id: "tsr_5_active", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 25 }, { productId: "prod_2", productName: "Burger Loaf", quantity: 25 }], date: daysAgo(1), status: 'pending', is_sales_run: true, notes: "Today's main sales run" },
-      { id: "tsr_6_active", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_6", productName: "Bottled Water (75cl)", quantity: 48 }], date: Timestamp.now(), status: 'pending', is_sales_run: true, notes: "Urgent water supply for event" },
+      { id: "tsr_5_active", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 25 }, { productId: "prod_2", productName: "Burger Loaf", quantity: 25 }], date: daysAgo(1), status: 'active', is_sales_run: true, notes: "Today's main sales run" },
+      { id: "tsr_6_active", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_6", productName: "Bottled Water (75cl)", quantity: 48 }], date: Timestamp.now(), status: 'active', is_sales_run: true, notes: "Urgent water supply for event" },
       // Regular stock transfer (not a sales run)
       { id: "trans_1", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400004", to_staff_name: "Mfon Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 12 }], date: daysAgo(2), status: 'completed', is_sales_run: false },
       { id: "trans_2", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400004", to_staff_name: "Mfon Staff", items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 5 }], date: daysAgo(1), status: 'pending', is_sales_run: false },
@@ -458,3 +458,5 @@ export async function seedEmptyData(): Promise<ActionResult> {
     return { success: false, error: `Failed to seed empty collections: ${errorMessage}` };
   }
 }
+
+    
