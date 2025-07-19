@@ -267,7 +267,7 @@ function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void
                                     <TableRow key={c.id}>
                                         <TableCell>{format(new Date(c.date), 'PPp')}</TableCell>
                                         <TableCell>{c.driverName}</TableCell>
-                                        <TableCell>{c.runId.substring(0, 7)}...</TableCell>
+                                        <TableCell>{c.runId ? `${c.runId.substring(0, 7)}...` : 'N/A'}</TableCell>
                                         <TableCell>₦{c.amount.toLocaleString()}</TableCell>
                                         <TableCell className="text-right space-x-2">
                                             <Button variant="destructive" size="sm" onClick={() => setActionState({ id: c.id, type: 'decline' })}>Decline</Button>
