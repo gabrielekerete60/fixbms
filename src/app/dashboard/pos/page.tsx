@@ -95,6 +95,11 @@ type SelectableStaff = {
     role: string;
 };
 
+type PaymentVerification = {
+    reference: string;
+    status: 'success' | 'cancelled';
+}
+
 export default function POSPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -112,10 +117,10 @@ export default function POSPage() {
   const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  // New state for manager's POS session
   const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
+  const [paymentVerification, setPaymentVerification] = useState<PaymentVerification | null>(null);
 
   const fetchProductsForStaff = async (staffId: string) => {
     setIsLoadingProducts(true);
@@ -163,17 +168,15 @@ export default function POSPage() {
       if (storedUser) {
         const parsedUser: User = JSON.parse(storedUser);
         setUser(parsedUser);
-        setCustomerEmail(parsedUser.email || ''); // Default to logged in user's email
+        setCustomerEmail(parsedUser.email || '');
 
         const adminRoles = ['Manager', 'Developer'];
         if (adminRoles.includes(parsedUser.role)) {
-          // Manager/Dev: Fetch all staff to choose from
           const staffQuery = query(collection(db, "staff"), where("role", "in", ["Showroom Staff", "Delivery Staff"]));
           const staffSnapshot = await getDocs(staffQuery);
           setAllStaff(staffSnapshot.docs.map(d => ({ staff_id: d.id, ...d.data() } as SelectableStaff)));
           setIsStaffSelectionOpen(true);
         } else {
-          // Regular staff: Load their own inventory
           setSelectedStaffId(parsedUser.staff_id);
           fetchProductsForStaff(parsedUser.staff_id);
         }
@@ -181,6 +184,26 @@ export default function POSPage() {
     };
     initializePos();
   }, []);
+
+  useEffect(() => {
+    const handleOrderCompletion = async () => {
+        if (paymentVerification?.status === 'success') {
+            const completed = await completeOrder('Card');
+            if (completed) {
+                toast({ title: "Payment Successful", description: "The order has been completed." });
+                setIsReceiptOpen(true);
+            }
+        } else if (paymentVerification?.status === 'cancelled') {
+            toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment process was cancelled." });
+        }
+        setPaymentVerification(null); 
+        setIsProcessingPayment(false);
+    };
+
+    if(paymentVerification) {
+        handleOrderCompletion();
+    }
+  }, [paymentVerification]);
 
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
@@ -276,7 +299,6 @@ export default function POSPage() {
   }
 
   const completeOrder = async (paymentMethod: 'Card' | 'Cash') => {
-    setIsProcessingPayment(true);
     if (!user || !selectedStaffId) {
         toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
         setIsProcessingPayment(false);
@@ -321,7 +343,6 @@ export default function POSPage() {
       setCustomerName('');
 
       await fetchProductsForStaff(selectedStaffId);
-      setIsProcessingPayment(false);
       return newOrder;
     } catch (error) {
       console.error("Error saving order:", error);
@@ -331,24 +352,18 @@ export default function POSPage() {
         title: "Order Failed",
         description: errorMessage,
       });
-      setIsProcessingPayment(false);
       return null;
+    } finally {
+        setIsProcessingPayment(false);
     }
   }
 
   const handleCashPayment = async () => {
     setIsCashConfirmOpen(false);
+    setIsProcessingPayment(true);
     const completed = await completeOrder('Cash');
     if (completed) {
         toast({ title: 'Order Successful', description: 'The order has been completed.' });
-        setIsReceiptOpen(true);
-    }
-  }
-
-  const handleSuccessfulPayment = async () => {
-    const completed = await completeOrder('Card');
-    if (completed) {
-        toast({ title: "Payment Successful", description: "The order has been completed." });
         setIsReceiptOpen(true);
     }
   }
@@ -363,11 +378,8 @@ export default function POSPage() {
         const paystack = new PaystackPop();
         paystack.resumeTransaction({
             access_code: transaction.access_code,
-            onSuccess: () => handleSuccessfulPayment(),
-            onCancel: () => {
-                 toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment process was cancelled." });
-                 setIsProcessingPayment(false);
-            }
+            onSuccess: (res) => setPaymentVerification({ reference: res.reference, status: 'success' }),
+            onCancel: () => setPaymentVerification({ reference: '', status: 'cancelled' }),
         });
     } else {
         toast({ variant: "destructive", title: "Paystack Error", description: transaction.error || "Could not initialize transaction." });
@@ -698,7 +710,7 @@ export default function POSPage() {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-4 py-4">
-                     <Button variant="outline" className="h-24 text-lg" onClick={() => { setIsCheckoutOpen(false); setIsCashConfirmOpen(true); }}>
+                     <Button variant="outline" className="h-24 text-lg" onClick={handleCashPayment}>
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
