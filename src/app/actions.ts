@@ -361,8 +361,12 @@ export async function getSalesRuns(staffId: string): Promise<{active: SalesRun[]
         const completed = runs.filter(run => run.status !== 'pending');
 
         return { active, completed };
-    } catch (error) {
-        console.error("Error fetching sales runs:", error);
+    } catch (error: any) {
+        if (error.code === 'failed-precondition') {
+            console.error("Firestore index missing for getSalesRuns. Please create it in the Firebase console.", error.toString());
+        } else {
+            console.error("Error fetching sales runs:", error);
+        }
         return { active: [], completed: [] };
     }
 }
@@ -724,8 +728,12 @@ export async function getWasteLogsForStaff(staffId: string): Promise<WasteLog[]>
         );
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WasteLog));
-    } catch (error) {
-        console.error("Error fetching waste logs for staff:", error);
+    } catch (error: any) {
+        if (error.code === 'failed-precondition') {
+            console.error("Firestore index missing for getWasteLogsForStaff. Please create it in the Firebase console.", error.toString());
+        } else {
+            console.error("Error fetching waste logs for staff:", error);
+        }
         return [];
     }
 }
@@ -753,8 +761,12 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
         );
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer));
-    } catch (error) {
-        console.error("Error fetching pending transfers:", error);
+    } catch (error: any) {
+        if (error.code === 'failed-precondition') {
+            console.error("Firestore index missing for getPendingTransfersForStaff. Please create it in the Firebase console.", error.toString());
+        } else {
+            console.error("Error fetching pending transfers:", error);
+        }
         return [];
     }
 }
@@ -769,8 +781,12 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         );
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transfer));
-    } catch (error) {
-        console.error("Error fetching completed transfers:", error);
+    } catch (error: any) {
+         if (error.code === 'failed-precondition') {
+            console.error("Firestore index missing for getCompletedTransfersForStaff. Please create it in the Firebase console.", error.toString());
+        } else {
+            console.error("Error fetching completed transfers:", error);
+        }
         return [];
     }
 }
