@@ -299,40 +299,28 @@ export default function AccountingPage() {
     const [creditors, setCreditors] = useState<Creditor[]>([]);
     const [debtors, setDebtors] = useState<Debtor[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
-    const [salesStats, setSalesStats] = useState({ totalSales: 0 });
-    const [salesFilter, setSalesFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
 
     const fetchData = async () => {
         setIsLoading(true);
 
-        const [creditorsData, expensesData, debtorsData, salesData] = await Promise.all([
+        const [creditorsData, expensesData, debtorsData] = await Promise.all([
             getCreditors(),
             getExpenses({ from: subMonths(new Date(), 1).toISOString(), to: new Date().toISOString() }), // Default for now
             getDebtors(),
-            getSalesStats(salesFilter)
         ]);
         
         setCreditors(creditorsData);
         setDebtors(debtorsData);
         setExpenses(expensesData);
-        setSalesStats(salesData);
         setIsLoading(false);
     };
 
-    const fetchSalesOnly = async (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
-        setIsLoading(true);
-        const salesData = await getSalesStats(filter);
-        setSalesStats(salesData);
-        setSalesFilter(filter);
-        setIsLoading(false);
-    }
-    
     useEffect(() => {
         fetchData();
         const handleDataChange = () => fetchData();
         window.addEventListener('dataChanged', handleDataChange);
         return () => window.removeEventListener('dataChanged', handleDataChange);
-    }, [salesFilter]);
+    }, []);
 
     // --- Content Renderers ---
     const DebtorsContent = () => {
@@ -485,28 +473,6 @@ export default function AccountingPage() {
         </div>
       </div>
       
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium capitalize">{salesFilter} Sales</CardTitle>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="h-4 w-4 text-muted-foreground"/></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                            <DropdownMenuItem onSelect={() => fetchSalesOnly('daily')}>Daily</DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => fetchSalesOnly('weekly')}>Weekly</DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => fetchSalesOnly('monthly')}>Monthly</DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => fetchSalesOnly('yearly')}>Yearly</DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? <Loader2 className="h-8 w-8 animate-spin" /> : <div className="text-2xl font-bold">₦{salesStats.totalSales.toLocaleString()}</div>}
-                </CardContent>
-            </Card>
-        </div>
-
       <Tabs defaultValue="debtors-creditors">
         <div className="flex items-center justify-between">
             <TabsList>
@@ -534,5 +500,3 @@ export default function AccountingPage() {
     </div>
   );
 }
-
-    

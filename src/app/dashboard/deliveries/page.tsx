@@ -5,8 +5,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Package2, Car, Users, DollarSign, Filter } from 'lucide-react';
-import { getSalesRuns, getAllSalesRuns } from '@/app/actions';
+import { Loader2, Package2, Car, Users, DollarSign, Filter, MoreVertical } from 'lucide-react';
+import { getSalesRuns, getAllSalesRuns, getSalesStats } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import type { SalesRun as SalesRunType } from '@/app/actions';
 import { Button } from '@/components/ui/button';
@@ -69,9 +69,27 @@ function RunCard({ run }: { run: SalesRunType }) {
     );
 }
 
-function ManagerView({ allRuns, isLoading }: { allRuns: SalesRunType[], isLoading: boolean }) {
+function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], isLoading: boolean, user: User | null }) {
     const [filterDriver, setFilterDriver] = useState('all');
     const [sort, setSort] = useState('date_desc');
+    const [salesStats, setSalesStats] = useState({ totalSales: 0 });
+    const [salesFilter, setSalesFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
+    const [isSalesLoading, setIsSalesLoading] = useState(true);
+
+    const fetchSalesOnly = async (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
+        setIsSalesLoading(true);
+        const salesData = await getSalesStats(filter);
+        setSalesStats(salesData);
+        setSalesFilter(filter);
+        setIsSalesLoading(false);
+    }
+    
+    useEffect(() => {
+        fetchSalesOnly(salesFilter);
+        const handleDataChange = () => fetchSalesOnly(salesFilter);
+        window.addEventListener('dataChanged', handleDataChange);
+        return () => window.removeEventListener('dataChanged', handleDataChange);
+    }, [salesFilter]);
 
     const drivers = useMemo(() => {
         const driverSet = new Set(allRuns.map(run => run.to_staff_name).filter(Boolean));
@@ -119,13 +137,32 @@ function ManagerView({ allRuns, isLoading }: { allRuns: SalesRunType[], isLoadin
                         <div className="text-2xl font-bold">₦{totalOutstanding.toLocaleString()}</div>
                     </CardContent>
                 </Card>
-                 <Card>
+                <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Drivers Active</CardTitle>
                         <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{drivers.length > 1 ? drivers.length - 1 : 0}</div>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium capitalize">{salesFilter} Sales</CardTitle>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="h-4 w-4 text-muted-foreground"/></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem onSelect={() => fetchSalesOnly('daily')}>Daily</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => fetchSalesOnly('weekly')}>Weekly</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => fetchSalesOnly('monthly')}>Monthly</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => fetchSalesOnly('yearly')}>Yearly</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </CardHeader>
+                    <CardContent>
+                        {isSalesLoading ? <Loader2 className="h-8 w-8 animate-spin" /> : <div className="text-2xl font-bold">₦{salesStats.totalSales.toLocaleString()}</div>}
                     </CardContent>
                 </Card>
             </div>
@@ -297,7 +334,7 @@ export default function DeliveriesPage() {
 
     const managerRoles = ['Manager', 'Developer', 'Supervisor'];
     if(managerRoles.includes(user.role)) {
-        return <ManagerView allRuns={allRuns} isLoading={isLoading} />;
+        return <ManagerView allRuns={allRuns} isLoading={isLoading} user={user} />;
     }
     
     return <DriverView user={user} />;
