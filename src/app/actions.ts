@@ -359,65 +359,53 @@ type SalesRunResult = {
 
 export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
     try {
-        const activeQuery = query(
-            collection(db, 'transfers'), 
+        // A simpler, more resilient query.
+        const q = query(
+            collection(db, 'transfers'),
             where('is_sales_run', '==', true),
             where('to_staff_id', '==', staffId),
-            where('status', '==', 'active'),
-            orderBy('date', 'desc')
-        );
-        const completedQuery = query(
-            collection(db, 'transfers'), 
-            where('is_sales_run', '==', true),
-            where('to_staff_id', '==', staffId),
-            where('status', '==', 'completed'),
+            where('status', 'in', ['active', 'completed']),
             orderBy('date', 'desc')
         );
 
-        const [activeSnapshot, completedSnapshot] = await Promise.all([
-            getDocs(activeQuery),
-            getDocs(completedQuery)
-        ]);
+        const querySnapshot = await getDocs(q);
 
-        const processSnapshot = async (snapshot: any) => {
-             return await Promise.all(snapshot.docs.map(async (doc: any) => {
-                const data = doc.data();
-                const date = data.date as Timestamp;
+        const runs = await Promise.all(querySnapshot.docs.map(async (doc: any) => {
+            const data = doc.data();
+            const date = data.date as Timestamp;
 
-                let totalRevenue = 0;
-                const itemsWithPrices = await Promise.all(
-                  data.items.map(async (item: any) => {
-                    const productDoc = await getDoc(doc(db, 'products', item.productId));
-                    const price = productDoc.exists() ? productDoc.data().price : 0;
-                    totalRevenue += price * item.quantity;
-                    return { ...item, price };
-                  })
-                );
+            let totalRevenue = 0;
+            const itemsWithPrices = await Promise.all(
+              data.items.map(async (item: any) => {
+                const productDoc = await getDoc(doc(db, 'products', item.productId));
+                const price = productDoc.exists() ? productDoc.data().price : 0;
+                totalRevenue += price * item.quantity;
+                return { ...item, price };
+              })
+            );
 
-                return {
-                    id: doc.id,
-                    ...data,
-                    date: date.toDate().toISOString(),
-                    items: itemsWithPrices,
-                    totalRevenue,
-                    totalCollected: data.totalCollected || 0,
-                    totalOutstanding: totalRevenue - (data.totalCollected || 0),
-                } as SalesRun;
-            }));
-        }
-        
-        const active = await processSnapshot(activeSnapshot);
-        const completed = await processSnapshot(completedSnapshot);
+            return {
+                id: doc.id,
+                ...data,
+                date: date.toDate().toISOString(),
+                items: itemsWithPrices,
+                totalRevenue,
+                totalCollected: data.totalCollected || 0,
+                totalOutstanding: totalRevenue - (data.totalCollected || 0),
+            } as SalesRun;
+        }));
+
+        const active = runs.filter(run => run.status === 'active');
+        const completed = runs.filter(run => run.status === 'completed');
 
         return { active, completed };
+
     } catch (error: any) {
         console.error("RAW ERROR in getSalesRuns:", error);
         if (error.code === 'failed-precondition') {
             const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
-            console.error("Firestore index missing for getSalesRuns.", error.message);
             return { active: [], completed: [], error: error.message, indexUrl: urlMatch ? urlMatch[0] : undefined };
         } else {
-            console.error("Error fetching sales runs:", error);
             return { active: [], completed: [], error: "An unexpected error occurred while fetching sales runs." };
         }
     }
