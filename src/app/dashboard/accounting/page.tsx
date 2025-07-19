@@ -12,14 +12,14 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, FileDown, Loader2, PlusCircle, Users, RefreshCw } from "lucide-react";
+import { Calendar as CalendarIcon, FileDown, Loader2, PlusCircle, Users, RefreshCw, MoreVertical, DollarSign } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfDay, endOfDay } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { Separator } from "@/components/ui/separator";
-import { getCreditors, Creditor, getExpenses, Expense, handleLogPayment, handleAddExpense, getPaymentConfirmations, PaymentConfirmation, handlePaymentConfirmation, getDebtors, Debtor } from "@/app/actions";
+import { getCreditors, Creditor, getExpenses, Expense, handleLogPayment, handleAddExpense, getPaymentConfirmations, PaymentConfirmation, handlePaymentConfirmation, getDebtors, Debtor, getSalesStats } from "@/app/actions";
 import {
   Table,
   TableBody,
@@ -49,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 // --- Creditors Components ---
 function PayCreditorDialog({ creditor, onPaymentMade }: { creditor: Creditor, onPaymentMade: () => void }) {
@@ -294,46 +295,48 @@ function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void
 }
 
 export default function AccountingPage() {
-    const [date, setDate] = useState<DateRange | undefined>({
-        from: subMonths(new Date(), 1),
-        to: new Date(),
-    });
     const [isLoading, setIsLoading] = useState(true);
     const [creditors, setCreditors] = useState<Creditor[]>([]);
     const [debtors, setDebtors] = useState<Debtor[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [salesStats, setSalesStats] = useState({ totalSales: 0 });
+    const [salesFilter, setSalesFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
 
     const fetchData = async () => {
-        if (!date?.from || !date?.to) return;
         setIsLoading(true);
 
-        const fromISO = startOfDay(date.from).toISOString();
-        const toISO = endOfDay(date.to).toISOString();
-
-        const [creditorsData, expensesData, debtorsData] = await Promise.all([
+        const [creditorsData, expensesData, debtorsData, salesData] = await Promise.all([
             getCreditors(),
-            getExpenses({ from: date.from, to: date.to }),
-            getDebtors()
+            getExpenses({ from: subMonths(new Date(), 1).toISOString(), to: new Date().toISOString() }), // Default for now
+            getDebtors(),
+            getSalesStats(salesFilter)
         ]);
         
         setCreditors(creditorsData);
         setDebtors(debtorsData);
         setExpenses(expensesData);
+        setSalesStats(salesData);
         setIsLoading(false);
     };
+
+    const fetchSalesOnly = async (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
+        setIsLoading(true);
+        const salesData = await getSalesStats(filter);
+        setSalesStats(salesData);
+        setSalesFilter(filter);
+        setIsLoading(false);
+    }
     
     useEffect(() => {
         fetchData();
-        window.addEventListener('dataChanged', fetchData);
-        return () => window.removeEventListener('dataChanged', fetchData);
-    }, [date]);
+        const handleDataChange = () => fetchData();
+        window.addEventListener('dataChanged', handleDataChange);
+        return () => window.removeEventListener('dataChanged', handleDataChange);
+    }, [salesFilter]);
 
     // --- Content Renderers ---
     const DebtorsContent = () => {
-        if (isLoading) return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-
         const totalBalance = debtors.reduce((sum, d) => sum + d.balance, 0);
-
         return (
             <Card>
                 <CardHeader>
@@ -379,10 +382,7 @@ export default function AccountingPage() {
     }
 
     const CreditorsContent = () => {
-        if (isLoading) return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-        
         const totalBalance = creditors.reduce((sum, c) => sum + c.balance, 0);
-
         return (
             <Card>
                 <CardHeader><CardTitle>Creditors (Suppliers you owe)</CardTitle></CardHeader>
@@ -428,17 +428,14 @@ export default function AccountingPage() {
     }
 
     const ExpensesContent = () => {
-        if (isLoading) return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-        
         const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-
         return (
             <Card>
                 <CardHeader className="flex-row items-center justify-between">
                     <div>
                         <CardTitle>Expenses Log</CardTitle>
                         <CardDescription>
-                            All expenses recorded from {date?.from ? format(date.from, "PPP") : ''} to {date?.to ? format(date.to, "PPP") : ''}
+                            All expenses recorded for the last 30 days.
                         </CardDescription>
                     </div>
                     <AddExpenseDialog onExpenseAdded={fetchData} />
@@ -486,47 +483,30 @@ export default function AccountingPage() {
           <h1 className="text-2xl font-bold font-headline">Accounting</h1>
           <p className="text-muted-foreground">Manage all financial aspects of your bakery.</p>
         </div>
-        <div className="flex items-center gap-2">
-            <Popover>
-                <PopoverTrigger asChild>
-                <Button
-                    id="date"
-                    variant={"outline"}
-                    className={cn(
-                    "w-[260px] justify-start text-left font-normal",
-                    !date && "text-muted-foreground"
-                    )}
-                >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date?.from ? (
-                    date.to ? (
-                        <>
-                        {format(date.from, "LLL dd, y")} -{" "}
-                        {format(date.to, "LLL dd, y")}
-                        </>
-                    ) : (
-                        format(date.from, "LLL dd, y")
-                    )
-                    ) : (
-                    <span>Pick a date range</span>
-                    )}
-                </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={date?.from}
-                    selected={date}
-                    onSelect={setDate}
-                    numberOfMonths={2}
-                />
-                </PopoverContent>
-            </Popover>
-            <Button variant="outline"><FileDown className="mr-2 h-4 w-4" /> Export to CSV</Button>
-        </div>
       </div>
       
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium capitalize">{salesFilter} Sales</CardTitle>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="h-4 w-4 text-muted-foreground"/></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuItem onSelect={() => fetchSalesOnly('daily')}>Daily</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => fetchSalesOnly('weekly')}>Weekly</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => fetchSalesOnly('monthly')}>Monthly</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => fetchSalesOnly('yearly')}>Yearly</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? <Loader2 className="h-8 w-8 animate-spin" /> : <div className="text-2xl font-bold">₦{salesStats.totalSales.toLocaleString()}</div>}
+                </CardContent>
+            </Card>
+        </div>
+
       <Tabs defaultValue="debtors-creditors">
         <div className="flex items-center justify-between">
             <TabsList>
@@ -539,11 +519,13 @@ export default function AccountingPage() {
             </Button>
         </div>
          <TabsContent value="debtors-creditors" className="mt-4 space-y-4">
-            <DebtorsContent />
-            <CreditorsContent />
+            {isLoading ? <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin" /></div> : <>
+                <DebtorsContent />
+                <CreditorsContent />
+            </>}
         </TabsContent>
          <TabsContent value="expenses" className="mt-4">
-            <ExpensesContent />
+            {isLoading ? <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin" /></div> : <ExpensesContent />}
         </TabsContent>
          <TabsContent value="payments-requests" className="mt-4">
             <PaymentsAndRequestsContent onDataChange={fetchData} />

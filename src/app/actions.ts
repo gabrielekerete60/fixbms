@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfWeek, eachDayOfInterval, format } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay, startOfYear, endOfYear, eachDayOfInterval, format } from "date-fns";
 import { db } from "@/lib/firebase";
 import fetch from 'node-fetch';
 
@@ -219,10 +219,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     try {
         const now = new Date();
         const startOfCurrentMonth = startOfMonth(now);
-        const endOfCurrentMonth = endOfMonth(now);
-
+        
         // Revenue, Sales, Active Orders
-        const ordersQuery = query(collection(db, "orders"), where("date", ">=", startOfCurrentMonth.toISOString()), where("date", "<=", endOfCurrentMonth.toISOString()));
+        const ordersQuery = query(collection(db, "orders"), where("date", ">=", startOfCurrentMonth.toISOString()));
         const ordersSnapshot = await getDocs(ordersQuery);
         
         let revenue = 0;
@@ -236,7 +235,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         });
 
         // New Customers
-        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfCurrentMonth.toISOString()), where("joinedDate", "<=", endOfCurrentMonth.toISOString()));
+        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfCurrentMonth.toISOString()));
         const customersSnapshot = await getDocs(customersQuery);
 
 
@@ -464,66 +463,42 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
     }
 }
 
+export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'yearly'): Promise<{ totalSales: number }> {
+    const now = new Date();
+    let from: Date, to: Date;
 
-export type AccountingReport = {
-    sales: number;
-    costOfGoodsSold: number;
-    grossProfit: number;
-    expenses: number;
-    netProfit: number;
-}
-
-export async function getAccountingReport(dateRange: { from: string, to: string }): Promise<AccountingReport> {
-    const { from, to } = dateRange;
-
+    switch (filter) {
+        case 'daily':
+            from = startOfDay(now);
+            to = endOfDay(now);
+            break;
+        case 'weekly':
+            from = startOfWeek(now, { weekStartsOn: 1 });
+            to = endOfWeek(now, { weekStartsOn: 1 });
+            break;
+        case 'monthly':
+            from = startOfMonth(now);
+            to = endOfMonth(now);
+            break;
+        case 'yearly':
+            from = startOfYear(now);
+            to = endOfYear(now);
+            break;
+    }
+    
     try {
-        // --- Calculate Sales & COGS---
-        const ordersQuery = query(
+        const q = query(
             collection(db, "orders"),
-            where("date", ">=", from),
-            where("date", "<=", to),
+            where("date", ">=", from.toISOString()),
+            where("date", "<=", to.toISOString()),
             where("status", "==", "Completed")
         );
-        const ordersSnapshot = await getDocs(ordersQuery);
-        
-        let sales = 0;
-        let costOfGoodsSold = 0;
-        
-        for(const orderDoc of ordersSnapshot.docs) {
-            const order = orderDoc.data();
-            sales += order.total;
-            // The check 'order.items && Array.isArray(order.items)' is important for robustness
-            if (order.items && Array.isArray(order.items)) {
-                for(const item of order.items) {
-                    costOfGoodsSold += (item.costPrice || 0) * item.quantity;
-                };
-            }
-        };
-        
-        // --- Calculate Expenses ---
-        const expensesQuery = query(
-            collection(db, "expenses"),
-            where("date", ">=", from),
-            where("date", "<=", to)
-        );
-        const expensesSnapshot = await getDocs(expensesQuery);
-        const expenses = expensesSnapshot.docs.reduce((sum, expenseDoc) => sum + expenseDoc.data().amount, 0);
-        
-        // --- Final Calculations ---
-        const grossProfit = sales - costOfGoodsSold;
-        const netProfit = grossProfit - expenses;
-
-        return {
-            sales,
-            costOfGoodsSold,
-            grossProfit,
-            expenses,
-            netProfit
-        };
-
+        const snapshot = await getDocs(q);
+        const totalSales = snapshot.docs.reduce((sum, doc) => sum + doc.data().total, 0);
+        return { totalSales };
     } catch (error) {
-        console.error("Error generating accounting report:", error);
-        return { sales: 0, costOfGoodsSold: 0, grossProfit: 0, expenses: 0, netProfit: 0 };
+        console.error("Error fetching sales stats:", error);
+        return { totalSales: 0 };
     }
 }
 
@@ -604,9 +579,8 @@ export type Expense = {
     date: string;
 }
 
-export async function getExpenses(dateRange: { from: Date, to: Date }): Promise<Expense[]> {
-     const from = dateRange.from.toISOString();
-     const to = dateRange.to.toISOString();
+export async function getExpenses(dateRange: { from: string, to: string }): Promise<Expense[]> {
+     const { from, to } = dateRange;
      try {
         const q = query(
             collection(db, "expenses"),
@@ -734,16 +708,16 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     
                     const newOrderRef = doc(collection(db, 'orders'));
                     const orderData = {
-                        id: newOrderRef.id,
                         salesRunId: confirmationData.runId,
                         customerId: confirmationData.customerId || 'walk-in',
                         customerName: confirmationData.customerName,
-                        items: itemsWithCost,
                         total: confirmationData.amount,
                         paymentMethod: 'Cash',
                         date: new Date().toISOString(),
                         staffId: confirmationData.driverId,
+                        id: newOrderRef.id,
                         status: 'Completed',
+                        items: itemsWithCost
                     };
                     
                     for (const item of confirmationData.items) {
@@ -1466,6 +1440,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 
 
     
+
 
 
 
