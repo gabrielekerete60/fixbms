@@ -107,7 +107,8 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
                     <Button onClick={handleSave}>Create Customer</Button>
                 </DialogFooter>
             </DialogContent>
-        )
+        </Dialog>
+    )
 }
 
 function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: User | null, onSaleMade: () => void }) {
@@ -182,7 +183,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                 email: selectedCustomer?.email
             });
             if (paystackResult.success && paystackResult.authorization_url) {
-                router.push(paystackResult.authorization_url);
+                window.location.href = paystackResult.authorization_url;
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
                 setIsLoading(false);
@@ -588,3 +589,5 @@ export default function SalesRunPage() {
         </div>
     );
 }
+
+    
