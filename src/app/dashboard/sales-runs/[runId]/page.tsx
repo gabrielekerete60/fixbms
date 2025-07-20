@@ -191,9 +191,13 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
 
     const handleSubmit = async () => {
         if (!user) return;
-        
-        if (!selectedCustomerId) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please select a customer.' });
+
+        // If no customer is selected, treat as walk-in, otherwise use selected customer.
+        const customerId = selectedCustomerId || 'walk-in';
+        const customerName = selectedCustomer?.name || 'Walk-in';
+
+        if (paymentMethod === 'Credit' && customerId === 'walk-in') {
+            toast({ variant: 'destructive', title: 'Error', description: 'Credit sales cannot be made to a walk-in customer. Please select a registered customer.' });
             return;
         }
 
@@ -207,8 +211,8 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
         const saleData = {
             runId: run.id,
             items: cart,
-            customerId: selectedCustomerId,
-            customerName: selectedCustomer?.name || 'Unknown',
+            customerId: customerId,
+            customerName: customerName,
             paymentMethod,
             staffId: user.staff_id,
             total,
@@ -244,15 +248,18 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
     };
     
     const handleCashConfirmation = async () => {
-        if (!user || !selectedCustomer) return;
+        if (!user) return;
         setIsCashConfirmOpen(false);
         setIsLoading(true);
+
+        const customerId = selectedCustomerId || 'walk-in';
+        const customerName = selectedCustomer?.name || 'Walk-in';
 
         const result = await handleSellToCustomer({
             runId: run.id,
             items: cart,
-            customerId: selectedCustomerId,
-            customerName: selectedCustomer.name,
+            customerId: customerId,
+            customerName: customerName,
             paymentMethod: 'Cash',
             staffId: user.staff_id,
             total,
@@ -314,10 +321,10 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                         <h4 className="font-semibold">Sale Details</h4>
                          {/* Customer Selection */}
                         <div className="space-y-2">
-                            <Label>Customer</Label>
+                            <Label>Customer (Optional for cash/card)</Label>
                              <div className="flex gap-2">
                                 <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                                    <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
+                                    <SelectTrigger><SelectValue placeholder="Select a customer (or walk-in)" /></SelectTrigger>
                                     <SelectContent>
                                         {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                                     </SelectContent>
