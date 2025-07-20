@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, ShieldCheck, Copy, KeyRound } from 'lucide-react';
+import { Loader2, ShieldCheck, Copy, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -35,6 +35,9 @@ function ChangePasswordForm({ user }: { user: User }) {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showCurrent, setShowCurrent] = useState(false);
+    const [showNew, setShowNew] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -70,15 +73,30 @@ function ChangePasswordForm({ user }: { user: User }) {
                 <form id="change-password-form" onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="current-password">Current Password</Label>
-                        <Input id="current-password" type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
+                        <div className="relative">
+                            <Input id="current-password" type={showCurrent ? 'text' : 'password'} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
+                            <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowCurrent(!showCurrent)}>
+                                {showCurrent ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}
+                            </Button>
+                        </div>
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="new-password">New Password</Label>
-                        <Input id="new-password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+                        <div className="relative">
+                            <Input id="new-password" type={showNew ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+                             <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowNew(!showNew)}>
+                                {showNew ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}
+                            </Button>
+                        </div>
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="confirm-password">Confirm New Password</Label>
-                        <Input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
+                        <div className="relative">
+                            <Input id="confirm-password" type={showConfirm ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
+                            <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowConfirm(!showConfirm)}>
+                                {showConfirm ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}
+                            </Button>
+                        </div>
                     </div>
                 </form>
             </CardContent>
@@ -225,7 +243,7 @@ export default function SettingsPage() {
                             <h3 className="font-semibold text-lg">Step 1: Scan QR Code</h3>
                             <p className="text-sm text-muted-foreground">Scan this QR code with an authenticator app (e.g., Google Authenticator, Authy).</p>
                              <div className="bg-white p-2 rounded-md inline-block">
-                               <img src={mfaSetup.qrCode} alt="MFA QR Code" />
+                               <img src={mfaSetup.qrCode} alt="MFA QR Code" className="max-w-48"/>
                              </div>
                             <p className="text-xs text-muted-foreground">Or enter this key manually:</p>
                             <div className="flex items-center justify-center gap-2">

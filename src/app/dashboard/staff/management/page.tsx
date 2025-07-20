@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, ShieldCheck, Copy } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, ShieldCheck, Copy, Eye, EyeOff } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -100,6 +100,7 @@ function StaffDialog({
     const [payType, setPayType] = useState<Staff['pay_type']>('Salary');
     const [payRate, setPayRate] = useState(0);
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [timezone, setTimezone] = useState("Africa/Lagos");
     const [bankName, setBankName] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
@@ -197,7 +198,18 @@ function StaffDialog({
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="password">Password</Label>
-                        <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={staff?.staff_id ? "Leave blank to keep unchanged" : "Set initial password"} />
+                        <div className="relative">
+                             <Input 
+                                id="password" 
+                                type={showPassword ? "text" : "password"} 
+                                value={password} 
+                                onChange={(e) => setPassword(e.target.value)} 
+                                placeholder={staff?.staff_id ? "Leave blank to keep unchanged" : "Set initial password"} 
+                             />
+                             <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowPassword(!showPassword)}>
+                                {showPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}
+                             </Button>
+                        </div>
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="timezone">Timezone</Label>
@@ -492,4 +504,3 @@ export default function StaffManagementPage() {
         </div>
     );
 }
-

@@ -9,7 +9,7 @@ import {
   Calendar as CalendarIcon,
   Loader2,
 } from "lucide-react";
-import Select from "react-select";
+import Select, { StylesConfig } from "react-select";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -70,7 +70,6 @@ import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc } from "firebase
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { StylesConfig } from "react-select";
 
 type Promotion = {
     id: string;
@@ -83,6 +82,8 @@ type Promotion = {
     endDate: string;
     status: "Active" | "Expired" | "Scheduled";
     applicableProducts?: { value: string, label: string }[];
+    usageLimit: number;
+    timesUsed: number;
 };
 
 type Product = {
@@ -113,6 +114,7 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [applicableProducts, setApplicableProducts] = useState<{ value: string, label: string }[]>([]);
+  const [usageLimit, setUsageLimit] = useState<number | string>(100);
 
   useEffect(() => {
     if (isOpen) {
@@ -125,6 +127,7 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
         setStartDate(promotion.startDate ? new Date(promotion.startDate) : undefined);
         setEndDate(promotion.endDate ? new Date(promotion.endDate) : undefined);
         setApplicableProducts(promotion.applicableProducts || []);
+        setUsageLimit(promotion.usageLimit || 0);
       } else {
         setName("");
         setDescription("");
@@ -134,6 +137,7 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
         setStartDate(undefined);
         setEndDate(undefined);
         setApplicableProducts([]);
+        setUsageLimit(100);
       }
     }
   }, [isOpen, promotion]);
@@ -152,7 +156,9 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
       value,
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
-      applicableProducts
+      applicableProducts,
+      usageLimit: Number(usageLimit),
+      timesUsed: promotion?.timesUsed || 0
     }
     onSave(promoData);
     onOpenChange(false);
@@ -172,9 +178,17 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
       backgroundColor: 'hsl(var(--primary) / 0.2)',
       color: 'hsl(var(--primary))',
     }),
-    multiValueLabel: (provided) => ({
+     multiValueLabel: (provided) => ({
         ...provided,
         color: 'hsl(var(--primary-foreground))',
+    }),
+    multiValueRemove: (provided) => ({
+        ...provided,
+        color: 'hsl(var(--primary-foreground))',
+        ':hover': {
+            backgroundColor: 'hsl(var(--primary))',
+            color: 'white',
+        },
     }),
     menu: (provided) => ({
       ...provided,
@@ -230,7 +244,12 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
               <Label htmlFor="value">Value</Label>
               <Input id="value" type="number" placeholder="0" value={value ?? ""} onChange={(e) => setValue(e.target.value ? parseFloat(e.target.value) : null)} />
             </div>
-            <div className="grid gap-2">
+             <div className="grid gap-2">
+              <Label htmlFor="usage-limit">Usage Limit</Label>
+              <Input id="usage-limit" type="number" placeholder="100" value={usageLimit} onChange={(e) => setUsageLimit(e.target.value)} />
+            </div>
+          </div>
+           <div className="grid gap-2">
                 <Label htmlFor="applicable-products">Applicable Products</Label>
                  <Select
                     isMulti
@@ -241,7 +260,6 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
                     styles={customSelectStyles}
                 />
             </div>
-          </div>
            <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label>Start Date</Label>
@@ -459,9 +477,9 @@ export default function PromotionsPage() {
         });
     }
 
-    const headers = ["ID", "Name", "Code", "Type", "Value", "Start Date", "End Date", "Status"];
+    const headers = ["ID", "Name", "Code", "Type", "Value", "Start Date", "End Date", "Status", "Times Used", "Usage Limit"];
     const rows = promosToExport.map(p => 
-        [p.id, p.name, p.code, p.type, p.value || "N/A", new Date(p.startDate).toLocaleDateString(), new Date(p.endDate).toLocaleDateString(), p.status].join(',')
+        [p.id, p.name, p.code, p.type, p.value || "N/A", new Date(p.startDate).toLocaleDateString(), new Date(p.endDate).toLocaleDateString(), p.status, p.timesUsed, p.usageLimit].join(',')
     );
     const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.join("\n");
     const encodedUri = encodeURI(csvContent);
@@ -515,8 +533,7 @@ export default function PromotionsPage() {
             </TableHead>
             <TableHead>Name</TableHead>
             <TableHead>Code</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Value</TableHead>
+            <TableHead>Usage</TableHead>
             <TableHead>Start Date</TableHead>
             <TableHead>End Date</TableHead>
             <TableHead>Status</TableHead>
@@ -542,12 +559,9 @@ export default function PromotionsPage() {
                     <TableCell>
                         <Badge variant="outline">{promo.code}</Badge>
                     </TableCell>
-                    <TableCell className="capitalize">{promo.type.replace('_', ' ')}</TableCell>
-                        <TableCell>
-                            {promo.type === 'percentage' && `${promo.value}%`}
-                            {promo.type === 'fixed_amount' && `₦${promo.value}`}
-                            {promo.type === 'free_item' && 'N/A'}
-                        </TableCell>
+                    <TableCell>
+                        {promo.timesUsed} / {promo.usageLimit === 0 ? "∞" : promo.usageLimit}
+                    </TableCell>
                     <TableCell>{new Date(promo.startDate).toLocaleDateString()}</TableCell>
                     <TableCell>{new Date(promo.endDate).toLocaleDateString()}</TableCell>
                     <TableCell>
