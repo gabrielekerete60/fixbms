@@ -150,44 +150,37 @@ const getStatusVariant = (status?: string) => {
     }
 }
 
-function PrintableReceiptDialog({ order, isOpen, onOpenChange }: { order: CompletedOrder | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
-    const receiptRef = useRef<HTMLDivElement>(null);
-    const handlePrint = useReactToPrint({
-        content: () => receiptRef.current,
-        documentTitle: `Receipt-${order?.id}`,
-    });
-
-    if (!order) return null;
-
-    return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
-                <Receipt order={order} ref={receiptRef} />
-                <DialogFooter className="flex justify-end gap-2 print:hidden">
-                    <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-
 function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean }) {
     const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
-    const selectedOrdersRef = useRef<HTMLDivElement>(null);
+    const [printingOrder, setPrintingOrder] = useState<CompletedOrder | null>(null);
+    const receiptRef = useRef<HTMLDivElement>(null);
 
-    const handlePrintSelected = useReactToPrint({
-        content: () => selectedOrdersRef.current,
-        documentTitle: 'Selected-Orders',
+    const handlePrint = useReactToPrint({
+        content: () => receiptRef.current,
+        onAfterPrint: () => setPrintingOrder(null)
     });
+
+    useEffect(() => {
+        if(printingOrder) {
+            handlePrint();
+        }
+    }, [printingOrder, handlePrint]);
     
     return (
         <>
-        <PrintableReceiptDialog 
-            order={viewingOrder}
-            isOpen={!!viewingOrder}
-            onOpenChange={() => setViewingOrder(null)}
-        />
+        <Dialog open={!!viewingOrder} onOpenChange={() => setViewingOrder(null)}>
+            <DialogContent className="sm:max-w-md">
+                {viewingOrder && <Receipt order={viewingOrder} />}
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setViewingOrder(null)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        <div className="hidden">
+            {printingOrder && <Receipt order={printingOrder} ref={receiptRef} />}
+        </div>
+        
         <Table>
             <TableHeader>
                 <TableRow>
@@ -252,6 +245,10 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                                         <DropdownMenuItem onSelect={() => setViewingOrder(order)}>
                                             <Eye className="mr-2 h-4 w-4" />
                                             <span>View Details</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={() => setPrintingOrder(order)}>
+                                            <Printer className="mr-2 h-4 w-4" />
+                                            <span>Print Receipt</span>
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
