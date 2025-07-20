@@ -490,14 +490,18 @@ export default function AccountingPage() {
                             {expenses.length === 0 ? (
                                 <TableRow><TableCell colSpan={4} className="h-24 text-center">No expenses recorded for this period.</TableCell></TableRow>
                             ) : (
-                                expenses.map(e => (
-                                    <TableRow key={e.id}>
-                                        <TableCell>{e.date ? format(new Date(e.date), 'PPP') : 'N/A'}</TableCell>
-                                        <TableCell>{e.category}</TableCell>
-                                        <TableCell>{e.description}</TableCell>
-                                        <TableCell className="text-right">₦{e.amount.toLocaleString()}</TableCell>
-                                    </TableRow>
-                                ))
+                                expenses.map(e => {
+                                    const date = new Date(e.date);
+                                    const isValidDate = !isNaN(date.getTime());
+                                    return (
+                                        <TableRow key={e.id}>
+                                            <TableCell>{isValidDate ? format(date, 'PPP') : 'Invalid Date'}</TableCell>
+                                            <TableCell>{e.category}</TableCell>
+                                            <TableCell>{e.description}</TableCell>
+                                            <TableCell className="text-right">₦{e.amount.toLocaleString()}</TableCell>
+                                        </TableRow>
+                                    );
+                                })
                             )}
                         </TableBody>
                         <TableFooter>
