@@ -1,10 +1,11 @@
 
+
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, KeyRound, User, Pizza } from "lucide-react";
+import { Eye, EyeOff, Loader2, KeyRound, User, Pizza, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,45 +19,74 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { handleLogin } from "./actions";
+import { handleLogin, verifyMfa } from "./actions";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [view, setView] = useState<'login' | 'mfa'>('login');
+  const [staffId, setStaffId] = useState('');
+  const [mfaToken, setMfaToken] = useState('');
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
 
     const formData = new FormData(event.currentTarget);
+    const staffIdValue = formData.get("staff_id") as string;
+    setStaffId(staffIdValue);
+    
     const result = await handleLogin(formData);
 
-    if (result.success && result.user) {
-      toast({
-        title: "Login Successful",
-        description: `Welcome back, ${result.user.name}!`,
-      });
-      // Store user session in localStorage
-      localStorage.setItem('loggedInUser', JSON.stringify(result.user));
-      router.push("/dashboard");
+    if (result.success) {
+        if (result.mfaRequired) {
+            setView('mfa');
+        } else if (result.user) {
+            toast({
+                title: "Login Successful",
+                description: `Welcome back, ${result.user.name}!`,
+            });
+            localStorage.setItem('loggedInUser', JSON.stringify(result.user));
+            router.push("/dashboard");
+        }
     } else {
-      toast({
-        variant: "destructive",
-        title: "Login Failed",
-        description: result.error,
-      });
-       // Clear any previous session info on failed login
-      localStorage.removeItem('loggedInUser');
-      setIsLoading(false);
+        toast({
+            variant: "destructive",
+            title: "Login Failed",
+            description: result.error,
+        });
+        localStorage.removeItem('loggedInUser');
     }
+    setIsLoading(false);
   };
+  
+  const handleMfaSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsLoading(true);
 
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background transition-colors duration-500">
-      <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-primary/20 via-background to-secondary/20 -z-10" />
-      <Card className="w-full max-w-sm shadow-2xl bg-card/80 backdrop-blur-sm border-primary/20">
+    const result = await verifyMfa(staffId, mfaToken);
+
+    if (result.success && result.user) {
+        toast({
+            title: "Login Successful",
+            description: `Welcome back, ${result.user.name}!`,
+        });
+        localStorage.setItem('loggedInUser', JSON.stringify(result.user));
+        router.push("/dashboard");
+    } else {
+        toast({
+            variant: "destructive",
+            title: "MFA Failed",
+            description: result.error || "Invalid MFA token.",
+        });
+    }
+    setIsLoading(false);
+  }
+
+  const renderLoginView = () => (
+    <Card className="w-full max-w-sm shadow-2xl bg-card/80 backdrop-blur-sm border-primary/20">
         <CardHeader className="text-center">
             <div className="flex justify-center items-center gap-2">
                 <Pizza className="h-8 w-8 text-primary" />
@@ -65,7 +95,7 @@ export default function LoginPage() {
           <CardDescription className="font-body pt-2">Welcome to the Bakery Management System. Please log in.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form id="login-form" onSubmit={handleSubmit}>
+          <form id="login-form" onSubmit={handleLoginSubmit}>
             <div className="grid w-full items-center gap-4">
               <div className="relative">
                 <Label htmlFor="staff_id" className="font-headline text-primary-foreground/80 block mb-1.5">Staff ID</Label>
@@ -109,6 +139,52 @@ export default function LoginPage() {
           </p>
         </CardFooter>
       </Card>
+  );
+  
+  const renderMfaView = () => (
+    <Card className="w-full max-w-sm shadow-2xl bg-card/80 backdrop-blur-sm border-primary/20">
+        <CardHeader className="text-center">
+            <div className="flex justify-center items-center gap-2">
+                <ShieldCheck className="h-8 w-8 text-primary" />
+                <CardTitle className="text-3xl font-headline text-primary">Two-Factor Authentication</CardTitle>
+            </div>
+          <CardDescription className="font-body pt-2">Enter the code from your authenticator app.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form id="mfa-form" onSubmit={handleMfaSubmit}>
+            <div className="grid w-full items-center gap-4">
+              <div className="relative">
+                <Label htmlFor="mfa_token" className="font-headline text-primary-foreground/80 block mb-1.5">6-Digit Code</Label>
+                <Input 
+                    id="mfa_token" 
+                    name="mfa_token" 
+                    placeholder="123456" 
+                    maxLength={6} 
+                    className="transition-all duration-300 focus:bg-background text-center text-lg tracking-[0.5em]" 
+                    required 
+                    value={mfaToken}
+                    onChange={(e) => setMfaToken(e.target.value)}
+                />
+              </div>
+            </div>
+          </form>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-4">
+          <Button type="submit" form="mfa-form" className="w-full font-headline" disabled={isLoading || mfaToken.length !== 6}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Verify
+          </Button>
+           <Button variant="link" onClick={() => setView('login')} className="text-xs">
+            Back to Login
+          </Button>
+        </CardFooter>
+      </Card>
+  )
+
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background transition-colors duration-500">
+      <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-primary/20 via-background to-secondary/20 -z-10" />
+      {view === 'login' ? renderLoginView() : renderMfaView()}
     </main>
   );
 }

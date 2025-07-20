@@ -7,10 +7,12 @@ import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear
 import { db } from "@/lib/firebase";
 import fetch from 'node-fetch';
 import { randomUUID } from 'crypto';
+import * as speakeasy from 'speakeasy';
 
 type LoginResult = {
   success: boolean;
   error?: string;
+  mfaRequired?: boolean;
   user?: {
     name: string;
     role: string;
@@ -46,6 +48,11 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
         return { success: false, error: "This staff account is inactive." };
     }
 
+    // Check for MFA
+    if (userData.mfa_enabled) {
+        return { success: true, mfaRequired: true };
+    }
+    
     const sessionId = randomUUID();
     await updateDoc(userDocRef, {
         sessionId: sessionId,
@@ -68,6 +75,70 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
     return { success: false, error: errorMessage };
   }
 }
+
+type MfaResult = {
+  success: boolean;
+  error?: string;
+  user?: {
+    name: string;
+    role: string;
+    staff_id: string;
+    email: string;
+    sessionId: string;
+  }
+}
+
+export async function verifyMfa(staffId: string, token: string): Promise<MfaResult> {
+    if (!staffId || !token) {
+        return { success: false, error: "Staff ID and token are required." };
+    }
+    
+    try {
+        const userDocRef = doc(db, "staff", staffId);
+        const userDoc = await getDoc(userDocRef);
+
+        if (!userDoc.exists()) {
+            return { success: false, error: "User not found." };
+        }
+        
+        const userData = userDoc.data();
+        if (!userData.mfa_enabled || !userData.mfa_secret) {
+            return { success: false, error: "MFA is not enabled for this user." };
+        }
+
+        const verified = speakeasy.totp.verify({
+            secret: userData.mfa_secret,
+            encoding: 'base32',
+            token: token,
+        });
+
+        if (!verified) {
+            return { success: false, error: "Invalid MFA token." };
+        }
+
+        const sessionId = randomUUID();
+        await updateDoc(userDocRef, {
+            sessionId: sessionId,
+            lastLogin: serverTimestamp(),
+        });
+        
+        return {
+            success: true,
+            user: {
+                name: userData.name,
+                role: userData.role,
+                staff_id: userDoc.id,
+                email: userData.email,
+                sessionId: sessionId
+            }
+        };
+
+    } catch (error) {
+        console.error("MFA verification error:", error);
+        return { success: false, error: "An unexpected server error occurred during MFA verification." };
+    }
+}
+
 
 type InitializePaystackResult = {
     success: boolean;
