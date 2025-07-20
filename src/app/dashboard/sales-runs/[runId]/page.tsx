@@ -2,12 +2,12 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,6 +21,8 @@ import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
+import PaystackPop from '@paystack/inline-js';
+import { Separator } from '@/components/ui/separator';
 
 type Customer = {
   id: string;
@@ -29,6 +31,15 @@ type Customer = {
   email: string;
   address: string;
 };
+
+type CompletedOrder = {
+  id: string;
+  items: { productId: string; quantity: number, price: number, name: string }[];
+  total: number;
+  date: string;
+  paymentMethod: 'Card' | 'Cash' | 'Credit';
+  customerName?: string;
+}
 
 type RunCustomer = {
     customerId: string;
@@ -113,7 +124,7 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
     )
 }
 
-function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: User | null, onSaleMade: () => void }) {
+function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void }) {
     const { toast } = useToast();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
@@ -207,7 +218,13 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
             setIsCashConfirmOpen(true);
             return;
         }
-
+        
+        const customerEmail = selectedCustomer?.email || user.email;
+        if (paymentMethod === 'Card' && !customerEmail) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Email address is required for card payments. Please select a registered customer or ensure the staff email is set.' });
+            return;
+        }
+        
         setIsLoading(true);
 
         const saleData = {
@@ -221,22 +238,40 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
         };
 
         if (paymentMethod === 'Card') {
-            const customerEmail = selectedCustomer?.email || user.email;
-            if (!customerEmail) {
-                 toast({ variant: 'destructive', title: 'Error', description: 'Email address is required for card payments.' });
-                 setIsLoading(false);
-                 return;
-            }
-
             const paystackResult = await initializePaystackTransaction({
                 ...saleData,
                 email: customerEmail,
                 runId: run.id,
             });
-            if (paystackResult.success && paystackResult.authorization_url) {
-                 window.open(paystackResult.authorization_url, '_blank');
-                 toast({title: 'Redirecting to Payment', description: 'Please complete payment in the new tab.'});
 
+            if (paystackResult.success && paystackResult.reference) {
+                const paystack = new PaystackPop();
+                paystack.newTransaction({
+                    key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+                    email: customerEmail,
+                    amount: Math.round(total * 100),
+                    ref: paystackResult.reference,
+                    onSuccess: async (transaction) => {
+                        const finalOrder = await handleSellToCustomer(saleData);
+                         if (finalOrder.success) {
+                            toast({ title: 'Payment Successful', description: 'Order has been completed.' });
+                            onSaleMade({
+                                id: paystackResult.reference || '',
+                                items: cart,
+                                total: total,
+                                date: new Date().toISOString(),
+                                paymentMethod: 'Card',
+                                customerName: customerName,
+                            });
+                            setIsOpen(false);
+                        } else {
+                            toast({ variant: 'destructive', title: 'Order processing failed', description: finalOrder.error });
+                        }
+                    },
+                    onCancel: () => {
+                        toast({ variant: 'destructive', title: 'Payment Cancelled' });
+                    }
+                });
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
             }
@@ -249,7 +284,14 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
 
         if (result.success) {
             toast({ title: 'Success', description: 'Credit sale recorded successfully.' });
-            onSaleMade();
+            onSaleMade({
+                id: 'credit-sale-' + Date.now(),
+                items: cart,
+                total: total,
+                date: new Date().toISOString(),
+                paymentMethod: 'Credit',
+                customerName: customerName,
+            });
             setIsOpen(false);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -277,7 +319,14 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
 
         if (result.success) {
             toast({ title: 'Pending Approval', description: 'Cash payment has been submitted for accountant approval.' });
-            onSaleMade();
+            onSaleMade({
+                id: 'cash-sale-' + Date.now(),
+                items: cart,
+                total: total,
+                date: new Date().toISOString(),
+                paymentMethod: 'Cash',
+                customerName: customerName,
+            });
             setIsOpen(false);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -527,6 +576,62 @@ function RecordPaymentDialog({ run, user, customers, onPaymentMade }: { run: Sal
     )
 }
 
+function ReceiptDialog({ order, isOpen, onOpenChange }: { order: CompletedOrder | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+    const receiptRef = useRef<HTMLDivElement>(null);
+
+    const handlePrint = () => {
+        const printWindow = window.open('', '_blank');
+        if (printWindow && receiptRef.current) {
+            const printableContent = `
+                <html>
+                    <head><title>Receipt</title></head>
+                    <body>${receiptRef.current.innerHTML}</body>
+                </html>
+            `;
+            printWindow.document.write(printableContent);
+            printWindow.document.close();
+            printWindow.print();
+        }
+    }
+
+    if (!isOpen || !order) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <div ref={receiptRef}>
+                    <DialogHeader className="text-center mb-4">
+                        <DialogTitle className="text-2xl font-bold">Sale Receipt</DialogTitle>
+                        <DialogDescription>Order ID: {order.id.substring(0, 8)}</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2 text-sm">
+                        <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
+                        <p><strong>Customer:</strong> {order.customerName}</p>
+                        <p><strong>Payment:</strong> {order.paymentMethod}</p>
+                    </div>
+                    <Separator className="my-4" />
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Item</TableHead><TableHead className="text-center">Qty</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {order.items.map(item => (
+                                <TableRow key={item.productId}><TableCell>{item.name}</TableCell><TableCell className="text-center">{item.quantity}</TableCell><TableCell className="text-right">₦{(item.price * item.quantity).toLocaleString()}</TableCell></TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                    <Separator className="my-4" />
+                    <div className="flex justify-end font-bold text-lg">
+                        <p>Total: ₦{order.total.toLocaleString()}</p>
+                    </div>
+                </div>
+                 <DialogFooter>
+                    <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
+                    <Button onClick={() => onOpenChange(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function SalesRunPage() {
     const params = useParams();
     const runId = params.runId as string;
@@ -534,6 +639,8 @@ export default function SalesRunPage() {
     const [runCustomers, setRunCustomers] = useState<RunCustomer[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState<User | null>(null);
+    const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
+    const [isReceiptOpen, setIsReceiptOpen] = useState(false);
 
      const fetchData = async () => {
         if (!runId) return;
@@ -546,6 +653,13 @@ export default function SalesRunPage() {
         setRunCustomers(runCustomersData);
         setIsLoading(false);
     };
+
+    const handleSaleMade = (order: CompletedOrder) => {
+        setLastCompletedOrder(order);
+        setIsReceiptOpen(true);
+        fetchData(); // Refresh all data
+    };
+
 
     useEffect(() => {
         const storedUser = localStorage.getItem('loggedInUser');
@@ -576,6 +690,8 @@ export default function SalesRunPage() {
 
     return (
         <div className="flex flex-col gap-6">
+            <ReceiptDialog order={lastCompletedOrder} isOpen={isReceiptOpen} onOpenChange={setIsReceiptOpen} />
+
             <div>
                  <Button variant="outline" asChild>
                     <Link href="/dashboard/deliveries">
@@ -608,7 +724,7 @@ export default function SalesRunPage() {
                      <div>
                         <h3 className="font-semibold text-lg mb-2">Run Actions</h3>
                          <div className="grid grid-cols-2 gap-4">
-                            <SellToCustomerDialog run={runDetails} user={user} onSaleMade={fetchData}/>
+                            <SellToCustomerDialog run={runDetails} user={user} onSaleMade={handleSaleMade}/>
                             <RecordPaymentDialog run={runDetails} user={user} customers={runCustomers} onPaymentMade={fetchData}/>
                          </div>
                      </div>
