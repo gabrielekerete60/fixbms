@@ -567,7 +567,14 @@ export default function RecipesPage() {
                 getProductionLogs(),
             ]);
 
-            setRecipes(recipeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recipe)));
+            setRecipes(recipeSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    ingredients: data.ingredients || [] // Ensure ingredients is always an array
+                } as Recipe;
+            }));
             setProducts(productSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, category: doc.data().category } as Product)));
             setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ingredient)));
             setPendingBatches(batchData.pending.map(b => ({ ...b, createdAt: new Date(b.createdAt).toISOString() })));
@@ -829,3 +836,5 @@ export default function RecipesPage() {
         </div>
     );
 }
+
+    
