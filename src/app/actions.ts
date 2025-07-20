@@ -18,7 +18,6 @@ type LoginResult = {
     role: string;
     staff_id: string;
     email: string;
-    sessionId: string;
   }
 };
 
@@ -53,9 +52,7 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
         return { success: true, mfaRequired: true };
     }
     
-    const sessionId = randomUUID();
     await updateDoc(userDocRef, {
-        sessionId: sessionId,
         lastLogin: serverTimestamp(),
     });
 
@@ -66,7 +63,6 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
         role: userData.role,
         staff_id: userDoc.id,
         email: userData.email,
-        sessionId: sessionId
       } 
     };
   } catch (error) {
@@ -84,7 +80,6 @@ type MfaResult = {
     role: string;
     staff_id: string;
     email: string;
-    sessionId: string;
   }
 }
 
@@ -116,9 +111,7 @@ export async function verifyMfa(staffId: string, token: string): Promise<MfaResu
             return { success: false, error: "Invalid MFA token." };
         }
 
-        const sessionId = randomUUID();
         await updateDoc(userDocRef, {
-            sessionId: sessionId,
             lastLogin: serverTimestamp(),
         });
         
@@ -129,7 +122,6 @@ export async function verifyMfa(staffId: string, token: string): Promise<MfaResu
                 role: userData.role,
                 staff_id: userDoc.id,
                 email: userData.email,
-                sessionId: sessionId
             }
         };
 

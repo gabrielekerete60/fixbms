@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import Link from 'next/link';
@@ -68,7 +69,6 @@ type User = {
   name: string;
   role: string;
   staff_id: string;
-  sessionId: string;
 };
 
 function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string }) {
@@ -174,7 +174,7 @@ export default function DashboardLayout({
     return () => clearInterval(timer);
   }, []);
   
-  // Real-time user status & session check
+  // Real-time user status check
   useEffect(() => {
       if (!user) return;
 
@@ -185,10 +185,6 @@ export default function DashboardLayout({
               const userData = doc.data();
               if (!userData.is_active) {
                   handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
-              }
-              // Check for session mismatch
-              if (userData.sessionId && userData.sessionId !== user.sessionId) {
-                  handleLogout("Session Expired", "This account has been logged in on another device.");
               }
           } else {
               handleLogout("Account Deleted", "Your staff profile could not be found.");
@@ -225,7 +221,7 @@ export default function DashboardLayout({
       }
     }
     // Dispatch a custom event to notify other components
-    window.dispatchEvent(new CustomEvent('attendanceChanged'));
+    window.dispatchEvent(new CustomEvent('dataChanged'));
     setIsClocking(false);
   };
 
@@ -270,7 +266,7 @@ export default function DashboardLayout({
       { href: "#", icon: GanttChartSquare, label: "AI Analytics", roles: ['Manager', 'Developer'] },
       { href: "/dashboard/communication", icon: HelpingHand, label: "Communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/documentation", icon: BookOpen, label: "Documentation", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
-      { href: "/dashboard/settings", icon: Settings, label: "Settings", roles: ['Manager', 'Developer'] },
+      { href: "/dashboard/settings", icon: Settings, label: "Settings", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
     ];
 
     if (!user) return [];

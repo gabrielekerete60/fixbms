@@ -1,4 +1,5 @@
 
+
 "use client";
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -9,10 +10,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { getAnnouncements, postAnnouncement, submitReport, Announcement as AnnouncementType } from '@/app/actions';
+import { postAnnouncement, submitReport, Announcement as AnnouncementType } from '@/app/actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 type User = {
     name: string;
@@ -104,19 +107,24 @@ export default function CommunicationPage() {
     const [activeTab, setActiveTab] = useState("announcements");
 
     useEffect(() => {
-        const fetchAnnouncements = async () => {
-            setIsLoading(true);
-            const data = await getAnnouncements();
+        const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AnnouncementType));
             setAnnouncements(data);
             setIsLoading(false);
-        };
-        fetchAnnouncements();
+        }, (error) => {
+            console.error("Error fetching announcements:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch announcements.'});
+            setIsLoading(false);
+        });
 
         const storedUser = localStorage.getItem('loggedInUser');
         if (storedUser) {
             setUser(JSON.parse(storedUser));
         }
-    }, []);
+
+        return () => unsubscribe();
+    }, [toast]);
 
     const handlePostAnnouncement = async () => {
         if (!newMessage.trim() || !user) return;
@@ -126,8 +134,6 @@ export default function CommunicationPage() {
 
         if (result.success) {
             setNewMessage('');
-            const data = await getAnnouncements();
-            setAnnouncements(data);
             toast({ title: 'Success', description: 'Your announcement has been posted.' });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -216,5 +222,3 @@ export default function CommunicationPage() {
         </div>
     );
 }
-
-    

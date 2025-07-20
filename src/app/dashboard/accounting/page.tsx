@@ -19,7 +19,10 @@ import { cn } from "@/lib/utils";
 import { format, subMonths, startOfDay, endOfDay } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { Separator } from "@/components/ui/separator";
-import { getCreditors, Creditor, getExpenses, Expense, handleLogPayment, handleAddExpense, getPaymentConfirmations, PaymentConfirmation, handlePaymentConfirmation, getDebtors, Debtor, getSalesStats } from "@/app/actions";
+import { handleLogPayment, handleAddExpense, handlePaymentConfirmation, getSalesStats } from "@/app/actions";
+import { collection, onSnapshot, query, where, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import type { Creditor, Debtor, Expense, PaymentConfirmation } from "@/app/actions";
 import {
   Table,
   TableBody,
@@ -182,24 +185,28 @@ function AddExpenseDialog({ onExpenseAdded }: { onExpenseAdded: () => void }) {
     )
 }
 
-function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void }) {
+function PaymentsAndRequestsContent() {
     const { toast } = useToast();
     const [confirmations, setConfirmations] = useState<PaymentConfirmation[]>([]);
     const [resolved, setResolved] = useState<PaymentConfirmation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [actionState, setActionState] = useState<{ id: string, type: 'approve' | 'decline' } | null>(null);
 
-    const fetchConfirmations = async () => {
-        setIsLoading(true);
-        const allData = await getPaymentConfirmations();
-        setConfirmations(allData.filter(d => d.status === 'pending'));
-        setResolved(allData.filter(d => d.status !== 'pending'));
-        setIsLoading(false);
-    }
-    
     useEffect(() => {
-        fetchConfirmations();
-    }, []);
+        const q = query(collection(db, 'payment_confirmations'), orderBy('date', 'desc'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const allData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentConfirmation));
+            setConfirmations(allData.filter(d => d.status === 'pending'));
+            setResolved(allData.filter(d => d.status !== 'pending'));
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching payment confirmations:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch payment confirmations.' });
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [toast]);
 
     const handleAction = async () => {
         if (!actionState) return;
@@ -208,9 +215,7 @@ function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void
         const result = await handlePaymentConfirmation(id, type);
         if (result.success) {
             toast({ title: 'Success', description: `Payment has been ${type}d.` });
-             // Dispatch a custom event to notify other components like the dashboard
-            window.dispatchEvent(new CustomEvent('dataChanged'));
-            fetchConfirmations();
+             // No need for window events with real-time listeners
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -319,31 +324,50 @@ function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void
 }
 
 export default function AccountingPage() {
+    const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [creditors, setCreditors] = useState<Creditor[]>([]);
     const [debtors, setDebtors] = useState<Debtor[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
 
-    const fetchData = async () => {
+    const fetchData = () => {
         setIsLoading(true);
 
-        const [creditorsData, expensesData, debtorsData] = await Promise.all([
-            getCreditors(),
-            getExpenses({ from: subMonths(new Date(), 1).toISOString(), to: new Date().toISOString() }), // Default for now
-            getDebtors(),
-        ]);
+        const creditorsQuery = query(collection(db, "suppliers"), where("amountOwed", ">", 0));
+        const unsubCreditors = onSnapshot(creditorsQuery, (snapshot) => {
+            setCreditors(snapshot.docs.map(docSnap => {
+                const data = docSnap.data();
+                const balance = (data.amountOwed || 0) - (data.amountPaid || 0);
+                return { id: docSnap.id, name: data.name, contactPerson: data.contactPerson, amountOwed: data.amountOwed || 0, amountPaid: data.amountPaid || 0, balance: balance }
+            }).filter(c => c.balance > 0));
+            if(isLoading) setIsLoading(false);
+        });
         
-        setCreditors(creditorsData);
-        setDebtors(debtorsData);
-        setExpenses(expensesData);
-        setIsLoading(false);
+        const debtorsQuery = query(collection(db, "customers"));
+        const unsubDebtors = onSnapshot(debtorsQuery, (snapshot) => {
+            setDebtors(snapshot.docs.map(docSnap => {
+                const data = docSnap.data();
+                return { id: docSnap.id, name: data.name, phone: data.phone, amountOwed: data.amountOwed || 0, amountPaid: data.amountPaid || 0, balance: (data.amountOwed || 0) - (data.amountPaid || 0) };
+            }).filter(d => d.balance > 0));
+            if(isLoading) setIsLoading(false);
+        });
+
+        const expensesQuery = query(collection(db, "expenses"), orderBy("date", "desc"));
+        const unsubExpenses = onSnapshot(expensesQuery, (snapshot) => {
+            setExpenses(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Expense)));
+            if(isLoading) setIsLoading(false);
+        });
+        
+        return () => {
+            unsubCreditors();
+            unsubDebtors();
+            unsubExpenses();
+        };
     };
 
     useEffect(() => {
-        fetchData();
-        const handleDataChange = () => fetchData();
-        window.addEventListener('dataChanged', handleDataChange);
-        return () => window.removeEventListener('dataChanged', handleDataChange);
+        const unsubscribe = fetchData();
+        return () => unsubscribe();
     }, []);
 
     // --- Content Renderers ---
@@ -518,7 +542,7 @@ export default function AccountingPage() {
             {isLoading ? <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin" /></div> : <ExpensesContent />}
         </TabsContent>
          <TabsContent value="payments-requests" className="mt-4">
-            <PaymentsAndRequestsContent onDataChange={fetchData} />
+            <PaymentsAndRequestsContent />
         </TabsContent>
       </Tabs>
     </div>
