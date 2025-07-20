@@ -1238,7 +1238,7 @@ export type ProductionBatch = {
     requestedById: string;
     requestedByName: string;
     quantityToProduce: number;
-    status: 'pending_approval' | 'in_production' | 'completed';
+    status: 'pending_approval' | 'in_production' | 'completed' | 'declined';
     createdAt: string; 
     ingredients: { ingredientId: string, quantity: number, unit: string }[];
     successfullyProduced?: number;
@@ -1288,13 +1288,11 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
     try {
         await runTransaction(db, async (transaction) => {
             const batchRef = doc(db, 'production_batches', batchId);
-            // READS FIRST
             const batchDoc = await transaction.get(batchRef);
             
             const ingredientRefs = ingredients.map(ing => doc(db, 'ingredients', ing.ingredientId));
             const ingredientDocs = await Promise.all(ingredientRefs.map(ref => transaction.get(ref)));
 
-            // VALIDATION
             if (!batchDoc.exists() || batchDoc.data().status !== 'pending_approval') {
                 throw new Error("Batch is not pending approval.");
             }
@@ -1307,7 +1305,6 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
                 }
             }
 
-            // WRITES LAST
             for (let i = 0; i < ingredientRefs.length; i++) {
                 const ingRef = ingredientRefs[i];
                 const reqIng = ingredients[i];
@@ -1323,6 +1320,18 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
         return { success: false, error: errorMessage };
     }
 }
+
+export async function declineProductionBatch(batchId: string): Promise<{success: boolean, error?: string}> {
+    try {
+        const batchRef = doc(db, 'production_batches', batchId);
+        await updateDoc(batchRef, { status: 'declined' });
+        return { success: true };
+    } catch (error) {
+        console.error("Error declining production batch:", error);
+        return { success: false, error: "Failed to decline batch." };
+    }
+}
+
 
 type CompleteBatchData = {
     batchId: string;

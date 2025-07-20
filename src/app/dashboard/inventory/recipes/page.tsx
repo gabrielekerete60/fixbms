@@ -55,7 +55,7 @@ import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { startProductionBatch, getProductionBatches, approveIngredientRequest, completeProductionBatch } from "@/app/actions";
+import { startProductionBatch, getProductionBatches, approveIngredientRequest, completeProductionBatch, declineProductionBatch } from "@/app/actions";
 import type { ProductionBatch } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -369,7 +369,7 @@ function CompleteBatchDialog({ batch, user, onCompleted }: { batch: ProductionBa
     )
 }
 
-function ApproveBatchDialog({ batch, allIngredients, onApproved, onDeclined, children }: { batch: ProductionBatch, allIngredients: Ingredient[], onApproved: () => void, onDeclined: () => void, children: React.ReactNode }) {
+function ApproveBatchDialog({ batch, allIngredients, onApproved, onDeclined, children }: { batch: ProductionBatch, allIngredients: Ingredient[], onApproved: () => void, onDeclined: (batchId: string) => void, children: React.ReactNode }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -425,6 +425,13 @@ function ApproveBatchDialog({ batch, allIngredients, onApproved, onDeclined, chi
         setIsSubmitting(false);
     };
 
+    const handleDecline = async () => {
+        setIsSubmitting(true);
+        await onDeclined(batch.id);
+        setIsSubmitting(false);
+        setIsOpen(false);
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
@@ -472,7 +479,9 @@ function ApproveBatchDialog({ batch, allIngredients, onApproved, onDeclined, chi
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button variant="destructive" onClick={onDeclined}>Decline</Button>
+                    <Button variant="destructive" onClick={handleDecline} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Decline
+                    </Button>
                     <Button onClick={handleApprove} disabled={!canApprove || isSubmitting}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         Approve
@@ -529,8 +538,14 @@ export default function RecipesPage() {
         fetchAllData();
     }, [fetchAllData]);
 
-    const handleDecline = () => {
-        toast({ title: 'Info', description: 'Decline functionality not implemented yet.' });
+    const handleDeclineBatch = async (batchId: string) => {
+        const result = await declineProductionBatch(batchId);
+        if(result.success) {
+            toast({ title: 'Batch Declined', description: 'The production batch has been declined.'});
+            fetchAllData();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
     };
 
     const recipesWithCost = useMemo(() => {
@@ -672,7 +687,7 @@ export default function RecipesPage() {
                                                             batch={batch}
                                                             allIngredients={ingredients}
                                                             onApproved={fetchAllData}
-                                                            onDeclined={handleDecline}
+                                                            onDeclined={handleDeclineBatch}
                                                         >
                                                             <Button size="sm" variant="secondary"><ShieldCheck className="mr-2 h-4 w-4"/>Review</Button>
                                                         </ApproveBatchDialog>
