@@ -470,24 +470,20 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
 
 export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'yearly'): Promise<{ totalSales: number }> {
     const now = new Date();
-    let from: Date, to: Date;
+    let fromDate: Date;
 
     switch (filter) {
         case 'daily':
-            from = startOfDay(now);
-            to = endOfDay(now);
+            fromDate = startOfDay(now);
             break;
         case 'weekly':
-            from = startOfWeek(now, { weekStartsOn: 1 });
-            to = endOfWeek(now, { weekStartsOn: 1 });
+            fromDate = subDays(now, 7);
             break;
         case 'monthly':
-            from = startOfMonth(now);
-            to = endOfMonth(now);
+            fromDate = subDays(now, 30);
             break;
         case 'yearly':
-            from = startOfYear(now);
-            to = endOfYear(now);
+            fromDate = subDays(now, 365);
             break;
     }
     
@@ -495,8 +491,7 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
         const q = query(
             collection(db, "transfers"),
             where("is_sales_run", "==", true),
-            where("date", ">=", Timestamp.fromDate(from)),
-            where("date", "<=", Timestamp.fromDate(to)),
+            where("date", ">=", Timestamp.fromDate(fromDate)),
             where("status", "in", ["completed", "active"])
         );
         const snapshot = await getDocs(q);
