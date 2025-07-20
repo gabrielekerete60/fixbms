@@ -495,8 +495,8 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
         const q = query(
             collection(db, "transfers"),
             where("is_sales_run", "==", true),
-            where("date", ">=", from),
-            where("date", "<=", to),
+            where("date", ">=", Timestamp.fromDate(from)),
+            where("date", "<=", Timestamp.fromDate(to)),
             where("status", "in", ["completed", "active"])
         );
         const snapshot = await getDocs(q);
