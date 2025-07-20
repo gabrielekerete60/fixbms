@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -16,12 +15,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { collection, getDocs, doc, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, addDoc, Timestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
-import PaystackPop from '@paystack/inline-js';
+import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
 
@@ -291,6 +290,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             });
 
             if (paystackResult.success && paystackResult.reference) {
+                const PaystackPop = (await import('@paystack/inline-js')).default;
                 const paystack = new PaystackPop();
                 paystack.newTransaction({
                     key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
@@ -561,6 +561,7 @@ function RecordPaymentDialog({ run, user, customers, onPaymentMade }: { run: Sal
         });
 
         if (paystackResult.success && paystackResult.reference) {
+            const PaystackPop = (await import('@paystack/inline-js')).default;
             const paystack = new PaystackPop();
             paystack.newTransaction({
                 key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
@@ -712,13 +713,6 @@ export default function SalesRunPage() {
         const receiptRef = document.createElement('div');
         const orderToPrint = {...order, date: new Date(order.date).toISOString()};
 
-        // A bit of a hack to get the receipt to print
-        const tempDiv = document.createElement("div");
-        const ReactDOM = require('react-dom');
-        ReactDOM.render(<OrderDetailsDialog order={orderToPrint} isOpen={true} onOpenChange={() => {}} />, tempDiv);
-        const receiptNode = tempDiv.querySelector('.sm\\:max-w-md');
-        if(receiptNode) handlePrint(receiptNode as HTMLElement);
-
         fetchData(); // Refresh all data
     };
     
@@ -731,7 +725,13 @@ export default function SalesRunPage() {
         if (storedUser) {
             setUser(JSON.parse(storedUser));
         }
-        fetchData();
+
+        const unsub = onSnapshot(doc(db, "transfers", runId), (doc) => {
+            if (doc.exists()) {
+                fetchData();
+            }
+        });
+
          const handleStorageChange = () => {
             const storedStatusRaw = localStorage.getItem('paymentStatus');
             if (storedStatusRaw) {
@@ -743,7 +743,11 @@ export default function SalesRunPage() {
             }
         };
         window.addEventListener('storage', handleStorageChange);
-        return () => window.removeEventListener('storage', handleStorageChange);
+        
+        return () => {
+            unsub();
+            window.removeEventListener('storage', handleStorageChange);
+        }
     }, [runId]);
     
     const remainingItems = useMemo(() => {

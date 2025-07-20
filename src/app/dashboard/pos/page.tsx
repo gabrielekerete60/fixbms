@@ -46,12 +46,12 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, doc, runTransaction, increment, getDoc, query, where, setDoc, Timestamp } from "firebase/firestore";
+import { collection, getDocs, doc, runTransaction, increment, getDoc, query, where, setDoc, Timestamp, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter, useSearchParams } from "next/navigation";
 import { initializePaystackTransaction } from "@/app/actions";
-import PaystackPop from '@paystack/inline-js';
+import type PaystackPop from '@paystack/inline-js';
 
 
 type Product = {
@@ -179,41 +179,42 @@ function POSPageContent() {
   const fetchProductsForStaff = async (staffId: string) => {
     setIsLoadingProducts(true);
     const personalStockQuery = collection(db, 'staff', staffId, 'personal_stock');
-    const stockSnapshot = await getDocs(personalStockQuery);
     
-    if (stockSnapshot.empty) {
-      setProducts([]);
-      setIsLoadingProducts(false);
-      return;
-    }
-
-    const productDetailsPromises = stockSnapshot.docs.map(stockDoc => {
-        const productId = stockDoc.data().productId;
-        return getDoc(doc(db, 'products', productId));
-    });
-    const productDetailsSnapshots = await Promise.all(productDetailsPromises);
-    
-    const productsList = stockSnapshot.docs.map((stockDoc, index) => {
-        const stockData = stockDoc.data();
-        const productDetailsDoc = productDetailsSnapshots[index];
-        
-        if (productDetailsDoc.exists()) {
-            const productDetails = productDetailsDoc.data();
-            return {
-                id: productDetailsDoc.id,
-                name: productDetails.name,
-                price: productDetails.price,
-                stock: stockData.stock,
-                category: productDetails.category,
-                image: productDetails.image,
-                'data-ai-hint': productDetails['data-ai-hint'],
-            } as Product;
+    return onSnapshot(personalStockQuery, async (stockSnapshot) => {
+        if (stockSnapshot.empty) {
+            setProducts([]);
+            setIsLoadingProducts(false);
+            return;
         }
-        return null;
-    }).filter((p): p is Product => p !== null && p.stock > 0);
 
-    setProducts(productsList);
-    setIsLoadingProducts(false);
+        const productDetailsPromises = stockSnapshot.docs.map(stockDoc => {
+            const productId = stockDoc.data().productId;
+            return getDoc(doc(db, 'products', productId));
+        });
+        const productDetailsSnapshots = await Promise.all(productDetailsPromises);
+        
+        const productsList = stockSnapshot.docs.map((stockDoc, index) => {
+            const stockData = stockDoc.data();
+            const productDetailsDoc = productDetailsSnapshots[index];
+            
+            if (productDetailsDoc.exists()) {
+                const productDetails = productDetailsDoc.data();
+                return {
+                    id: productDetailsDoc.id,
+                    name: productDetails.name,
+                    price: productDetails.price,
+                    stock: stockData.stock,
+                    category: productDetails.category,
+                    image: productDetails.image,
+                    'data-ai-hint': productDetails['data-ai-hint'],
+                } as Product;
+            }
+            return null;
+        }).filter((p): p is Product => p !== null && p.stock > 0);
+
+        setProducts(productsList);
+        setIsLoadingProducts(false);
+    });
   }
 
   useEffect(() => {
@@ -234,17 +235,31 @@ function POSPageContent() {
           setAllStaff(staffSnapshot.docs.map(d => ({ staff_id: d.id, ...d.data() } as SelectableStaff)));
           if (!selectedStaffId) {
             setIsStaffSelectionOpen(true);
-          } else {
-            fetchProductsForStaff(selectedStaffId);
           }
         } else {
           setSelectedStaffId(parsedUser.staff_id);
-          fetchProductsForStaff(parsedUser.staff_id);
         }
       }
     };
     initializePos();
   }, []);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    if (selectedStaffId) {
+        fetchProductsForStaff(selectedStaffId).then(unsub => {
+            unsubscribe = unsub;
+        });
+    } else {
+        setProducts([]);
+        setIsLoadingProducts(false);
+    }
+    return () => {
+        if (unsubscribe) {
+            unsubscribe();
+        }
+    };
+  }, [selectedStaffId])
   
   // Handle payment status changes from local storage
   useEffect(() => {
@@ -328,7 +343,6 @@ function POSPageContent() {
       setLastCompletedOrder({ ...newOrderData });
       clearCartAndStorage();
 
-      await fetchProductsForStaff(selectedStaffId);
       return { ...newOrderData };
     } catch (error) {
       console.error("Error saving order:", error);
@@ -365,6 +379,7 @@ function POSPageContent() {
     const result = await initializePaystackTransaction(orderPayload);
     
     if (result.success && result.reference) {
+      const PaystackPop = (await import('@paystack/inline-js')).default;
       const paystack = new PaystackPop();
       paystack.newTransaction({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
@@ -390,6 +405,17 @@ function POSPageContent() {
     }
   };
 
+
+  const handleCashPayment = async () => {
+    setIsCashConfirmOpen(false);
+    setPaymentStatus({ status: 'processing' });
+    const completed = await completeOrder('Cash');
+    if (completed) {
+        toast({ title: 'Order Successful', description: 'The order has been completed.' });
+        setIsReceiptOpen(true);
+    }
+    setPaymentStatus({ status: 'idle' });
+  }
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
   
@@ -477,20 +503,8 @@ function POSPageContent() {
     setActiveTab('All');
   }
 
-  const handleCashPayment = async () => {
-    setIsCashConfirmOpen(false);
-    setPaymentStatus({ status: 'processing' });
-    const completed = await completeOrder('Cash');
-    if (completed) {
-        toast({ title: 'Order Successful', description: 'The order has been completed.' });
-        setIsReceiptOpen(true);
-    }
-    setPaymentStatus({ status: 'idle' });
-  }
-
   const handleSelectStaff = (staffId: string) => {
     setSelectedStaffId(staffId);
-    fetchProductsForStaff(staffId);
     setIsStaffSelectionOpen(false);
   }
 
