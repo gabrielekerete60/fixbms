@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, KeyRound, User, Pizza, ShieldCheck } from "lucide-react";
@@ -29,6 +29,15 @@ export default function LoginPage() {
   const [mfaToken, setMfaToken] = useState('');
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Check if user is already logged in on this browser
+    const storedUser = localStorage.getItem('loggedInUser');
+    if (storedUser) {
+      router.push('/dashboard');
+    }
+  }, [router]);
+
 
   const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
