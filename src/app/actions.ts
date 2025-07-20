@@ -500,13 +500,7 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
         let totalSales = 0;
         snapshot.forEach(runDoc => {
             const runData = runDoc.data();
-            if (runData.items && Array.isArray(runData.items)) {
-                runData.items.forEach((item: any) => {
-                    const price = item.price || 0;
-                    const quantity = item.quantity || 0;
-                    totalSales += price * quantity;
-                });
-            }
+            totalSales += runData.totalRevenue || 0;
         });
         
         return { totalSales };
