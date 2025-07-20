@@ -477,11 +477,11 @@ export default function PromotionsPage() {
 
   const filteredPromotions = useMemo(() => {
     return promotionsData.filter(promo => {
-        const startDate = new Date(promo.startDate);
-        const endDate = new Date(promo.endDate);
-        endDate.setHours(23, 59, 59, 999);
+        const promoStartDate = new Date(promo.startDate);
+        const promoEndDate = new Date(promo.endDate);
+        promoEndDate.setHours(23, 59, 59, 999);
 
-        const dateMatch = !date?.from || (endDate >= date.from && (!date.to || startDate <= date.to));
+        const dateMatch = !date?.from || (promoEndDate >= date.from && (!date.to || promoStartDate <= date.to));
         const searchMatch = !searchTerm || promo.name.toLowerCase().includes(searchTerm.toLowerCase()) || promo.code.toLowerCase().includes(searchTerm.toLowerCase());
         const statusMatch = statusFilter.length === 0 || statusFilter.includes(promo.status);
         return dateMatch && searchMatch && statusMatch;

@@ -224,7 +224,7 @@ export default function SettingsPage() {
                         <div className="space-y-4 text-center p-4 border rounded-lg">
                             <h3 className="font-semibold text-lg">Step 1: Scan QR Code</h3>
                             <p className="text-sm text-muted-foreground">Scan this QR code with an authenticator app (e.g., Google Authenticator, Authy).</p>
-                             <div className="flex justify-center bg-white p-2 rounded-md">
+                             <div className="bg-white p-2 rounded-md inline-block">
                                <img src={mfaSetup.qrCode} alt="MFA QR Code" />
                              </div>
                             <p className="text-xs text-muted-foreground">Or enter this key manually:</p>
