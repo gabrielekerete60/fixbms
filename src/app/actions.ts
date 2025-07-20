@@ -61,7 +61,8 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
 
 type InitializePaystackResult = {
     success: boolean;
-    reference: string;
+    reference?: string;
+    authorization_url?: string;
     error?: string;
 }
 
@@ -69,7 +70,45 @@ export async function initializePaystackTransaction(orderPayload: any): Promise<
     const tempOrderRef = doc(collection(db, "temp_orders"));
     await setDoc(tempOrderRef, { ...orderPayload, createdAt: serverTimestamp() });
     
-    return { success: true, reference: tempOrderRef.id };
+    const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
+    if (!secretKey) return { success: false, error: "Paystack secret key is not configured." };
+
+    const paystackBody = {
+        email: orderPayload.email,
+        amount: Math.round(orderPayload.total * 100), // Amount in kobo
+        reference: tempOrderRef.id,
+        metadata: {
+            orderId: tempOrderRef.id,
+            runId: orderPayload.runId,
+        },
+        callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payment/callback`
+    };
+
+    try {
+        const response = await fetch('https://api.paystack.co/transaction/initialize', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${secretKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(paystackBody),
+        });
+
+        const data = await response.json();
+        
+        if (data.status) {
+            return {
+                success: true,
+                reference: data.data.reference,
+                authorization_url: data.data.authorization_url,
+            };
+        } else {
+            return { success: false, error: data.message };
+        }
+    } catch (error) {
+        console.error("Paystack initialization error:", error);
+        return { success: false, error: "Could not connect to Paystack." };
+    }
 }
 
 
@@ -189,8 +228,10 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
                 startOfPeriod = startOfYear(now);
                 break;
         }
+        
+        const startOfPeriodTimestamp = Timestamp.fromDate(startOfPeriod);
 
-        const ordersQuery = query(collection(db, "orders"), where("date", ">=", Timestamp.fromDate(startOfPeriod)));
+        const ordersQuery = query(collection(db, "orders"), where("date", ">=", startOfPeriodTimestamp));
         const ordersSnapshot = await getDocs(ordersQuery);
         
         let revenue = 0;
@@ -203,7 +244,7 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
             }
         });
 
-        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", Timestamp.fromDate(startOfPeriod)));
+        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfPeriodTimestamp));
         const customersSnapshot = await getDocs(customersQuery);
 
         const weekStart = startOfWeek(now, { weekStartsOn: 1 });
@@ -454,19 +495,7 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
         let totalSales = 0;
         for (const runDoc of snapshot.docs) {
             const runData = runDoc.data();
-            if (runData.totalRevenue) {
-                totalSales += runData.totalRevenue;
-            } else {
-                // Fallback calculation if totalRevenue is missing
-                const items = runData.items || [];
-                let calculatedRevenue = 0;
-                for (const item of items) {
-                    if (item.price && item.quantity) {
-                        calculatedRevenue += item.price * item.quantity;
-                    }
-                }
-                totalSales += calculatedRevenue;
-            }
+            totalSales += runData.totalRevenue || 0;
         }
         
         return { totalSales };
@@ -1309,45 +1338,21 @@ type SaleData = {
 
 export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string }> {
   try {
-    
-    if (data.paymentMethod === 'Cash') {
-      const confirmationRef = doc(collection(db, 'payment_confirmations'));
-      // First, read the staff name
-      const staffDoc = await getDoc(doc(db, 'staff', data.staffId));
-      const driverName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
-      
-      // Then, write the document
-      await setDoc(confirmationRef, {
-        runId: data.runId,
-        customerId: data.customerId,
-        customerName: data.customerName,
-        items: data.items,
-        amount: data.total,
-        driverId: data.staffId,
-        driverName: driverName,
-        date: serverTimestamp(),
-        status: 'pending'
-      });
-      return { success: true };
-    }
-
-    // For Card and Credit, create the order directly in a transaction
     await runTransaction(db, async (transaction) => {
-      const runRef = doc(db, 'transfers', data.runId);
-      const newOrderRef = doc(collection(db, 'orders'));
-      
-      // Perform all reads first
+      // --- 1. All READS must happen first ---
       const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
       const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
-      
-      // Add customer read if it's a credit sale
+
       let customerRef;
       if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
-          customerRef = doc(db, 'customers', data.customerId);
-          await transaction.get(customerRef); // Read the customer doc
+        customerRef = doc(db, 'customers', data.customerId);
+        await transaction.get(customerRef);
       }
+      
+      const staffDoc = await getDoc(doc(db, 'staff', data.staffId));
+      const driverName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
 
-      // Validate stock
+      // --- 2. All VALIDATIONS happen next ---
       for (let i = 0; i < data.items.length; i++) {
         const item = data.items[i];
         const stockDoc = stockDocs[i];
@@ -1356,15 +1361,35 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
         }
       }
 
-      // If all validations pass, perform all writes
+      // --- 3. All WRITES happen last ---
+      
+      // Handle stock decrements for all payment types
       for (let i = 0; i < data.items.length; i++) {
         const item = data.items[i];
         const stockRef = stockRefs[i];
         transaction.update(stockRef, { stock: increment(-item.quantity) });
       }
 
-      // Create the order document
-      const orderData = {
+      // Logic for different payment methods
+      if (data.paymentMethod === 'Cash') {
+        // Create a payment confirmation for the accountant to approve
+        const confirmationRef = doc(collection(db, 'payment_confirmations'));
+        transaction.set(confirmationRef, {
+          runId: data.runId,
+          customerId: data.customerId,
+          customerName: data.customerName,
+          items: data.items,
+          amount: data.total,
+          driverId: data.staffId,
+          driverName: driverName,
+          date: serverTimestamp(),
+          status: 'pending'
+        });
+
+      } else { 
+        // For Card and Credit, create the order directly
+        const newOrderRef = doc(collection(db, 'orders'));
+        const orderData = {
           salesRunId: data.runId,
           customerId: data.customerId,
           customerName: data.customerName,
@@ -1374,17 +1399,17 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
           date: new Date().toISOString(),
           staffId: data.staffId,
           status: 'Completed',
-      };
-      transaction.set(newOrderRef, orderData);
+        };
+        transaction.set(newOrderRef, orderData);
 
-      // Update the sales run financials
-      if (data.paymentMethod === 'Card') {
-        transaction.update(runRef, { totalCollected: increment(data.total) });
-      }
-      
-      // Update the customer's overall balance if it's a credit sale
-      if (data.paymentMethod === 'Credit' && customerRef) {
-        transaction.update(customerRef, { amountOwed: increment(data.total) });
+        const runRef = doc(db, 'transfers', data.runId);
+        if (data.paymentMethod === 'Card') {
+          transaction.update(runRef, { totalCollected: increment(data.total) });
+        }
+        
+        if (data.paymentMethod === 'Credit' && customerRef) {
+          transaction.update(customerRef, { amountOwed: increment(data.total) });
+        }
       }
     });
 
