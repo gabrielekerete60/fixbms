@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2, Beaker, Hourglass, Check, X, ShieldCheck } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, Beaker, Hourglass, Check, X, ShieldCheck, AlertCircle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,7 +50,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,6 +58,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { startProductionBatch, getProductionBatches, approveIngredientRequest, completeProductionBatch } from "@/app/actions";
 import type { ProductionBatch } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type User = {
     name: string;
@@ -74,6 +75,7 @@ type Product = {
 type Ingredient = {
     id: string;
     name: string;
+    stock: number;
     costPerUnit: number;
     unit: string;
 }
@@ -314,7 +316,6 @@ function CompleteBatchDialog({ batch, user, onCompleted }: { batch: ProductionBa
 
     const handleSubmit = async () => {
         setIsSubmitting(true);
-        // This is a placeholder for the storekeeper ID. In a real app, this might be dynamically determined.
         const storekeeperId = "700008"; 
 
         const result = await completeProductionBatch({
@@ -364,8 +365,121 @@ function CompleteBatchDialog({ batch, user, onCompleted }: { batch: ProductionBa
                     </Button>
                 </DialogFooter>
             </DialogContent>
-        </Dialog>
     )
+}
+
+function ApproveBatchDialog({ batch, allIngredients, onApproved, onDeclined, children }: { batch: ProductionBatch, allIngredients: Ingredient[], onApproved: () => void, onDeclined: () => void, children: React.ReactNode }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [validationResults, setValidationResults] = useState<{ ingredientId: string, name: string, required: number, available: number, hasEnough: boolean }[]>([]);
+
+    const totalRequiredIngredients = useMemo(() => {
+        const requiredMap = new Map<string, number>();
+        batch.ingredients.forEach(ing => {
+            const total = ing.quantity * batch.quantityToProduce;
+            requiredMap.set(ing.ingredientId, (requiredMap.get(ing.ingredientId) || 0) + total);
+        });
+        return Array.from(requiredMap.entries()).map(([id, qty]) => ({ ingredientId: id, quantity: qty }));
+    }, [batch]);
+
+    useEffect(() => {
+        if (isOpen) {
+            setIsLoading(true);
+            const ingredientMap = new Map(allIngredients.map(i => [i.id, i]));
+            const validation = totalRequiredIngredients.map(req => {
+                const stockItem = ingredientMap.get(req.ingredientId);
+                const available = stockItem?.stock || 0;
+                return {
+                    ingredientId: req.ingredientId,
+                    name: stockItem?.name || 'Unknown Ingredient',
+                    required: req.quantity,
+                    available: available,
+                    hasEnough: available >= req.quantity,
+                };
+            });
+            setValidationResults(validation);
+            setIsLoading(false);
+        }
+    }, [isOpen, allIngredients, totalRequiredIngredients]);
+
+    const canApprove = useMemo(() => validationResults.every(v => v.hasEnough), [validationResults]);
+    const shortages = useMemo(() => validationResults.filter(v => !v.hasEnough), [validationResults]);
+
+    const handleApprove = async () => {
+        if (!canApprove) {
+            toast({ variant: 'destructive', title: 'Cannot Approve', description: 'Not enough ingredients in stock.' });
+            return;
+        }
+        setIsSubmitting(true);
+        const result = await approveIngredientRequest(batch.id, totalRequiredIngredients);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Batch approved and moved to production.' });
+            onApproved();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>{children}</DialogTrigger>
+            <DialogContent className="max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>Approve Batch: {batch.recipeName}</DialogTitle>
+                    <DialogDescription>Verify ingredient stock and approve the request to begin production.</DialogDescription>
+                </DialogHeader>
+                <div className="py-2 max-h-[60vh] overflow-y-auto">
+                    {isLoading ? <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin" /></div> : (
+                        <>
+                        {!canApprove && (
+                            <Alert variant="destructive" className="mb-4">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Stock Shortage</AlertTitle>
+                                <AlertDescription>
+                                    Cannot approve. The following ingredients are low: {shortages.map(s => s.name).join(', ')}.
+                                </AlertDescription>
+                            </Alert>
+                        )}
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Ingredient</TableHead>
+                                    <TableHead className="text-right">Required</TableHead>
+                                    <TableHead className="text-right">Available</TableHead>
+                                    <TableHead className="text-center">Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {validationResults.map(val => (
+                                    <TableRow key={val.ingredientId}>
+                                        <TableCell>{val.name}</TableCell>
+                                        <TableCell className="text-right">{val.required.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right">{val.available.toFixed(2)}</TableCell>
+                                        <TableCell className="text-center">
+                                            {val.hasEnough ? <Check className="h-5 w-5 text-green-500 mx-auto" /> : <X className="h-5 w-5 text-destructive mx-auto" />}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                        </>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button variant="destructive" onClick={onDeclined}>Decline</Button>
+                    <Button onClick={handleApprove} disabled={!canApprove || isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Approve
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 export default function RecipesPage() {
@@ -381,9 +495,8 @@ export default function RecipesPage() {
     const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
-    const [actionState, setActionState] = useState<{ id: string, type: 'approve' | 'decline', ingredients: ProductionBatch['ingredients'] } | null>(null);
-
-    const fetchAllData = async () => {
+    
+    const fetchAllData = useCallback(async () => {
         setIsLoading(true);
         try {
             const [recipeSnapshot, productSnapshot, ingredientSnapshot, batchData] = await Promise.all([
@@ -405,7 +518,7 @@ export default function RecipesPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [toast]);
 
     useEffect(() => {
         const storedUser = localStorage.getItem('loggedInUser');
@@ -413,28 +526,11 @@ export default function RecipesPage() {
             setUser(JSON.parse(storedUser));
         }
         fetchAllData();
-    }, []);
+    }, [fetchAllData]);
 
-    const handleApproval = async () => {
-        if (!actionState) return;
-        const { id, type, ingredients } = actionState;
-
-        if (type === 'decline') {
-            // Placeholder for decline logic (e.g., update status to declined)
-            toast({ title: 'Info', description: 'Decline functionality not implemented yet.' });
-            setActionState(null);
-            return;
-        }
-
-        const result = await approveIngredientRequest(id, ingredients);
-        if (result.success) {
-            toast({ title: 'Success', description: 'Batch approved and moved to production.' });
-            fetchAllData();
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setActionState(null);
-    }
+    const handleDecline = () => {
+        toast({ title: 'Info', description: 'Decline functionality not implemented yet.' });
+    };
 
     const recipesWithCost = useMemo(() => {
         const ingredientsMap = new Map(ingredients.map(i => [i.id, i]));
@@ -501,20 +597,6 @@ export default function RecipesPage() {
 
     return (
         <div className="flex flex-col gap-4">
-             <AlertDialog open={!!actionState} onOpenChange={() => setActionState(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure you want to {actionState?.type}?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                           Approving will deduct ingredients from main inventory. This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleApproval}>Yes, {actionState?.type}</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold font-headline">Recipes & Production</h1>
                 <Button onClick={openAddDialog}>
@@ -585,10 +667,14 @@ export default function RecipesPage() {
                                                 <TableCell>{batch.requestedByName}</TableCell>
                                                 <TableCell className="text-right">
                                                     {canApprove ? (
-                                                        <div className="space-x-2">
-                                                            <Button size="icon" variant="destructive" onClick={() => setActionState({ id: batch.id, type: 'decline', ingredients: batch.ingredients })}><X className="h-4 w-4"/></Button>
-                                                            <Button size="icon" variant="secondary" onClick={() => setActionState({ id: batch.id, type: 'approve', ingredients: batch.ingredients })}><Check className="h-4 w-4"/></Button>
-                                                        </div>
+                                                        <ApproveBatchDialog
+                                                            batch={batch}
+                                                            allIngredients={ingredients}
+                                                            onApproved={fetchAllData}
+                                                            onDeclined={handleDecline}
+                                                        >
+                                                            <Button size="sm" variant="secondary"><ShieldCheck className="mr-2 h-4 w-4"/>Review</Button>
+                                                        </ApproveBatchDialog>
                                                     ) : <Badge variant="outline">Pending</Badge>}
                                                 </TableCell>
                                             </TableRow>

@@ -97,12 +97,12 @@ const seedData = {
      }
   ],
   ingredients: [
-    { id: "ing_1", name: "All-Purpose Flour", stock: 50.00, unit: 'kg', costPerUnit: 500.00, expiryDate: null },
-    { id: "ing_2", name: "Granulated Sugar", stock: 25.00, unit: 'kg', costPerUnit: 800.00, expiryDate: null },
+    { id: "ing_1", name: "All-Purpose Flour", stock: 100.00, unit: 'kg', costPerUnit: 500.00, expiryDate: null },
+    { id: "ing_2", name: "Granulated Sugar", stock: 50.00, unit: 'kg', costPerUnit: 800.00, expiryDate: null },
     { id: "ing_3", name: "Unsalted Butter", stock: 20.00, unit: 'kg', costPerUnit: 6000.00, expiryDate: null },
     { id: "ing_4", name: "Large Eggs", stock: 200.00, unit: 'pcs', costPerUnit: 50.00, expiryDate: null },
     { id: "ing_5", name: "Whole Milk", stock: 30.00, unit: 'L', costPerUnit: 900.00, expiryDate: null },
-    { id: "ing_6", name: "Yeast", stock: 5.00, unit: 'kg', costPerUnit: 2500.00, expiryDate: null },
+    { id: "ing_6", name: "Yeast", stock: 10.00, unit: 'kg', costPerUnit: 2500.00, expiryDate: null },
     { id: "ing_7", name: "Salt", stock: 10.00, unit: 'kg', costPerUnit: 200.00, expiryDate: null },
     { id: "ing_8", name: "Vanilla Extract", stock: 2.00, unit: 'L', costPerUnit: 15000.00, expiryDate: null },
     { id: "ing_9", name: "Tin Milk", stock: 100.00, unit: 'cans', costPerUnit: 400.00, expiryDate: null },
@@ -331,8 +331,8 @@ const seedData = {
         status: 'pending_approval',
         createdAt: daysAgo(1),
         ingredients: [
-            { ingredientId: 'ing_1', quantity: 25, unit: 'kg' },
-            { ingredientId: 'ing_6', quantity: 0.5, unit: 'kg' },
+            { ingredientId: 'ing_1', ingredientName: "All-Purpose Flour", quantity: 0.5, unit: "kg" },
+            { ingredientId: 'ing_6', ingredientName: "Yeast", quantity: 0.01, unit: "kg" },
         ]
     }
   ],

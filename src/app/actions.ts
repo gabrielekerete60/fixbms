@@ -1284,26 +1284,36 @@ export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 's
     }
 }
 
-export async function approveIngredientRequest(batchId: string, ingredients: ProductionBatch['ingredients']): Promise<{success: boolean, error?: string}> {
+export async function approveIngredientRequest(batchId: string, ingredients: { ingredientId: string, quantity: number }[]): Promise<{success: boolean, error?: string}> {
     try {
         await runTransaction(db, async (transaction) => {
             const batchRef = doc(db, 'production_batches', batchId);
+            // READS FIRST
             const batchDoc = await transaction.get(batchRef);
+            
+            const ingredientRefs = ingredients.map(ing => doc(db, 'ingredients', ing.ingredientId));
+            const ingredientDocs = await Promise.all(ingredientRefs.map(ref => transaction.get(ref)));
+
+            // VALIDATION
             if (!batchDoc.exists() || batchDoc.data().status !== 'pending_approval') {
                 throw new Error("Batch is not pending approval.");
             }
 
-            // Check stock and prepare updates
-            for (const ing of ingredients) {
-                const ingRef = doc(db, 'ingredients', ing.ingredientId);
-                const ingDoc = await transaction.get(ingRef);
-                if (!ingDoc.exists() || ingDoc.data().stock < ing.quantity) {
-                    throw new Error(`Not enough stock for ingredient ID: ${ing.ingredientId}`);
+            for (let i = 0; i < ingredientDocs.length; i++) {
+                const ingDoc = ingredientDocs[i];
+                const reqIng = ingredients[i];
+                if (!ingDoc.exists() || ingDoc.data().stock < reqIng.quantity) {
+                    throw new Error(`Not enough stock for ingredient ID: ${reqIng.ingredientId}`);
                 }
-                transaction.update(ingRef, { stock: increment(-ing.quantity) });
             }
 
-            // Update batch status
+            // WRITES LAST
+            for (let i = 0; i < ingredientRefs.length; i++) {
+                const ingRef = ingredientRefs[i];
+                const reqIng = ingredients[i];
+                transaction.update(ingRef, { stock: increment(-reqIng.quantity) });
+            }
+
             transaction.update(batchRef, { status: 'in_production' });
         });
         return { success: true };
