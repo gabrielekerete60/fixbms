@@ -103,7 +103,8 @@ const getStatusVariant = (status: string) => {
     }
 }
 
-function CreatePromotionDialog({ onSave, products, promotion, children, isOpen, onOpenChange }: { onSave: (promo: Omit<Promotion, 'id' | 'status'>) => void, products: Product[], promotion?: Promotion | null, children: React.ReactNode, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChange }: { onSave: (promo: Omit<Promotion, 'id' | 'status'>) => void, products: Product[], promotion?: Promotion | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+  const { toast } = useToast();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [code, setCode] = useState("");
@@ -178,7 +179,6 @@ function CreatePromotionDialog({ onSave, products, promotion, children, isOpen, 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{promotion ? "Edit Promotion" : "Add New Promotion"}</DialogTitle>
@@ -590,9 +590,7 @@ export default function PromotionsPage() {
         promotion={editingPromotion}
         isOpen={isPromoDialogOpen}
         onOpenChange={setIsPromoDialogOpen}
-      >
-        <></>
-      </CreatePromotionDialog>
+      />
 
       <Tabs defaultValue="promotions">
         <TabsList>
@@ -704,3 +702,5 @@ export default function PromotionsPage() {
     </div>
   );
 }
+
+    
