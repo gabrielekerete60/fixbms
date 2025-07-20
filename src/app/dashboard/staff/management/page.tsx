@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -60,7 +61,7 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc } from "
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import * as speakeasy from 'speakeasy';
+import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -144,7 +145,7 @@ function StaffDialog({
 
     const generateMfaSetup = () => {
         setIsGeneratingMfa(true);
-        const secret = speakeasy.generateSecret({
+        const secret = speakeasy.generateSecret.call(speakeasy, {
             name: `BMS (${staff?.email})`
         });
         setMfaSetupKey(secret.base32);

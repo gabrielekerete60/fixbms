@@ -7,7 +7,7 @@ import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear
 import { db } from "@/lib/firebase";
 import fetch from 'node-fetch';
 import { randomUUID } from 'crypto';
-import * as speakeasy from 'speakeasy';
+import speakeasy from 'speakeasy';
 
 type LoginResult = {
   success: boolean;
@@ -106,7 +106,7 @@ export async function verifyMfa(staffId: string, token: string): Promise<MfaResu
             return { success: false, error: "MFA is not enabled for this user." };
         }
 
-        const verified = speakeasy.totp.verify({
+        const verified = speakeasy.totp.verify.call(speakeasy.totp, {
             secret: userData.mfa_secret,
             encoding: 'base32',
             token: token,
