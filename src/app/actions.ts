@@ -383,7 +383,7 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
 
             let totalRevenue = 0;
             const itemsWithPrices = await Promise.all(
-              data.items.map(async (item: any) => {
+              (data.items || []).map(async (item: any) => {
                 const productDoc = await getDoc(doc(db, 'products', item.productId));
                 const price = productDoc.exists() ? productDoc.data().price : 0;
                 totalRevenue += price * item.quantity;
@@ -436,7 +436,7 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
 
             let totalRevenue = 0;
             const itemsWithPrices = await Promise.all(
-              data.items.map(async (item: any) => {
+              (data.items || []).map(async (item: any) => {
                 const productDoc = await getDoc(doc(db, 'products', item.productId));
                 const price = productDoc.exists() ? productDoc.data().price : 0;
                 totalRevenue += price * item.quantity;
@@ -504,8 +504,12 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
         let totalSales = 0;
         snapshot.forEach(runDoc => {
             const runData = runDoc.data();
-            if (runData.totalRevenue) {
-                totalSales += runData.totalRevenue;
+            if (runData.items && Array.isArray(runData.items)) {
+                runData.items.forEach((item: any) => {
+                    const price = item.price || 0;
+                    const quantity = item.quantity || 0;
+                    totalSales += price * quantity;
+                });
             }
         });
         
@@ -973,7 +977,7 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
             let totalValue = 0;
 
             const itemsWithPrices = await Promise.all(
-                data.items.map(async (item: any) => {
+                (data.items || []).map(async (item: any) => {
                     const productDoc = await getDoc(doc(db, 'products', item.productId));
                     const price = productDoc.exists() ? productDoc.data().price : 0;
                     totalValue += price * item.quantity;
@@ -1259,7 +1263,7 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
         const data = runDoc.data();
         let totalRevenue = 0;
         const itemsWithPrices = await Promise.all(
-          data.items.map(async (item: any) => {
+          (data.items || []).map(async (item: any) => {
             const productDoc = await getDoc(doc(db, 'products', item.productId));
             const price = productDoc.exists() ? productDoc.data().price : 0;
             totalRevenue += price * item.quantity;
