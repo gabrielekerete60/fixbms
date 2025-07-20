@@ -1,4 +1,5 @@
 
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -1324,6 +1325,17 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
     console.error("Error fetching customers for run:", error);
     return [];
   }
+}
+
+export async function getOrdersForRun(runId: string): Promise<any[]> {
+    try {
+        const q = query(collection(db, "orders"), where("salesRunId", "==", runId));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching orders for run:", error);
+        return [];
+    }
 }
 
 type SaleData = {

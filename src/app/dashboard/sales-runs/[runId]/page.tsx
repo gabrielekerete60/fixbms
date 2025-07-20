@@ -2,11 +2,11 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction } from '@/app/actions';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun } from '@/app/actions';
 import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
@@ -32,9 +32,11 @@ type Customer = {
   address: string;
 };
 
+type OrderItem = { productId: string; quantity: number, price: number, name: string };
+
 type CompletedOrder = {
   id: string;
-  items: { productId: string; quantity: number, price: number, name: string }[];
+  items: OrderItem[];
   total: number;
   date: string;
   paymentMethod: 'Card' | 'Cash' | 'Credit';
@@ -124,7 +126,7 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
     )
 }
 
-function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void }) {
+function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: { productId: string; productName: string; price: number; quantity: number }[] }) {
     const { toast } = useToast();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
@@ -134,7 +136,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
     
     // Form state
     const [selectedCustomerId, setSelectedCustomerId] = useState('walk-in');
-    const [cart, setCart] = useState<{ productId: string, quantity: number, price: number, name: string }[]>([]);
+    const [cart, setCart] = useState<OrderItem[]>([]);
     const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Card'>('Cash');
     const [itemQuantities, setItemQuantities] = useState<Record<string, number | string>>({});
 
@@ -160,13 +162,13 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
             return;
         }
 
-        const itemInRun = run.items.find(p => p.productId === item.productId);
+        const itemInRun = remainingItems.find(p => p.productId === item.productId);
         const itemInCart = cart.find(p => p.productId === item.productId);
         const currentInCart = itemInCart?.quantity || 0;
         const availableStock = itemInRun?.quantity || 0;
 
         if ((currentInCart + quantityToAdd) > availableStock) {
-            toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${availableStock - currentInCart} more units of ${item.productName} available.`});
+            toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${availableStock} more units of ${item.productName} available.`});
             return;
         }
 
@@ -191,7 +193,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
             return;
         }
 
-        const itemInRun = run.items.find(p => p.productId === productId);
+        const itemInRun = remainingItems.find(p => p.productId === productId);
         if (itemInRun && newQuantity > itemInRun.quantity) {
              toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.quantity} units of ${itemInRun.productName} available.`});
              return;
@@ -206,7 +208,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
     const handleSubmit = async () => {
         if (!user) return;
 
-        const customerId = selectedCustomerId === 'walk-in' ? 'walk-in' : selectedCustomerId;
+        const customerId = selectedCustomerId;
         const customerName = selectedCustomer?.name || 'Walk-in';
 
         if (paymentMethod === 'Credit' && customerId === 'walk-in') {
@@ -304,7 +306,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
         setIsCashConfirmOpen(false);
         setIsLoading(true);
 
-        const customerId = selectedCustomerId === 'walk-in' ? 'walk-in' : selectedCustomerId;
+        const customerId = selectedCustomerId;
         const customerName = selectedCustomer?.name || 'Walk-in';
 
         const result = await handleSellToCustomer({
@@ -352,7 +354,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                     <div className="space-y-2">
                         <h4 className="font-semibold">Available Items</h4>
                         <div className="border rounded-md max-h-96 overflow-y-auto">
-                            {run.items.map(item => (
+                            {remainingItems.map(item => (
                                 <div key={item.productId} className="p-2 flex justify-between items-center border-b gap-2">
                                     <div>
                                         <p>{item.productName}</p>
@@ -637,6 +639,7 @@ export default function SalesRunPage() {
     const runId = params.runId as string;
     const [runDetails, setRunDetails] = useState<SalesRun | null>(null);
     const [runCustomers, setRunCustomers] = useState<RunCustomer[]>([]);
+    const [runOrders, setRunOrders] = useState<CompletedOrder[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState<User | null>(null);
     const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
@@ -645,12 +648,14 @@ export default function SalesRunPage() {
      const fetchData = async () => {
         if (!runId) return;
         setIsLoading(true);
-        const [runData, runCustomersData] = await Promise.all([
+        const [runData, runCustomersData, runOrdersData] = await Promise.all([
             getSalesRunDetails(runId),
-            getCustomersForRun(runId)
+            getCustomersForRun(runId),
+            getOrdersForRun(runId)
         ]);
         setRunDetails(runData);
         setRunCustomers(runCustomersData);
+        setRunOrders(runOrdersData);
         setIsLoading(false);
     };
 
@@ -659,6 +664,10 @@ export default function SalesRunPage() {
         setIsReceiptOpen(true);
         fetchData(); // Refresh all data
     };
+    
+    const handlePaymentMade = () => {
+        fetchData();
+    }
 
 
     useEffect(() => {
@@ -668,7 +677,28 @@ export default function SalesRunPage() {
         }
         fetchData();
     }, [runId]);
+    
+    const remainingItems = useMemo(() => {
+        if (!runDetails) return [];
+        const soldItemsMap = new Map<string, number>();
 
+        runOrders.forEach(order => {
+            order.items.forEach(item => {
+                soldItemsMap.set(item.productId, (soldItemsMap.get(item.productId) || 0) + item.quantity);
+            });
+        });
+
+        return runDetails.items.map(item => ({
+            ...item,
+            quantity: item.quantity - (soldItemsMap.get(item.productId) || 0)
+        })).filter(item => item.quantity > 0);
+    }, [runDetails, runOrders]);
+
+    const totalInitialItems = useMemo(() => runDetails?.items.reduce((sum, item) => sum + item.quantity, 0) || 0, [runDetails]);
+    const totalRemainingItems = remainingItems.reduce((sum, item) => sum + item.quantity, 0);
+    const soldItems = totalInitialItems - totalRemainingItems;
+    const progress = totalInitialItems > 0 ? (soldItems / totalInitialItems) * 100 : 0;
+    
     if (isLoading) {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
     }
@@ -683,9 +713,6 @@ export default function SalesRunPage() {
         );
     }
     
-    const totalItems = runDetails.items.reduce((sum, item) => sum + item.quantity, 0);
-    const soldItems = 0; // Placeholder for now
-    const progress = totalItems > 0 ? (soldItems / totalItems) * 100 : 0;
     const outstandingDebtors = runCustomers.filter(c => (c.totalSold - c.totalPaid) > 0);
 
     return (
@@ -711,7 +738,7 @@ export default function SalesRunPage() {
                         <div>
                             <div className="flex justify-between text-sm mb-1">
                                 <span className="font-medium">Sales Progress</span>
-                                <span>{soldItems} / {totalItems} items</span>
+                                <span>{soldItems} / {totalInitialItems} items sold</span>
                             </div>
                             <Progress value={progress} />
                         </div>
@@ -724,8 +751,8 @@ export default function SalesRunPage() {
                      <div>
                         <h3 className="font-semibold text-lg mb-2">Run Actions</h3>
                          <div className="grid grid-cols-2 gap-4">
-                            <SellToCustomerDialog run={runDetails} user={user} onSaleMade={handleSaleMade}/>
-                            <RecordPaymentDialog run={runDetails} user={user} customers={runCustomers} onPaymentMade={fetchData}/>
+                            <SellToCustomerDialog run={runDetails} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
+                            <RecordPaymentDialog run={runDetails} user={user} customers={runCustomers} onPaymentMade={handlePaymentMade}/>
                          </div>
                      </div>
                 </CardContent>
@@ -733,7 +760,7 @@ export default function SalesRunPage() {
             
             <div className="grid md:grid-cols-2 gap-6">
                  <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2"><Package/> Items in Run</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="flex items-center gap-2"><Package/> Remaining Items in Run</CardTitle></CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
@@ -744,13 +771,15 @@ export default function SalesRunPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {runDetails.items.map(item => (
+                                {remainingItems.length > 0 ? remainingItems.map(item => (
                                     <TableRow key={item.productId}>
                                         <TableCell>{item.productName}</TableCell>
                                         <TableCell>{item.quantity}</TableCell>
                                         <TableCell className="text-right">₦{item.price?.toLocaleString()}</TableCell>
                                     </TableRow>
-                                ))}
+                                )) : (
+                                    <TableRow><TableCell colSpan={3} className="text-center h-24">All items sold!</TableCell></TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </CardContent>
