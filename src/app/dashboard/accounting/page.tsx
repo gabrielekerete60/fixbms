@@ -262,7 +262,7 @@ function PaymentsAndRequestsContent() {
                             ) : (
                                 confirmations.map(c => (
                                     <TableRow key={c.id}>
-                                        <TableCell>{format(new Date(c.date), 'PPp')}</TableCell>
+                                        <TableCell>{c.date ? format(new Date(c.date), 'PPp') : 'N/A'}</TableCell>
                                         <TableCell>{c.driverName}</TableCell>
                                         <TableCell>{c.runId ? `${c.runId.substring(0, 7)}...` : 'N/A'}</TableCell>
                                         <TableCell>₦{c.amount.toLocaleString()}</TableCell>
@@ -302,7 +302,7 @@ function PaymentsAndRequestsContent() {
                                     {resolved.length > 0 ? (
                                         resolved.map(c => (
                                             <TableRow key={c.id}>
-                                                <TableCell>{format(new Date(c.date), 'PPp')}</TableCell>
+                                                <TableCell>{c.date ? format(new Date(c.date), 'PPp') : 'N/A'}</TableCell>
                                                 <TableCell>{c.driverName}</TableCell>
                                                 <TableCell>₦{c.amount.toLocaleString()}</TableCell>
                                                 <TableCell>
@@ -492,7 +492,7 @@ export default function AccountingPage() {
                             ) : (
                                 expenses.map(e => (
                                     <TableRow key={e.id}>
-                                        <TableCell>{format(new Date(e.date), 'PPP')}</TableCell>
+                                        <TableCell>{e.date ? format(new Date(e.date), 'PPP') : 'N/A'}</TableCell>
                                         <TableCell>{e.category}</TableCell>
                                         <TableCell>{e.description}</TableCell>
                                         <TableCell className="text-right">₦{e.amount.toLocaleString()}</TableCell>
