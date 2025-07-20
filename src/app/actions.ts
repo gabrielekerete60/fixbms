@@ -61,59 +61,15 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
 
 type InitializePaystackResult = {
     success: boolean;
-    authorization_url?: string;
+    reference: string;
     error?: string;
 }
 
 export async function initializePaystackTransaction(orderPayload: any): Promise<InitializePaystackResult> {
-    const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
-    if (!secretKey) {
-        console.error("Paystack secret key is not configured.");
-        return { success: false, error: "Paystack secret key is not configured." };
-    }
-
-    const url = "https://api.paystack.co/transaction/initialize";
-    const amountInKobo = Math.round(orderPayload.total * 100);
-
     const tempOrderRef = doc(collection(db, "temp_orders"));
     await setDoc(tempOrderRef, { ...orderPayload, createdAt: serverTimestamp() });
     
-    const reference = tempOrderRef.id;
-
-    const fields = {
-        email: orderPayload.email || 'customer@example.com',
-        amount: amountInKobo.toString(),
-        reference: reference,
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payment/callback`,
-        metadata: {
-            orderId: reference,
-            cancel_action: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payment/callback?payment_status=cancelled`,
-        }
-    };
-
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${secretKey}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(fields),
-        });
-
-        const result = await response.json() as any;
-
-        if (result.status === true) {
-            return { success: true, authorization_url: result.data.authorization_url };
-        } else {
-            console.error("Paystack API Error:", result.message);
-            await deleteDoc(tempOrderRef);
-            return { success: false, error: result.message };
-        }
-    } catch (error) {
-        console.error("Paystack connection error:", error);
-        return { success: false, error: "Failed to connect to Paystack." };
-    }
+    return { success: true, reference: tempOrderRef.id };
 }
 
 
@@ -496,10 +452,22 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
         const snapshot = await getDocs(q);
         
         let totalSales = 0;
-        snapshot.forEach(runDoc => {
+        for (const runDoc of snapshot.docs) {
             const runData = runDoc.data();
-            totalSales += runData.totalRevenue || 0;
-        });
+            if (runData.totalRevenue) {
+                totalSales += runData.totalRevenue;
+            } else {
+                // Fallback calculation if totalRevenue is missing
+                const items = runData.items || [];
+                let calculatedRevenue = 0;
+                for (const item of items) {
+                    if (item.price && item.quantity) {
+                        calculatedRevenue += item.price * item.quantity;
+                    }
+                }
+                totalSales += calculatedRevenue;
+            }
+        }
         
         return { totalSales };
     } catch (error) {
@@ -1342,9 +1310,13 @@ type SaleData = {
 export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string }> {
   try {
     
-    // If cash, create a confirmation request instead of an order
     if (data.paymentMethod === 'Cash') {
       const confirmationRef = doc(collection(db, 'payment_confirmations'));
+      // First, read the staff name
+      const staffDoc = await getDoc(doc(db, 'staff', data.staffId));
+      const driverName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
+      
+      // Then, write the document
       await setDoc(confirmationRef, {
         runId: data.runId,
         customerId: data.customerId,
@@ -1352,33 +1324,28 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
         items: data.items,
         amount: data.total,
         driverId: data.staffId,
-        driverName: (await getDoc(doc(db, 'staff', data.staffId))).data()?.name || 'Unknown',
+        driverName: driverName,
         date: serverTimestamp(),
         status: 'pending'
       });
       return { success: true };
     }
 
-    // For Card and Credit, create the order directly
-    const orderData = {
-      salesRunId: data.runId,
-      customerId: data.customerId,
-      customerName: data.customerName,
-      items: data.items,
-      total: data.total,
-      paymentMethod: data.paymentMethod,
-      date: new Date().toISOString(),
-      staffId: data.staffId,
-      status: 'Completed',
-    };
-
+    // For Card and Credit, create the order directly in a transaction
     await runTransaction(db, async (transaction) => {
       const runRef = doc(db, 'transfers', data.runId);
       const newOrderRef = doc(collection(db, 'orders'));
-
+      
       // Perform all reads first
       const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
       const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
+      
+      // Add customer read if it's a credit sale
+      let customerRef;
+      if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
+          customerRef = doc(db, 'customers', data.customerId);
+          await transaction.get(customerRef); // Read the customer doc
+      }
 
       // Validate stock
       for (let i = 0; i < data.items.length; i++) {
@@ -1397,6 +1364,17 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       }
 
       // Create the order document
+      const orderData = {
+          salesRunId: data.runId,
+          customerId: data.customerId,
+          customerName: data.customerName,
+          items: data.items,
+          total: data.total,
+          paymentMethod: data.paymentMethod,
+          date: new Date().toISOString(),
+          staffId: data.staffId,
+          status: 'Completed',
+      };
       transaction.set(newOrderRef, orderData);
 
       // Update the sales run financials
@@ -1405,8 +1383,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       }
       
       // Update the customer's overall balance if it's a credit sale
-      if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
-        const customerRef = doc(db, 'customers', data.customerId);
+      if (data.paymentMethod === 'Credit' && customerRef) {
         transaction.update(customerRef, { amountOwed: increment(data.total) });
       }
     });

@@ -51,6 +51,7 @@ import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter, useSearchParams } from "next/navigation";
 import { initializePaystackTransaction } from "@/app/actions";
+import PaystackPop from '@paystack/inline-js';
 
 
 type Product = {
@@ -307,8 +308,26 @@ function POSPageContent() {
 
     const result = await initializePaystackTransaction(orderPayload);
     
-    if (result.success && result.authorization_url) {
-        window.open(result.authorization_url, '_blank', 'noopener,noreferrer');
+    if (result.success && result.reference) {
+      const paystack = new PaystackPop();
+      paystack.newTransaction({
+        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+        email: customerEmail || 'guest@example.com',
+        amount: Math.round(total * 100), // amount in kobo
+        ref: result.reference,
+        onSuccess: async (transaction) => {
+          const finalOrder = await completeOrder('Card');
+          if (finalOrder) {
+            setIsReceiptOpen(true);
+            toast({ title: 'Payment Successful', description: 'Order has been completed.' });
+          }
+          setPaymentStatus({ status: 'success', orderId: finalOrder?.id });
+        },
+        onCancel: () => {
+          toast({ variant: 'destructive', title: 'Payment Cancelled' });
+          setPaymentStatus({ status: 'cancelled' });
+        }
+      });
     } else {
         toast({ variant: "destructive", title: "Payment Initialization Failed", description: result.error || "Could not connect to Paystack." });
         setPaymentStatus({ status: 'failed', message: result.error });
@@ -344,7 +363,7 @@ function POSPageContent() {
         }
         return prevCart.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + 1, price: productInStock.price } // Always update price
             : item
         );
       }
