@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Package2, Car, Users, DollarSign, Filter, MoreVertical } from 'lucide-react';
+import { Loader2, Package2, Car, Users, DollarSign, Filter, MoreVertical, Calendar as CalendarIcon } from 'lucide-react';
 import { getSalesRuns, getAllSalesRuns, getSalesStats } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import type { SalesRun as SalesRunType } from '@/app/actions';
@@ -14,7 +14,12 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { format } from 'date-fns';
+import { format, eachDayOfInterval, subDays } from 'date-fns';
+import { RevenueChart } from '@/components/revenue-chart';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { DateRange } from 'react-day-picker';
 
 type User = {
     name: string;
@@ -72,25 +77,8 @@ function RunCard({ run }: { run: SalesRunType }) {
 function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], isLoading: boolean, user: User | null }) {
     const [filterDriver, setFilterDriver] = useState('all');
     const [sort, setSort] = useState('date_desc');
-    const [salesStats, setSalesStats] = useState<{ totalSales: number }>({ totalSales: 0 });
     const [outstandingFilter, setOutstandingFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
-    const [salesFilter, setSalesFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
-    const [isSalesLoading, setIsSalesLoading] = useState(true);
-
-    const fetchSalesOnly = useCallback(async (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
-        setIsSalesLoading(true);
-        const salesData = await getSalesStats(filter);
-        setSalesStats(salesData);
-        setSalesFilter(filter);
-        setIsSalesLoading(false);
-    }, []);
-    
-    useEffect(() => {
-        fetchSalesOnly(salesFilter);
-        const handleDataChange = () => fetchSalesOnly(salesFilter);
-        window.addEventListener('dataChanged', handleDataChange);
-        return () => window.removeEventListener('dataChanged', handleDataChange);
-    }, [salesFilter, fetchSalesOnly]);
+    const [date, setDate] = useState<DateRange | undefined>({ from: subDays(new Date(), 6), to: new Date() });
 
     const drivers = useMemo(() => {
         const driverSet = new Set(allRuns.map(run => run.to_staff_name).filter(Boolean));
@@ -116,6 +104,32 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
 
     const activeRuns = filteredAndSortedRuns.filter(r => r.status === 'active');
     const totalOutstanding = activeRuns.reduce((sum, run) => sum + run.totalOutstanding, 0);
+
+    const weeklySalesChartData = useMemo(() => {
+        if (!date?.from) return [];
+        const start = date.from;
+        const end = date.to || start;
+        const daysInInterval = eachDayOfInterval({ start, end });
+
+        const dailySales = daysInInterval.map(day => ({
+            day: format(day, 'E'),
+            revenue: 0,
+        }));
+
+        filteredAndSortedRuns.forEach(run => {
+            const runDate = new Date(run.date);
+             if (runDate >= start && runDate <= end) {
+                const dayOfWeek = format(runDate, 'E');
+                const index = dailySales.findIndex(d => d.day === dayOfWeek);
+                if (index !== -1) {
+                    dailySales[index].revenue += run.totalRevenue;
+                }
+            }
+        });
+        
+        return dailySales;
+
+    }, [filteredAndSortedRuns, date]);
 
     return (
         <div className="flex flex-col gap-4">
@@ -158,25 +172,62 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                     </CardContent>
                 </Card>
                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium capitalize">{salesFilter} Sales</CardTitle>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="h-4 w-4 text-muted-foreground"/></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <DropdownMenuItem onSelect={() => fetchSalesOnly('daily')}>Daily</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => fetchSalesOnly('weekly')}>Weekly</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => fetchSalesOnly('monthly')}>Monthly</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => fetchSalesOnly('yearly')}>Yearly</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                    <CardHeader>
+                        <CardTitle>Sales Chart</CardTitle>
+                         <CardDescription>Sales from runs in the selected date range.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {isSalesLoading ? <Loader2 className="h-8 w-8 animate-spin" /> : <div className="text-2xl font-bold">₦{salesStats.totalSales.toLocaleString()}</div>}
+                       <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    id="date"
+                                    variant={"outline"}
+                                    className={cn(
+                                    "w-full justify-start text-left font-normal",
+                                    !date && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {date?.from ? (
+                                    date.to ? (
+                                        <>
+                                        {format(date.from, "LLL dd, y")} -{" "}
+                                        {format(date.to, "LLL dd, y")}
+                                        </>
+                                    ) : (
+                                        format(date.from, "LLL dd, y")
+                                    )
+                                    ) : (
+                                    <span>Pick a date range</span>
+                                    )}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="end">
+                                <Calendar
+                                    initialFocus
+                                    mode="range"
+                                    defaultMonth={date?.from}
+                                    selected={date}
+                                    onSelect={setDate}
+                                    numberOfMonths={2}
+                                />
+                            </PopoverContent>
+                        </Popover>
                     </CardContent>
                 </Card>
             </div>
+
+             <Card className="xl:col-span-2">
+              <CardHeader className="flex flex-row items-center">
+                <div className="grid gap-2">
+                  <CardTitle>Sales Run Performance</CardTitle>
+                  <CardDescription>Revenue from sales runs in the selected period.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <RevenueChart data={weeklySalesChartData} />
+              </CardContent>
+            </Card>
             
             <Card>
                 <CardHeader>

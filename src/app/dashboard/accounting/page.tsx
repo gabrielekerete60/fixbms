@@ -208,7 +208,6 @@ function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void
         const result = await handlePaymentConfirmation(id, type);
         if (result.success) {
             toast({ title: 'Success', description: `Payment has been ${type}d.` });
-            onDataChange();
              // Dispatch a custom event to notify other components like the dashboard
             window.dispatchEvent(new CustomEvent('dataChanged'));
             fetchConfirmations();

@@ -80,11 +80,12 @@ function ManagementDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [missingIndexes, setMissingIndexes] = useState<string[]>([]);
+  const [revenueFilter, setRevenueFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
 
-  const fetchData = async () => {
+  const fetchData = async (filter: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'monthly') => {
       setIsLoading(true);
       const [data, indexData] = await Promise.all([
-        getDashboardStats(),
+        getDashboardStats(filter),
         checkForMissingIndexes()
       ]);
       setStats(data);
@@ -93,12 +94,18 @@ function ManagementDashboard() {
     }
 
   useEffect(() => {
-    fetchData();
-    window.addEventListener('dataChanged', fetchData);
+    fetchData(revenueFilter);
+    const handleDataChange = () => fetchData(revenueFilter);
+
+    window.addEventListener('dataChanged', handleDataChange);
     return () => {
-        window.removeEventListener('dataChanged', fetchData);
+        window.removeEventListener('dataChanged', handleDataChange);
     }
-  }, []);
+  }, [revenueFilter]);
+  
+  const handleFilterChange = (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
+    setRevenueFilter(filter);
+  };
 
   if (isLoading || !stats) {
     return (
@@ -114,8 +121,18 @@ function ManagementDashboard() {
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Revenue (Monthly)</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium capitalize">Revenue ({revenueFilter})</CardTitle>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6"><MoreHorizontal className="h-4 w-4 text-muted-foreground"/></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => handleFilterChange('daily')}>Today</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleFilterChange('weekly')}>This Week</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleFilterChange('monthly')}>This Month</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleFilterChange('yearly')}>This Year</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₦{stats.revenue.toLocaleString()}</div>
