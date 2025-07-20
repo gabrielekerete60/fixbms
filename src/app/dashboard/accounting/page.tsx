@@ -195,7 +195,14 @@ function PaymentsAndRequestsContent() {
     useEffect(() => {
         const q = query(collection(db, 'payment_confirmations'), orderBy('date', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const allData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentConfirmation));
+            const allData = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return { 
+                    id: doc.id,
+                    ...data,
+                    date: (data.date as any)?.toDate ? (data.date as any).toDate().toISOString() : data.date
+                } as PaymentConfirmation
+            });
             setConfirmations(allData.filter(d => d.status === 'pending'));
             setResolved(allData.filter(d => d.status !== 'pending'));
             setIsLoading(false);
@@ -260,18 +267,22 @@ function PaymentsAndRequestsContent() {
                             {confirmations.length === 0 ? (
                                 <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending payment confirmations.</TableCell></TableRow>
                             ) : (
-                                confirmations.map(c => (
-                                    <TableRow key={c.id}>
-                                        <TableCell>{c.date ? format(new Date(c.date), 'PPp') : 'N/A'}</TableCell>
-                                        <TableCell>{c.driverName}</TableCell>
-                                        <TableCell>{c.runId ? `${c.runId.substring(0, 7)}...` : 'N/A'}</TableCell>
-                                        <TableCell>₦{c.amount.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right space-x-2">
-                                            <Button variant="destructive" size="sm" onClick={() => setActionState({ id: c.id, type: 'decline' })}>Decline</Button>
-                                            <Button size="sm" onClick={() => setActionState({ id: c.id, type: 'approve' })}>Approve</Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
+                                confirmations.map(c => {
+                                    const date = new Date(c.date);
+                                    const isValidDate = !isNaN(date.getTime());
+                                    return (
+                                        <TableRow key={c.id}>
+                                            <TableCell>{isValidDate ? format(date, 'PPp') : 'N/A'}</TableCell>
+                                            <TableCell>{c.driverName}</TableCell>
+                                            <TableCell>{c.runId ? `${c.runId.substring(0, 7)}...` : 'N/A'}</TableCell>
+                                            <TableCell>₦{c.amount.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right space-x-2">
+                                                <Button variant="destructive" size="sm" onClick={() => setActionState({ id: c.id, type: 'decline' })}>Decline</Button>
+                                                <Button size="sm" onClick={() => setActionState({ id: c.id, type: 'approve' })}>Approve</Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
                             )}
                         </TableBody>
                     </Table>
@@ -300,16 +311,20 @@ function PaymentsAndRequestsContent() {
                                 </TableHeader>
                                 <TableBody>
                                     {resolved.length > 0 ? (
-                                        resolved.map(c => (
-                                            <TableRow key={c.id}>
-                                                <TableCell>{c.date ? format(new Date(c.date), 'PPp') : 'N/A'}</TableCell>
-                                                <TableCell>{c.driverName}</TableCell>
-                                                <TableCell>₦{c.amount.toLocaleString()}</TableCell>
-                                                <TableCell>
-                                                    <Badge variant={c.status === 'approved' ? 'default' : 'destructive'}>{c.status}</Badge>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
+                                        resolved.map(c => {
+                                            const date = new Date(c.date);
+                                            const isValidDate = !isNaN(date.getTime());
+                                            return (
+                                                <TableRow key={c.id}>
+                                                    <TableCell>{isValidDate ? format(date, 'PPp') : 'N/A'}</TableCell>
+                                                    <TableCell>{c.driverName}</TableCell>
+                                                    <TableCell>₦{c.amount.toLocaleString()}</TableCell>
+                                                    <TableCell>
+                                                        <Badge variant={c.status === 'approved' ? 'default' : 'destructive'}>{c.status}</Badge>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })
                                     ) : (
                                         <TableRow><TableCell colSpan={4} className="h-24 text-center">No resolved requests yet.</TableCell></TableRow>
                                     )}
