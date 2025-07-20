@@ -23,6 +23,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
 import PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
+import { format } from "date-fns";
+
 
 type Customer = {
   id: string;
@@ -222,10 +224,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         }
         
         const customerEmail = selectedCustomer?.email || user.email;
-        if (paymentMethod === 'Card' && !customerEmail) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Email address is required for card payments. Please select a registered customer or ensure the staff email is set.' });
-            return;
-        }
         
         setIsLoading(true);
 
@@ -578,20 +576,49 @@ function RecordPaymentDialog({ run, user, customers, onPaymentMade }: { run: Sal
     )
 }
 
-function ReceiptDialog({ order, isOpen, onOpenChange }: { order: CompletedOrder | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+function OrderDetailsDialog({ order, isOpen, onOpenChange }: { order: CompletedOrder | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
     const receiptRef = useRef<HTMLDivElement>(null);
 
     const handlePrint = () => {
-        const printWindow = window.open('', '_blank');
+        const printWindow = window.open('', '_blank', 'height=600,width=800');
         if (printWindow && receiptRef.current) {
             const printableContent = `
                 <html>
-                    <head><title>Receipt</title></head>
-                    <body>${receiptRef.current.innerHTML}</body>
+                    <head>
+                        <title>Receipt</title>
+                        <style>
+                            @media print {
+                                @page { margin: 0; }
+                                body { margin: 1.6cm; }
+                            }
+                            body { font-family: sans-serif; }
+                            .receipt-container { max-width: 300px; margin: auto; }
+                            .text-center { text-align: center; }
+                            .font-bold { font-weight: bold; }
+                            .text-lg { font-size: 1.125rem; }
+                            .text-2xl { font-size: 1.5rem; }
+                            .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
+                            .text-sm { font-size: 0.875rem; }
+                            .text-xs { font-size: 0.75rem; }
+                            .text-muted-foreground { color: #6b7280; }
+                            table { width: 100%; border-collapse: collapse; }
+                            th, td { padding: 4px 0; }
+                            .text-right { text-align: right; }
+                            .flex { display: flex; }
+                            .justify-between { justify-content: space-between; }
+                            hr { border: 0; border-top: 1px dashed #d1d5db; margin: 1rem 0; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="receipt-container">
+                            ${receiptRef.current.innerHTML}
+                        </div>
+                    </body>
                 </html>
             `;
             printWindow.document.write(printableContent);
             printWindow.document.close();
+            printWindow.focus();
             printWindow.print();
         }
     }
@@ -607,7 +634,7 @@ function ReceiptDialog({ order, isOpen, onOpenChange }: { order: CompletedOrder 
                         <DialogDescription>Order ID: {order.id.substring(0, 8)}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-2 text-sm">
-                        <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
+                        <p><strong>Date:</strong> {format(new Date(order.date), "PPP p")}</p>
                         <p><strong>Customer:</strong> {order.customerName}</p>
                         <p><strong>Payment:</strong> {order.paymentMethod}</p>
                     </div>
@@ -642,8 +669,7 @@ export default function SalesRunPage() {
     const [runOrders, setRunOrders] = useState<CompletedOrder[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState<User | null>(null);
-    const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
-    const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+    const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
 
      const fetchData = async () => {
         if (!runId) return;
@@ -655,20 +681,18 @@ export default function SalesRunPage() {
         ]);
         setRunDetails(runData);
         setRunCustomers(runCustomersData);
-        setRunOrders(runOrdersData);
+        setRunOrders(runOrdersData as CompletedOrder[]);
         setIsLoading(false);
     };
 
     const handleSaleMade = (order: CompletedOrder) => {
-        setLastCompletedOrder(order);
-        setIsReceiptOpen(true);
+        setViewingOrder(order);
         fetchData(); // Refresh all data
     };
     
     const handlePaymentMade = () => {
         fetchData();
     }
-
 
     useEffect(() => {
         const storedUser = localStorage.getItem('loggedInUser');
@@ -717,7 +741,7 @@ export default function SalesRunPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            <ReceiptDialog order={lastCompletedOrder} isOpen={isReceiptOpen} onOpenChange={setIsReceiptOpen} />
+            <OrderDetailsDialog order={viewingOrder} isOpen={!!viewingOrder} onOpenChange={() => setViewingOrder(null)} />
 
             <div>
                  <Button variant="outline" asChild>
@@ -797,17 +821,19 @@ export default function SalesRunPage() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Customer</TableHead>
+                                            <TableHead>Date</TableHead>
                                             <TableHead className="text-right">Amount</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {runCustomers.length > 0 ? runCustomers.map(cust => (
-                                            <TableRow key={cust.customerId}>
-                                                <TableCell>{cust.customerName}</TableCell>
-                                                <TableCell className="text-right">₦{cust.totalSold.toLocaleString()}</TableCell>
+                                        {runOrders.length > 0 ? runOrders.map(order => (
+                                            <TableRow key={order.id} onClick={() => setViewingOrder(order)} className="cursor-pointer">
+                                                <TableCell>{order.customerName}</TableCell>
+                                                <TableCell>{format(new Date(order.date), "Pp")}</TableCell>
+                                                <TableCell className="text-right">₦{order.total.toLocaleString()}</TableCell>
                                             </TableRow>
                                         )) : (
-                                            <TableRow><TableCell colSpan={2} className="text-center h-24">No sales recorded for this run yet.</TableCell></TableRow>
+                                            <TableRow><TableCell colSpan={3} className="text-center h-24">No sales recorded for this run yet.</TableCell></TableRow>
                                         )}
                                     </TableBody>
                                 </Table>
