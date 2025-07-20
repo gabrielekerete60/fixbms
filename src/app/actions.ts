@@ -236,7 +236,7 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
                 break;
         }
 
-        const ordersQuery = query(collection(db, "orders"), where("date", ">=", startOfPeriod.toISOString()));
+        const ordersQuery = query(collection(db, "orders"), where("date", ">=", Timestamp.fromDate(startOfPeriod)));
         const ordersSnapshot = await getDocs(ordersQuery);
         
         let revenue = 0;
@@ -249,7 +249,7 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
             }
         });
 
-        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfPeriod.toISOString()));
+        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", Timestamp.fromDate(startOfPeriod)));
         const customersSnapshot = await getDocs(customersQuery);
 
         const weekStart = startOfWeek(now, { weekStartsOn: 1 });
@@ -263,14 +263,15 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
         
         const weeklyOrdersQuery = query(
             collection(db, "orders"), 
-            where("date", ">=", weekStart.toISOString()),
-            where("date", "<=", weekEnd.toISOString())
+            where("date", ">=", Timestamp.fromDate(weekStart)),
+            where("date", "<=", Timestamp.fromDate(weekEnd))
         );
         const weeklyOrdersSnapshot = await getDocs(weeklyOrdersQuery);
         
         weeklyOrdersSnapshot.forEach(orderDoc => {
             const order = orderDoc.data();
-            const orderDate = new Date(order.date);
+            const orderTimestamp = order.date as Timestamp;
+            const orderDate = orderTimestamp.toDate();
             const dayOfWeek = format(orderDate, 'E'); 
             const index = weeklyRevenueData.findIndex(d => d.day === dayOfWeek);
             if (index !== -1) {
@@ -1445,3 +1446,5 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
         return { success: false, error: "Failed to submit cash payment for approval." };
     }
 }
+
+    
