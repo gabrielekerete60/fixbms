@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2, Beaker, Hourglass, Check, X, ShieldCheck, AlertCircle } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, Beaker, Hourglass, Check, X, ShieldCheck, AlertCircle, BookOpen } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,10 +55,11 @@ import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { startProductionBatch, getProductionBatches, approveIngredientRequest, completeProductionBatch, declineProductionBatch } from "@/app/actions";
+import { startProductionBatch, getProductionBatches, approveIngredientRequest, completeProductionBatch, declineProductionBatch, getProductionLogs, ProductionLog } from "@/app/actions";
 import type { ProductionBatch } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { format } from "date-fns";
 
 type User = {
     name: string;
@@ -102,14 +103,16 @@ function RecipeDialog({
   onSave,
   recipe,
   products,
-  ingredients: allIngredients
+  ingredients: allIngredients,
+  user,
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: Omit<Recipe, 'id'>) => void;
+  onSave: (data: Omit<Recipe, 'id'>, user: User, recipeId?: string) => void;
   recipe: Recipe | null;
   products: Product[];
   ingredients: Ingredient[];
+  user: User;
 }) {
     const { toast } = useToast();
     const [name, setName] = useState("");
@@ -172,7 +175,7 @@ function RecipeDialog({
             productId: selectedProductId,
             productName: selectedProduct?.name || '',
             ingredients: recipeIngredients,
-        });
+        }, user, recipe?.id);
         onOpenChange(false);
     };
 
@@ -369,7 +372,7 @@ function CompleteBatchDialog({ batch, user, onCompleted }: { batch: ProductionBa
     )
 }
 
-function ApproveBatchDialog({ batch, allIngredients, onApproved, onDeclined, children }: { batch: ProductionBatch, allIngredients: Ingredient[], onApproved: () => void, onDeclined: (batchId: string) => void, children: React.ReactNode }) {
+function ApproveBatchDialog({ batch, allIngredients, onApproved, onDeclined, user, children }: { batch: ProductionBatch, allIngredients: Ingredient[], onApproved: () => void, onDeclined: (batchId: string, user: User) => void, user: User, children: React.ReactNode }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -414,7 +417,7 @@ function ApproveBatchDialog({ batch, allIngredients, onApproved, onDeclined, chi
             return;
         }
         setIsSubmitting(true);
-        const result = await approveIngredientRequest(batch.id, totalRequiredIngredients);
+        const result = await approveIngredientRequest(batch.id, totalRequiredIngredients, user);
         if (result.success) {
             toast({ title: 'Success', description: 'Batch approved and moved to production.' });
             onApproved();
@@ -427,7 +430,7 @@ function ApproveBatchDialog({ batch, allIngredients, onApproved, onDeclined, chi
 
     const handleDecline = async () => {
         setIsSubmitting(true);
-        await onDeclined(batch.id);
+        await onDeclined(batch.id, user);
         setIsSubmitting(false);
         setIsOpen(false);
     }
@@ -492,6 +495,48 @@ function ApproveBatchDialog({ batch, allIngredients, onApproved, onDeclined, chi
     );
 }
 
+function ProductionLogsTab({ isLoading, logs }: { isLoading: boolean, logs: ProductionLog[] }) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Production & Recipe Logs</CardTitle>
+                <CardDescription>A complete audit trail of all production and recipe management activities.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Staff</TableHead>
+                                <TableHead>Action</TableHead>
+                                <TableHead>Details</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {logs.length === 0 ? (
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center">No logs found.</TableCell></TableRow>
+                            ) : (
+                                logs.map(log => (
+                                    <TableRow key={log.id}>
+                                        <TableCell>{format(new Date(log.timestamp), 'PPp')}</TableCell>
+                                        <TableCell>{log.staffName}</TableCell>
+                                        <TableCell><Badge variant="secondary">{log.action}</Badge></TableCell>
+                                        <TableCell>{log.details}</TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+
 export default function RecipesPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
@@ -500,6 +545,7 @@ export default function RecipesPage() {
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     const [pendingBatches, setPendingBatches] = useState<ProductionBatch[]>([]);
     const [inProductionBatches, setInProductionBatches] = useState<ProductionBatch[]>([]);
+    const [productionLogs, setProductionLogs] = useState<ProductionLog[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
     const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
@@ -509,11 +555,12 @@ export default function RecipesPage() {
     const fetchAllData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [recipeSnapshot, productSnapshot, ingredientSnapshot, batchData] = await Promise.all([
+            const [recipeSnapshot, productSnapshot, ingredientSnapshot, batchData, logsData] = await Promise.all([
                 getDocs(collection(db, "recipes")),
                 getDocs(collection(db, "products")),
                 getDocs(collection(db, "ingredients")),
-                getProductionBatches()
+                getProductionBatches(),
+                getProductionLogs(),
             ]);
 
             setRecipes(recipeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Recipe[]);
@@ -521,6 +568,7 @@ export default function RecipesPage() {
             setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[]);
             setPendingBatches(batchData.pending);
             setInProductionBatches(batchData.in_production);
+            setProductionLogs(logsData);
 
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -538,8 +586,8 @@ export default function RecipesPage() {
         fetchAllData();
     }, [fetchAllData]);
 
-    const handleDeclineBatch = async (batchId: string) => {
-        const result = await declineProductionBatch(batchId);
+    const handleDeclineBatch = async (batchId: string, user: User) => {
+        const result = await declineProductionBatch(batchId, user);
         if(result.success) {
             toast({ title: 'Batch Declined', description: 'The production batch has been declined.'});
             fetchAllData();
@@ -567,10 +615,10 @@ export default function RecipesPage() {
         });
     }, [recipes, ingredients]);
 
-    const handleSaveRecipe = async (recipeData: Omit<Recipe, 'id'>) => {
+    const handleSaveRecipe = async (recipeData: Omit<Recipe, 'id'>, user: User, recipeId?: string) => {
         try {
-            if (editingRecipe) {
-                const recipeRef = doc(db, "recipes", editingRecipe.id);
+            if (recipeId) {
+                const recipeRef = doc(db, "recipes", recipeId);
                 await updateDoc(recipeRef, recipeData);
                 toast({ title: "Success", description: "Recipe updated successfully." });
             } else {
@@ -585,7 +633,7 @@ export default function RecipesPage() {
     };
 
     const handleDeleteRecipe = async () => {
-        if (!recipeToDelete) return;
+        if (!recipeToDelete || !user) return;
         try {
             await deleteDoc(doc(db, "recipes", recipeToDelete.id));
             toast({ title: "Success", description: "Recipe deleted successfully." });
@@ -627,6 +675,7 @@ export default function RecipesPage() {
                 recipe={editingRecipe}
                 products={products}
                 ingredients={ingredients}
+                user={user}
             />
 
             <Tabs defaultValue="production">
@@ -688,6 +737,7 @@ export default function RecipesPage() {
                                                             allIngredients={ingredients}
                                                             onApproved={fetchAllData}
                                                             onDeclined={handleDeclineBatch}
+                                                            user={user}
                                                         >
                                                             <Button size="sm" variant="secondary"><ShieldCheck className="mr-2 h-4 w-4"/>Review</Button>
                                                         </ApproveBatchDialog>
@@ -704,7 +754,7 @@ export default function RecipesPage() {
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle>All Recipes</CardTitle>
+                            <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" />All Recipes</CardTitle>
                             <CardDescription>Manage your product recipes and their ingredients. Click "Start Batch" to begin production.</CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -758,15 +808,7 @@ export default function RecipesPage() {
                     </Card>
                 </TabsContent>
                 <TabsContent value="logs">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Production Logs</CardTitle>
-                            <CardDescription>This feature is coming soon.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="flex items-center justify-center h-64 text-muted-foreground">
-                            <p>A log of all production batches will be shown here.</p>
-                        </CardContent>
-                    </Card>
+                    <ProductionLogsTab isLoading={isLoading} logs={productionLogs} />
                 </TabsContent>
             </Tabs>
 
@@ -786,5 +828,4 @@ export default function RecipesPage() {
             </AlertDialog>
         </div>
     );
-
     

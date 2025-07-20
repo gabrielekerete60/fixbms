@@ -1270,13 +1270,28 @@ export async function getProductionBatches(): Promise<{ pending: ProductionBatch
     }
 }
 
+async function createProductionLog(action: string, details: string, user: { staff_id: string, name: string }) {
+    try {
+        await addDoc(collection(db, "production_logs"), {
+            action,
+            details,
+            staffId: user.staff_id,
+            staffName: user.name,
+            timestamp: serverTimestamp()
+        });
+    } catch (logError) {
+        console.error("Failed to create production log:", logError);
+    }
+}
+
 export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 'status' | 'createdAt'>): Promise<{success: boolean, error?: string}> {
     try {
-        await addDoc(collection(db, "production_batches"), {
+        const batchRef = await addDoc(collection(db, "production_batches"), {
             ...data,
             status: 'pending_approval',
             createdAt: serverTimestamp()
         });
+        await createProductionLog('Batch Requested', `Requested ${data.quantityToProduce} of ${data.productName}`, { staff_id: data.requestedById, name: data.requestedByName });
         return { success: true };
     } catch (error) {
         console.error("Error starting production batch:", error);
@@ -1284,18 +1299,18 @@ export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 's
     }
 }
 
-export async function approveIngredientRequest(batchId: string, ingredients: { ingredientId: string, quantity: number }[]): Promise<{success: boolean, error?: string}> {
+export async function approveIngredientRequest(batchId: string, ingredients: { ingredientId: string, quantity: number }[], user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
     try {
-        await runTransaction(db, async (transaction) => {
-            const batchRef = doc(db, 'production_batches', batchId);
-            const batchDoc = await transaction.get(batchRef);
-            
-            const ingredientRefs = ingredients.map(ing => doc(db, 'ingredients', ing.ingredientId));
-            const ingredientDocs = await Promise.all(ingredientRefs.map(ref => transaction.get(ref)));
+        const batchRef = doc(db, 'production_batches', batchId);
 
+        await runTransaction(db, async (transaction) => {
+            const batchDoc = await transaction.get(batchRef);
             if (!batchDoc.exists() || batchDoc.data().status !== 'pending_approval') {
                 throw new Error("Batch is not pending approval.");
             }
+
+            const ingredientRefs = ingredients.map(ing => doc(db, 'ingredients', ing.ingredientId));
+            const ingredientDocs = await Promise.all(ingredientRefs.map(ref => transaction.get(ref)));
 
             for (let i = 0; i < ingredientDocs.length; i++) {
                 const ingDoc = ingredientDocs[i];
@@ -1313,6 +1328,11 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
 
             transaction.update(batchRef, { status: 'in_production' });
         });
+        
+        const batchDoc = await getDoc(batchRef);
+        const batchData = batchDoc.data();
+        await createProductionLog('Batch Approved', `Approved batch for ${batchData?.quantityToProduce} of ${batchData?.productName}`, user);
+        
         return { success: true };
     } catch (error) {
         console.error("Error approving ingredient request:", error);
@@ -1321,10 +1341,15 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
     }
 }
 
-export async function declineProductionBatch(batchId: string): Promise<{success: boolean, error?: string}> {
+export async function declineProductionBatch(batchId: string, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
     try {
         const batchRef = doc(db, 'production_batches', batchId);
         await updateDoc(batchRef, { status: 'declined' });
+        
+        const batchDoc = await getDoc(batchRef);
+        const batchData = batchDoc.data();
+        await createProductionLog('Batch Declined', `Declined batch for ${batchData?.quantityToProduce} of ${batchData?.productName}`, user);
+
         return { success: true };
     } catch (error) {
         console.error("Error declining production batch:", error);
@@ -1390,12 +1415,44 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
                 });
             }
         });
+        
+        await createProductionLog('Batch Completed', `Completed batch of ${data.productName} with ${data.successfullyProduced} produced and ${data.wasted} wasted.`, user);
+
         return { success: true };
     } catch (error) {
         console.error("Error completing production batch:", error);
         return { success: false, error: "Failed to complete production batch." };
     }
 }
+
+export type ProductionLog = {
+    id: string;
+    action: string;
+    details: string;
+    staffId: string;
+    staffName: string;
+    timestamp: string;
+}
+
+export async function getProductionLogs(): Promise<ProductionLog[]> {
+    try {
+        const q = query(collection(db, 'production_logs'), orderBy('timestamp', 'desc'));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            const timestamp = data.timestamp as Timestamp;
+            return {
+                id: docSnap.id,
+                ...data,
+                timestamp: timestamp.toDate().toISOString(),
+            } as ProductionLog;
+        });
+    } catch (error) {
+        console.error("Error fetching production logs:", error);
+        return [];
+    }
+}
+
 
 export async function getSalesRunDetails(runId: string): Promise<SalesRun | null> {
     try {
