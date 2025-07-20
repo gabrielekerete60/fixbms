@@ -209,14 +209,14 @@ const seedData = {
     { staff_id: '500006', clock_in_time: daysAgo(3), clock_out_time: daysAgo(3), date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString().split('T')[0] },
   ],
   transfers: [
-      { id: "tsr_1_paid", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 20, price: 550 }], date: daysAgo(5), status: 'completed', is_sales_run: true, notes: "Morning sales run to Lekki - Paid" },
-      { id: "tsr_2_paid", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_5", productName: "Coca-Cola (50cl)", quantity: 24, price: 300 }], date: daysAgo(4), status: 'completed', is_sales_run: true, notes: "Drinks for VI - Paid" },
-      { id: "tsr_3_owing", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_3", productName: "Jumbo Loaf", quantity: 15, price: 900 }], date: daysAgo(3), status: 'completed', is_sales_run: true, notes: "Bulk order for Chinedu Eze - Owing" },
-      { id: "tsr_4_owing", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_4", productName: "Round Loaf", quantity: 30, price: 500 }], date: daysAgo(2), status: 'completed', is_sales_run: true, notes: "Supply for Adebisi Onyeka's shop - Owing" },
-      { id: "tsr_5_active", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 25, price: 550 }, { productId: "prod_2", productName: "Burger Loaf", quantity: 25, price: 450 }], date: daysAgo(1), status: 'active', is_sales_run: true, notes: "Today's main sales run" },
-      { id: "tsr_6_active", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_6", productName: "Bottled Water (75cl)", quantity: 48, price: 150 }], date: Timestamp.now(), status: 'active', is_sales_run: true, notes: "Urgent water supply for event" },
-      { id: "trans_1", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400004", to_staff_name: "Mfon Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 12, price: 550 }], date: daysAgo(2), status: 'completed', is_sales_run: false },
-      { id: "trans_2", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400004", to_staff_name: "Mfon Staff", items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 5, price: 450 }], date: daysAgo(1), status: 'pending', is_sales_run: false },
+      { id: "tsr_1_paid", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 20, price: 550 }], date: daysAgo(5), status: 'completed', is_sales_run: true, totalRevenue: 11000, notes: "Morning sales run to Lekki - Paid" },
+      { id: "tsr_2_paid", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_5", productName: "Coca-Cola (50cl)", quantity: 24, price: 300 }], date: daysAgo(4), status: 'completed', is_sales_run: true, totalRevenue: 7200, notes: "Drinks for VI - Paid" },
+      { id: "tsr_3_owing", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_3", productName: "Jumbo Loaf", quantity: 15, price: 900 }], date: daysAgo(3), status: 'completed', is_sales_run: true, totalRevenue: 13500, notes: "Bulk order for Chinedu Eze - Owing" },
+      { id: "tsr_4_owing", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_4", productName: "Round Loaf", quantity: 30, price: 500 }], date: daysAgo(2), status: 'completed', is_sales_run: true, totalRevenue: 15000, notes: "Supply for Adebisi Onyeka's shop - Owing" },
+      { id: "tsr_5_active", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 25, price: 550 }, { productId: "prod_2", productName: "Burger Loaf", quantity: 25, price: 450 }], date: daysAgo(1), status: 'active', is_sales_run: true, totalRevenue: 25000, notes: "Today's main sales run" },
+      { id: "tsr_6_active", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400005", to_staff_name: "Akan Staff", items: [{ productId: "prod_6", productName: "Bottled Water (75cl)", quantity: 48, price: 150 }], date: Timestamp.now(), status: 'active', is_sales_run: true, totalRevenue: 7200, notes: "Urgent water supply for event" },
+      { id: "trans_1", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400004", to_staff_name: "Mfon Staff", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 12, price: 550 }], date: daysAgo(2), status: 'completed', is_sales_run: false, totalRevenue: 6600 },
+      { id: "trans_2", from_staff_id: "100001", from_staff_name: "Chris Manager", to_staff_id: "400004", to_staff_name: "Mfon Staff", items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 5, price: 450 }], date: daysAgo(1), status: 'pending', is_sales_run: false, totalRevenue: 2250 },
   ],
   payment_confirmations: [
       {
@@ -484,3 +484,5 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
+
+    
