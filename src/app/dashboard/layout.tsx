@@ -60,8 +60,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { getAttendanceStatus, handleClockIn, handleClockOut, handleLogin } from '../actions';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { getAttendanceStatus, handleClockIn, handleClockOut } from '../actions';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 type User = {
@@ -104,7 +104,7 @@ function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string 
             href={link.href}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-              (pathname === link.href || (link.href !== "/dashboard" && pathname.startsWith(link.href))) && "bg-muted text-primary"
+              (link.href !== "/dashboard" && pathname.startsWith(link.href)) && "bg-muted text-primary"
             )}
           >
             <link.icon className="h-4 w-4" />
@@ -133,12 +133,12 @@ export default function DashboardLayout({
 
   const handleLogout = useCallback((message?: string, description?: string) => {
     localStorage.removeItem('loggedInUser');
+    router.push("/");
     toast({
       variant: message ? "destructive" : "default",
       title: message || "Logged Out",
       description: description || "You have been successfully logged out.",
     });
-    router.push("/");
   }, [router, toast]);
 
 
@@ -231,46 +231,46 @@ export default function DashboardLayout({
 
   const navLinks = useMemo(() => {
     const allLinks = [
-      { href: "/dashboard", icon: Home, label: "Dashboard", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper'] },
-      { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Manager', 'Supervisor', 'Showroom Staff'] },
-      { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor'] },
+      { href: "/dashboard", icon: Home, label: "Dashboard", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
+      { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Developer'] },
+      { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor', 'Developer'] },
       {
-        icon: Inbox, label: "Orders", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Accountant'], sublinks: [
+        icon: Inbox, label: "Orders", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Accountant', 'Developer'], sublinks: [
           { href: "/dashboard/orders/regular", label: "Regular Orders" },
           { href: "#", label: "Custom Orders" },
         ]
       },
       {
-        icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Delivery Staff', 'Showroom Staff'], sublinks: [
-          { href: "/dashboard/inventory/products", label: "Products", icon: Cookie, roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant'] },
-          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList, roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper'] },
-          { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot, roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant'] },
-          { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant'] },
-          { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker'] },
-          { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", icon: Archive, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant'] },
-          { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", icon: Trash2, roles: ['Manager', 'Supervisor'] },
+        icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Delivery Staff', 'Showroom Staff', 'Developer'], sublinks: [
+          { href: "/dashboard/inventory/products", label: "Products", icon: Cookie, roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Developer'] },
+          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList, roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'] },
+          { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot, roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Developer'] },
+          { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
+          { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
+          { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", icon: Archive, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
+          { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", icon: Trash2, roles: ['Manager', 'Supervisor', 'Developer'] },
         ]
       },
       {
-        icon: Users, label: "Customers", roles: ['Manager', 'Supervisor'], sublinks: [
+        icon: Users, label: "Customers", roles: ['Manager', 'Supervisor', 'Developer'], sublinks: [
           { href: "/dashboard/customers/profiles", label: "Profiles" },
           { href: "#", label: "Feedback" },
           { href: "#", label: "Loyalty Programs" },
         ]
       },
        {
-        icon: Users2, label: "Staff", roles: ['Manager', 'Supervisor'], sublinks: [
+        icon: Users2, label: "Staff", roles: ['Manager', 'Supervisor', 'Developer'], sublinks: [
           { href: "/dashboard/staff/management", label: "Staff Management" },
           { href: "/dashboard/staff/attendance", label: "Attendance" },
           { href: "/dashboard/staff/payroll", label: "Payroll" },
         ]
       },
-      { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", roles: ['Manager', 'Supervisor', 'Delivery Staff'] },
-      { href: "/dashboard/accounting", icon: Wallet, label: "Accounting", roles: ['Manager', 'Accountant'] },
-      { href: "#", icon: GanttChartSquare, label: "AI Analytics", roles: ['Manager'] },
-      { href: "/dashboard/communication", icon: HelpingHand, label: "Communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper'] },
-      { href: "/dashboard/documentation", icon: BookOpen, label: "Documentation", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper'] },
-      { href: "/dashboard/settings", icon: Settings, label: "Settings", roles: ['Manager'] },
+      { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", roles: ['Manager', 'Supervisor', 'Delivery Staff', 'Developer'] },
+      { href: "/dashboard/accounting", icon: Wallet, label: "Accounting", roles: ['Manager', 'Accountant', 'Developer'] },
+      { href: "#", icon: GanttChartSquare, label: "AI Analytics", roles: ['Manager', 'Developer'] },
+      { href: "/dashboard/communication", icon: HelpingHand, label: "Communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
+      { href: "/dashboard/documentation", icon: BookOpen, label: "Documentation", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
+      { href: "/dashboard/settings", icon: Settings, label: "Settings", roles: ['Manager', 'Developer'] },
     ];
 
     if (!user) return [];
