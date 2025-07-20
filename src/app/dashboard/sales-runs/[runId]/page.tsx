@@ -122,7 +122,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
     const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
     
     // Form state
-    const [selectedCustomerId, setSelectedCustomerId] = useState('');
+    const [selectedCustomerId, setSelectedCustomerId] = useState('walk-in');
     const [cart, setCart] = useState<{ productId: string, quantity: number, price: number, name: string }[]>([]);
     const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Card'>('Cash');
     const [itemQuantities, setItemQuantities] = useState<Record<string, number | string>>({});
@@ -136,6 +136,9 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
     useEffect(() => {
         if (isOpen) {
             fetchCustomers();
+            setSelectedCustomerId('walk-in');
+            setCart([]);
+            setPaymentMethod('Cash');
         }
     }, [isOpen]);
 
@@ -192,8 +195,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
     const handleSubmit = async () => {
         if (!user) return;
 
-        // If no customer is selected, treat as walk-in, otherwise use selected customer.
-        const customerId = selectedCustomerId || 'walk-in';
+        const customerId = selectedCustomerId === 'walk-in' ? 'walk-in' : selectedCustomerId;
         const customerName = selectedCustomer?.name || 'Walk-in';
 
         if (paymentMethod === 'Credit' && customerId === 'walk-in') {
@@ -219,7 +221,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
         };
 
         if (paymentMethod === 'Card') {
-            const customerEmail = selectedCustomer?.email || user.email; // Use staff email as fallback
+            const customerEmail = selectedCustomer?.email || user.email;
             if (!customerEmail) {
                  toast({ variant: 'destructive', title: 'Error', description: 'Email address is required for card payments.' });
                  setIsLoading(false);
@@ -232,7 +234,6 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                 runId: run.id,
             });
             if (paystackResult.success && paystackResult.authorization_url) {
-                // Instead of redirecting, let the callback handle it or use a popup
                  window.open(paystackResult.authorization_url, '_blank');
                  toast({title: 'Redirecting to Payment', description: 'Please complete payment in the new tab.'});
 
@@ -250,7 +251,6 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
             toast({ title: 'Success', description: 'Credit sale recorded successfully.' });
             onSaleMade();
             setIsOpen(false);
-            setCart([]);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -262,7 +262,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
         setIsCashConfirmOpen(false);
         setIsLoading(true);
 
-        const customerId = selectedCustomerId || 'walk-in';
+        const customerId = selectedCustomerId === 'walk-in' ? 'walk-in' : selectedCustomerId;
         const customerName = selectedCustomer?.name || 'Walk-in';
 
         const result = await handleSellToCustomer({
@@ -279,7 +279,6 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
             toast({ title: 'Pending Approval', description: 'Cash payment has been submitted for accountant approval.' });
             onSaleMade();
             setIsOpen(false);
-            setCart([]);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -336,7 +335,7 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                                 <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
                                     <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">Walk-in Customer</SelectItem>
+                                        <SelectItem value="walk-in">Walk-in Customer</SelectItem>
                                         {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
