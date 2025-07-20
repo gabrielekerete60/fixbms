@@ -27,7 +27,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogFooter
+  DialogFooter,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -239,9 +240,10 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                                             <Eye className="mr-2 h-4 w-4" />
                                             <span>View Details</span>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={async () => {
-                                            await setPrintingOrder(order);
-                                            handlePrint();
+                                        <DropdownMenuItem onSelect={() => {
+                                            setPrintingOrder(order);
+                                            // Delay print slightly to allow state to update and component to render
+                                            setTimeout(() => handlePrint(), 0);
                                         }}>
                                             <Printer className="mr-2 h-4 w-4" />
                                             <span>Print Receipt</span>
