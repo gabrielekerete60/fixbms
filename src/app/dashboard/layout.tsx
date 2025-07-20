@@ -61,13 +61,14 @@ import { cn } from '@/lib/utils';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getAttendanceStatus, handleClockIn, handleClockOut, handleLogin } from '../actions';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 type User = {
   name: string;
   role: string;
   staff_id: string;
+  sessionId: string;
 };
 
 function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string }) {
@@ -130,12 +131,12 @@ export default function DashboardLayout({
   const [attendanceId, setAttendanceId] = useState<string | null>(null);
   const [isClocking, setIsClocking] = useState(true);
 
-  const handleLogout = useCallback((message?: string) => {
+  const handleLogout = useCallback((message?: string, description?: string) => {
     localStorage.removeItem('loggedInUser');
     toast({
       variant: message ? "destructive" : "default",
-      title: message ? "Logged Out" : "Logged Out",
-      description: message || "You have been successfully logged out.",
+      title: message || "Logged Out",
+      description: description || "You have been successfully logged out.",
     });
     router.push("/");
   }, [router, toast]);
@@ -173,34 +174,28 @@ export default function DashboardLayout({
     return () => clearInterval(timer);
   }, []);
   
-  // Real-time user status check
+  // Real-time user status & session check
   useEffect(() => {
       if (!user) return;
 
-      const checkUserStatus = async () => {
-          const userDocRef = doc(db, "staff", user.staff_id);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-              const userData = userDoc.data();
+      const userDocRef = doc(db, "staff", user.staff_id);
+      
+      const unsubscribe = onSnapshot(userDocRef, (doc) => {
+          if (doc.exists()) {
+              const userData = doc.data();
               if (!userData.is_active) {
-                  handleLogout("This staff account is inactive.");
+                  handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
+              }
+              // Check for session mismatch
+              if (userData.sessionId && userData.sessionId !== user.sessionId) {
+                  handleLogout("Session Expired", "This account has been logged in on another device.");
               }
           } else {
-              // User doesn't exist anymore
-              handleLogout("User account not found.");
+              handleLogout("Account Deleted", "Your staff profile could not be found.");
           }
-      };
+      });
       
-      // Check every 15 seconds
-      const interval = setInterval(checkUserStatus, 15000);
-      
-      // Also check when window regains focus
-      window.addEventListener('focus', checkUserStatus);
-      
-      return () => {
-          clearInterval(interval);
-          window.removeEventListener('focus', checkUserStatus);
-      };
+      return () => unsubscribe();
 
   }, [user, handleLogout]);
 
@@ -384,7 +379,7 @@ export default function DashboardLayout({
                 <DropdownMenuItem>Support</DropdownMenuItem>
               </Link>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => handleLogout()}>Logout</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => handleLogout(undefined, "You have been successfully logged out.")}>Logout</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </header>

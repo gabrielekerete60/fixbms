@@ -6,6 +6,7 @@ import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc,
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear, eachDayOfInterval, format, subDays } from "date-fns";
 import { db } from "@/lib/firebase";
 import fetch from 'node-fetch';
+import { randomUUID } from 'crypto';
 
 type LoginResult = {
   success: boolean;
@@ -15,6 +16,7 @@ type LoginResult = {
     role: string;
     staff_id: string;
     email: string;
+    sessionId: string;
   }
 };
 
@@ -44,6 +46,12 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
         return { success: false, error: "This staff account is inactive." };
     }
 
+    const sessionId = randomUUID();
+    await updateDoc(userDocRef, {
+        sessionId: sessionId,
+        lastLogin: serverTimestamp(),
+    });
+
     return { 
       success: true,
       user: {
@@ -51,6 +59,7 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
         role: userData.role,
         staff_id: userDoc.id,
         email: userData.email,
+        sessionId: sessionId
       } 
     };
   } catch (error) {
@@ -1329,9 +1338,16 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
 
 export async function getOrdersForRun(runId: string): Promise<any[]> {
     try {
-        const q = query(collection(db, "orders"), where("salesRunId", "==", runId));
+        const q = query(collection(db, "orders"), where("salesRunId", "==", runId), orderBy('date', 'desc'));
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return snapshot.docs.map(d => {
+            const data = d.data();
+            return {
+                ...data,
+                id: d.id,
+                date: (data.date as Timestamp).toDate().toISOString()
+            }
+        });
     } catch (error) {
         console.error("Error fetching orders for run:", error);
         return [];
