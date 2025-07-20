@@ -567,7 +567,7 @@ export default function RecipesPage() {
                 getProductionLogs(),
             ]);
 
-            setRecipes(recipeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recipe[]).find(r => r.id === doc.id) || { id: doc.id, ...doc.data() } as Recipe));
+            setRecipes(recipeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recipe)));
             setProducts(productSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, category: doc.data().category } as Product)));
             setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ingredient)));
             setPendingBatches(batchData.pending.map(b => ({ ...b, createdAt: new Date(b.createdAt).toISOString() })));
@@ -600,7 +600,7 @@ export default function RecipesPage() {
     };
 
     const recipesWithCost = useMemo(() => {
-        if (!recipes || !ingredients || recipes.length === 0 || ingredients.length === 0) {
+        if (isLoading || !recipes.length || !ingredients.length) {
             return [];
         }
         const ingredientsMap = new Map(ingredients.map(i => [i.id, i]));
@@ -619,7 +619,7 @@ export default function RecipesPage() {
             }, 0);
             return { ...recipe, cost };
         });
-    }, [recipes, ingredients]);
+    }, [recipes, ingredients, isLoading]);
 
     const handleSave = async (recipeData: Omit<Recipe, 'id'>, user: User, recipeId?: string) => {
         const result = await handleSaveRecipe(recipeData, user, recipeId);
@@ -666,15 +666,17 @@ export default function RecipesPage() {
                 </Button>
             </div>
 
-            <RecipeDialog
-                isOpen={isDialogOpen}
-                onOpenChange={setIsDialogOpen}
-                onSave={handleSave}
-                recipe={editingRecipe}
-                products={products}
-                ingredients={ingredients}
-                user={user}
-            />
+            {isDialogOpen && (
+                <RecipeDialog
+                    isOpen={isDialogOpen}
+                    onOpenChange={setIsDialogOpen}
+                    onSave={handleSave}
+                    recipe={editingRecipe}
+                    products={products}
+                    ingredients={ingredients}
+                    user={user}
+                />
+            )}
 
             <Tabs defaultValue="production">
                 <TabsList>
