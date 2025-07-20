@@ -110,20 +110,32 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
   const [code, setCode] = useState("");
   const [type, setType] = useState("percentage");
   const [value, setValue] = useState<number | null>(0);
-  const [startDate, setStartDate] = useState<Date>();
-  const [endDate, setEndDate] = useState<Date>();
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
   const [applicableProducts, setApplicableProducts] = useState<{ value: string, label: string }[]>([]);
 
   useEffect(() => {
     if (isOpen) {
-      setName(promotion?.name || "");
-      setDescription(promotion?.description || "");
-      setCode(promotion?.code || "");
-      setType(promotion?.type || "percentage");
-      setValue(promotion?.value || 0);
-      setStartDate(promotion?.startDate ? new Date(promotion.startDate) : undefined);
-      setEndDate(promotion?.endDate ? new Date(promotion.endDate) : undefined);
-      setApplicableProducts(promotion?.applicableProducts || []);
+      if (promotion) {
+        setName(promotion.name);
+        setDescription(promotion.description);
+        setCode(promotion.code);
+        setType(promotion.type);
+        setValue(promotion.value);
+        setStartDate(promotion.startDate ? new Date(promotion.startDate) : undefined);
+        setEndDate(promotion.endDate ? new Date(promotion.endDate) : undefined);
+        setApplicableProducts(promotion.applicableProducts || []);
+      } else {
+        // Reset for new promotion
+        setName("");
+        setDescription("");
+        setCode("");
+        setType("percentage");
+        setValue(0);
+        setStartDate(undefined);
+        setEndDate(undefined);
+        setApplicableProducts([]);
+      }
     }
   }, [isOpen, promotion]);
 
@@ -702,5 +714,3 @@ export default function PromotionsPage() {
     </div>
   );
 }
-
-    
