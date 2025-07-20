@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from "react";
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Card,
