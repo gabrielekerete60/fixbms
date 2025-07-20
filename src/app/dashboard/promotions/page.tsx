@@ -172,11 +172,15 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
       backgroundColor: 'hsl(var(--input))',
       borderColor: 'hsl(var(--border))',
       color: 'hsl(var(--foreground))',
+      boxShadow: 'none',
+      '&:hover': {
+        borderColor: 'hsl(var(--ring))',
+      },
     }),
     multiValue: (provided) => ({
       ...provided,
-      backgroundColor: 'hsl(var(--primary) / 0.2)',
-      color: 'hsl(var(--primary))',
+      backgroundColor: 'hsl(var(--primary) / 0.8)',
+      color: 'hsl(var(--primary-foreground))',
     }),
      multiValueLabel: (provided) => ({
         ...provided,
@@ -187,19 +191,33 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
         color: 'hsl(var(--primary-foreground))',
         ':hover': {
             backgroundColor: 'hsl(var(--primary))',
-            color: 'white',
+            color: 'hsl(var(--primary-foreground))',
         },
     }),
     menu: (provided) => ({
       ...provided,
       backgroundColor: 'hsl(var(--popover))',
       color: 'hsl(var(--popover-foreground))',
+      border: '1px solid hsl(var(--border))',
     }),
     option: (provided, state) => ({
         ...provided,
         backgroundColor: state.isFocused ? 'hsl(var(--accent))' : 'transparent',
-        color: 'hsl(var(--accent-foreground))'
+        color: state.isFocused ? 'hsl(var(--accent-foreground))' : 'hsl(var(--popover-foreground))',
+        cursor: 'pointer'
     }),
+    input: (provided) => ({
+        ...provided,
+        color: 'hsl(var(--foreground))'
+    }),
+    placeholder: (provided) => ({
+        ...provided,
+        color: 'hsl(var(--muted-foreground))'
+    }),
+    singleValue: (provided) => ({
+        ...provided,
+        color: 'hsl(var(--foreground))'
+    })
   };
 
   return (
