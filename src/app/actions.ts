@@ -139,6 +139,49 @@ export async function verifyMfa(staffId: string, token: string): Promise<MfaResu
     }
 }
 
+export async function verifyMfaSetup(staffId: string, token: string, secret: string): Promise<{ success: boolean; error?: string }> {
+    if (!staffId || !token || !secret) {
+        return { success: false, error: "Staff ID, token, and secret are required." };
+    }
+    try {
+        const verified = speakeasy.totp.verify.call(speakeasy.totp, {
+            secret,
+            encoding: 'base32',
+            token,
+        });
+
+        if (!verified) {
+            return { success: false, error: "Invalid MFA token. Please check your authenticator app and try again." };
+        }
+
+        const userDocRef = doc(db, "staff", staffId);
+        await updateDoc(userDocRef, {
+            mfa_enabled: true,
+            mfa_secret: secret
+        });
+
+        return { success: true };
+
+    } catch (error) {
+        console.error("MFA setup verification error:", error);
+        return { success: false, error: "An unexpected server error occurred during MFA setup." };
+    }
+}
+
+export async function disableMfa(staffId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const userDocRef = doc(db, "staff", staffId);
+        await updateDoc(userDocRef, {
+            mfa_enabled: false,
+            mfa_secret: ""
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error disabling MFA:", error);
+        return { success: false, error: "Failed to disable MFA." };
+    }
+}
+
 
 type InitializePaystackResult = {
     success: boolean;

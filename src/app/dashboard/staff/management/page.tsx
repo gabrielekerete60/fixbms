@@ -61,11 +61,6 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc } from "
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import speakeasy from 'speakeasy';
-import QRCode from 'qrcode';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
 
 type Staff = {
   staff_id: string;
@@ -92,13 +87,11 @@ function StaffDialog({
   onOpenChange,
   onSave,
   staff,
-  onRefresh,
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: Omit<Staff, 'staff_id'>, staffId?: string) => void;
   staff: Partial<Staff> | null;
-  onRefresh: () => void;
 }) {
     const { toast } = useToast();
     const [name, setName] = useState("");
@@ -111,14 +104,7 @@ function StaffDialog({
     const [bankName, setBankName] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
     const [isActive, setIsActive] = useState(true);
-    const [isMfaEnabled, setIsMfaEnabled] = useState(false);
     
-    // MFA state
-    const [mfaSetupKey, setMfaSetupKey] = useState<string | null>(null);
-    const [mfaQrCode, setMfaQrCode] = useState<string | null>(null);
-    const [isGeneratingMfa, setIsGeneratingMfa] = useState(false);
-
-
     const availableRoles = [
         "Manager", "Supervisor", "Accountant", "Showroom Staff", "Delivery Staff", "Baker", "Cleaner", "Storekeeper"
     ];
@@ -135,56 +121,8 @@ function StaffDialog({
             setBankName(staff.bank_name || "");
             setAccountNumber(staff.account_number || "");
             setIsActive(staff.is_active === undefined ? true : staff.is_active);
-            setIsMfaEnabled(staff.mfa_enabled || false);
-
-            // Reset MFA setup when dialog opens/changes
-            setMfaSetupKey(null);
-            setMfaQrCode(null);
         }
     }, [staff]);
-
-    const generateMfaSetup = () => {
-        setIsGeneratingMfa(true);
-        const secret = speakeasy.generateSecret.call(speakeasy, {
-            name: `BMS (${staff?.email})`
-        });
-        setMfaSetupKey(secret.base32);
-        QRCode.toDataURL(secret.otpauth_url!, (err, data_url) => {
-            if (err) {
-                 toast({ variant: 'destructive', title: 'Error', description: 'Could not generate QR code.' });
-                 setMfaSetupKey(null);
-            } else {
-                setMfaQrCode(data_url);
-            }
-            setIsGeneratingMfa(false);
-        });
-    }
-
-    const handleEnableMfa = async () => {
-        if (!staff?.staff_id || !mfaSetupKey) {
-            toast({ variant: 'destructive', title: 'Error', description: 'No setup key to enable.' });
-            return;
-        }
-
-        const staffData: Partial<Omit<Staff, 'staff_id'>> = {
-            mfa_enabled: true,
-            mfa_secret: mfaSetupKey,
-        };
-        onSave(staffData as Omit<Staff, 'staff_id'>, staff.staff_id);
-        onOpenChange(false);
-    }
-    
-    const handleDisableMfa = async () => {
-        if (!staff?.staff_id) return;
-        
-        const staffData: Partial<Omit<Staff, 'staff_id'>> = {
-            mfa_enabled: false,
-            mfa_secret: '',
-        };
-        onSave(staffData as Omit<Staff, 'staff_id'>, staff.staff_id);
-        onOpenChange(false);
-    }
-
 
     const handleSubmit = () => {
         if (!name || !role || !email) {
@@ -222,136 +160,76 @@ function StaffDialog({
                 <DialogHeader>
                     <DialogTitle>{staff?.staff_id ? `Edit ${staff.name}` : 'Add New Staff Member'}</DialogTitle>
                 </DialogHeader>
-                <Tabs defaultValue="details">
-                     <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="details">Staff Details</TabsTrigger>
-                        <TabsTrigger value="security" disabled={!staff?.staff_id}>Security (MFA)</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="details">
-                        <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="name" className="text-right">Full Name</Label>
-                                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="email" className="text-right">Email Address</Label>
-                                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="role">Role</Label>
-                                    <Select value={role} onValueChange={setRole}>
-                                        <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
-                                        <SelectContent>
-                                            {availableRoles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="pay_type">Pay Type</Label>
-                                    <Select value={payType} onValueChange={(v) => setPayType(v as Staff['pay_type'])}>
-                                        <SelectTrigger><SelectValue placeholder="Select pay type" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Salary">Salary</SelectItem>
-                                            <SelectItem value="Hourly">Hourly</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="name" className="text-right">Full Name</Label>
+                        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="email" className="text-right">Email Address</Label>
+                        <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="col-span-3" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="role">Role</Label>
+                            <Select value={role} onValueChange={setRole}>
+                                <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
+                                <SelectContent>
+                                    {availableRoles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="pay_type">Pay Type</Label>
+                            <Select value={payType} onValueChange={(v) => setPayType(v as Staff['pay_type'])}>
+                                <SelectTrigger><SelectValue placeholder="Select pay type" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Salary">Salary</SelectItem>
+                                    <SelectItem value="Hourly">Hourly</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="pay_rate">Pay Rate (NGN)</Label>
+                        <Input id="pay_rate" type="number" value={payRate} onChange={(e) => setPayRate(parseFloat(e.target.value))} />
+                        <p className="text-xs text-muted-foreground px-1">Enter hourly rate or monthly salary based on pay type.</p>
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="password">Password</Label>
+                        <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={staff?.staff_id ? "Leave blank to keep unchanged" : "Set initial password"} />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="timezone">Timezone</Label>
+                        <Select value={timezone} onValueChange={setTimezone}>
+                            <SelectTrigger><SelectValue placeholder="Select timezone" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Africa/Lagos">Africa/Lagos</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2 pt-2">
+                        <h3 className="font-medium">Bank Details (for Payroll)</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="bank_name">Bank Name</Label>
+                                <Input id="bank_name" value={bankName} onChange={(e) => setBankName(e.target.value)} />
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="pay_rate">Pay Rate (NGN)</Label>
-                                <Input id="pay_rate" type="number" value={payRate} onChange={(e) => setPayRate(parseFloat(e.target.value))} />
-                                <p className="text-xs text-muted-foreground px-1">Enter hourly rate or monthly salary based on pay type.</p>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="password">Password</Label>
-                                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={staff?.staff_id ? "Leave blank to keep unchanged" : "Set initial password"} />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="timezone">Timezone</Label>
-                                <Select value={timezone} onValueChange={setTimezone}>
-                                    <SelectTrigger><SelectValue placeholder="Select timezone" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Africa/Lagos">Africa/Lagos</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2 pt-2">
-                                <h3 className="font-medium">Bank Details (for Payroll)</h3>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="bank_name">Bank Name</Label>
-                                        <Input id="bank_name" value={bankName} onChange={(e) => setBankName(e.target.value)} />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="account_number">Account Number</Label>
-                                        <Input id="account_number" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex items-center space-x-2 pt-2">
-                                <Checkbox id="is_active" checked={isActive} onCheckedChange={(checked) => setIsActive(checked as boolean)} />
-                                <label htmlFor="is_active" className="text-sm font-medium leading-none">Is Active</label>
+                                <Label htmlFor="account_number">Account Number</Label>
+                                <Input id="account_number" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
                             </div>
                         </div>
-                         <DialogFooter>
-                            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                            <Button onClick={handleSubmit}>{staff?.staff_id ? 'Save Changes' : 'Create Staff'}</Button>
-                        </DialogFooter>
-                    </TabsContent>
-                    <TabsContent value="security">
-                        <div className="py-4 space-y-4">
-                            <Alert>
-                                <ShieldCheck className="h-4 w-4" />
-                                <AlertTitle>What is MFA?</AlertTitle>
-                                <AlertDescription>
-                                    Multi-Factor Authentication adds an extra layer of security. The user will need a code from an app like Google Authenticator to log in.
-                                </AlertDescription>
-                            </Alert>
-                            {isMfaEnabled ? (
-                                <div className="text-center space-y-4">
-                                    <p>MFA is currently <span className="font-bold text-green-500">ENABLED</span> for this user.</p>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="destructive">Disable MFA</Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                <AlertDialogDescription>This will remove the extra security layer from this account.</AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={handleDisableMfa}>Yes, Disable</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </div>
-                            ) : mfaSetupKey && mfaQrCode ? (
-                                <div className="space-y-4 text-center">
-                                    <p>Scan the QR code with an authenticator app (e.g., Google Authenticator).</p>
-                                     <div className="flex justify-center">
-                                       <img src={mfaQrCode} alt="MFA QR Code" />
-                                     </div>
-                                    <p className="text-xs text-muted-foreground">Or enter this key manually:</p>
-                                    <div className="flex items-center justify-center gap-2">
-                                        <code className="p-2 bg-muted rounded-md">{mfaSetupKey}</code>
-                                        <Button size="icon" variant="ghost" onClick={() => { navigator.clipboard.writeText(mfaSetupKey); toast({title: "Copied!"}) }}><Copy className="h-4 w-4"/></Button>
-                                    </div>
-                                    <Button onClick={handleEnableMfa}>Confirm and Enable MFA</Button>
-                                </div>
-                            ) : (
-                                <div className="text-center">
-                                    <p className="mb-4">MFA is currently <span className="font-bold text-destructive">DISABLED</span>.</p>
-                                    <Button onClick={generateMfaSetup} disabled={isGeneratingMfa}>
-                                        {isGeneratingMfa && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                                        Generate Setup Key
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-                    </TabsContent>
-                </Tabs>
+                    </div>
+                    <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox id="is_active" checked={isActive} onCheckedChange={(checked) => setIsActive(checked as boolean)} />
+                        <label htmlFor="is_active" className="text-sm font-medium leading-none">Is Active</label>
+                    </div>
+                </div>
+                 <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit}>{staff?.staff_id ? 'Save Changes' : 'Create Staff'}</Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
@@ -510,7 +388,6 @@ export default function StaffManagementPage() {
                 onOpenChange={setIsFormDialogOpen}
                 onSave={handleSaveStaff}
                 staff={editingStaff}
-                onRefresh={fetchStaff}
             />
 
             <StaffDetailDialog
