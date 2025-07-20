@@ -75,7 +75,6 @@ export async function initializePaystackTransaction(orderPayload: any): Promise<
     const url = "https://api.paystack.co/transaction/initialize";
     const amountInKobo = Math.round(orderPayload.total * 100);
 
-    // Create a temporary order document to get an ID for the reference
     const tempOrderRef = doc(collection(db, "temp_orders"));
     await setDoc(tempOrderRef, { ...orderPayload, createdAt: serverTimestamp() });
     
@@ -88,7 +87,7 @@ export async function initializePaystackTransaction(orderPayload: any): Promise<
         callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payment/callback`,
         metadata: {
             orderId: reference,
-            cancel_action: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/sales-runs/${orderPayload.runId}?payment_status=cancelled`,
+            cancel_action: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payment/callback?payment_status=cancelled`,
         }
     };
 
@@ -108,7 +107,6 @@ export async function initializePaystackTransaction(orderPayload: any): Promise<
             return { success: true, authorization_url: result.data.authorization_url };
         } else {
             console.error("Paystack API Error:", result.message);
-            // Clean up the temporary order if initialization fails
             await deleteDoc(tempOrderRef);
             return { success: false, error: result.message };
         }

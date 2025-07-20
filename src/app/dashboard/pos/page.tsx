@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import Image from "next/image";
 import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, doc, runTransaction, increment, getDoc, query, where } from "firebase/firestore";
+import { collection, getDocs, doc, runTransaction, increment, getDoc, query, where, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -94,6 +94,12 @@ type SelectableStaff = {
     role: string;
 };
 
+type PaymentStatus = {
+    status: 'idle' | 'processing' | 'success' | 'failed' | 'cancelled';
+    orderId?: string | null;
+    message?: string;
+}
+
 function POSPageContent() {
   const { toast } = useToast();
   const router = useRouter();
@@ -111,11 +117,14 @@ function POSPageContent() {
   const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useLocalStorage('isProcessingPayment', false);
+  
+  const [paymentStatus, setPaymentStatus] = useLocalStorage<PaymentStatus>('paymentStatus', { status: 'idle' });
 
   const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useLocalStorage<string | null>('posSelectedStaff', null);
   const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
+  
+  const receiptRef = useRef<HTMLDivElement>(null);
 
   const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
 
@@ -189,35 +198,35 @@ function POSPageContent() {
     initializePos();
   }, []);
   
-  // Handle payment status from redirect
+  // Handle payment status changes from local storage
   useEffect(() => {
-    const paymentStatus = searchParams.get('payment_status');
-    const orderId = searchParams.get('order_id');
-    
-    const handlePaymentResult = async () => {
-        setIsProcessingPayment(false); // Always stop processing when returning
-        
-        if (paymentStatus === 'success' && orderId) {
-            toast({ title: "Payment Successful", description: "Order completed." });
-            const orderDoc = await getDoc(doc(db, 'orders', orderId));
-            if (orderDoc.exists()) {
-                setLastCompletedOrder(orderDoc.data() as CompletedOrder);
-                setIsReceiptOpen(true);
-            }
-        } else if (paymentStatus === 'cancelled') {
-            toast({ variant: 'destructive', title: "Transaction Cancelled", description: "Your payment was cancelled. Please try again." });
-        } else if (paymentStatus === 'failed') {
-            const message = searchParams.get('message');
-            toast({ variant: 'destructive', title: "Payment Failed", description: message || "An unknown error occurred." });
-        }
-        // Clean URL after handling
-        router.replace('/dashboard/pos', {scroll: false});
-    }
+    const handleStorageChange = async () => {
+        const storedStatusRaw = localStorage.getItem('paymentStatus');
+        if (storedStatusRaw) {
+            const newStatus: PaymentStatus = JSON.parse(storedStatusRaw);
 
-    if(paymentStatus) {
-        handlePaymentResult();
+            if (newStatus.status === 'success' && newStatus.orderId) {
+                toast({ title: "Payment Successful", description: "Order completed." });
+                const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
+                if (orderDoc.exists()) {
+                    setLastCompletedOrder(orderDoc.data() as CompletedOrder);
+                    setIsReceiptOpen(true);
+                }
+                setPaymentStatus({ status: 'idle' }); // Reset status
+            } else if (newStatus.status === 'cancelled') {
+                toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
+                setPaymentStatus({ status: 'idle' });
+            } else if (newStatus.status === 'failed') {
+                toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
+                setPaymentStatus({ status: 'idle' });
+            }
+        }
     }
-  }, [searchParams, router, toast, setIsProcessingPayment]);
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+
+  }, [toast, setPaymentStatus]);
 
   const clearCartAndStorage = () => {
     setCart([]);
@@ -231,7 +240,9 @@ function POSPageContent() {
         return null;
     }
 
+    const orderRef = doc(collection(db, "orders"));
     const newOrderData = {
+      id: orderRef.id,
       items: cart,
       subtotal: total,
       total: total,
@@ -239,12 +250,11 @@ function POSPageContent() {
       paymentMethod,
       customerName: customerName || 'Walk-in',
       status: 'Completed' as const,
-      staff_id: selectedStaffId,
-      staff_name: allStaff.find(s => s.staff_id === selectedStaffId)?.name || user.name
+      staffId: selectedStaffId,
+      staffName: allStaff.find(s => s.staff_id === selectedStaffId)?.name || user.name
     };
   
     try {
-      const orderRef = doc(collection(db, "orders"));
       await runTransaction(db, async (transaction) => {
           for (const item of cart) {
               const personalStockRef = doc(db, 'staff', selectedStaffId, 'personal_stock', item.id);
@@ -258,16 +268,11 @@ function POSPageContent() {
           transaction.set(orderRef, newOrderData);
       });
       
-      const newOrder: CompletedOrder = {
-        id: orderRef.id,
-        ...newOrderData,
-      };
-      
-      setLastCompletedOrder(newOrder);
+      setLastCompletedOrder(newOrderData);
       clearCartAndStorage();
 
       await fetchProductsForStaff(selectedStaffId);
-      return newOrder;
+      return newOrderData;
     } catch (error) {
       console.error("Error saving order:", error);
       const errorMessage = error instanceof Error ? error.message : "There was a problem saving the order to the database.";
@@ -288,7 +293,7 @@ function POSPageContent() {
         return;
     }
     
-    setIsProcessingPayment(true);
+    setPaymentStatus({ status: 'processing' });
     
     const orderPayload = {
       items: cart,
@@ -303,10 +308,10 @@ function POSPageContent() {
     const result = await initializePaystackTransaction(orderPayload);
     
     if (result.success && result.authorization_url) {
-        window.location.href = result.authorization_url;
+        window.open(result.authorization_url, '_blank', 'noopener,noreferrer');
     } else {
         toast({ variant: "destructive", title: "Payment Initialization Failed", description: result.error || "Could not connect to Paystack." });
-        setIsProcessingPayment(false);
+        setPaymentStatus({ status: 'failed', message: result.error });
     }
   };
 
@@ -399,20 +404,19 @@ function POSPageContent() {
 
   const handleCashPayment = async () => {
     setIsCashConfirmOpen(false);
-    setIsProcessingPayment(true);
+    setPaymentStatus({ status: 'processing' });
     const completed = await completeOrder('Cash');
     if (completed) {
         toast({ title: 'Order Successful', description: 'The order has been completed.' });
         setIsReceiptOpen(true);
     }
-    setIsProcessingPayment(false);
+    setPaymentStatus({ status: 'idle' });
   }
 
   const handlePrintReceipt = () => {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
-        const receiptContent = document.getElementById('receipt-content');
-        if (receiptContent) {
+        if (receiptRef.current) {
             const printableContent = `
                 <html>
                     <head>
@@ -438,7 +442,7 @@ function POSPageContent() {
                     </head>
                     <body>
                         <div class="receipt-container">
-                            ${receiptContent.innerHTML}
+                            ${receiptRef.current.innerHTML}
                         </div>
                     </body>
                 </html>
@@ -658,12 +662,12 @@ function POSPageContent() {
                 </div>
             </div>
             <div className="grid grid-cols-2 gap-2 w-full">
-                <Button variant="outline" onClick={holdOrder} disabled={cart.length === 0 || !selectedStaffId || isProcessingPayment}>
+                <Button variant="outline" onClick={holdOrder} disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'}>
                     <Hand /> Hold
                 </Button>
                  <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={cart.length === 0 || !selectedStaffId || isProcessingPayment}>
+                        <Button variant="destructive" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'}>
                             <Trash2/> Clear
                         </Button>
                     </AlertDialogTrigger>
@@ -681,12 +685,12 @@ function POSPageContent() {
                     </AlertDialogContent>
                 </AlertDialog>
             </div>
-             <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId || isProcessingPayment} onClick={() => setIsCheckoutOpen(true)}>
-                {isProcessingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+             <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'} onClick={() => setIsCheckoutOpen(true)}>
+                {paymentStatus.status === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                 Checkout
              </Button>
-             {isProcessingPayment && (
-                <Button variant="outline" size="sm" className="w-full" onClick={() => setIsProcessingPayment(false)}>
+             {paymentStatus.status === 'processing' && (
+                <Button variant="outline" size="sm" className="w-full" onClick={() => setPaymentStatus({ status: 'idle' })}>
                     Cancel Payment
                 </Button>
              )}
@@ -735,7 +739,7 @@ function POSPageContent() {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-4 py-4">
-                     <Button variant="outline" className="h-24 text-lg" onClick={() => setIsCashConfirmOpen(true)}>
+                     <Button variant="outline" className="h-24 text-lg" onClick={() => { setIsCheckoutOpen(false); setIsCashConfirmOpen(true); } }>
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
@@ -767,7 +771,7 @@ function POSPageContent() {
         {lastCompletedOrder && (
             <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
                 <DialogContent className="sm:max-w-md print:max-w-full print:border-none print:shadow-none">
-                     <div id="receipt-content">
+                     <div ref={receiptRef}>
                         <DialogHeader>
                             <DialogTitle className="font-headline text-2xl text-center">BMS</DialogTitle>
                             <DialogDescription className="text-center">
@@ -791,8 +795,8 @@ function POSPageContent() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {lastCompletedOrder.items.map(item => (
-                                    <TableRow key={item.id}>
+                                    {lastCompletedOrder.items.map((item, i) => (
+                                    <TableRow key={i}>
                                         <TableCell>{item.name}</TableCell>
                                         <TableCell className="text-center">{item.quantity}</TableCell>
                                         <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
@@ -829,3 +833,5 @@ export default function POSPage() {
         </Suspense>
     )
 }
+
+    

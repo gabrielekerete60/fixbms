@@ -17,10 +17,17 @@ type VerificationResult = {
     runId?: string;
 };
 
+type PaymentStatus = {
+    status: 'idle' | 'processing' | 'success' | 'failed' | 'cancelled';
+    orderId?: string | null;
+    message?: string;
+}
+
+
 async function verifyPaystackTransaction(reference: string): Promise<any> {
-    // This function should be a server action for security, but for simplicity we keep it here.
-    // In a real app, move this to a server action and call it.
     const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
+    if (!secretKey) return { status: false, message: "Paystack secret key is not configured." };
+    
     const url = `https://api.paystack.co/transaction/verify/${reference}`;
     
     try {
@@ -43,16 +50,20 @@ function PaymentCallback() {
     const [result, setResult] = useState<VerificationResult>({ status: 'verifying', message: 'Verifying your payment, please wait...' });
 
     useEffect(() => {
-        const reference = searchParams.get('reference');
+        const reference = searchParams.get('reference') || searchParams.get('trxref');
         
-        const trxref = searchParams.get('trxref');
-        if (!reference && trxref) {
-            // Paystack uses 'trxref' as well, handle both cases.
-             processTransaction(trxref);
-        } else if (reference) {
+        if (reference) {
             processTransaction(reference);
         } else {
-             setResult({ status: 'failed', message: 'No payment reference found.' });
+            const status = searchParams.get('payment_status');
+            if (status === 'cancelled') {
+                 setResult({ status: 'cancelled', message: 'The payment was cancelled.' });
+                 localStorage.setItem('paymentStatus', JSON.stringify({ status: 'cancelled', message: 'The payment was cancelled.' }));
+                 setTimeout(() => window.close(), 1500);
+            } else {
+                setResult({ status: 'failed', message: 'No payment reference found.' });
+                localStorage.setItem('paymentStatus', JSON.stringify({ status: 'failed', message: 'No payment reference found.' }));
+            }
         }
     }, [searchParams]);
 
@@ -64,9 +75,11 @@ function PaymentCallback() {
         const runId = metadata.runId;
 
         if (verificationResponse?.data?.status !== 'success') {
-            setResult({ status: 'failed', message: verificationResponse.message || 'Payment verification failed.', orderId });
-            const tempOrderRef = doc(db, 'temp_orders', reference);
-            await deleteDoc(tempOrderRef).catch(console.error);
+            const failureMessage = verificationResponse.message || 'Payment verification failed.';
+            setResult({ status: 'failed', message: failureMessage, orderId });
+            localStorage.setItem('paymentStatus', JSON.stringify({ status: 'failed', message: failureMessage, orderId }));
+            await deleteDoc(doc(db, 'temp_orders', reference)).catch(console.error);
+            setTimeout(() => window.close(), 3000);
             return;
         }
 
@@ -76,9 +89,7 @@ function PaymentCallback() {
              await runTransaction(db, async (transaction) => {
                 const tempOrderDoc = await transaction.get(tempOrderRef);
                 if (!tempOrderDoc.exists()) {
-                    // It might have been processed already, which is not an error in this context.
-                    // We can assume success and redirect.
-                    console.log(`Order ${reference} already processed.`);
+                    console.log(`Order ${reference} might have been processed already.`);
                     return;
                 }
                 const orderData = tempOrderDoc.data();
@@ -88,55 +99,40 @@ function PaymentCallback() {
                     throw new Error(`Amount mismatch. Expected ${expectedAmount}, got ${verificationResponse.data.amount}.`);
                 }
                 
-                if (orderData.isDebtPayment) {
-                    // This is a payment for an existing debt
-                    const runRef = doc(db, 'transfers', orderData.runId);
-                    transaction.update(runRef, { totalCollected: increment(orderData.total) });
+                const finalOrderRef = doc(db, "orders", orderId);
+                const finalOrderData = {
+                    ...orderData,
+                    id: orderId,
+                    paymentMethod: 'Card',
+                    status: 'Completed',
+                };
+                delete finalOrderData.createdAt;
 
+                if (orderData.isDebtPayment) {
+                    transaction.update(doc(db, 'transfers', orderData.runId), { totalCollected: increment(orderData.total) });
                     if (orderData.customerId) {
-                        const customerRef = doc(db, 'customers', orderData.customerId);
-                        transaction.update(customerRef, { amountPaid: increment(orderData.total) });
+                        transaction.update(doc(db, 'customers', orderData.customerId), { amountPaid: increment(orderData.total) });
                     }
                 } else {
-                    // This is a new sale from POS
-                    const finalOrderRef = doc(db, "orders", orderId);
-                    transaction.set(finalOrderRef, {
-                        ...orderData,
-                        paymentMethod: 'Card',
-                        status: 'Completed',
-                        id: orderId,
-                    });
-
-                     // No stock deduction here because it's a POS sale from personal inventory.
-                     // The temp_order is just for paystack reference.
-                     // A real order will be created upon confirmation.
+                    transaction.set(finalOrderRef, finalOrderData);
                 }
                 
                 transaction.delete(tempOrderRef);
             });
             
-            setResult({ status: 'success', message: 'Payment successful! Your transaction has been recorded.', orderId, runId });
+            const successMessage = 'Payment successful! Your transaction has been recorded.';
+            setResult({ status: 'success', message: successMessage, orderId, runId });
+            localStorage.setItem('paymentStatus', JSON.stringify({ status: 'success', orderId, message: successMessage }));
+            setTimeout(() => window.close(), 1500);
 
         } catch (error) {
             console.error("Error completing transaction:", error);
             const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
             setResult({ status: 'failed', message: `Transaction completion failed: ${errorMessage}`, orderId });
+            localStorage.setItem('paymentStatus', JSON.stringify({ status: 'failed', message: `Transaction completion failed: ${errorMessage}`, orderId }));
+            setTimeout(() => window.close(), 3000);
         }
     };
-    
-    const handleReturn = () => {
-        if (result.status === 'success') {
-            // For POS sales, redirect back to POS page with params to trigger receipt.
-            if (!result.runId) {
-                router.push(`/dashboard/pos?payment_status=success&order_id=${result.orderId}`);
-            } else {
-            // For debt payments from a sales run, redirect to that run's page.
-                router.push(`/dashboard/sales-runs/${result.runId}`);
-            }
-        } else {
-            router.back();
-        }
-    }
 
     return (
         <main className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -156,10 +152,8 @@ function PaymentCallback() {
                     }</CardTitle>
                     <CardDescription>{result.message}</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    {result.status !== 'verifying' && (
-                        <Button onClick={handleReturn} className="w-full">Continue</Button>
-                    )}
+                 <CardContent>
+                    <p className="text-xs text-center text-muted-foreground">This window will close automatically.</p>
                 </CardContent>
             </Card>
         </main>
@@ -173,3 +167,5 @@ export default function PaymentCallbackPage() {
         </Suspense>
     );
 }
+
+    
