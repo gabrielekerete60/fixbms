@@ -87,12 +87,10 @@ const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder }>(({ o
   return (
     <div ref={ref} className="print:p-8">
       <div id={`receipt-${order.id}`}>
-        <DialogHeader>
-          <DialogTitle className="font-headline text-2xl text-center">BMS</DialogTitle>
-          <DialogDescription className="text-center">
-              Sale Receipt
-          </DialogDescription>
-        </DialogHeader>
+        <div className="text-center mb-4">
+          <h2 className="font-headline text-2xl text-center">BMS</h2>
+          <p className="text-center">Sale Receipt</p>
+        </div>
         <div className="py-4 space-y-4">
             <div className="text-sm text-muted-foreground">
                 <p><strong>Order ID:</strong> {order.id}</p>
@@ -176,7 +174,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-
+        
         <div className="hidden">
             {printingOrder && <Receipt order={printingOrder} ref={receiptRef} />}
         </div>
