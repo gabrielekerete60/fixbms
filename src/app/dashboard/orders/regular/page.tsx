@@ -52,7 +52,7 @@ import { Input } from "@/components/ui/input"
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { useReactToPrint } from 'react-to-print';
@@ -77,74 +77,64 @@ type CompletedOrder = {
   subtotal: number;
   tax: number;
   total: number;
-  date: string;
+  date: Timestamp;
   paymentMethod: 'Card' | 'Cash';
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
 
-function Receipt({ order }: { order: CompletedOrder }) {
-   const componentRef = useRef(null);
-
-   const handlePrint = useReactToPrint({
-      content: () => componentRef.current,
-      documentTitle: `Receipt-${order.id}`,
-   });
-
+const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder }>(({ order }, ref) => {
   return (
-    <DialogContent className="sm:max-w-md">
-      <div ref={componentRef} className="print:p-8">
-        <div id={`receipt-${order.id}`}>
-          <DialogHeader>
-            <DialogTitle className="font-headline text-2xl text-center">BMS</DialogTitle>
-            <DialogDescription className="text-center">
-                Sale Receipt
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-              <div className="text-sm text-muted-foreground">
-                  <p><strong>Order ID:</strong> {order.id}</p>
-                  <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
-                  <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
-                  <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
-              </div>
-              <Separator />
-              <Table>
-                  <TableHeader>
-                      <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead className="text-center">Qty</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                      {order.items.map((item, index) => (
-                      <TableRow key={item.id || index}>
-                          <TableCell>{item.name}</TableCell>
-                          <TableCell className="text-center">{item.quantity}</TableCell>
-                          <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
-                      </TableRow>
-                      ))}
-                  </TableBody>
-              </Table>
-                  <Separator />
-                  <div className="w-full space-y-1 text-sm pr-2">
-                  <div className="flex justify-between font-bold text-base mt-1">
-                      <span>Total</span>
-                      <span>₦{order.total.toFixed(2)}</span>
-                  </div>
-              </div>
-              <Separator />
-              <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
-          </div>
+    <div ref={ref} className="print:p-8">
+      <div id={`receipt-${order.id}`}>
+        <DialogHeader>
+          <DialogTitle className="font-headline text-2xl text-center">BMS</DialogTitle>
+          <DialogDescription className="text-center">
+              Sale Receipt
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4 space-y-4">
+            <div className="text-sm text-muted-foreground">
+                <p><strong>Order ID:</strong> {order.id}</p>
+                <p><strong>Date:</strong> {order.date.toDate().toLocaleString()}</p>
+                <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
+                <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
+            </div>
+            <Separator />
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead className="text-center">Qty</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {order.items.map((item, index) => (
+                    <TableRow key={item.id || index}>
+                        <TableCell>{item.name}</TableCell>
+                        <TableCell className="text-center">{item.quantity}</TableCell>
+                        <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
+                    </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+                <Separator />
+                <div className="w-full space-y-1 text-sm pr-2">
+                <div className="flex justify-between font-bold text-base mt-1">
+                    <span>Total</span>
+                    <span>₦{order.total.toFixed(2)}</span>
+                </div>
+            </div>
+            <Separator />
+            <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
         </div>
       </div>
-      <div className="flex justify-end gap-2 print:hidden">
-          <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print</Button>
-      </div>
-    </DialogContent>
+    </div>
   );
-}
+});
+Receipt.displayName = 'Receipt';
+
 
 const getStatusVariant = (status?: string) => {
     if (!status) return 'outline';
@@ -161,12 +151,28 @@ const getStatusVariant = (status?: string) => {
 }
 
 function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean }) {
+    const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
+    const receiptRef = useRef<HTMLDivElement>(null);
+    
+    const handlePrint = useReactToPrint({
+        content: () => receiptRef.current,
+        documentTitle: `Receipt-${viewingOrder?.id}`,
+    });
     
     return (
+        <>
+        <Dialog open={!!viewingOrder} onOpenChange={(open) => !open && setViewingOrder(null)}>
+            <DialogContent className="sm:max-w-md">
+                {viewingOrder && <Receipt order={viewingOrder} ref={receiptRef} />}
+                 <DialogFooter className="flex justify-end gap-2 print:hidden">
+                    <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableCell padding="checkbox">
+                    <TableCell>
                        <Checkbox
                             checked={allOrdersSelected}
                             onCheckedChange={(checked) => onSelectAll(checked as boolean)}
@@ -193,7 +199,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                 ) : (
                     orders.map((order) => (
                         <TableRow key={order.id} data-state={selectedOrders.includes(order.id) ? "selected" : undefined}>
-                            <TableCell padding="checkbox">
+                            <TableCell>
                                 <Checkbox
                                     checked={selectedOrders.includes(order.id)}
                                     onCheckedChange={(checked) => onSelectOne(order.id, checked as boolean)}
@@ -201,7 +207,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                                 />
                             </TableCell>
                             <TableCell className="font-medium">{order.id.substring(0, 7)}...</TableCell>
-                            <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
+                            <TableCell>{order.date.toDate().toLocaleDateString()}</TableCell>
                             <TableCell>{order.customerName || 'Walk-in'}</TableCell>
                             <TableCell>{order.items.reduce((acc, item) => acc + item.quantity, 0)}</TableCell>
                             <TableCell>
@@ -216,31 +222,27 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                             </TableCell>
                             <TableCell className="text-right">₦{order.total.toFixed(2)}</TableCell>
                             <TableCell className="text-center">
-                               <Dialog>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" className="h-8 w-8 p-0">
-                                            <span className="sr-only">Open menu</span>
-                                            <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                             <DialogTrigger asChild>
-                                                <DropdownMenuItem>
-                                                    <Eye className="mr-2 h-4 w-4" />
-                                                    <span>View Details</span>
-                                                </DropdownMenuItem>
-                                             </DialogTrigger>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                    <Receipt order={order} />
-                               </Dialog>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <span className="sr-only">Open menu</span>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onSelect={() => setViewingOrder(order)}>
+                                            <Eye className="mr-2 h-4 w-4" />
+                                            <span>View Details</span>
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </TableCell>
                         </TableRow>
                     ))
                 )}
             </TableBody>
         </Table>
+        </>
     );
 }
 
@@ -363,7 +365,7 @@ export default function RegularOrdersPage() {
 
   const filteredOrders = useMemo(() => {
     return allOrders.filter(order => {
-      const orderDate = new Date(order.date);
+      const orderDate = order.date.toDate();
       const dateMatch = !date?.from || (orderDate >= date.from && (!date.to || orderDate <= date.to));
       const searchMatch = !searchTerm || order.id.toLowerCase().includes(searchTerm.toLowerCase()) || order.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
       const paymentMatch = paymentMethodFilter === 'all' || order.paymentMethod === paymentMethodFilter;
@@ -394,7 +396,7 @@ export default function RegularOrdersPage() {
     
     if (options.dateRange?.from) {
         ordersToExport = ordersToExport.filter(order => {
-            const orderDate = new Date(order.date);
+            const orderDate = order.date.toDate();
             return orderDate >= options.dateRange!.from! && (!options.dateRange!.to || orderDate <= options.dateRange!.to!);
         });
     }
@@ -405,7 +407,7 @@ export default function RegularOrdersPage() {
 
     const headers = ["Order ID", "Date", "Customer", "Status", "Payment Method", "Total"];
     const rows = ordersToExport.map(o => 
-        [o.id, new Date(o.date).toLocaleString(), o.customerName || 'Walk-in', o.status, o.paymentMethod, o.total].join(',')
+        [o.id, o.date.toDate().toLocaleString(), o.customerName || 'Walk-in', o.status, o.paymentMethod, o.total].join(',')
     );
     const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.join("\n");
     const encodedUri = encodeURI(csvContent);
@@ -542,7 +544,7 @@ export default function RegularOrdersPage() {
                 {getSelectedOrdersData().map(order => (
                     <div key={order.id} className="mb-8 p-4 border rounded-lg page-break-before:always">
                         <h2 className="text-xl font-semibold mb-2">Order ID: {order.id.substring(0,7)}...</h2>
-                        <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
+                        <p><strong>Date:</strong> {order.date.toDate().toLocaleString()}</p>
                         <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
                         <p><strong>Status:</strong> {order.status}</p>
                         <Separator className="my-4" />
