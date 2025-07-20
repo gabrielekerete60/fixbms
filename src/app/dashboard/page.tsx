@@ -44,7 +44,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { collection, query, where, onSnapshot, Timestamp, getDocs } from "firebase/firestore";
 import { db } from '@/lib/firebase';
-import { startOfDay, startOfWeek, startOfMonth, startOfYear, eachDayOfInterval, format } from 'date-fns';
+import { startOfDay, startOfWeek, endOfWeek, startOfMonth, startOfYear, eachDayOfInterval, format } from 'date-fns';
 
 type User = {
   name: string;
@@ -143,7 +143,7 @@ function ManagementDashboard() {
         
         // Real-time weekly revenue calculation
         const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-        const weekEnd = new Date();
+        const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
         const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
         const weeklyRevenueData = daysInWeek.map(day => ({ day: format(day, 'E'), revenue: 0 }));
         

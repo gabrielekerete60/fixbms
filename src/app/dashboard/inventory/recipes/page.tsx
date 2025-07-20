@@ -50,7 +50,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -567,13 +567,12 @@ export default function RecipesPage() {
                 getProductionLogs(),
             ]);
 
-            setRecipes(recipeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Recipe[]);
-            setProducts(productSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, category: doc.data().category })) as Product[]);
-            setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[]);
-            setPendingBatches(batchData.pending);
-            setInProductionBatches(batchData.in_production);
-            setProductionLogs(logsData);
-
+            setRecipes(recipeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recipe[]).find(r => r.id === doc.id) || { id: doc.id, ...doc.data() } as Recipe));
+            setProducts(productSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, category: doc.data().category } as Product)));
+            setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ingredient)));
+            setPendingBatches(batchData.pending.map(b => ({ ...b, createdAt: new Date(b.createdAt).toISOString() })));
+            setInProductionBatches(batchData.in_production.map(b => ({ ...b, createdAt: new Date(b.createdAt).toISOString() })));
+            setProductionLogs(logsData.map(l => ({ ...l, timestamp: new Date(l.timestamp).toISOString() })));
         } catch (error) {
             console.error("Error fetching data:", error);
             toast({ variant: "destructive", title: "Error", description: "Could not fetch data from the database." });
@@ -601,6 +600,7 @@ export default function RecipesPage() {
     };
 
     const recipesWithCost = useMemo(() => {
+        if (isLoading) return [];
         const ingredientsMap = new Map(ingredients.map(i => [i.id, i]));
         return recipes.map(recipe => {
             const cost = recipe.ingredients.reduce((acc, currentIng) => {
@@ -617,7 +617,7 @@ export default function RecipesPage() {
             }, 0);
             return { ...recipe, cost };
         });
-    }, [recipes, ingredients]);
+    }, [recipes, ingredients, isLoading]);
 
     const handleSave = async (recipeData: Omit<Recipe, 'id'>, user: User, recipeId?: string) => {
         const result = await handleSaveRecipe(recipeData, user, recipeId);
@@ -824,4 +824,3 @@ export default function RecipesPage() {
             </AlertDialog>
         </div>
     );
-    
