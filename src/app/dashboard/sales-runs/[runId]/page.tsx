@@ -219,17 +219,27 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
         };
 
         if (paymentMethod === 'Card') {
+            const customerEmail = selectedCustomer?.email || user.email; // Use staff email as fallback
+            if (!customerEmail) {
+                 toast({ variant: 'destructive', title: 'Error', description: 'Email address is required for card payments.' });
+                 setIsLoading(false);
+                 return;
+            }
+
             const paystackResult = await initializePaystackTransaction({
                 ...saleData,
-                email: selectedCustomer?.email,
-                runId: run.id, // Make sure runId is passed
+                email: customerEmail,
+                runId: run.id,
             });
             if (paystackResult.success && paystackResult.authorization_url) {
-                window.location.href = paystackResult.authorization_url;
+                // Instead of redirecting, let the callback handle it or use a popup
+                 window.open(paystackResult.authorization_url, '_blank');
+                 toast({title: 'Redirecting to Payment', description: 'Please complete payment in the new tab.'});
+
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
-                setIsLoading(false);
             }
+            setIsLoading(false);
             return;
         }
 
@@ -324,8 +334,9 @@ function SellToCustomerDialog({ run, user, onSaleMade }: { run: SalesRun, user: 
                             <Label>Customer (Optional for cash/card)</Label>
                              <div className="flex gap-2">
                                 <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                                    <SelectTrigger><SelectValue placeholder="Select a customer (or walk-in)" /></SelectTrigger>
+                                    <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="">Walk-in Customer</SelectItem>
                                         {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
