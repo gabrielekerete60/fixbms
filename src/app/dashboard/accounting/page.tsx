@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 
 // --- Creditors Components ---
 function PayCreditorDialog({ creditor, onPaymentMade }: { creditor: Creditor, onPaymentMade: () => void }) {
@@ -184,13 +185,15 @@ function AddExpenseDialog({ onExpenseAdded }: { onExpenseAdded: () => void }) {
 function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void }) {
     const { toast } = useToast();
     const [confirmations, setConfirmations] = useState<PaymentConfirmation[]>([]);
+    const [resolved, setResolved] = useState<PaymentConfirmation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [actionState, setActionState] = useState<{ id: string, type: 'approve' | 'decline' } | null>(null);
 
     const fetchConfirmations = async () => {
         setIsLoading(true);
-        const data = await getPaymentConfirmations();
-        setConfirmations(data);
+        const allData = await getPaymentConfirmations();
+        setConfirmations(allData.filter(d => d.status === 'pending'));
+        setResolved(allData.filter(d => d.status !== 'pending'));
         setIsLoading(false);
     }
     
@@ -205,10 +208,10 @@ function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void
         const result = await handlePaymentConfirmation(id, type);
         if (result.success) {
             toast({ title: 'Success', description: `Payment has been ${type}d.` });
-            setConfirmations(prev => prev.filter(c => c.id !== id));
             onDataChange();
              // Dispatch a custom event to notify other components like the dashboard
             window.dispatchEvent(new CustomEvent('dataChanged'));
+            fetchConfirmations();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -271,21 +274,43 @@ function PaymentsAndRequestsContent({ onDataChange }: { onDataChange: () => void
                 </CardContent>
             </Card>
 
-            <Tabs defaultValue="pending-stock">
+            <Tabs defaultValue="resolved-requests">
                 <TabsList>
-                    <TabsTrigger value="pending-stock">Pending Stock Requests</TabsTrigger>
-                    <TabsTrigger value="resolved-requests">Resolved Requests</TabsTrigger>
+                    <TabsTrigger value="resolved-requests">Resolved Requests Log</TabsTrigger>
                 </TabsList>
-                <TabsContent value="pending-stock">
+                <TabsContent value="resolved-requests">
                      <Card>
                         <CardHeader>
-                            <CardTitle>Pending Requests</CardTitle>
-                            <CardDescription>Review and approve incoming stock from storekeepers.</CardDescription>
+                            <CardTitle>Resolved Requests</CardTitle>
+                            <CardDescription>A log of all previously approved and declined payment requests.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                           <div className="flex items-center justify-center h-24 text-muted-foreground">
-                                No pending stock requests.
-                           </div>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Driver</TableHead>
+                                        <TableHead>Amount</TableHead>
+                                        <TableHead>Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {resolved.length > 0 ? (
+                                        resolved.map(c => (
+                                            <TableRow key={c.id}>
+                                                <TableCell>{format(new Date(c.date), 'PPp')}</TableCell>
+                                                <TableCell>{c.driverName}</TableCell>
+                                                <TableCell>₦{c.amount.toLocaleString()}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={c.status === 'approved' ? 'default' : 'destructive'}>{c.status}</Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow><TableCell colSpan={4} className="h-24 text-center">No resolved requests yet.</TableCell></TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
                         </CardContent>
                     </Card>
                 </TabsContent>

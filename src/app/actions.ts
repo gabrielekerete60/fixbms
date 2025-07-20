@@ -669,7 +669,6 @@ export async function getPaymentConfirmations(): Promise<PaymentConfirmation[]> 
   try {
     const q = query(
       collection(db, 'payment_confirmations'),
-      where('status', '==', 'pending'),
       orderBy('date', 'desc')
     );
     const snapshot = await getDocs(q);
@@ -1446,5 +1445,3 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
         return { success: false, error: "Failed to submit cash payment for approval." };
     }
 }
-
-    

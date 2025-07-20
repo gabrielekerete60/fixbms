@@ -72,24 +72,25 @@ function RunCard({ run }: { run: SalesRunType }) {
 function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], isLoading: boolean, user: User | null }) {
     const [filterDriver, setFilterDriver] = useState('all');
     const [sort, setSort] = useState('date_desc');
-    const [salesStats, setSalesStats] = useState({ totalSales: 0 });
+    const [salesStats, setSalesStats] = useState<{ totalSales: number }>({ totalSales: 0 });
+    const [outstandingFilter, setOutstandingFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
     const [salesFilter, setSalesFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
     const [isSalesLoading, setIsSalesLoading] = useState(true);
 
-    const fetchSalesOnly = async (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
+    const fetchSalesOnly = useCallback(async (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
         setIsSalesLoading(true);
         const salesData = await getSalesStats(filter);
         setSalesStats(salesData);
         setSalesFilter(filter);
         setIsSalesLoading(false);
-    }
+    }, []);
     
     useEffect(() => {
         fetchSalesOnly(salesFilter);
         const handleDataChange = () => fetchSalesOnly(salesFilter);
         window.addEventListener('dataChanged', handleDataChange);
         return () => window.removeEventListener('dataChanged', handleDataChange);
-    }, [salesFilter]);
+    }, [salesFilter, fetchSalesOnly]);
 
     const drivers = useMemo(() => {
         const driverSet = new Set(allRuns.map(run => run.to_staff_name).filter(Boolean));
@@ -130,8 +131,18 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                         <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
+                         <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="h-4 w-4 text-muted-foreground"/></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem onSelect={() => setOutstandingFilter('daily')}>Daily</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setOutstandingFilter('weekly')}>Weekly</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setOutstandingFilter('monthly')}>Monthly</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setOutstandingFilter('yearly')}>Yearly</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">₦{totalOutstanding.toLocaleString()}</div>
