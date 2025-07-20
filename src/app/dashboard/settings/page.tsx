@@ -5,16 +5,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, ShieldCheck, Copy } from 'lucide-react';
+import { Loader2, ShieldCheck, Copy, KeyRound } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { disableMfa, verifyMfaSetup } from '@/app/actions';
+import { disableMfa, verifyMfaSetup, handleChangePassword } from '@/app/actions';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 
 type User = {
     name: string;
@@ -26,6 +27,69 @@ type User = {
 type MfaSetup = {
     secret: string;
     qrCode: string;
+}
+
+function ChangePasswordForm({ user }: { user: User }) {
+    const { toast } = useToast();
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (newPassword !== confirmPassword) {
+            toast({ variant: 'destructive', title: 'Error', description: 'New passwords do not match.' });
+            return;
+        }
+        if (newPassword.length < 6) {
+            toast({ variant: 'destructive', title: 'Error', description: 'New password must be at least 6 characters long.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        const result = await handleChangePassword(user.staff_id, currentPassword, newPassword);
+        if (result.success) {
+            toast({ title: 'Success!', description: 'Your password has been changed.' });
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmPassword('');
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Change Password</CardTitle>
+                <CardDescription>Update your login password here.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <form id="change-password-form" onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="current-password">Current Password</Label>
+                        <Input id="current-password" type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="new-password">New Password</Label>
+                        <Input id="new-password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="confirm-password">Confirm New Password</Label>
+                        <Input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
+                    </div>
+                </form>
+            </CardContent>
+            <CardFooter>
+                 <Button form="change-password-form" type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    Change Password
+                </Button>
+            </CardFooter>
+        </Card>
+    )
 }
 
 export default function SettingsPage() {
@@ -102,13 +166,16 @@ export default function SettingsPage() {
         }
     }
 
-    if (isLoading || isMfaEnabled === null) {
+    if (isLoading || isMfaEnabled === null || !user) {
         return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin"/></div>
     }
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-8">
             <h1 className="text-2xl font-bold font-headline">Settings</h1>
+            
+            <ChangePasswordForm user={user} />
+            
             <Card>
                 <CardHeader>
                     <CardTitle>Multi-Factor Authentication (MFA)</CardTitle>

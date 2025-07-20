@@ -174,6 +174,31 @@ export async function disableMfa(staffId: string): Promise<{ success: boolean; e
     }
 }
 
+export async function handleChangePassword(staffId: string, currentPass: string, newPass: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const userDocRef = doc(db, "staff", staffId);
+        const userDoc = await getDoc(userDocRef);
+
+        if (!userDoc.exists()) {
+            return { success: false, error: "User not found." };
+        }
+
+        const userData = userDoc.data();
+        if (userData.password !== currentPass) {
+            return { success: false, error: "Incorrect current password." };
+        }
+
+        await updateDoc(userDocRef, {
+            password: newPass
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error changing password:", error);
+        return { success: false, error: "Failed to change password." };
+    }
+}
+
 
 type InitializePaystackResult = {
     success: boolean;

@@ -31,9 +31,9 @@ const seedData = {
     { staff_id: '000000', name: 'Gabriel Developer', email: 'gabriel.dev@example.com', password: 'DevPassword1!', role: 'Developer', is_active: true, pay_type: 'Salary', pay_rate: 500000, bank_name: "Kuda Bank", account_number: "8901234567", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
   ],
   promotions: [
-    { id: "promo_1", name: "Weekend Special", description: "10% off all bread items", type: "percentage", value: 10, code: "WEEKEND10", startDate: "2024-01-01", endDate: "2024-12-31", applicableProducts: [] },
-    { id: "promo_2", name: "Free Drink", description: "Buy any 2 loaves, get a free drink", type: "free_item", value: null, code: "DRINKUP", startDate: "2024-05-01", endDate: "2024-05-31", applicableProducts: [] },
-    { id: "promo_3", name: "Jumbo Discount", description: "₦100 off Jumbo Loaf", type: "fixed_amount", value: 100, code: "JUMBO100", startDate: "2024-06-01", endDate: "2024-06-30", applicableProducts: [{ value: 'prod_3', label: 'Jumbo Loaf' }] },
+    { id: "promo_1", name: "Weekend Special", description: "10% off all bread items", type: "percentage", value: 10, code: "WEEKEND10", startDate: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString(), endDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString(), applicableProducts: [] },
+    { id: "promo_2", name: "Free Drink", description: "Buy any 2 loaves, get a free drink", type: "free_item", value: null, code: "DRINKUP", startDate: new Date("2024-05-01").toISOString(), endDate: new Date("2024-05-31").toISOString(), applicableProducts: [] },
+    { id: "promo_3", name: "Jumbo Discount", description: "₦100 off Jumbo Loaf", type: "fixed_amount", value: 100, code: "JUMBO100", startDate: new Date().toISOString(), endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(), applicableProducts: [{ value: 'prod_3', label: 'Jumbo Loaf' }] },
   ],
   suppliers: [
     { id: "sup_1", name: "Flour Mills of Nigeria", contactPerson: "Mr. Adebayo", phone: "08012345678", email: "sales@fmnplc.com", address: "Apapa, Lagos", amountOwed: 500000, amountPaid: 450000 },
@@ -401,7 +401,10 @@ export async function seedDatabase(): Promise<ActionResult> {
                 // Convert specific string dates to Timestamps if they are not already
                 for (const key of Object.keys(itemWithTimestamps)) {
                     if ( (key.toLowerCase().includes('date') || key.toLowerCase().includes('timestamp')) && typeof itemWithTimestamps[key] === 'string') {
-                        itemWithTimestamps[key] = Timestamp.fromDate(new Date(itemWithTimestamps[key]));
+                        const date = new Date(itemWithTimestamps[key]);
+                        if (!isNaN(date.getTime())) { // Check if the date is valid
+                           itemWithTimestamps[key] = Timestamp.fromDate(date);
+                        }
                     }
                 }
 
