@@ -168,6 +168,12 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
         <>
         <Dialog open={!!viewingOrder} onOpenChange={() => setViewingOrder(null)}>
             <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Order Details</DialogTitle>
+                    <DialogDescription>
+                        A summary of the selected order.
+                    </DialogDescription>
+                </DialogHeader>
                 {viewingOrder && <Receipt order={viewingOrder} />}
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setViewingOrder(null)}>Close</Button>
