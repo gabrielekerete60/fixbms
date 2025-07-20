@@ -1,8 +1,7 @@
 
 "use client";
 
-import * as React from "react";
-import { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -151,25 +150,44 @@ const getStatusVariant = (status?: string) => {
     }
 }
 
-function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean }) {
-    const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
+function PrintableReceiptDialog({ order, isOpen, onOpenChange }: { order: CompletedOrder | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
     const receiptRef = useRef<HTMLDivElement>(null);
-    
     const handlePrint = useReactToPrint({
         content: () => receiptRef.current,
-        documentTitle: `Receipt-${viewingOrder?.id}`,
+        documentTitle: `Receipt-${order?.id}`,
+    });
+
+    if (!order) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <Receipt order={order} ref={receiptRef} />
+                <DialogFooter className="flex justify-end gap-2 print:hidden">
+                    <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+
+function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean }) {
+    const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
+    const selectedOrdersRef = useRef<HTMLDivElement>(null);
+
+    const handlePrintSelected = useReactToPrint({
+        content: () => selectedOrdersRef.current,
+        documentTitle: 'Selected-Orders',
     });
     
     return (
         <>
-        <Dialog open={!!viewingOrder} onOpenChange={(open) => !open && setViewingOrder(null)}>
-            <DialogContent className="sm:max-w-md">
-                {viewingOrder && <Receipt order={viewingOrder} ref={receiptRef} />}
-                 <DialogFooter className="flex justify-end gap-2 print:hidden">
-                    <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <PrintableReceiptDialog 
+            order={viewingOrder}
+            isOpen={!!viewingOrder}
+            onOpenChange={() => setViewingOrder(null)}
+        />
         <Table>
             <TableHeader>
                 <TableRow>
