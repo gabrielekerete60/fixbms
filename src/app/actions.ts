@@ -1240,7 +1240,7 @@ export type ProductionBatch = {
     quantityToProduce: number;
     status: 'pending_approval' | 'in_production' | 'completed' | 'declined';
     createdAt: string; 
-    ingredients: { ingredientId: string, quantity: number, unit: string }[];
+    ingredients: { ingredientId: string, quantity: number, unit: string, ingredientName: string }[];
     successfullyProduced?: number;
     wasted?: number;
 };

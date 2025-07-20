@@ -600,12 +600,12 @@ export default function RecipesPage() {
     };
 
     const recipesWithCost = useMemo(() => {
-        if (isLoading || !recipes.length || !ingredients.length) {
+        if (!recipes.length || !ingredients.length) {
             return [];
         }
         const ingredientsMap = new Map(ingredients.map(i => [i.id, i]));
         return recipes.map(recipe => {
-            const cost = recipe.ingredients.reduce((acc, currentIng) => {
+            const cost = (recipe.ingredients || []).reduce((acc, currentIng) => {
                 const ingredientData = ingredientsMap.get(currentIng.ingredientId);
                 if (!ingredientData) return acc;
                 let quantityInBaseUnit = currentIng.quantity;
@@ -615,11 +615,11 @@ export default function RecipesPage() {
                      quantityInBaseUnit = currentIng.quantity / 1000;
                 }
                 
-                return acc + (ingredientData.costPerUnit * quantityInBaseUnit);
+                return acc + ((ingredientData.costPerUnit || 0) * quantityInBaseUnit);
             }, 0);
             return { ...recipe, cost };
         });
-    }, [recipes, ingredients, isLoading]);
+    }, [recipes, ingredients]);
 
     const handleSave = async (recipeData: Omit<Recipe, 'id'>, user: User, recipeId?: string) => {
         const result = await handleSaveRecipe(recipeData, user, recipeId);
