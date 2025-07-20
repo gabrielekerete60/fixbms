@@ -348,7 +348,7 @@ function POSPageContent() {
             : item
         );
       }
-      return [...prevCart, { id: product.id, name: product.name, price: product.price, quantity: 1 }];
+      return [...prevCart, { id: product.id, name: product.name, price: productInStock.price, quantity: 1 }];
     });
   };
 
@@ -833,5 +833,3 @@ export default function POSPage() {
         </Suspense>
     )
 }
-
-    
