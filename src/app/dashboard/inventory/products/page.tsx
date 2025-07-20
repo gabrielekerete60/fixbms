@@ -296,10 +296,16 @@ export default function ProductsPage() {
         return true;
     });
 
-    return filtered.map(p => ({
-      ...p,
-      profit: p.price - (p.costPrice || 0)
-    }));
+    return filtered.map(p => {
+      const price = Number(p.price) || 0;
+      const costPrice = Number(p.costPrice) || 0;
+      return {
+        ...p,
+        price: price,
+        costPrice: costPrice,
+        profit: price - costPrice,
+      };
+    });
   }, [products, activeTab]);
 
   const categories = useMemo(() => [...new Set(products.map(p => p.category))], [products]);
