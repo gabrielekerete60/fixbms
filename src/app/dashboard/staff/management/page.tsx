@@ -373,10 +373,10 @@ function StaffDetailDialog({ staff, isOpen, onOpenChange }: { staff: Staff | nul
                             <AvatarImage src={`https://placehold.co/64x64.png?text=${staff.name.charAt(0)}`} alt={staff.name} data-ai-hint="person face" />
                             <AvatarFallback>{staff.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                         </Avatar>
-                        <div className="text-sm">
-                            <p><strong>Email:</strong> {staff.email}</p>
-                            <p><strong>Status:</strong> <Badge variant={getStatusVariant(staff.is_active)}>{staff.is_active ? 'Active' : 'Inactive'}</Badge></p>
-                             <p><strong>MFA:</strong> <Badge variant={staff.mfa_enabled ? "default" : "secondary"}>{staff.mfa_enabled ? 'Enabled' : 'Disabled'}</Badge></p>
+                        <div className="text-sm space-y-1">
+                            <div><strong>Email:</strong> {staff.email}</div>
+                            <div><strong>Status:</strong> <Badge variant={getStatusVariant(staff.is_active)}>{staff.is_active ? 'Active' : 'Inactive'}</Badge></div>
+                            <div><strong>MFA:</strong> <Badge variant={staff.mfa_enabled ? "default" : "secondary"}>{staff.mfa_enabled ? 'Enabled' : 'Disabled'}</Badge></div>
                         </div>
                     </div>
                     
@@ -550,7 +550,7 @@ export default function StaffManagementPage() {
                                         <TableCell className="font-medium">
                                             <div className="flex items-center gap-3">
                                                 <Avatar>
-                                                    <AvatarImage src={`https://placehold.co/40x40.png?text=${staff.name.charAt(0)}`} alt={staff.name} data-ai-hint="person face" />
+                                                    <AvatarImage src={`https://placehold.co/40x64.png?text=${staff.name.charAt(0)}`} alt={staff.name} data-ai-hint="person face" />
                                                     <AvatarFallback>{staff.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                                                 </Avatar>
                                                 <div>
@@ -615,3 +615,4 @@ export default function StaffManagementPage() {
         </div>
     );
 }
+
