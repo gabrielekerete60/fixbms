@@ -250,7 +250,7 @@ export default function IngredientsPage() {
     const ingredientsWithTotal = useMemo(() => {
         return ingredients.map(ing => ({
             ...ing,
-            totalCost: ing.stock * ing.costPerUnit,
+            totalCost: (ing.stock || 0) * (ing.costPerUnit || 0),
         }))
     }, [ingredients]);
     
@@ -315,8 +315,8 @@ export default function IngredientsPage() {
                                         ingredientsWithTotal.map(ingredient => (
                                             <TableRow key={ingredient.id}>
                                                 <TableCell className="font-medium">{ingredient.name}</TableCell>
-                                                <TableCell>{ingredient.stock.toFixed(3)} {ingredient.unit}</TableCell>
-                                                <TableCell>₦{ingredient.costPerUnit.toFixed(2)}</TableCell>
+                                                <TableCell>{(ingredient.stock || 0).toFixed(3)} {ingredient.unit}</TableCell>
+                                                <TableCell>₦{(ingredient.costPerUnit || 0).toFixed(2)}</TableCell>
                                                 <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>
                                                 <TableCell>{ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
                                                 <TableCell>
