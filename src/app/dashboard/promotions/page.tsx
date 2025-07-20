@@ -126,7 +126,6 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
         setEndDate(promotion.endDate ? new Date(promotion.endDate) : undefined);
         setApplicableProducts(promotion.applicableProducts || []);
       } else {
-        // Reset for new promotion
         setName("");
         setDescription("");
         setCode("");
@@ -151,8 +150,8 @@ function CreatePromotionDialog({ onSave, products, promotion, isOpen, onOpenChan
       code,
       type,
       value,
-      startDate: startDate?.toISOString() || "",
-      endDate: endDate?.toISOString() || "",
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
       applicableProducts
     }
     onSave(promoData);

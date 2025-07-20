@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, ShieldCheck, Copy, KeyRound } from 'lucide-react';
@@ -224,7 +224,7 @@ export default function SettingsPage() {
                         <div className="space-y-4 text-center p-4 border rounded-lg">
                             <h3 className="font-semibold text-lg">Step 1: Scan QR Code</h3>
                             <p className="text-sm text-muted-foreground">Scan this QR code with an authenticator app (e.g., Google Authenticator, Authy).</p>
-                             <div className="flex justify-center bg-white p-4 rounded-md">
+                             <div className="flex justify-center bg-white p-2 rounded-md">
                                <img src={mfaSetup.qrCode} alt="MFA QR Code" />
                              </div>
                             <p className="text-xs text-muted-foreground">Or enter this key manually:</p>
@@ -232,7 +232,10 @@ export default function SettingsPage() {
                                 <code className="p-2 bg-muted rounded-md">{mfaSetup.secret}</code>
                                 <Button size="icon" variant="ghost" onClick={() => { navigator.clipboard.writeText(mfaSetup.secret); toast({title: "Copied!"}) }}><Copy className="h-4 w-4"/></Button>
                             </div>
-                            <Button onClick={() => setView('verify')}>Next: Verify Code</Button>
+                             <div className="flex justify-center gap-2">
+                                <Button variant="outline" onClick={() => setView('main')}>Cancel</Button>
+                                <Button onClick={() => setView('verify')}>Next: Verify Code</Button>
+                            </div>
                         </div>
                     )}
                     {view === 'verify' && (
