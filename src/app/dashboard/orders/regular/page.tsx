@@ -85,8 +85,8 @@ type CompletedOrder = {
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder }>(({ order }, ref) => {
   return (
-    <div ref={ref} className="print:p-8 p-2">
-       <div className="text-center mb-4">
+    <div ref={ref} className="print:p-8">
+      <div className="text-center mb-4">
           <h2 className="font-headline text-2xl text-center">BMS</h2>
           <p className="text-center text-sm">Sale Receipt</p>
         </div>
@@ -150,17 +150,25 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
     const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
     const [printingOrder, setPrintingOrder] = useState<CompletedOrder | null>(null);
     const receiptRef = useRef<HTMLDivElement>(null);
+    const printBtnRef = useRef<HTMLButtonElement>(null);
 
     const handlePrint = useReactToPrint({
         content: () => receiptRef.current,
         onAfterPrint: () => setPrintingOrder(null),
+        trigger: () => printBtnRef.current,
     });
+    
+    useEffect(() => {
+        if (printingOrder && printBtnRef.current) {
+            printBtnRef.current.click();
+        }
+    }, [printingOrder]);
 
     return (
         <>
         <Dialog open={!!viewingOrder} onOpenChange={() => setViewingOrder(null)}>
             <DialogContent className="sm:max-w-md">
-                 <DialogHeader>
+                <DialogHeader>
                     <DialogTitle>Order Details</DialogTitle>
                     <DialogDescription>A summary of the selected order.</DialogDescription>
                 </DialogHeader>
@@ -173,6 +181,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
         
         <div className="hidden">
             {printingOrder && <Receipt order={printingOrder} ref={receiptRef} />}
+            <button ref={printBtnRef} style={{ display: 'none' }}>Print</button>
         </div>
         
         <Table>
@@ -240,11 +249,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                                             <Eye className="mr-2 h-4 w-4" />
                                             <span>View Details</span>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => {
-                                            setPrintingOrder(order);
-                                            // Delay print slightly to allow state to update and component to render
-                                            setTimeout(() => handlePrint(), 0);
-                                        }}>
+                                        <DropdownMenuItem onSelect={() => setPrintingOrder(order)}>
                                             <Printer className="mr-2 h-4 w-4" />
                                             <span>Print Receipt</span>
                                         </DropdownMenuItem>
