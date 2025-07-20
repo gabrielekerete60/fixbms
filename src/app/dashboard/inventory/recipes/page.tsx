@@ -365,6 +365,7 @@ function CompleteBatchDialog({ batch, user, onCompleted }: { batch: ProductionBa
                     </Button>
                 </DialogFooter>
             </DialogContent>
+        </Dialog>
     )
 }
 
@@ -770,4 +771,5 @@ export default function RecipesPage() {
             </AlertDialog>
         </div>
     );
-}
+
+    
