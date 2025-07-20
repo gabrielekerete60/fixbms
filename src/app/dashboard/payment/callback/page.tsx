@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useEffect, useState, Suspense } from 'react';
@@ -99,21 +100,20 @@ function PaymentCallback() {
                     throw new Error(`Amount mismatch. Expected ${expectedAmount}, got ${verificationResponse.data.amount}.`);
                 }
                 
-                const finalOrderRef = doc(db, "orders", orderId);
-                const finalOrderData = {
-                    ...orderData,
-                    id: orderId,
-                    paymentMethod: 'Card',
-                    status: 'Completed',
-                };
-                delete finalOrderData.createdAt;
-
                 if (orderData.isDebtPayment) {
                     transaction.update(doc(db, 'transfers', orderData.runId), { totalCollected: increment(orderData.total) });
                     if (orderData.customerId) {
                         transaction.update(doc(db, 'customers', orderData.customerId), { amountPaid: increment(orderData.total) });
                     }
                 } else {
+                    const finalOrderRef = doc(db, "orders", orderId);
+                    const finalOrderData = {
+                        ...orderData,
+                        id: orderId,
+                        paymentMethod: 'Card',
+                        status: 'Completed',
+                    };
+                    delete finalOrderData.createdAt;
                     transaction.set(finalOrderRef, finalOrderData);
                 }
                 
@@ -168,4 +168,3 @@ export default function PaymentCallbackPage() {
     );
 }
 
-    

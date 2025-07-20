@@ -223,8 +223,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             return;
         }
         
-        const customerEmail = selectedCustomer?.email || user.email;
-        
         setIsLoading(true);
 
         const saleData = {
@@ -238,6 +236,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         };
 
         if (paymentMethod === 'Card') {
+            const customerEmail = selectedCustomer?.email || user.email;
             const paystackResult = await initializePaystackTransaction({
                 ...saleData,
                 email: customerEmail,
@@ -255,14 +254,15 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                         const finalOrder = await handleSellToCustomer(saleData);
                          if (finalOrder.success) {
                             toast({ title: 'Payment Successful', description: 'Order has been completed.' });
-                            onSaleMade({
+                            const completedOrder = {
                                 id: paystackResult.reference || '',
                                 items: cart,
                                 total: total,
                                 date: new Date().toISOString(),
-                                paymentMethod: 'Card',
+                                paymentMethod: 'Card' as const,
                                 customerName: customerName,
-                            });
+                            }
+                            onSaleMade(completedOrder);
                             setIsOpen(false);
                         } else {
                             toast({ variant: 'destructive', title: 'Order processing failed', description: finalOrder.error });
@@ -319,14 +319,15 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
 
         if (result.success) {
             toast({ title: 'Pending Approval', description: 'Cash payment has been submitted for accountant approval.' });
-            onSaleMade({
+            const completedOrder = {
                 id: 'cash-sale-' + Date.now(),
                 items: cart,
                 total: total,
                 date: new Date().toISOString(),
-                paymentMethod: 'Cash',
+                paymentMethod: 'Cash' as const,
                 customerName: customerName,
-            });
+            }
+            onSaleMade(completedOrder);
             setIsOpen(false);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -478,6 +479,7 @@ function RecordPaymentDialog({ run, user, customers, onPaymentMade }: { run: Sal
             toast({ variant: 'destructive', title: 'Error', description: 'Please select a debtor and enter a valid amount.'});
             return;
         }
+        setIsCashConfirmOpen(false);
         setIsLoading(true);
         const result = await handleRecordCashPaymentForRun({
             runId: run.id,
@@ -497,7 +499,6 @@ function RecordPaymentDialog({ run, user, customers, onPaymentMade }: { run: Sal
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
         setIsLoading(false);
-        setIsCashConfirmOpen(false);
     }
     
     const handleCardPayment = async () => {
@@ -512,12 +513,27 @@ function RecordPaymentDialog({ run, user, customers, onPaymentMade }: { run: Sal
             email: "debt-payment@example.com" // Placeholder email
         });
 
-        if (paystackResult.success && paystackResult.authorization_url) {
-            window.location.href = paystackResult.authorization_url;
+        if (paystackResult.success && paystackResult.reference) {
+            const paystack = new PaystackPop();
+            paystack.newTransaction({
+                key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+                email: "debt-payment@example.com",
+                amount: Math.round(Number(amount) * 100),
+                ref: paystackResult.reference,
+                onSuccess: (transaction) => {
+                    toast({ title: 'Payment Successful', description: 'The payment has been submitted for verification.' });
+                    localStorage.setItem('paymentStatus', JSON.stringify({ status: 'success' }));
+                    onPaymentMade();
+                    setIsOpen(false);
+                },
+                onCancel: () => {
+                    toast({ variant: 'destructive', title: 'Payment Cancelled' });
+                }
+            });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
-            setIsLoading(false);
         }
+        setIsLoading(false);
     }
 
     return (
@@ -700,6 +716,18 @@ export default function SalesRunPage() {
             setUser(JSON.parse(storedUser));
         }
         fetchData();
+         const handleStorageChange = () => {
+            const storedStatusRaw = localStorage.getItem('paymentStatus');
+            if (storedStatusRaw) {
+                const status = JSON.parse(storedStatusRaw);
+                if (status.status === 'success') {
+                    fetchData();
+                    localStorage.removeItem('paymentStatus');
+                }
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
     }, [runId]);
     
     const remainingItems = useMemo(() => {
