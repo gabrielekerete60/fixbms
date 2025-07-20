@@ -221,7 +221,7 @@ export default function DashboardLayout({
       }
     }
     // Dispatch a custom event to notify other components
-    window.dispatchEvent(new CustomEvent('dataChanged'));
+    window.dispatchEvent(new CustomEvent('attendanceChanged'));
     setIsClocking(false);
   };
 
