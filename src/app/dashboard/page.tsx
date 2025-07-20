@@ -1,11 +1,10 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Activity,
-  ArrowUpRight,
   Box,
   CreditCard,
   DollarSign,
@@ -34,7 +33,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RevenueChart } from '@/components/revenue-chart';
-import { getDashboardStats, getStaffDashboardStats, checkForMissingIndexes } from '../actions';
+import { checkForMissingIndexes } from '../actions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,11 +42,28 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { collection, query, where, onSnapshot, Timestamp, getDocs } from "firebase/firestore";
+import { db } from '@/lib/firebase';
+import { startOfDay, startOfWeek, startOfMonth, startOfYear, eachDayOfInterval, format } from 'date-fns';
 
 type User = {
   name: string;
   role: string;
   staff_id: string;
+};
+
+type DashboardStats = {
+    revenue: number;
+    customers: number;
+    sales: number;
+    activeOrders: number;
+    weeklyRevenue: { day: string, revenue: number }[];
+};
+
+type StaffDashboardStats = {
+    personalStockCount: number;
+    pendingTransfersCount: number;
+    monthlyWasteReports: number;
 };
 
 function IndexWarning({ indexes }: { indexes: string[] }) {
@@ -77,36 +93,93 @@ function IndexWarning({ indexes }: { indexes: string[] }) {
 }
 
 function ManagementDashboard() {
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [missingIndexes, setMissingIndexes] = useState<string[]>([]);
   const [revenueFilter, setRevenueFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
 
-  const fetchData = async (filter: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'monthly') => {
-      setIsLoading(true);
-      const [data, indexData] = await Promise.all([
-        getDashboardStats(filter),
-        checkForMissingIndexes()
-      ]);
-      setStats(data);
-      setMissingIndexes(indexData.requiredIndexes);
-      setIsLoading(false);
-    }
+  const fetchIndexData = useCallback(async () => {
+    const indexData = await checkForMissingIndexes();
+    setMissingIndexes(indexData.requiredIndexes);
+  }, []);
 
   useEffect(() => {
-    fetchData(revenueFilter);
-    const handleDataChange = () => fetchData(revenueFilter);
+    fetchIndexData();
 
-    window.addEventListener('dataChanged', handleDataChange);
-    return () => {
-        window.removeEventListener('dataChanged', handleDataChange);
+    const now = new Date();
+    let startOfPeriod: Date;
+
+    switch (revenueFilter) {
+        case 'daily':
+            startOfPeriod = startOfDay(now);
+            break;
+        case 'weekly':
+            startOfPeriod = startOfWeek(now, { weekStartsOn: 1 });
+            break;
+        case 'monthly':
+        default:
+            startOfPeriod = startOfMonth(now);
+            break;
+        case 'yearly':
+            startOfPeriod = startOfYear(now);
+            break;
     }
-  }, [revenueFilter]);
-  
+    const startOfPeriodTimestamp = Timestamp.fromDate(startOfPeriod);
+
+    // Real-time listener for orders
+    const ordersQuery = query(collection(db, "orders"), where("date", ">=", startOfPeriodTimestamp));
+    const unsubscribeOrders = onSnapshot(ordersQuery, (querySnapshot) => {
+        let revenue = 0;
+        let activeOrders = 0;
+        let sales = querySnapshot.size;
+
+        querySnapshot.forEach(doc => {
+            const order = doc.data();
+            revenue += order.total;
+            if (order.status === 'Pending') {
+                activeOrders++;
+            }
+        });
+        
+        // Real-time weekly revenue calculation
+        const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+        const weekEnd = new Date();
+        const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
+        const weeklyRevenueData = daysInWeek.map(day => ({ day: format(day, 'E'), revenue: 0 }));
+        
+        querySnapshot.forEach(doc => {
+            const order = doc.data();
+            const orderDate = (order.date as Timestamp).toDate();
+            if (orderDate >= weekStart && orderDate <= weekEnd) {
+                const dayOfWeek = format(orderDate, 'E'); 
+                const index = weeklyRevenueData.findIndex(d => d.day === dayOfWeek);
+                if (index !== -1) {
+                    weeklyRevenueData[index].revenue += order.total;
+                }
+            }
+        });
+        
+        setStats(prev => ({ ...prev, revenue, activeOrders, sales, weeklyRevenue: weeklyRevenueData } as DashboardStats));
+        if (isLoading) setIsLoading(false);
+    });
+
+    // One-time fetch for customers
+    const fetchCustomers = async () => {
+        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfPeriodTimestamp));
+        const customersSnapshot = await getDocs(customersQuery);
+        setStats(prev => ({ ...prev, customers: customersSnapshot.size } as DashboardStats));
+    };
+    
+    fetchCustomers();
+
+    return () => unsubscribeOrders();
+  }, [revenueFilter, isLoading, fetchIndexData]);
+
   const handleFilterChange = (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
+    setIsLoading(true);
     setRevenueFilter(filter);
   };
-
+  
   if (isLoading || !stats) {
     return (
       <div className="flex justify-center items-center h-full">
@@ -135,25 +208,25 @@ function ManagementDashboard() {
             </DropdownMenu>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₦{stats.revenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">₦{stats.revenue?.toLocaleString() || 0}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Customers (Monthly)</CardTitle>
+            <CardTitle className="text-sm font-medium">Customers ({revenueFilter})</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{stats.customers}</div>
+            <div className="text-2xl font-bold">+{stats.customers || 0}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sales (Monthly)</CardTitle>
+            <CardTitle className="text-sm font-medium">Sales ({revenueFilter})</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{stats.sales}</div>
+            <div className="text-2xl font-bold">+{stats.sales || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -162,7 +235,7 @@ function ManagementDashboard() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.activeOrders}</div>
+            <div className="text-2xl font-bold">{stats.activeOrders || 0}</div>
           </CardContent>
         </Card>
       </div>
@@ -209,18 +282,38 @@ function ManagementDashboard() {
 }
 
 function StaffDashboard({ user }: { user: User }) {
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<StaffDashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchData() {
-      setIsLoading(true);
-      const data = await getStaffDashboardStats(user.staff_id);
-      setStats(data);
-      setIsLoading(false);
+    if (!user.staff_id) return;
+    
+    const personalStockQuery = collection(db, 'staff', user.staff_id, 'personal_stock');
+    const pendingTransfersQuery = query(collection(db, 'transfers'), where('to_staff_id', '==', user.staff_id), where('status', '==', 'pending'));
+    const wasteLogsQuery = query(collection(db, 'waste_logs'), where('staffId', '==', user.staff_id), where('date', '>=', Timestamp.fromDate(startOfMonth(new Date()))));
+
+    const unsubPersonalStock = onSnapshot(personalStockQuery, (snapshot) => {
+        const personalStockCount = snapshot.docs.reduce((sum, doc) => sum + doc.data().stock, 0);
+        setStats(prev => ({...prev, personalStockCount} as StaffDashboardStats));
+        if (isLoading) setIsLoading(false);
+    });
+
+    const unsubPendingTransfers = onSnapshot(pendingTransfersQuery, (snapshot) => {
+        setStats(prev => ({...prev, pendingTransfersCount: snapshot.size} as StaffDashboardStats));
+        if (isLoading) setIsLoading(false);
+    });
+
+    const unsubWasteLogs = onSnapshot(wasteLogsQuery, (snapshot) => {
+        setStats(prev => ({...prev, monthlyWasteReports: snapshot.size} as StaffDashboardStats));
+        if (isLoading) setIsLoading(false);
+    });
+
+    return () => {
+        unsubPersonalStock();
+        unsubPendingTransfers();
+        unsubWasteLogs();
     }
-    fetchData();
-  }, [user.staff_id]);
+  }, [user.staff_id, isLoading]);
   
   if (isLoading || !stats) {
     return (
@@ -243,7 +336,7 @@ function StaffDashboard({ user }: { user: User }) {
               <Box className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.personalStockCount}</div>
+              <div className="text-2xl font-bold">{stats.personalStockCount || 0}</div>
               <p className="text-xs text-muted-foreground">Total product units in your inventory.</p>
             </CardContent>
           </Card>
@@ -255,7 +348,7 @@ function StaffDashboard({ user }: { user: User }) {
               <Hourglass className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.pendingTransfersCount}</div>
+              <div className="text-2xl font-bold">{stats.pendingTransfersCount || 0}</div>
               <p className="text-xs text-muted-foreground">Awaiting your acknowledgment.</p>
             </CardContent>
           </Card>
@@ -267,7 +360,7 @@ function StaffDashboard({ user }: { user: User }) {
               <Trash2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.monthlyWasteReports}</div>
+              <div className="text-2xl font-bold">{stats.monthlyWasteReports || 0}</div>
               <p className="text-xs text-muted-foreground">Items you've reported as waste this month.</p>
             </CardContent>
           </Card>

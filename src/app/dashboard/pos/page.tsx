@@ -46,7 +46,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, doc, runTransaction, increment, getDoc, query, where, setDoc } from "firebase/firestore";
+import { collection, getDocs, doc, runTransaction, increment, getDoc, query, where, setDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -247,7 +247,7 @@ function POSPageContent() {
       items: cart,
       subtotal: total,
       total: total,
-      date: new Date().toISOString(),
+      date: Timestamp.now(),
       paymentMethod,
       customerName: customerName || 'Walk-in',
       status: 'Completed' as const,
@@ -269,11 +269,11 @@ function POSPageContent() {
           transaction.set(orderRef, newOrderData);
       });
       
-      setLastCompletedOrder(newOrderData);
+      setLastCompletedOrder({ ...newOrderData, date: newOrderData.date.toDate().toISOString() });
       clearCartAndStorage();
 
       await fetchProductsForStaff(selectedStaffId);
-      return newOrderData;
+      return { ...newOrderData, date: newOrderData.date.toDate().toISOString() };
     } catch (error) {
       console.error("Error saving order:", error);
       const errorMessage = error instanceof Error ? error.message : "There was a problem saving the order to the database.";

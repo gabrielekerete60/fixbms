@@ -8,7 +8,7 @@ import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, writeBatch, collection, runTransaction, increment, deleteDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, collection, runTransaction, increment, deleteDoc, updateDoc, Timestamp } from 'firebase/firestore';
 
 type VerificationStatus = 'verifying' | 'success' | 'failed' | 'cancelled';
 type VerificationResult = {
@@ -110,6 +110,7 @@ function PaymentCallback() {
                     const finalOrderData = {
                         ...orderData,
                         id: orderId,
+                        date: Timestamp.now(), // Use Timestamp here
                         paymentMethod: 'Card',
                         status: 'Completed',
                     };
@@ -167,4 +168,3 @@ export default function PaymentCallbackPage() {
         </Suspense>
     );
 }
-

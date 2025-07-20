@@ -6,7 +6,6 @@ import { collection, getDocs, writeBatch, doc, Timestamp } from "firebase/firest
 
 // Helper to create timestamps for recent days
 const daysAgo = (days: number) => Timestamp.fromDate(new Date(new Date().setDate(new Date().getDate() - days)));
-const daysAgoISO = (days: number) => new Date(new Date().setDate(new Date().getDate() - days)).toISOString();
 
 const seedData = {
   products: [
@@ -120,17 +119,17 @@ const seedData = {
     { id: "sup_os_4", name: "Disinfectant", stock: 5, unit: 'L', costPerUnit: 5000.00, category: "Cleaning" },
   ],
   customers: [
-      { id: 'cust_1', name: 'Adebisi Onyeka', phone: '08012345678', email: 'a.onyeka@example.com', address: '123, Allen Avenue, Ikeja', joinedDate: '2023-01-15T10:00:00Z', totalSpent: 150000, amountOwed: 5000, amountPaid: 0 },
-      { id: 'cust_2', name: 'Ngozi Okoro', phone: '09087654321', email: 'n.okoro@example.com', address: '45, Lekki Phase 1', joinedDate: '2023-02-20T11:30:00Z', totalSpent: 75000, amountOwed: 0, amountPaid: 75000 },
-      { id: 'cust_3', name: 'Chinedu Eze', phone: '07011223344', email: 'c.eze@example.com', address: '78, Surulere, Lagos', joinedDate: '2023-03-10T09:00:00Z', totalSpent: 250000, amountOwed: 20000, amountPaid: 230000 },
-      { id: 'cust_4', name: 'Fatima Bello', phone: '08122334455', email: 'f.bello@example.com', address: '10, Garki, Abuja', joinedDate: '2023-04-05T14:00:00Z', totalSpent: 30000, amountOwed: 0, amountPaid: 30000 },
+      { id: 'cust_1', name: 'Adebisi Onyeka', phone: '08012345678', email: 'a.onyeka@example.com', address: '123, Allen Avenue, Ikeja', joinedDate: Timestamp.fromDate(new Date('2023-01-15T10:00:00Z')), totalSpent: 150000, amountOwed: 5000, amountPaid: 0 },
+      { id: 'cust_2', name: 'Ngozi Okoro', phone: '09087654321', email: 'n.okoro@example.com', address: '45, Lekki Phase 1', joinedDate: Timestamp.fromDate(new Date('2023-02-20T11:30:00Z')), totalSpent: 75000, amountOwed: 0, amountPaid: 75000 },
+      { id: 'cust_3', name: 'Chinedu Eze', phone: '07011223344', email: 'c.eze@example.com', address: '78, Surulere, Lagos', joinedDate: Timestamp.fromDate(new Date('2023-03-10T09:00:00Z')), totalSpent: 250000, amountOwed: 20000, amountPaid: 230000 },
+      { id: 'cust_4', name: 'Fatima Bello', phone: '08122334455', email: 'f.bello@example.com', address: '10, Garki, Abuja', joinedDate: Timestamp.fromDate(new Date('2023-04-05T14:00:00Z')), totalSpent: 30000, amountOwed: 0, amountPaid: 30000 },
   ],
    orders: [
     {
       id: "ord_1",
       items: [{ id: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }],
       total: 1100,
-      date: daysAgoISO(2), // 2 days ago
+      date: daysAgo(2), // 2 days ago
       paymentMethod: 'Card',
       customerName: 'Adebisi Onyeka',
       customerId: 'cust_1',
@@ -144,7 +143,7 @@ const seedData = {
         { id: "prod_5", name: "Coca-Cola (50cl)", price: 300, quantity: 2, costPrice: 200 },
       ],
       total: 1500,
-      date: daysAgoISO(1), // yesterday
+      date: daysAgo(1), // yesterday
       paymentMethod: 'Cash',
       customerName: 'Ngozi Okoro',
       customerId: 'cust_2',
@@ -155,7 +154,7 @@ const seedData = {
       id: "ord_3",
       items: [{ id: "prod_4", name: "Round Loaf", price: 500, quantity: 10, costPrice: 280 }],
       total: 5000,
-      date: daysAgoISO(3), // 3 days ago
+      date: daysAgo(3), // 3 days ago
       paymentMethod: 'Card',
       customerName: 'Chinedu Eze',
       customerId: 'cust_3',
@@ -167,7 +166,7 @@ const seedData = {
       id: "ord_4",
       items: [{ id: "prod_2", name: "Burger Loaf", price: 450, quantity: 5, costPrice: 250 }],
       total: 2250,
-      date: new Date().toISOString(), // today
+      date: Timestamp.now(), // today
       paymentMethod: 'Card',
       customerName: 'Walk-in',
       customerId: 'walk-in',
@@ -178,7 +177,7 @@ const seedData = {
         id: "pc_3_approved",
         items: [{ productId: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }],
         total: 1100,
-        date: daysAgoISO(2), // 2 days ago
+        date: daysAgo(2), // 2 days ago
         paymentMethod: 'Cash',
         customerName: 'Adebisi Onyeka',
         customerId: 'cust_1',
@@ -188,14 +187,14 @@ const seedData = {
     }
   ],
   supply_logs: [
-    { id: 'log_1', supplierId: 'sup_1', supplierName: 'Flour Mills of Nigeria', ingredientId: 'ing_1', ingredientName: 'All-Purpose Flour', quantity: 20, unit: 'kg', costPerUnit: 500, totalCost: 10000, date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), invoiceNumber: 'FMN-123' },
-    { id: 'log_2', supplierId: 'sup_2', supplierName: 'Dangote Sugar', ingredientId: 'ing_2', ingredientName: 'Granulated Sugar', quantity: 10, unit: 'kg', costPerUnit: 800, totalCost: 8000, date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), invoiceNumber: 'DAN-456' }
+    { id: 'log_1', supplierId: 'sup_1', supplierName: 'Flour Mills of Nigeria', ingredientId: 'ing_1', ingredientName: 'All-Purpose Flour', quantity: 20, unit: 'kg', costPerUnit: 500, totalCost: 10000, date: Timestamp.fromDate(new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)), invoiceNumber: 'FMN-123' },
+    { id: 'log_2', supplierId: 'sup_2', supplierName: 'Dangote Sugar', ingredientId: 'ing_2', ingredientName: 'Granulated Sugar', quantity: 10, unit: 'kg', costPerUnit: 800, totalCost: 8000, date: Timestamp.fromDate(new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)), invoiceNumber: 'DAN-456' }
   ],
   expenses: [
-    { id: 'exp_1', category: 'Utilities', description: 'Monthly electricity bill', amount: 50000, date: new Date(new Date().setDate(1)).toISOString() },
-    { id: 'exp_2', category: 'Logistics', description: 'Carriage Inward for flour delivery', amount: 7500, date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
-    { id: 'exp_3', category: 'Salaries', description: 'Monthly staff salaries', amount: 1210000, date: new Date(new Date().setDate(28)).toISOString() },
-    { id: 'exp_4', category: 'Maintenance', description: 'Repair of delivery van', amount: 25000, date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() }
+    { id: 'exp_1', category: 'Utilities', description: 'Monthly electricity bill', amount: 50000, date: Timestamp.fromDate(new Date(new Date().setDate(1))) },
+    { id: 'exp_2', category: 'Logistics', description: 'Carriage Inward for flour delivery', amount: 7500, date: Timestamp.fromDate(new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)) },
+    { id: 'exp_3', category: 'Salaries', description: 'Monthly staff salaries', amount: 1210000, date: Timestamp.fromDate(new Date(new Date().setDate(28))) },
+    { id: 'exp_4', category: 'Maintenance', description: 'Repair of delivery van', amount: 25000, date: Timestamp.fromDate(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000)) }
   ],
   attendance: [
     // Staff 100001 (Manager) - Attended 4 days this week
@@ -396,13 +395,14 @@ export async function seedDatabase(): Promise<ActionResult> {
                 } else {
                     docRef = doc(collection(db, collectionName));
                 }
-
+                
                 const itemWithTimestamps = { ...item };
-                Object.keys(itemWithTimestamps).forEach(key => {
+                // Convert specific string dates to Timestamps if they are not already
+                for (const key of Object.keys(itemWithTimestamps)) {
                     if ( (key.toLowerCase().includes('date') || key.toLowerCase().includes('timestamp')) && typeof itemWithTimestamps[key] === 'string') {
-                         itemWithTimestamps[key] = Timestamp.fromDate(new Date(itemWithTimestamps[key]));
+                        itemWithTimestamps[key] = Timestamp.fromDate(new Date(itemWithTimestamps[key]));
                     }
-                });
+                }
 
                 batch.set(docRef, itemWithTimestamps);
             });

@@ -201,7 +201,7 @@ export async function handleInitiateTransfer(data: any, user: { staff_id: string
 }
 
 
-type DashboardStats = {
+export type DashboardStats = {
     revenue: number;
     customers: number;
     sales: number;
@@ -291,7 +291,7 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
     }
 }
 
-type StaffDashboardStats = {
+export type StaffDashboardStats = {
     personalStockCount: number;
     pendingTransfersCount: number;
     monthlyWasteReports: number;
@@ -716,7 +716,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         customerName: confirmationData.customerName,
                         total: confirmationData.amount,
                         paymentMethod: 'Cash',
-                        date: new Date().toISOString(),
+                        date: Timestamp.now(),
                         staffId: confirmationData.driverId,
                         status: 'Completed',
                         items: itemsWithCost,
@@ -1354,7 +1354,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       // --- 1. All READS must happen first ---
       const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
       const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
-
+      
       let customerRef;
       if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
         customerRef = doc(db, 'customers', data.customerId);
@@ -1384,7 +1384,6 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
 
       // Logic for different payment methods
       if (data.paymentMethod === 'Cash') {
-        // Create a payment confirmation for the accountant to approve
         const confirmationRef = doc(collection(db, 'payment_confirmations'));
         transaction.set(confirmationRef, {
           runId: data.runId,
@@ -1399,7 +1398,6 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
         });
 
       } else { 
-        // For Card and Credit, create the order directly
         const newOrderRef = doc(collection(db, 'orders'));
         const orderData = {
           salesRunId: data.runId,
@@ -1408,7 +1406,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
           items: data.items,
           total: data.total,
           paymentMethod: data.paymentMethod,
-          date: new Date().toISOString(),
+          date: Timestamp.now(),
           staffId: data.staffId,
           status: 'Completed',
         };
