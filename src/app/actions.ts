@@ -1286,7 +1286,7 @@ async function createProductionLog(action: string, details: string, user: { staf
 
 export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 'status' | 'createdAt'>): Promise<{success: boolean, error?: string}> {
     try {
-        const batchRef = await addDoc(collection(db, "production_batches"), {
+        await addDoc(collection(db, "production_batches"), {
             ...data,
             status: 'pending_approval',
             createdAt: serverTimestamp()
@@ -1304,6 +1304,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
         const batchRef = doc(db, 'production_batches', batchId);
 
         await runTransaction(db, async (transaction) => {
+            // Read operations first
             const batchDoc = await transaction.get(batchRef);
             if (!batchDoc.exists() || batchDoc.data().status !== 'pending_approval') {
                 throw new Error("Batch is not pending approval.");
@@ -1312,6 +1313,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
             const ingredientRefs = ingredients.map(ing => doc(db, 'ingredients', ing.ingredientId));
             const ingredientDocs = await Promise.all(ingredientRefs.map(ref => transaction.get(ref)));
 
+            // Validation
             for (let i = 0; i < ingredientDocs.length; i++) {
                 const ingDoc = ingredientDocs[i];
                 const reqIng = ingredients[i];
@@ -1320,6 +1322,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
                 }
             }
 
+            // Write operations
             for (let i = 0; i < ingredientRefs.length; i++) {
                 const ingRef = ingredientRefs[i];
                 const reqIng = ingredients[i];
@@ -1680,5 +1683,35 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
     } catch (error) {
         console.error("Error recording cash payment:", error);
         return { success: false, error: "Failed to submit cash payment for approval." };
+    }
+}
+
+// Recipe Actions with Logging
+export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, user: { staff_id: string, name: string }, recipeId?: string): Promise<{success: boolean, error?: string}> {
+    try {
+        if (recipeId) {
+            const recipeRef = doc(db, "recipes", recipeId);
+            await updateDoc(recipeRef, recipeData);
+            await createProductionLog('Recipe Updated', `Updated recipe: ${recipeData.name}`, user);
+            return { success: true };
+        } else {
+            await addDoc(collection(db, "recipes"), recipeData);
+            await createProductionLog('Recipe Created', `Created new recipe: ${recipeData.name}`, user);
+            return { success: true };
+        }
+    } catch (error) {
+        console.error("Error saving recipe:", error);
+        return { success: false, error: "Could not save recipe." };
+    }
+}
+
+export async function handleDeleteRecipe(recipeId: string, recipeName: string, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+    try {
+        await deleteDoc(doc(db, "recipes", recipeId));
+        await createProductionLog('Recipe Deleted', `Deleted recipe: ${recipeName}`, user);
+        return { success: true };
+    } catch (error) {
+        console.error("Error deleting recipe:", error);
+        return { success: false, error: "Could not delete recipe." };
     }
 }

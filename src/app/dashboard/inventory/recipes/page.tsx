@@ -55,7 +55,7 @@ import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { startProductionBatch, getProductionBatches, approveIngredientRequest, completeProductionBatch, declineProductionBatch, getProductionLogs, ProductionLog } from "@/app/actions";
+import { handleSaveRecipe, handleDeleteRecipe, startProductionBatch, getProductionBatches, approveIngredientRequest, completeProductionBatch, declineProductionBatch, getProductionLogs, ProductionLog } from "@/app/actions";
 import type { ProductionBatch } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -519,14 +519,18 @@ function ProductionLogsTab({ isLoading, logs }: { isLoading: boolean, logs: Prod
                             {logs.length === 0 ? (
                                 <TableRow><TableCell colSpan={4} className="h-24 text-center">No logs found.</TableCell></TableRow>
                             ) : (
-                                logs.map(log => (
-                                    <TableRow key={log.id}>
-                                        <TableCell>{format(new Date(log.timestamp), 'PPp')}</TableCell>
-                                        <TableCell>{log.staffName}</TableCell>
-                                        <TableCell><Badge variant="secondary">{log.action}</Badge></TableCell>
-                                        <TableCell>{log.details}</TableCell>
-                                    </TableRow>
-                                ))
+                                logs.map(log => {
+                                    const date = new Date(log.timestamp);
+                                    const isValidDate = !isNaN(date.getTime());
+                                    return (
+                                        <TableRow key={log.id}>
+                                            <TableCell>{isValidDate ? format(date, 'PPp') : 'Invalid Date'}</TableCell>
+                                            <TableCell>{log.staffName}</TableCell>
+                                            <TableCell><Badge variant="secondary">{log.action}</Badge></TableCell>
+                                            <TableCell>{log.details}</TableCell>
+                                        </TableRow>
+                                    );
+                                })
                             )}
                         </TableBody>
                     </Table>
@@ -615,31 +619,23 @@ export default function RecipesPage() {
         });
     }, [recipes, ingredients]);
 
-    const handleSaveRecipe = async (recipeData: Omit<Recipe, 'id'>, user: User, recipeId?: string) => {
-        try {
-            if (recipeId) {
-                const recipeRef = doc(db, "recipes", recipeId);
-                await updateDoc(recipeRef, recipeData);
-                toast({ title: "Success", description: "Recipe updated successfully." });
-            } else {
-                await addDoc(collection(db, "recipes"), recipeData);
-                toast({ title: "Success", description: "Recipe created successfully." });
-            }
+    const handleSave = async (recipeData: Omit<Recipe, 'id'>, user: User, recipeId?: string) => {
+        const result = await handleSaveRecipe(recipeData, user, recipeId);
+        if (result.success) {
+            toast({ title: "Success", description: "Recipe saved successfully." });
             fetchAllData();
-        } catch (error) {
-            console.error("Error saving recipe:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not save recipe." });
+        } else {
+            toast({ variant: "destructive", title: "Error", description: result.error });
         }
     };
 
-    const handleDeleteRecipe = async () => {
+    const handleDelete = async () => {
         if (!recipeToDelete || !user) return;
-        try {
-            await deleteDoc(doc(db, "recipes", recipeToDelete.id));
+        const result = await handleDeleteRecipe(recipeToDelete.id, recipeToDelete.name, user);
+        if (result.success) {
             toast({ title: "Success", description: "Recipe deleted successfully." });
             fetchAllData();
         } catch (error) {
-            console.error("Error deleting recipe:", error);
             toast({ variant: "destructive", title: "Error", description: "Could not delete recipe." });
         } finally {
             setRecipeToDelete(null);
@@ -671,7 +667,7 @@ export default function RecipesPage() {
             <RecipeDialog
                 isOpen={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
-                onSave={handleSaveRecipe}
+                onSave={handleSave}
                 recipe={editingRecipe}
                 products={products}
                 ingredients={ingredients}
@@ -822,7 +818,7 @@ export default function RecipesPage() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteRecipe}>Delete</AlertDialogAction>
+                        <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

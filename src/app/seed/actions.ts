@@ -336,6 +336,12 @@ const seedData = {
         ]
     }
   ],
+  production_logs: [
+      { action: 'Recipe Created', details: 'Created new recipe: Standard Family Loaf', staffId: '100001', staffName: 'Chris Manager', timestamp: daysAgo(3) },
+      { action: 'Batch Requested', details: 'Requested 50 of Family Loaf', staffId: '500006', staffName: 'Blessing Baker', timestamp: daysAgo(2) },
+      { action: 'Batch Approved', details: 'Approved batch for 50 of Family Loaf', staffId: '700008', staffName: 'David Storekeeper', timestamp: daysAgo(1) },
+      { action: 'Batch Completed', details: 'Completed batch of Family Loaf with 48 produced and 2 wasted.', staffId: '500006', staffName: 'Blessing Baker', timestamp: Timestamp.now() },
+  ],
   personal_stock_mfon: [
     {
         productId: 'prod_1',
