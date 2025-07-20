@@ -27,7 +27,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
@@ -85,49 +84,47 @@ type CompletedOrder = {
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder }>(({ order }, ref) => {
   return (
-    <div ref={ref} className="print:p-8">
-      <div id={`receipt-${order.id}`}>
-        <div className="text-center mb-4">
+    <div ref={ref} className="print:p-8 p-2">
+       <div className="text-center mb-4">
           <h2 className="font-headline text-2xl text-center">BMS</h2>
-          <p className="text-center">Sale Receipt</p>
+          <p className="text-center text-sm">Sale Receipt</p>
         </div>
-        <div className="py-4 space-y-4">
-            <div className="text-sm text-muted-foreground">
+        <div className="py-2 space-y-2">
+            <div className="text-xs text-muted-foreground">
                 <p><strong>Order ID:</strong> {order.id}</p>
                 <p><strong>Date:</strong> {order.date.toDate().toLocaleString()}</p>
                 <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
                 <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
             </div>
-            <Separator />
+            <Separator className="my-2"/>
             <Table>
                 <TableHeader>
                     <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead className="text-center">Qty</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-xs h-auto p-1">Item</TableHead>
+                    <TableHead className="text-center text-xs h-auto p-1">Qty</TableHead>
+                    <TableHead className="text-right text-xs h-auto p-1">Amount</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {order.items.map((item, index) => (
                     <TableRow key={item.id || index}>
-                        <TableCell>{item.name}</TableCell>
-                        <TableCell className="text-center">{item.quantity}</TableCell>
-                        <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
+                        <TableCell className="text-xs p-1">{item.name}</TableCell>
+                        <TableCell className="text-center text-xs p-1">{item.quantity}</TableCell>
+                        <TableCell className="text-right text-xs p-1">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
                     </TableRow>
                     ))}
                 </TableBody>
             </Table>
-                <Separator />
-                <div className="w-full space-y-1 text-sm pr-2">
+                <Separator className="my-2"/>
+                <div className="w-full space-y-1 text-sm pr-1">
                 <div className="flex justify-between font-bold text-base mt-1">
                     <span>Total</span>
                     <span>₦{order.total.toFixed(2)}</span>
                 </div>
             </div>
-            <Separator />
+            <Separator className="my-2"/>
             <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
         </div>
-      </div>
     </div>
   );
 });
@@ -155,24 +152,16 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
 
     const handlePrint = useReactToPrint({
         content: () => receiptRef.current,
-        onAfterPrint: () => setPrintingOrder(null)
+        onAfterPrint: () => setPrintingOrder(null),
     });
 
-    useEffect(() => {
-        if(printingOrder) {
-            handlePrint();
-        }
-    }, [printingOrder, handlePrint]);
-    
     return (
         <>
         <Dialog open={!!viewingOrder} onOpenChange={() => setViewingOrder(null)}>
             <DialogContent className="sm:max-w-md">
-                <DialogHeader>
+                 <DialogHeader>
                     <DialogTitle>Order Details</DialogTitle>
-                    <DialogDescription>
-                        A summary of the selected order.
-                    </DialogDescription>
+                    <DialogDescription>A summary of the selected order.</DialogDescription>
                 </DialogHeader>
                 {viewingOrder && <Receipt order={viewingOrder} />}
                 <DialogFooter>
@@ -250,7 +239,10 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                                             <Eye className="mr-2 h-4 w-4" />
                                             <span>View Details</span>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => setPrintingOrder(order)}>
+                                        <DropdownMenuItem onSelect={async () => {
+                                            await setPrintingOrder(order);
+                                            handlePrint();
+                                        }}>
                                             <Printer className="mr-2 h-4 w-4" />
                                             <span>Print Receipt</span>
                                         </DropdownMenuItem>
@@ -563,26 +555,7 @@ export default function RegularOrdersPage() {
                 <h1 className="text-2xl font-bold mb-4">Selected Orders</h1>
                 {getSelectedOrdersData().map(order => (
                     <div key={order.id} className="mb-8 p-4 border rounded-lg page-break-before:always">
-                        <h2 className="text-xl font-semibold mb-2">Order ID: {order.id.substring(0,7)}...</h2>
-                        <p><strong>Date:</strong> {order.date.toDate().toLocaleString()}</p>
-                        <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
-                        <p><strong>Status:</strong> {order.status}</p>
-                        <Separator className="my-4" />
-                        <h3 className="font-bold mb-2">Items</h3>
-                        <Table>
-                            <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Qty</TableHead><TableHead className="text-right">Price</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {order.items.map(item => (
-                                    <TableRow key={item.id}><TableCell>{item.name}</TableCell><TableCell>{item.quantity}</TableCell><TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell></TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                         <Separator className="my-4" />
-                        <div className="flex justify-end">
-                            <div className="w-1/3 space-y-2">
-                                <div className="flex justify-between font-bold text-lg"><span>Total:</span><span>₦{order.total.toFixed(2)}</span></div>
-                            </div>
-                        </div>
+                        <Receipt order={order} />
                     </div>
                 ))}
             </div>
