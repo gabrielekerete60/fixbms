@@ -1376,13 +1376,23 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       const runRef = doc(db, 'transfers', data.runId);
       const newOrderRef = doc(collection(db, 'orders'));
 
-      // Decrement stock from the driver's personal inventory
-      for (const item of data.items) {
-        const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
-        const stockDoc = await transaction.get(stockRef);
+      // Perform all reads first
+      const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
+      const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
+
+      // Validate stock
+      for (let i = 0; i < data.items.length; i++) {
+        const item = data.items[i];
+        const stockDoc = stockDocs[i];
         if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
           throw new Error(`Not enough stock for ${item.name}.`);
         }
+      }
+
+      // If all validations pass, perform all writes
+      for (let i = 0; i < data.items.length; i++) {
+        const item = data.items[i];
+        const stockRef = stockRefs[i];
         transaction.update(stockRef, { stock: increment(-item.quantity) });
       }
 
