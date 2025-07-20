@@ -55,7 +55,6 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { useReactToPrint } from 'react-to-print';
 import {
   Select,
   SelectContent,
@@ -131,6 +130,52 @@ const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder }>(({ o
 });
 Receipt.displayName = 'Receipt';
 
+const handlePrint = (node: HTMLElement | null) => {
+    if (!node) return;
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        const printableContent = `
+            <html>
+                <head>
+                    <title>Receipt</title>
+                    <style>
+                        body { font-family: sans-serif; margin: 20px; }
+                        .receipt-container { max-width: 300px; margin: auto; }
+                        .text-center { text-align: center; }
+                        .font-bold { font-weight: bold; }
+                        .text-lg { font-size: 1.125rem; }
+                        .text-2xl { font-size: 1.5rem; }
+                        .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
+                        .text-sm { font-size: 0.875rem; }
+                        .text-xs { font-size: 0.75rem; }
+                        .text-muted-foreground { color: #6b7280; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th, td { padding: 4px 0; }
+                        .text-right { text-align: right; }
+                        .flex { display: flex; }
+                        .justify-between { justify-content: space-between; }
+                        hr { border: 0; border-top: 1px dashed #d1d5db; margin: 1rem 0; }
+                    </style>
+                </head>
+                <body>
+                    <div class="receipt-container">
+                        ${node.innerHTML}
+                    </div>
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            window.onafterprint = function() {
+                                window.close();
+                            };
+                        };
+                    </script>
+                </body>
+            </html>
+        `;
+        printWindow.document.write(printableContent);
+        printWindow.document.close();
+    }
+};
 
 const getStatusVariant = (status?: string) => {
     if (!status) return 'outline';
@@ -150,27 +195,21 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
     const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
     const [printingOrder, setPrintingOrder] = useState<CompletedOrder | null>(null);
     const receiptRef = useRef<HTMLDivElement>(null);
-    const printBtnRef = useRef<HTMLButtonElement>(null);
 
-    const handlePrint = useReactToPrint({
-        content: () => receiptRef.current,
-        onAfterPrint: () => setPrintingOrder(null),
-        trigger: () => printBtnRef.current,
-    });
+    const onPrint = (order: CompletedOrder) => {
+      setPrintingOrder(order);
+      setTimeout(() => {
+        handlePrint(receiptRef.current);
+        setPrintingOrder(null);
+      }, 100);
+    }
     
-    useEffect(() => {
-        if (printingOrder && printBtnRef.current) {
-            printBtnRef.current.click();
-        }
-    }, [printingOrder]);
-
     return (
         <>
         <Dialog open={!!viewingOrder} onOpenChange={() => setViewingOrder(null)}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Order Details</DialogTitle>
-                    <DialogDescription>A summary of the selected order.</DialogDescription>
                 </DialogHeader>
                 {viewingOrder && <Receipt order={viewingOrder} />}
                 <DialogFooter>
@@ -178,10 +217,9 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-        
+
         <div className="hidden">
             {printingOrder && <Receipt order={printingOrder} ref={receiptRef} />}
-            <button ref={printBtnRef} style={{ display: 'none' }}>Print</button>
         </div>
         
         <Table>
@@ -249,7 +287,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                                             <Eye className="mr-2 h-4 w-4" />
                                             <span>View Details</span>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => setPrintingOrder(order)}>
+                                        <DropdownMenuItem onSelect={() => onPrint(order)}>
                                             <Printer className="mr-2 h-4 w-4" />
                                             <span>Print Receipt</span>
                                         </DropdownMenuItem>
@@ -353,12 +391,19 @@ export default function RegularOrdersPage() {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
 
   const selectedOrdersRef = useRef<HTMLDivElement>(null);
+  const [ordersToPrint, setOrdersToPrint] = useState<CompletedOrder[]>([]);
 
-  const handlePrintSelected = useReactToPrint({
-      content: () => selectedOrdersRef.current,
-      documentTitle: 'Selected-Orders',
-  });
+  useEffect(() => {
+    if (ordersToPrint.length > 0 && selectedOrdersRef.current) {
+        handlePrint(selectedOrdersRef.current);
+        setOrdersToPrint([]);
+    }
+  }, [ordersToPrint]);
 
+  const handlePrintSelected = () => {
+    const selected = allOrders.filter(order => selectedOrders.includes(order.id));
+    setOrdersToPrint(selected);
+  };
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -462,10 +507,6 @@ export default function RegularOrdersPage() {
     );
   };
   
-  const getSelectedOrdersData = () => {
-    return allOrders.filter(order => selectedOrders.includes(order.id));
-  };
-
   return (
     <div className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold font-headline">Regular Orders</h1>
@@ -560,7 +601,7 @@ export default function RegularOrdersPage() {
         <div className="hidden">
            <div ref={selectedOrdersRef} className="p-8">
                 <h1 className="text-2xl font-bold mb-4">Selected Orders</h1>
-                {getSelectedOrdersData().map(order => (
+                {ordersToPrint.map(order => (
                     <div key={order.id} className="mb-8 p-4 border rounded-lg page-break-before:always">
                         <Receipt order={order} />
                     </div>

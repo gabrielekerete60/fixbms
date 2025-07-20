@@ -76,7 +76,7 @@ type CompletedOrder = {
   items: CartItem[];
   subtotal: number;
   total: number;
-  date: string;
+  date: Timestamp;
   paymentMethod: 'Card' | 'Cash';
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
@@ -100,6 +100,53 @@ type PaymentStatus = {
     orderId?: string | null;
     message?: string;
 }
+
+const handlePrint = (node: HTMLElement | null) => {
+    if (!node) return;
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        const printableContent = `
+            <html>
+                <head>
+                    <title>Receipt</title>
+                    <style>
+                        body { font-family: sans-serif; margin: 20px; }
+                        .receipt-container { max-width: 300px; margin: auto; }
+                        .text-center { text-align: center; }
+                        .font-bold { font-weight: bold; }
+                        .text-lg { font-size: 1.125rem; }
+                        .text-2xl { font-size: 1.5rem; }
+                        .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
+                        .text-sm { font-size: 0.875rem; }
+                        .text-xs { font-size: 0.75rem; }
+                        .text-muted-foreground { color: #6b7280; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th, td { padding: 4px 0; }
+                        .text-right { text-align: right; }
+                        .flex { display: flex; }
+                        .justify-between { justify-content: space-between; }
+                        hr { border: 0; border-top: 1px dashed #d1d5db; margin: 1rem 0; }
+                    </style>
+                </head>
+                <body>
+                    <div class="receipt-container">
+                        ${node.innerHTML}
+                    </div>
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            window.onafterprint = function() {
+                                window.close();
+                            };
+                        };
+                    </script>
+                </body>
+            </html>
+        `;
+        printWindow.document.write(printableContent);
+        printWindow.document.close();
+    }
+};
 
 function POSPageContent() {
   const { toast } = useToast();
@@ -229,6 +276,15 @@ function POSPageContent() {
 
   }, [toast, setPaymentStatus]);
 
+  useEffect(() => {
+    if (isReceiptOpen && lastCompletedOrder) {
+      setTimeout(() => {
+        handlePrint(receiptRef.current);
+      }, 100);
+    }
+  }, [isReceiptOpen, lastCompletedOrder]);
+
+
   const clearCartAndStorage = () => {
     setCart([]);
     setCustomerName('');
@@ -269,11 +325,11 @@ function POSPageContent() {
           transaction.set(orderRef, newOrderData);
       });
       
-      setLastCompletedOrder({ ...newOrderData, date: newOrderData.date.toDate().toISOString() });
+      setLastCompletedOrder({ ...newOrderData });
       clearCartAndStorage();
 
       await fetchProductsForStaff(selectedStaffId);
-      return { ...newOrderData, date: newOrderData.date.toDate().toISOString() };
+      return { ...newOrderData };
     } catch (error) {
       console.error("Error saving order:", error);
       const errorMessage = error instanceof Error ? error.message : "There was a problem saving the order to the database.";
@@ -430,48 +486,6 @@ function POSPageContent() {
         setIsReceiptOpen(true);
     }
     setPaymentStatus({ status: 'idle' });
-  }
-
-  const handlePrintReceipt = () => {
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-        if (receiptRef.current) {
-            const printableContent = `
-                <html>
-                    <head>
-                        <title>Receipt</title>
-                        <style>
-                            body { font-family: sans-serif; margin: 20px; }
-                            .receipt-container { max-width: 300px; margin: auto; }
-                            .text-center { text-align: center; }
-                            .font-bold { font-weight: bold; }
-                            .text-lg { font-size: 1.125rem; }
-                            .text-2xl { font-size: 1.5rem; }
-                            .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
-                            .text-sm { font-size: 0.875rem; }
-                            .text-xs { font-size: 0.75rem; }
-                            .text-muted-foreground { color: #6b7280; }
-                            table { width: 100%; border-collapse: collapse; }
-                            th, td { padding: 4px 0; }
-                            .text-right { text-align: right; }
-                            .flex { display: flex; }
-                            .justify-between { justify-content: space-between; }
-                            hr { border: 0; border-top: 1px dashed #d1d5db; margin: 1rem 0; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="receipt-container">
-                            ${receiptRef.current.innerHTML}
-                        </div>
-                    </body>
-                </html>
-            `;
-            printWindow.document.write(printableContent);
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-        }
-    }
   }
 
   const handleSelectStaff = (staffId: string) => {
@@ -787,60 +801,50 @@ function POSPageContent() {
         </AlertDialog>
 
         {/* Receipt Dialog */}
-        {lastCompletedOrder && (
-            <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
-                <DialogContent className="sm:max-w-md print:max-w-full print:border-none print:shadow-none">
-                     <div ref={receiptRef}>
-                        <DialogHeader>
-                            <DialogTitle className="font-headline text-2xl text-center">BMS</DialogTitle>
-                            <DialogDescription className="text-center">
-                                Sale Receipt
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="py-4 space-y-4">
-                            <div className="text-sm text-muted-foreground">
-                                <p><strong>Order ID:</strong> {lastCompletedOrder.id}</p>
-                                <p><strong>Date:</strong> {new Date(lastCompletedOrder.date).toLocaleString()}</p>
-                                <p><strong>Payment Method:</strong> {lastCompletedOrder.paymentMethod}</p>
-                                <p><strong>Customer:</strong> {lastCompletedOrder.customerName || 'Walk-in'}</p>
-                            </div>
-                            <Separator />
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                    <TableHead>Item</TableHead>
-                                    <TableHead className="text-center">Qty</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {lastCompletedOrder.items.map((item, i) => (
-                                    <TableRow key={i}>
-                                        <TableCell>{item.name}</TableCell>
-                                        <TableCell className="text-center">{item.quantity}</TableCell>
-                                        <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
-                                    </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                            <Separator />
-                            <div className="w-full space-y-1 text-sm pr-2">
-                                <div className="flex justify-between font-bold text-base mt-1">
-                                    <span>Total</span>
-                                    <span>₦{lastCompletedOrder.total.toFixed(2)}</span>
-                                </div>
-                            </div>
-                            <Separator />
-                            <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
+        <div className="hidden">
+            {lastCompletedOrder && (
+                <div ref={receiptRef}>
+                    <h2 className="text-2xl font-bold text-center">BMS</h2>
+                    <p className="text-center text-sm">Sale Receipt</p>
+                    <div className="py-4 space-y-4">
+                        <div className="text-sm text-muted-foreground">
+                            <p><strong>Order ID:</strong> {lastCompletedOrder.id}</p>
+                            <p><strong>Date:</strong> {lastCompletedOrder.date.toDate().toLocaleString()}</p>
+                            <p><strong>Payment Method:</strong> {lastCompletedOrder.paymentMethod}</p>
+                            <p><strong>Customer:</strong> {lastCompletedOrder.customerName || 'Walk-in'}</p>
                         </div>
+                        <Separator />
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                <TableHead>Item</TableHead>
+                                <TableHead className="text-center">Qty</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {lastCompletedOrder.items.map((item, i) => (
+                                <TableRow key={i}>
+                                    <TableCell>{item.name}</TableCell>
+                                    <TableCell className="text-center">{item.quantity}</TableCell>
+                                    <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
+                                </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                        <Separator />
+                        <div className="w-full space-y-1 text-sm pr-2">
+                            <div className="flex justify-between font-bold text-base mt-1">
+                                <span>Total</span>
+                                <span>₦{lastCompletedOrder.total.toFixed(2)}</span>
+                            </div>
+                        </div>
+                        <Separator />
+                        <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
                     </div>
-                    <DialogFooter className="flex justify-end gap-2 print:hidden">
-                        <Button variant="outline" onClick={handlePrintReceipt}><Printer className="mr-2 h-4 w-4"/> Print</Button>
-                        <Button onClick={() => setIsReceiptOpen(false)}>Close</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        )}
+                </div>
+            )}
+        </div>
      </>
   );
 }

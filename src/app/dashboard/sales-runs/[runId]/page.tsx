@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { collection, getDocs, doc, addDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, addDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -57,6 +57,53 @@ type User = {
     role: string;
     staff_id: string;
     email: string;
+};
+
+const handlePrint = (node: HTMLElement | null) => {
+    if (!node) return;
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        const printableContent = `
+            <html>
+                <head>
+                    <title>Receipt</title>
+                    <style>
+                        body { font-family: sans-serif; margin: 20px; }
+                        .receipt-container { max-width: 300px; margin: auto; }
+                        .text-center { text-align: center; }
+                        .font-bold { font-weight: bold; }
+                        .text-lg { font-size: 1.125rem; }
+                        .text-2xl { font-size: 1.5rem; }
+                        .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
+                        .text-sm { font-size: 0.875rem; }
+                        .text-xs { font-size: 0.75rem; }
+                        .text-muted-foreground { color: #6b7280; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th, td { padding: 4px 0; }
+                        .text-right { text-align: right; }
+                        .flex { display: flex; }
+                        .justify-between { justify-content: space-between; }
+                        hr { border: 0; border-top: 1px dashed #d1d5db; margin: 1rem 0; }
+                    </style>
+                </head>
+                <body>
+                    <div class="receipt-container">
+                        ${node.innerHTML}
+                    </div>
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            window.onafterprint = function() {
+                                window.close();
+                            };
+                        };
+                    </script>
+                </body>
+            </html>
+        `;
+        printWindow.document.write(printableContent);
+        printWindow.document.close();
+    }
 };
 
 function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreated: (customer: Customer) => void, children: React.ReactNode }) {
@@ -594,49 +641,9 @@ function RecordPaymentDialog({ run, user, customers, onPaymentMade }: { run: Sal
 
 function OrderDetailsDialog({ order, isOpen, onOpenChange }: { order: CompletedOrder | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
     const receiptRef = useRef<HTMLDivElement>(null);
-
-    const handlePrint = () => {
-        const printWindow = window.open('', '_blank', 'height=600,width=800');
-        if (printWindow && receiptRef.current) {
-            const printableContent = `
-                <html>
-                    <head>
-                        <title>Receipt</title>
-                        <style>
-                            @media print {
-                                @page { margin: 0; }
-                                body { margin: 1.6cm; }
-                            }
-                            body { font-family: sans-serif; }
-                            .receipt-container { max-width: 300px; margin: auto; }
-                            .text-center { text-align: center; }
-                            .font-bold { font-weight: bold; }
-                            .text-lg { font-size: 1.125rem; }
-                            .text-2xl { font-size: 1.5rem; }
-                            .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
-                            .text-sm { font-size: 0.875rem; }
-                            .text-xs { font-size: 0.75rem; }
-                            .text-muted-foreground { color: #6b7280; }
-                            table { width: 100%; border-collapse: collapse; }
-                            th, td { padding: 4px 0; }
-                            .text-right { text-align: right; }
-                            .flex { display: flex; }
-                            .justify-between { justify-content: space-between; }
-                            hr { border: 0; border-top: 1px dashed #d1d5db; margin: 1rem 0; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="receipt-container">
-                            ${receiptRef.current.innerHTML}
-                        </div>
-                    </body>
-                </html>
-            `;
-            printWindow.document.write(printableContent);
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-        }
+    
+    const onPrint = () => {
+        handlePrint(receiptRef.current);
     }
 
     if (!isOpen || !order) return null;
@@ -669,7 +676,7 @@ function OrderDetailsDialog({ order, isOpen, onOpenChange }: { order: CompletedO
                     </div>
                 </div>
                  <DialogFooter>
-                    <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
+                    <Button variant="outline" onClick={onPrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
                     <Button onClick={() => onOpenChange(false)}>Close</Button>
                 </DialogFooter>
             </DialogContent>
@@ -702,7 +709,16 @@ export default function SalesRunPage() {
     };
 
     const handleSaleMade = (order: CompletedOrder) => {
-        setViewingOrder(order);
+        const receiptRef = document.createElement('div');
+        const orderToPrint = {...order, date: new Date(order.date).toISOString()};
+
+        // A bit of a hack to get the receipt to print
+        const tempDiv = document.createElement("div");
+        const ReactDOM = require('react-dom');
+        ReactDOM.render(<OrderDetailsDialog order={orderToPrint} isOpen={true} onOpenChange={() => {}} />, tempDiv);
+        const receiptNode = tempDiv.querySelector('.sm\\:max-w-md');
+        if(receiptNode) handlePrint(receiptNode as HTMLElement);
+
         fetchData(); // Refresh all data
     };
     
