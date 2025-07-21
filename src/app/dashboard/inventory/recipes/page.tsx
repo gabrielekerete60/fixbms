@@ -572,7 +572,7 @@ export default function RecipesPage() {
                 return {
                     id: doc.id,
                     ...data,
-                    ingredients: data.ingredients || [] // Ensure ingredients is always an array
+                    ingredients: data.ingredients || []
                 } as Recipe;
             }));
             setProducts(productSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, category: doc.data().category } as Product)));
@@ -607,7 +607,7 @@ export default function RecipesPage() {
     };
 
     const recipesWithCost = useMemo(() => {
-        if (!recipes.length || !ingredients.length) {
+        if (isLoading || !recipes.length || !ingredients.length) {
             return [];
         }
         const ingredientsMap = new Map(ingredients.map(i => [i.id, i]));
@@ -616,17 +616,20 @@ export default function RecipesPage() {
                 const ingredientData = ingredientsMap.get(currentIng.ingredientId);
                 if (!ingredientData) return acc;
                 let quantityInBaseUnit = currentIng.quantity;
-                if (ingredientData.unit.toLowerCase() === 'kg' && currentIng.unit.toLowerCase() === 'g') {
-                    quantityInBaseUnit = currentIng.quantity / 1000;
-                } else if (ingredientData.unit.toLowerCase() === 'l' && currentIng.unit.toLowerCase() === 'ml') {
-                     quantityInBaseUnit = currentIng.quantity / 1000;
+                // Handle unit conversions
+                if (ingredientData.unit && currentIng.unit) {
+                    if (ingredientData.unit.toLowerCase() === 'kg' && currentIng.unit.toLowerCase() === 'g') {
+                        quantityInBaseUnit = currentIng.quantity / 1000;
+                    } else if (ingredientData.unit.toLowerCase() === 'l' && currentIng.unit.toLowerCase() === 'ml') {
+                         quantityInBaseUnit = currentIng.quantity / 1000;
+                    }
                 }
                 
                 return acc + ((ingredientData.costPerUnit || 0) * quantityInBaseUnit);
             }, 0);
             return { ...recipe, cost };
         });
-    }, [recipes, ingredients]);
+    }, [recipes, ingredients, isLoading]);
 
     const handleSave = async (recipeData: Omit<Recipe, 'id'>, user: User, recipeId?: string) => {
         const result = await handleSaveRecipe(recipeData, user, recipeId);
