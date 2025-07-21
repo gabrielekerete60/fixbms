@@ -321,14 +321,14 @@ function LogDetailsDialog({ isOpen, onOpenChange, log, productionBatch, supplyLo
   
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Log Details: {log.id.substring(0, 7)}...</DialogTitle>
             <DialogDescription>
               Details for stock change on {format(new Date(log.date), 'PPp')} by {log.staffName}.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4">
+          <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
             {isProduction && productionBatch && (
               <div>
                 <h4 className="font-semibold mb-2">Production Batch: {productionBatch.id.substring(0,6)}...</h4>
@@ -338,13 +338,20 @@ function LogDetailsDialog({ isOpen, onOpenChange, log, productionBatch, supplyLo
                 <h5 className="font-medium">Ingredients Used</h5>
                 <Table>
                   <TableHeader>
-                    <TableRow><TableHead>Ingredient</TableHead><TableHead className="text-right">Quantity</TableHead></TableRow>
+                    <TableRow>
+                        <TableHead>Ingredient</TableHead>
+                        <TableHead className="text-right">Available Before Prod</TableHead>
+                        <TableHead className="text-right">Used</TableHead>
+                        <TableHead className="text-right">Available After Prod</TableHead>
+                    </TableRow>
                   </TableHeader>
                   <TableBody>
                     {productionBatch.ingredients.map(ing => (
                       <TableRow key={ing.ingredientId}>
                         <TableCell>{ing.ingredientName}</TableCell>
-                        <TableCell className="text-right">{ing.quantity} {ing.unit}</TableCell>
+                        <TableCell className="text-right">{((ing.openingStock || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {ing.unit}</TableCell>
+                        <TableCell className="text-right text-destructive">- {ing.quantity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {ing.unit}</TableCell>
+                        <TableCell className="text-right text-green-600 font-medium">{((ing.closingStock || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {ing.unit}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
