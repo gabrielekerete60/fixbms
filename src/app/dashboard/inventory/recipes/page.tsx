@@ -96,15 +96,13 @@ function RecipeDialog({
   recipe,
   products,
   ingredients: allIngredients,
-  user,
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: Omit<Recipe, 'id'>, user: User, recipeId?: string) => void;
+  onSave: (data: Omit<Recipe, 'id'>, recipeId?: string) => void;
   recipe: Partial<Recipe> | null;
   products: Product[];
   ingredients: Ingredient[];
-  user: User;
 }) {
     const { toast } = useToast();
     const [name, setName] = useState("");
@@ -161,7 +159,7 @@ function RecipeDialog({
             productId: selectedProductId,
             productName: selectedProduct?.name || '',
             ingredients: recipeIngredients,
-        }, user, recipe?.id);
+        }, recipe?.id);
         onOpenChange(false);
     };
 
@@ -244,7 +242,7 @@ export default function RecipesPage() {
                 getDocs(collection(db, "ingredients")),
             ]);
 
-            setRecipes(recipeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recipe)));
+            setRecipes(recipeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), ingredients: doc.data().ingredients || [] } as Recipe)));
             setProducts(productSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, category: doc.data().category } as Product)));
             setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ingredient)));
 
@@ -264,7 +262,11 @@ export default function RecipesPage() {
         fetchAllData();
     }, [fetchAllData]);
 
-    const handleSave = async (recipeData: Omit<Recipe, 'id'>, user: User, recipeId?: string) => {
+    const handleSave = async (recipeData: Omit<Recipe, 'id'>, recipeId?: string) => {
+        if (!user) {
+            toast({ variant: "destructive", title: "Error", description: "You must be logged in to save a recipe." });
+            return;
+        }
         const result = await handleSaveRecipe(recipeData, user, recipeId);
         if (result.success) {
             toast({ title: "Success", description: "Recipe saved successfully." });
@@ -280,11 +282,10 @@ export default function RecipesPage() {
         if (result.success) {
             toast({ title: "Success", description: "Recipe deleted successfully." });
             fetchAllData();
-        } catch (error) {
+        } else {
             toast({ variant: "destructive", title: "Error", description: "Could not delete recipe." });
-        } finally {
-            setRecipeToDelete(null);
         }
+        setRecipeToDelete(null);
     };
 
     const openAddDialog = () => {
@@ -318,7 +319,6 @@ export default function RecipesPage() {
                     recipe={editingRecipe}
                     products={products}
                     ingredients={ingredients}
-                    user={user}
                 />
             )}
 
@@ -386,5 +386,3 @@ export default function RecipesPage() {
         </div>
     );
 }
-
-    
