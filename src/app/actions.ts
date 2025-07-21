@@ -18,6 +18,7 @@ type LoginResult = {
     role: string;
     staff_id: string;
     email: string;
+    theme?: string;
   }
 };
 
@@ -49,7 +50,7 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
 
     // Check for MFA
     if (userData.mfa_enabled) {
-        return { success: true, mfaRequired: true };
+        return { success: true, mfaRequired: true, user: { staff_id: userDoc.id, name: userData.name, role: userData.role, email: userData.email, theme: userData.theme || 'default' } };
     }
     
     await updateDoc(userDocRef, {
@@ -63,6 +64,7 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
         role: userData.role,
         staff_id: userDoc.id,
         email: userData.email,
+        theme: userData.theme || 'default'
       } 
     };
   } catch (error) {
@@ -80,6 +82,7 @@ type MfaResult = {
     role: string;
     staff_id: string;
     email: string;
+    theme?: string;
   }
 }
 
@@ -122,6 +125,7 @@ export async function verifyMfa(staffId: string, token: string): Promise<MfaResu
                 role: userData.role,
                 staff_id: userDoc.id,
                 email: userData.email,
+                theme: userData.theme || 'default'
             }
         };
 
@@ -196,6 +200,16 @@ export async function handleChangePassword(staffId: string, currentPass: string,
     } catch (error) {
         console.error("Error changing password:", error);
         return { success: false, error: "Failed to change password." };
+    }
+}
+
+export async function handleUpdateTheme(staffId: string, theme: string): Promise<{success: boolean; error?: string}> {
+    try {
+        await updateDoc(doc(db, "staff", staffId), { theme });
+        return { success: true };
+    } catch (error) {
+        console.error("Error updating theme:", error);
+        return { success: false, error: "Failed to update theme." };
     }
 }
 
@@ -893,7 +907,7 @@ export type Announcement = {
     staffId: string;
     staffName: string;
     message: string;
-    timestamp: string; // Changed from Timestamp to string
+    timestamp: Timestamp | null;
 }
 
 export async function getAnnouncements(): Promise<Announcement[]> {
@@ -902,13 +916,12 @@ export async function getAnnouncements(): Promise<Announcement[]> {
         const snapshot = await getDocs(q);
         return snapshot.docs.map(docSnap => {
             const data = docSnap.data();
-            const timestamp = data.timestamp as Timestamp;
             return { 
                 id: docSnap.id,
                 staffId: data.staffId,
                 staffName: data.staffName,
                 message: data.message,
-                timestamp: timestamp.toDate().toISOString(), // Convert to string
+                timestamp: data.timestamp, // Keep as Timestamp
             } as Announcement
         });
     } catch (error) {
@@ -1136,23 +1149,19 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
         const q = query(
             collection(db, 'transfers'),
             where('status', '==', 'pending'),
-            where('is_sales_run', '==', false)
+            where('notes', '>=', 'Return from production batch'),
+            where('notes', '<=', 'Return from production batch' + '\uf8ff')
         );
         const querySnapshot = await getDocs(q);
 
-        const transfers = querySnapshot.docs
-            .map(docSnap => {
-                const data = docSnap.data();
-                return {
-                    id: docSnap.id,
-                    ...data,
-                    date: (data.date as Timestamp).toDate().toISOString(),
-                } as Transfer;
-            })
-            // This client-side filter is more reliable than a complex query
-            .filter(t => t.notes?.startsWith('Return from production batch'));
-            
-        return transfers;
+        return querySnapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            return {
+                id: docSnap.id,
+                ...data,
+                date: (data.date as Timestamp).toDate().toISOString(),
+            } as Transfer;
+        });
 
     } catch (error) {
         console.error("Error fetching production transfers:", error);

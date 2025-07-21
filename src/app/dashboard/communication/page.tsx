@@ -111,11 +111,7 @@ export default function CommunicationPage() {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => {
                  const docData = doc.data();
-                 // This ensures that we only try to convert valid Timestamps
-                 const timestamp = docData.timestamp instanceof Timestamp 
-                    ? docData.timestamp.toDate().toISOString() 
-                    : null;
-                return { id: doc.id, ...docData, timestamp } as AnnouncementType;
+                return { id: doc.id, ...docData } as AnnouncementType;
             });
             setAnnouncements(data);
             setIsLoading(false);
@@ -186,7 +182,7 @@ export default function CommunicationPage() {
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-semibold">{announcement.staffName}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        {announcement.timestamp ? format(new Date(announcement.timestamp), 'PPp') : 'Sending...'}
+                                                        {announcement.timestamp ? format(announcement.timestamp.toDate(), 'PPp') : 'Sending...'}
                                                     </p>
                                                 </div>
                                                 <p className="text-sm">{announcement.message}</p>
