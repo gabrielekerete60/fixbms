@@ -159,13 +159,13 @@ export default function DashboardLayout({
       pendingBatches: 0,
   });
   
-  const applyTheme = (theme: string | undefined) => {
+  const applyTheme = useCallback((theme: string | undefined) => {
     const root = document.documentElement;
-    root.className = ''; // Clear existing theme classes
+    root.classList.remove('theme-classic-light'); // Remove any existing theme
     if (theme && theme !== 'default') {
       root.classList.add(`theme-${theme}`);
     }
-  };
+  }, []);
 
   const handleLogout = useCallback((message?: string, description?: string) => {
     localStorage.removeItem('loggedInUser');
@@ -186,7 +186,7 @@ export default function DashboardLayout({
     } else {
       router.push('/');
     }
-  }, [router]);
+  }, [router, applyTheme]);
 
 
   useEffect(() => {
@@ -219,7 +219,6 @@ export default function DashboardLayout({
                 handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
                 return;
             }
-            // Update user state and local storage with fresh data from DB
             const updatedUser = { ...user, theme: userData.theme || 'default', name: userData.name };
             setUser(updatedUser); 
             localStorage.setItem('loggedInUser', JSON.stringify(updatedUser)); 
@@ -242,7 +241,7 @@ export default function DashboardLayout({
         unsubBatches();
     };
 
-  }, [user?.staff_id]);
+  }, [user?.staff_id, handleLogout]);
   
   const handleClockInOut = async () => {
     if (!user) return;

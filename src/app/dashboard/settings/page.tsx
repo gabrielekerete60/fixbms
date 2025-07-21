@@ -125,13 +125,20 @@ function ThemeSettings({ user }: { user: User }) {
         setIsSaving(true);
         const result = await handleUpdateTheme(user.staff_id, selectedTheme);
         if (result.success) {
-            // Write to local storage immediately before reload
             const updatedUser = { ...user, theme: selectedTheme };
             localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+            
+            const root = document.documentElement;
+            root.classList.remove('theme-classic-light');
+            if (selectedTheme !== 'default') {
+                root.classList.add(`theme-${selectedTheme}`);
+            }
+
             toast({ title: 'Theme saved!', description: 'Applying new theme...' });
+            
             setTimeout(() => {
                 window.location.reload();
-            }, 500);
+            }, 300);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save your theme preference.' });
             setIsSaving(false);
