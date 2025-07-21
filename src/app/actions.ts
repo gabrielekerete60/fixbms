@@ -1135,11 +1135,8 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
      try {
         const q = query(
             collection(db, 'transfers'),
-            where('notes', '!=', null),
             where('status', '==', 'pending'),
-            where('is_sales_run', '==', false),
-            orderBy('notes'),
-            orderBy('date', 'desc')
+            where('is_sales_run', '==', false)
         );
         const querySnapshot = await getDocs(q);
 
@@ -1152,6 +1149,7 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
                     date: (data.date as Timestamp).toDate().toISOString(),
                 } as Transfer;
             })
+            // This client-side filter is more reliable than a complex query
             .filter(t => t.notes?.startsWith('Return from production batch'));
             
         return transfers;
@@ -1439,8 +1437,12 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
     try {
         await runTransaction(db, async (transaction) => {
             const batchRef = doc(db, 'production_batches', data.batchId);
-            const storekeeperDoc = await getDoc(doc(db, 'staff', data.storekeeperId));
+            const storekeeperDoc = await transaction.get(doc(db, 'staff', data.storekeeperId));
             
+            if (!storekeeperDoc.exists()) {
+                throw new Error("Target storekeeper does not exist.");
+            }
+
             transaction.update(batchRef, {
                 status: 'completed',
                 successfullyProduced: data.successfullyProduced,
@@ -1453,7 +1455,7 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
                     from_staff_id: user.staff_id,
                     from_staff_name: user.name,
                     to_staff_id: data.storekeeperId,
-                    to_staff_name: storekeeperDoc.exists() ? storekeeperDoc.data().name : 'Main Store',
+                    to_staff_name: storekeeperDoc.data().name,
                     items: [{
                         productId: data.productId,
                         productName: data.productName,
@@ -1471,9 +1473,9 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
                 transaction.set(wasteLogRef, {
                     productId: data.productId,
                     productName: data.productName,
-                    productCategory: 'Breads',
+                    productCategory: 'Breads', // TODO: This should be dynamic
                     quantity: data.wasted,
-                    reason: 'Burnt',
+                    reason: 'Production Waste',
                     notes: `From production batch ${data.batchId}`,
                     staffId: user.staff_id,
                     staffName: user.name,
@@ -1486,8 +1488,9 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
 
         return { success: true };
     } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to complete production batch.";
         console.error("Error completing production batch:", error);
-        return { success: false, error: "Failed to complete production batch." };
+        return { success: false, error: errorMessage };
     }
 }
 
