@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -105,29 +106,27 @@ async function saveRecipe(recipeData: Omit<Recipe, 'id'>, user: User, recipeId?:
     try {
         if (recipeId) {
             await updateDoc(doc(db, "recipes", recipeId), recipeData);
-            await addDoc(collection(db, "production_logs"), {
-                action: 'Recipe Updated',
-                details: `Updated recipe: ${recipeData.name}`,
-                staffId: user.staff_id,
-                staffName: user.name,
-                timestamp: new Date()
-            });
+            await createProductionLog('Recipe Updated', `Updated recipe: ${recipeData.name}`, user);
         } else {
             const newRecipeRef = doc(collection(db, "recipes"));
             await updateDoc(newRecipeRef, { ...recipeData, id: newRecipeRef.id });
-            await addDoc(collection(db, "production_logs"), {
-                action: 'Recipe Created',
-                details: `Created new recipe: ${recipeData.name}`,
-                staffId: user.staff_id,
-                staffName: user.name,
-                timestamp: new Date()
-            });
+             await createProductionLog('Recipe Created', `Created new recipe: ${recipeData.name}`, user);
         }
         return { success: true };
     } catch (error) {
         console.error("Error saving recipe:", error);
         return { success: false, error: "Could not save recipe." };
     }
+}
+
+async function createProductionLog(action: string, details: string, user: User) {
+    await addDoc(collection(db, "production_logs"), {
+        action,
+        details,
+        staffId: user.staff_id,
+        staffName: user.name,
+        timestamp: new Date()
+    });
 }
 
 
@@ -692,13 +691,7 @@ export default function RecipesPage() {
         if (!recipeToDelete || !user) return;
         try {
             await deleteDoc(doc(db, "recipes", recipeToDelete.id));
-            await addDoc(collection(db, "production_logs"), {
-                action: 'Recipe Deleted',
-                details: `Deleted recipe: ${recipeToDelete.name}`,
-                staffId: user.staff_id,
-                staffName: user.name,
-                timestamp: new Date()
-            });
+            await createProductionLog('Recipe Deleted', `Deleted recipe: ${recipeToDelete.name}`, user);
             toast({ title: "Success", description: "Recipe deleted successfully." });
         } catch (error) {
             toast({ variant: "destructive", title: "Error", description: "Could not delete recipe." });
