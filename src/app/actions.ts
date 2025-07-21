@@ -1241,7 +1241,14 @@ export type ProductionBatch = {
     status: 'pending_approval' | 'in_production' | 'completed' | 'declined';
     createdAt: string; 
     approvedAt?: string;
-    ingredients: { ingredientId: string; quantity: number, unit: string, ingredientName: string }[];
+    ingredients: { 
+        ingredientId: string; 
+        quantity: number; 
+        unit: string; 
+        ingredientName: string;
+        openingStock?: number;
+        closingStock?: number;
+    }[];
     successfullyProduced?: number;
     wasted?: number;
 };
@@ -1306,8 +1313,7 @@ export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 's
 export async function approveIngredientRequest(batchId: string, ingredients: { ingredientId: string, quantity: number, ingredientName: string, unit: string }[], user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
     try {
         const batchRef = doc(db, 'production_batches', batchId);
-        const batchDocForLog = await getDoc(batchRef);
-
+        
         await runTransaction(db, async (transaction) => {
             const batchDoc = await transaction.get(batchRef);
             if (!batchDoc.exists() || batchDoc.data().status !== 'pending_approval') {
@@ -1316,6 +1322,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
 
             const ingredientRefs = ingredients.map(ing => doc(db, 'ingredients', ing.ingredientId));
             const ingredientDocs = await Promise.all(ingredientRefs.map(ref => transaction.get(ref)));
+            const ingredientsWithStock = [];
 
             for (let i = 0; i < ingredientDocs.length; i++) {
                 const ingDoc = ingredientDocs[i];
@@ -1324,6 +1331,11 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
                 if (!ingDoc.exists() || currentStock < reqIng.quantity) {
                     throw new Error(`Not enough stock for ${reqIng.ingredientName}. Required: ${reqIng.quantity}, Available: ${currentStock}`);
                 }
+                ingredientsWithStock.push({
+                    ...reqIng,
+                    openingStock: currentStock,
+                    closingStock: currentStock - reqIng.quantity
+                });
             }
 
             for (let i = 0; i < ingredientRefs.length; i++) {
@@ -1335,17 +1347,22 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
             const logRef = doc(collection(db, 'ingredient_stock_logs'));
             transaction.set(logRef, {
                 ingredientId: '', // Consolidated log
-                ingredientName: `Production Batch`,
+                ingredientName: `Production Batch: ${batchDoc.data()?.productName}`,
                 change: -ingredients.reduce((sum, ing) => sum + ing.quantity, 0),
-                reason: `Production: ${batchDocForLog.data()?.productName}`,
+                reason: `Production`,
                 date: serverTimestamp(),
                 staffName: user.name,
                 logRefId: batchId,
             });
 
-            transaction.update(batchRef, { status: 'in_production', approvedAt: serverTimestamp() });
+            transaction.update(batchRef, { 
+                status: 'in_production', 
+                approvedAt: serverTimestamp(),
+                ingredients: ingredientsWithStock // Save the stock snapshot
+            });
         });
         
+        const batchDocForLog = await getDoc(batchRef);
         const batchData = batchDocForLog.data();
         await createProductionLog('Batch Approved', `Approved batch for ${batchData?.quantityToProduce} of ${batchData?.productName}`, user);
         
@@ -1697,33 +1714,14 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 }
 
 // Recipe Actions with Logging
-export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, user: { staff_id: string, name: string }, recipeId?: string): Promise<{success: boolean, error?: string}> {
-    try {
-        if (recipeId) {
-            const recipeRef = doc(db, "recipes", recipeId);
-            await updateDoc(recipeRef, recipeData);
-            await createProductionLog('Recipe Updated', `Updated recipe: ${recipeData.name}`, user);
-        } else {
-            const newRecipeRef = doc(collection(db, "recipes"));
-            await setDoc(newRecipeRef, { ...recipeData, id: newRecipeRef.id });
-            await createProductionLog('Recipe Created', `Created new recipe: ${recipeData.name}`, user);
-        }
-        return { success: true };
-    } catch (error) {
-        console.error("Error saving recipe:", error);
-        return { success: false, error: "Could not save recipe." };
-    }
+export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, recipeId?: string) {
+    // This server action is intentionally empty.
+    // The logic has been moved to a client-side function that calls other specific server actions.
 }
 
-export async function handleDeleteRecipe(recipeId: string, recipeName: string, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
-    try {
-        await deleteDoc(doc(db, "recipes", recipeId));
-        await createProductionLog('Recipe Deleted', `Deleted recipe: ${recipeName}`, user);
-        return { success: true };
-    } catch (error) {
-        console.error("Error deleting recipe:", error);
-        return { success: false, error: "Could not delete recipe." };
-    }
+export async function handleDeleteRecipe(recipeId: string, recipeName: string) {
+    // This server action is intentionally empty.
+    // The logic has been moved to a client-side function that calls other specific server actions.
 }
 
 
@@ -1825,6 +1823,7 @@ export async function getStaffByRole(role: string): Promise<any[]> {
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+
 
 
 

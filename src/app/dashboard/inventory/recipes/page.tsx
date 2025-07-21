@@ -50,14 +50,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, where, doc, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { handleSaveRecipe, handleDeleteRecipe, startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getProducts, getIngredients, getStaffByRole } from "@/app/actions";
+import { startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getProducts, getIngredients, getStaffByRole, getProductionBatch } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
+import { Separator } from "@/components/ui/separator";
 
 type User = {
     name: string;
@@ -94,6 +95,41 @@ type Recipe = {
   productName: string;
   ingredients: RecipeIngredient[];
 };
+
+// This is a client-side helper to call the server actions for recipe CRUD
+async function saveRecipe(recipeData: Omit<Recipe, 'id'>, user: User, recipeId?: string) {
+    if (!user) {
+        throw new Error("User not authenticated.");
+    }
+    
+    try {
+        if (recipeId) {
+            await updateDoc(doc(db, "recipes", recipeId), recipeData);
+            await addDoc(collection(db, "production_logs"), {
+                action: 'Recipe Updated',
+                details: `Updated recipe: ${recipeData.name}`,
+                staffId: user.staff_id,
+                staffName: user.name,
+                timestamp: new Date()
+            });
+        } else {
+            const newRecipeRef = doc(collection(db, "recipes"));
+            await updateDoc(newRecipeRef, { ...recipeData, id: newRecipeRef.id });
+            await addDoc(collection(db, "production_logs"), {
+                action: 'Recipe Created',
+                details: `Created new recipe: ${recipeData.name}`,
+                staffId: user.staff_id,
+                staffName: user.name,
+                timestamp: new Date()
+            });
+        }
+        return { success: true };
+    } catch (error) {
+        console.error("Error saving recipe:", error);
+        return { success: false, error: "Could not save recipe." };
+    }
+}
+
 
 function RecipeDialog({
   isOpen,
@@ -161,7 +197,7 @@ function RecipeDialog({
         const selectedProduct = products.find(p => p.id === selectedProductId);
         if (!user) return;
 
-        const result = await handleSaveRecipe({ 
+        const result = await saveRecipe({ 
             name, 
             description, 
             productId: selectedProductId,
@@ -486,24 +522,59 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
 }
 
 function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: ProductionLog | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
-  if (!log || !isOpen) return null;
+    const [batchDetails, setBatchDetails] = useState<ProductionBatch | null>(null);
+
+    useEffect(() => {
+        const fetchDetails = async () => {
+            if (isOpen && log && log.action.includes('Batch') && log.details.includes('batch')) {
+                const batchIdMatch = log.details.match(/batch\s([a-zA-Z0-9]+)/);
+                if (batchIdMatch && batchIdMatch[1]) {
+                    const batch = await getProductionBatch(batchIdMatch[1]);
+                    setBatchDetails(batch);
+                }
+            } else {
+                setBatchDetails(null);
+            }
+        };
+        fetchDetails();
+    }, [isOpen, log]);
+    
+    if (!log || !isOpen) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Log Details</DialogTitle>
           <DialogDescription>
-            Detailed information for log entry {log.id.substring(0, 6)}...
+            Detailed information for log entry on {log.timestamp ? format(new Date(log.timestamp), 'PPp') : 'N/A'}.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4 space-y-2 text-sm">
+        <div className="py-4 space-y-4 text-sm max-h-[60vh] overflow-y-auto">
             <div className="flex items-center gap-2"><strong>Action:</strong> <Badge>{log.action}</Badge></div>
-            <p><strong>Timestamp:</strong> {log.timestamp ? format(new Date(log.timestamp), 'PPp') : 'N/A'}</p>
-            <p><strong>Staff Member:</strong> {log.staffName} ({log.staffId})</p>
-            <p>
-                <strong>Details:</strong> {log.details}
-            </p>
+            <p><strong>Staff Member:</strong> {log.staffName}</p>
+            <p><strong>Details:</strong> {log.details}</p>
+            {batchDetails && (
+                 <>
+                    <Separator className="my-4"/>
+                    <h4 className="font-semibold text-base">Production Batch Details</h4>
+                    <p><strong>Product:</strong> {batchDetails.productName} (x{batchDetails.quantityToProduce})</p>
+                    <p><strong>Requested by:</strong> {batchDetails.requestedByName}</p>
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead className="text-right">Opening</TableHead><TableHead className="text-right">Used</TableHead><TableHead className="text-right">Remaining</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {batchDetails.ingredients.map(ing => (
+                                <TableRow key={ing.ingredientId}>
+                                    <TableCell>{ing.ingredientName}</TableCell>
+                                    <TableCell className="text-right">{ing.openingStock?.toFixed(2)} {ing.unit}</TableCell>
+                                    <TableCell className="text-right">{ing.quantity} {ing.unit}</TableCell>
+                                    <TableCell className="text-right">{ing.closingStock?.toFixed(2)} {ing.unit}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </>
+            )}
         </div>
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)}>Close</Button>
@@ -567,7 +638,7 @@ export default function RecipesPage() {
     useEffect(() => {
         const qPending = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
         const unsubPending = onSnapshot(qPending, (snapshot) => {
-            setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductionBatch)));
+            setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate().toISOString() } as ProductionBatch)));
         });
 
         const qInProduction = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
@@ -577,6 +648,7 @@ export default function RecipesPage() {
                 return {
                     id: doc.id,
                     ...data,
+                    createdAt: data.createdAt.toDate().toISOString(),
                     approvedAt: (data.approvedAt)?.toDate().toISOString()
                 } as ProductionBatch
             }));
@@ -611,11 +683,18 @@ export default function RecipesPage() {
 
     const handleDelete = async () => {
         if (!recipeToDelete || !user) return;
-        const result = await handleDeleteRecipe(recipeToDelete.id, recipeToDelete.name, user);
-        if (result.success) {
+        try {
+            await deleteDoc(doc(db, "recipes", recipeToDelete.id));
+            await addDoc(collection(db, "production_logs"), {
+                action: 'Recipe Deleted',
+                details: `Deleted recipe: ${recipeToDelete.name}`,
+                staffId: user.staff_id,
+                staffName: user.name,
+                timestamp: new Date()
+            });
             toast({ title: "Success", description: "Recipe deleted successfully." });
-        } else {
-            toast({ variant: "destructive", title: "Error", description: result.error });
+        } catch (error) {
+            toast({ variant: "destructive", title: "Error", description: "Could not delete recipe." });
         }
         setRecipeToDelete(null);
     };
