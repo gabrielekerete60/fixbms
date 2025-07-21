@@ -54,7 +54,7 @@ import { collection, getDocs, doc, onSnapshot, query, where, orderBy } from "fir
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { handleSaveRecipe, handleDeleteRecipe, startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getProductionLogs, getRecipes, getIngredients, getProducts } from "@/app/actions";
+import { handleSaveRecipe, handleDeleteRecipe, startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getIngredients, getProducts } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
@@ -148,7 +148,8 @@ function RecipeDialog({
         } else if (field === 'quantity') {
             newIngredients[index].quantity = Number(value);
         } else {
-            newIngredients[index][field] = value as string;
+            // This case might not be used if unit is read-only, but good practice
+            newIngredients[index][field as 'unit' | 'ingredientName'] = value as string;
         }
         setRecipeIngredients(newIngredients);
     };
@@ -289,7 +290,6 @@ function ApproveBatchDialog({ batch, user, allIngredients }: { batch: Production
         const result = await approveIngredientRequest(batch.id, batch.ingredients, user);
         if (result.success) {
             toast({ title: 'Success', description: 'Batch approved and moved to production.' });
-            // onAction will be handled by real-time listener
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -301,7 +301,6 @@ function ApproveBatchDialog({ batch, user, allIngredients }: { batch: Production
         const result = await declineProductionBatch(batch.id, user);
         if (result.success) {
             toast({ title: 'Success', description: 'Batch has been declined.' });
-            // onAction will be handled by real-time listener
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -389,7 +388,6 @@ export default function RecipesPage() {
         }
     }, [toast]);
     
-    // Initial static data fetch
     useEffect(() => {
         const storedUser = localStorage.getItem('loggedInUser');
         if (storedUser) {
@@ -403,39 +401,55 @@ export default function RecipesPage() {
         // Production Batches
         const qBatches = query(collection(db, 'production_batches'), orderBy('createdAt', 'desc'));
         const unsubBatches = onSnapshot(qBatches, (snapshot) => {
-            const allBatches = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: (doc.data().createdAt as any).toDate().toISOString(),
-            } as ProductionBatch));
+            const allBatches = snapshot.docs.map(doc => {
+                 const data = doc.data();
+                 const createdAt = (data.createdAt as any)?.toDate ? (data.createdAt as any).toDate().toISOString() : data.createdAt;
+                 return {
+                    id: doc.id,
+                    ...data,
+                    createdAt: createdAt,
+                } as ProductionBatch
+            });
             setPendingBatches(allBatches.filter(b => b.status === 'pending_approval'));
             setInProductionBatches(allBatches.filter(b => b.status === 'in_production'));
+        }, (error) => {
+            console.error("Error fetching production batches:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not listen for production batch updates.'});
         });
 
         // Production Logs
         const qLogs = query(collection(db, 'production_logs'), orderBy('timestamp', 'desc'));
         const unsubLogs = onSnapshot(qLogs, (snapshot) => {
-             const logs = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                timestamp: (doc.data().timestamp as any).toDate().toISOString(),
-            } as ProductionLog));
+             const logs = snapshot.docs.map(doc => {
+                 const data = doc.data();
+                 const timestamp = (data.timestamp as any)?.toDate ? (data.timestamp as any).toDate().toISOString() : data.timestamp;
+                 return {
+                    id: doc.id,
+                    ...data,
+                    timestamp: timestamp,
+                } as ProductionLog
+             });
             setProductionLogs(logs);
+        }, (error) => {
+            console.error("Error fetching production logs:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not listen for production log updates.'});
         });
         
         // Listen for recipe changes to keep the list fresh
         const qRecipes = query(collection(db, "recipes"));
         const unsubRecipes = onSnapshot(qRecipes, (snapshot) => {
             setRecipes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recipe)))
+        }, (error) => {
+             console.error("Error fetching recipes:", error);
+             toast({ variant: 'destructive', title: 'Error', description: 'Could not listen for recipe updates.'});
         })
-
 
         return () => {
             unsubBatches();
             unsubLogs();
             unsubRecipes();
         }
-    }, []);
+    }, [toast]);
 
     const handleDelete = async () => {
         if (!recipeToDelete || !user) return;
@@ -493,7 +507,14 @@ export default function RecipesPage() {
                             </Badge>
                         )}
                     </TabsTrigger>
-                    <TabsTrigger value="production">Batches in Production</TabsTrigger>
+                    <TabsTrigger value="production" className="relative">
+                        Batches in Production
+                         {inProductionBatches.length > 0 && (
+                            <Badge variant="secondary" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                                {inProductionBatches.length}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
                     <TabsTrigger value="logs">Production Logs</TabsTrigger>
                 </TabsList>
                 <TabsContent value="recipes">
