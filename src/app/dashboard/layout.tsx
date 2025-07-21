@@ -244,7 +244,7 @@ export default function DashboardLayout({
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
           { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", icon: Archive, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", icon: Trash2, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Developer'] },
+          { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", icon: Trash2, roles: ['Manager', 'Developer'] },
         ]
       },
       {
