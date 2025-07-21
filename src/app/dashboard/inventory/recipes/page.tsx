@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -170,10 +170,10 @@ function RecipeDialog({
 
         if (result.success) {
             toast({ title: "Success", description: "Recipe saved successfully." });
+            onOpenChange(false);
         } else {
             toast({ variant: "destructive", title: "Error", description: result.error });
         }
-        onOpenChange(false);
     };
     
     const handleStartProduction = async () => {
@@ -365,9 +365,15 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
     }, []);
 
     const handleProducedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        let produced = Number(e.target.value);
-        if (isNaN(produced)) {
-             setSuccessfullyProduced('');
+        const value = e.target.value;
+        if (value === '') {
+            setSuccessfullyProduced('');
+            return;
+        }
+
+        let produced = Number(value);
+        if (isNaN(produced) || produced < 0) {
+             setSuccessfullyProduced(0);
              return;
         }
 
@@ -383,9 +389,15 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
     };
 
     const handleWastedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        let wastedQty = Number(e.target.value);
-        if (isNaN(wastedQty)) {
+        const value = e.target.value;
+         if (value === '') {
             setWasted('');
+            return;
+        }
+
+        let wastedQty = Number(value);
+        if (isNaN(wastedQty) || wastedQty < 0) {
+            setWasted(0);
             return;
         }
         
@@ -472,6 +484,32 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
     );
 }
 
+function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: ProductionLog | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+  if (!log || !isOpen) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Log Details</DialogTitle>
+          <DialogDescription>
+            Detailed information for log entry {log.id.substring(0, 6)}...
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4 space-y-2 text-sm">
+            <p><strong>Action:</strong> <Badge>{log.action}</Badge></p>
+            <p><strong>Timestamp:</strong> {log.timestamp ? format(new Date(log.timestamp), 'PPp') : 'N/A'}</p>
+            <p><strong>Staff Member:</strong> {log.staffName} ({log.staffId})</p>
+            <p><strong>Details:</strong> {log.details}</p>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function RecipesPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
@@ -488,6 +526,7 @@ export default function RecipesPage() {
     const [editingRecipe, setEditingRecipe] = useState<Partial<Recipe> | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
+    const [viewingLog, setViewingLog] = useState<ProductionLog | null>(null);
     
     const [logActionFilter, setLogActionFilter] = useState('all');
     const [logStaffFilter, setLogStaffFilter] = useState('all');
@@ -572,7 +611,7 @@ export default function RecipesPage() {
         if (result.success) {
             toast({ title: "Success", description: "Recipe deleted successfully." });
         } else {
-            toast({ variant: "destructive", title: "Error", description: "Could not delete recipe." });
+            toast({ variant: "destructive", title: "Error", description: result.error });
         }
         setRecipeToDelete(null);
     };
@@ -621,6 +660,11 @@ export default function RecipesPage() {
                     user={user}
                 />
             )}
+             <ProductionLogDetailsDialog 
+                log={viewingLog}
+                isOpen={!!viewingLog}
+                onOpenChange={() => setViewingLog(null)}
+            />
             
             <Tabs defaultValue="recipes">
                 <TabsList>
@@ -773,16 +817,21 @@ export default function RecipesPage() {
                         </CardHeader>
                         <CardContent>
                              <Table>
-                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Staff</TableHead><TableHead>Action</TableHead><TableHead>Details</TableHead></TableRow></TableHeader>
+                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Staff</TableHead><TableHead>Action</TableHead><TableHead>Details</TableHead><TableHead>View</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                      {filteredLogs.length > 0 ? filteredLogs.map(log => (
                                         <TableRow key={log.id}>
                                             <TableCell>{log.timestamp ? format(new Date(log.timestamp), 'Pp') : 'N/A'}</TableCell>
                                             <TableCell>{log.staffName}</TableCell>
                                             <TableCell><Badge>{log.action}</Badge></TableCell>
-                                            <TableCell>{log.details}</TableCell>
+                                            <TableCell className="max-w-[300px] truncate">{log.details}</TableCell>
+                                            <TableCell>
+                                                <Button variant="ghost" size="icon" onClick={() => setViewingLog(log)}>
+                                                    <Eye className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
                                         </TableRow>
-                                    )) : <TableRow><TableCell colSpan={4} className="text-center h-24">No production logs found for this filter.</TableCell></TableRow>}
+                                    )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No production logs found for this filter.</TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </CardContent>
