@@ -36,6 +36,8 @@ import {
   X,
   Truck,
   Eye,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -52,12 +54,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
-import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import Link from "next/link";
 
@@ -83,6 +85,13 @@ type Product = {
   id: string;
   name: string;
   stock: number;
+};
+
+type Ingredient = {
+    id: string;
+    name: string;
+    unit: string;
+    stock: number;
 };
 
 function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void }) {
@@ -247,6 +256,86 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
     );
 }
 
+function ApproveBatchDialog({ batch, user, allIngredients }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[] }) {
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+    
+    const ingredientsWithStock = useMemo(() => {
+        return batch.ingredients.map(reqIng => {
+            const stockIng = allIngredients.find(sIng => sIng.id === reqIng.ingredientId);
+            const stockAvailable = stockIng?.stock || 0;
+            const hasEnough = stockAvailable >= reqIng.quantity;
+            return { ...reqIng, stockAvailable, hasEnough };
+        });
+    }, [batch.ingredients, allIngredients]);
+
+    const canApprove = ingredientsWithStock.every(ing => ing.hasEnough);
+    
+    const handleApprove = async () => {
+        setIsLoading(true);
+        const result = await approveIngredientRequest(batch.id, batch.ingredients, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Batch approved and moved to production.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    }
+
+    const handleDecline = async () => {
+        setIsLoading(true);
+        const result = await declineProductionBatch(batch.id, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Batch has been declined.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    }
+
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild><Button size="sm">Review</Button></AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Approve Production Batch?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Batch ID: {batch.id.substring(0,6)}...<br/>
+                        Request for <strong>{batch.quantityToProduce} x {batch.productName}</strong>. This will deduct ingredients from inventory.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="max-h-60 overflow-y-auto">
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead>Required</TableHead><TableHead>In Stock</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {ingredientsWithStock.map(ing => (
+                                <TableRow key={ing.ingredientId}>
+                                    <TableCell>{ing.ingredientName}</TableCell>
+                                    <TableCell>{ing.quantity} {ing.unit}</TableCell>
+                                    <TableCell>{ing.stockAvailable.toFixed(2)} {ing.unit}</TableCell>
+                                    <TableCell>
+                                        {ing.hasEnough ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-destructive" />}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                <AlertDialogFooter>
+                     <Button variant="destructive" onClick={handleDecline} disabled={isLoading}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4" />}
+                        Decline
+                    </Button>
+                     <Button onClick={handleApprove} disabled={isLoading || !canApprove}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
+                        Approve
+                    </Button>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
 export default function StockControlPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -260,9 +349,11 @@ export default function StockControlPage() {
   
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [initiatedTransfers, setInitiatedTransfers] = useState<Transfer[]>([]);
   const [pendingTransfers, setPendingTransfers] = useState<Transfer[]>([]);
   const [productionTransfers, setProductionTransfers] = useState<Transfer[]>([]);
+  const [pendingBatches, setPendingBatches] = useState<ProductionBatch[]>([]);
   const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([]);
   const [myWasteLogs, setMyWasteLogs] = useState<WasteLog[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
@@ -270,7 +361,6 @@ export default function StockControlPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const fetchPageData = async () => {
-        setIsLoading(true);
         const userStr = localStorage.getItem('loggedInUser');
         if (!userStr) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
@@ -292,6 +382,8 @@ export default function StockControlPage() {
                 // Admins see main inventory for transfers and waste reporting
                 const productsSnapshot = await getDocs(collection(db, "products"));
                 setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
+                const ingredientsSnapshot = await getDocs(collection(db, "ingredients"));
+                setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock })));
                  // Fetch transfers initiated by the user for the log
                 const transfersQuery = query(collection(db, "transfers"), where('from_staff_id', '==', currentUser.staff_id), orderBy("date", "desc"));
                 const transfersSnapshot = await getDocs(transfersQuery);
@@ -325,7 +417,16 @@ export default function StockControlPage() {
     };
 
   useEffect(() => {
+    setIsLoading(true);
     fetchPageData();
+
+    // Real-time listener for pending batches (for storekeeper)
+    const qPending = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
+    const unsubPending = onSnapshot(qPending, (snapshot) => {
+        setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate().toISOString() } as ProductionBatch)));
+    });
+
+    return () => unsubPending();
   }, []);
 
   const handleTransferToChange = (staffId: string) => {
@@ -614,8 +715,13 @@ export default function StockControlPage() {
           <TabsTrigger value="initiate-transfer">
               <Send className="mr-2 h-4 w-4" /> Initiate Transfer
           </TabsTrigger>
-          <TabsTrigger value="prod-requests">
-            <Wrench className="mr-2 h-4 w-4" /> Prod Requests
+          <TabsTrigger value="prod-requests" className="relative">
+            <Wrench className="mr-2 h-4 w-4" /> Batch Approvals
+             {pendingBatches.length > 0 && (
+                <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                    {pendingBatches.length}
+                </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="production-transfers">
             <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
@@ -738,6 +844,30 @@ export default function StockControlPage() {
             </CardContent>
         </Card>
         </TabsContent>
+         <TabsContent value="prod-requests">
+             <Card>
+                <CardHeader>
+                    <CardTitle>Pending Batch Approvals</CardTitle>
+                    <CardDescription>Batches requested by bakers that need ingredient approval from the storekeeper.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Product</TableHead><TableHead>Quantity</TableHead><TableHead>Requested By</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {pendingBatches.length > 0 ? pendingBatches.map(batch => (
+                                <TableRow key={batch.id}>
+                                    <TableCell>{format(new Date(batch.createdAt), 'PPP')}</TableCell>
+                                    <TableCell>{batch.productName}</TableCell>
+                                    <TableCell>{batch.quantityToProduce}</TableCell>
+                                    <TableCell>{batch.requestedByName}</TableCell>
+                                    <TableCell><ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} /></TableCell>
+                                </TableRow>
+                            )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are pending approval.</TableCell></TableRow>}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        </TabsContent>
          <TabsContent value="report-waste">
             <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
          </TabsContent>
@@ -761,9 +891,7 @@ export default function StockControlPage() {
                         <TableBody>
                              {isLoading ? (
                                 <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                            ) : productionTransfers.length === 0 ? (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers from production.</TableCell></TableRow>
-                            ) : (
+                            ) : productionTransfers.length > 0 ? (
                                 productionTransfers.map(t => (
                                     <TableRow key={t.id}>
                                         <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
@@ -777,6 +905,8 @@ export default function StockControlPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))
+                            ) : (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers from production.</TableCell></TableRow>
                             )}
                         </TableBody>
                     </Table>

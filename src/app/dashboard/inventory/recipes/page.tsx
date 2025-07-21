@@ -305,86 +305,6 @@ function RecipeDialog({
     );
 }
 
-function ApproveBatchDialog({ batch, user, allIngredients }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[] }) {
-    const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState(false);
-    
-    const ingredientsWithStock = useMemo(() => {
-        return batch.ingredients.map(reqIng => {
-            const stockIng = allIngredients.find(sIng => sIng.id === reqIng.ingredientId);
-            const stockAvailable = stockIng?.stock || 0;
-            const hasEnough = stockAvailable >= reqIng.quantity;
-            return { ...reqIng, stockAvailable, hasEnough };
-        });
-    }, [batch.ingredients, allIngredients]);
-
-    const canApprove = ingredientsWithStock.every(ing => ing.hasEnough);
-    
-    const handleApprove = async () => {
-        setIsLoading(true);
-        const result = await approveIngredientRequest(batch.id, batch.ingredients, user);
-        if (result.success) {
-            toast({ title: 'Success', description: 'Batch approved and moved to production.' });
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setIsLoading(false);
-    }
-
-    const handleDecline = async () => {
-        setIsLoading(true);
-        const result = await declineProductionBatch(batch.id, user);
-        if (result.success) {
-            toast({ title: 'Success', description: 'Batch has been declined.' });
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setIsLoading(false);
-    }
-
-    return (
-        <AlertDialog>
-            <AlertDialogTrigger asChild><Button size="sm">Review</Button></AlertDialogTrigger>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Approve Production Batch?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Batch ID: {batch.id.substring(0,6)}...<br/>
-                        Request for <strong>{batch.quantityToProduce} x {batch.productName}</strong>. This will deduct ingredients from inventory.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="max-h-60 overflow-y-auto">
-                    <Table>
-                        <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead>Required</TableHead><TableHead>In Stock</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            {ingredientsWithStock.map(ing => (
-                                <TableRow key={ing.ingredientId}>
-                                    <TableCell>{ing.ingredientName}</TableCell>
-                                    <TableCell>{ing.quantity} {ing.unit}</TableCell>
-                                    <TableCell>{ing.stockAvailable.toFixed(2)} {ing.unit}</TableCell>
-                                    <TableCell>
-                                        {ing.hasEnough ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-destructive" />}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-                <AlertDialogFooter>
-                     <Button variant="destructive" onClick={handleDecline} disabled={isLoading}>
-                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4" />}
-                        Decline
-                    </Button>
-                     <Button onClick={handleApprove} disabled={isLoading || !canApprove}>
-                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
-                        Approve
-                    </Button>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-    );
-}
-
 function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: User }) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
@@ -603,7 +523,6 @@ export default function RecipesPage() {
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     
     // Real-time states
-    const [pendingBatches, setPendingBatches] = useState<ProductionBatch[]>([]);
     const [inProductionBatches, setInProductionBatches] = useState<ProductionBatch[]>([]);
     const [productionLogs, setProductionLogs] = useState<ProductionLog[]>([]);
     
@@ -647,11 +566,6 @@ export default function RecipesPage() {
     
     // Real-time listeners
     useEffect(() => {
-        const qPending = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
-        const unsubPending = onSnapshot(qPending, (snapshot) => {
-            setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate().toISOString() } as ProductionBatch)));
-        });
-
         const qInProduction = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
         const unsubInProduction = onSnapshot(qInProduction, (snapshot) => {
             setInProductionBatches(snapshot.docs.map(doc => {
@@ -685,7 +599,6 @@ export default function RecipesPage() {
         });
 
         return () => {
-            unsubPending();
             unsubInProduction();
             unsubLogs();
             unsubRecipes();
@@ -757,14 +670,6 @@ export default function RecipesPage() {
             <Tabs defaultValue="recipes">
                 <TabsList>
                     <TabsTrigger value="recipes">Recipes</TabsTrigger>
-                    <TabsTrigger value="pending" className="relative">
-                        Pending Approval
-                        {pendingBatches.length > 0 && (
-                            <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
-                                {pendingBatches.length}
-                            </Badge>
-                        )}
-                    </TabsTrigger>
                     <TabsTrigger value="production" className="relative">
                         Batches in Production
                          {inProductionBatches.length > 0 && (
@@ -779,7 +684,7 @@ export default function RecipesPage() {
                      <Card>
                         <CardHeader>
                             <CardTitle>All Recipes</CardTitle>
-                            <CardDescription>Manage your product recipes and their ingredients.</CardDescription>
+                            <CardDescription>Manage your product recipes and their ingredients. Bakers can start production from here.</CardDescription>
                         </CardHeader>
                         <CardContent>
                             {isLoading ? (
@@ -820,30 +725,6 @@ export default function RecipesPage() {
                                 </TableBody>
                             </Table>
                             )}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="pending">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Pending Batch Approvals</CardTitle>
-                            <CardDescription>Batches requested by bakers that need ingredient approval.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Product</TableHead><TableHead>Quantity</TableHead><TableHead>Requested By</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                    {pendingBatches.length > 0 ? pendingBatches.map(batch => (
-                                        <TableRow key={batch.id}>
-                                            <TableCell>{format(new Date(batch.createdAt), 'PPP')}</TableCell>
-                                            <TableCell>{batch.productName}</TableCell>
-                                            <TableCell>{batch.quantityToProduce}</TableCell>
-                                            <TableCell>{batch.requestedByName}</TableCell>
-                                            <TableCell><ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} /></TableCell>
-                                        </TableRow>
-                                    )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are pending approval.</TableCell></TableRow>}
-                                </TableBody>
-                            </Table>
                         </CardContent>
                     </Card>
                 </TabsContent>
