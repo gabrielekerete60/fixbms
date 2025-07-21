@@ -1330,18 +1330,18 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
                 const ingRef = ingredientRefs[i];
                 const reqIng = ingredients[i];
                 transaction.update(ingRef, { stock: increment(-reqIng.quantity) });
-
-                const logRef = doc(collection(db, 'ingredient_stock_logs'));
-                transaction.set(logRef, {
-                    ingredientId: reqIng.ingredientId,
-                    ingredientName: reqIng.ingredientName,
-                    change: -reqIng.quantity,
-                    reason: `Production: Batch ${batchId}`,
-                    date: serverTimestamp(),
-                    staffName: user.name,
-                    logRefId: batchId,
-                });
             }
+
+            const logRef = doc(collection(db, 'ingredient_stock_logs'));
+            transaction.set(logRef, {
+                ingredientId: '', // Consolidated log
+                ingredientName: `Production Batch`,
+                change: -ingredients.reduce((sum, ing) => sum + ing.quantity, 0),
+                reason: `Production: ${batchDocForLog.data()?.productName}`,
+                date: serverTimestamp(),
+                staffName: user.name,
+                logRefId: batchId,
+            });
 
             transaction.update(batchRef, { status: 'in_production', approvedAt: serverTimestamp() });
         });
@@ -1825,6 +1825,7 @@ export async function getStaffByRole(role: string): Promise<any[]> {
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+
 
 
 

@@ -155,8 +155,8 @@ const seedData = {
       { action: 'Batch Approved', details: 'Approved batch for 100 of Croissant', staffId: '700008', staffName: 'David Storekeeper', timestamp: daysAgo(1) },
   ],
   ingredient_stock_logs: [
-      { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", change: 50, reason: "Purchase from Flour Mills of Nigeria", date: daysAgo(5), staffName: "David Storekeeper" },
-      { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", change: -10, reason: "Production: Batch batch_1", date: daysAgo(1), staffName: "David Storekeeper" },
+      { id: "supply_log_1", ingredientId: "ing_1", ingredientName: "All-Purpose Flour", change: 50, reason: "Purchase from Flour Mills of Nigeria", date: daysAgo(5), staffName: "David Storekeeper", logRefId: "sup_1" },
+      { id: "prod_log_1", ingredientId: "", ingredientName: "Production Batch", change: -25, reason: "Production: Classic Croissant", date: daysAgo(1), staffName: "David Storekeeper", logRefId: "batch_2_in_prod" },
   ]
 };
 
