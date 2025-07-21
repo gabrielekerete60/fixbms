@@ -513,6 +513,7 @@ export default function IngredientsPage() {
         });
     }, [stockLogs, date]);
 
+    const canViewCosts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
 
     return (
         <div className="flex flex-col gap-4">
@@ -569,8 +570,8 @@ export default function IngredientsPage() {
                                     <TableRow>
                                         <TableHead>Ingredient</TableHead>
                                         <TableHead>Stock</TableHead>
-                                        <TableHead>Cost/Unit</TableHead>
-                                        <TableHead>Total Cost</TableHead>
+                                        {canViewCosts && <TableHead>Cost/Unit</TableHead>}
+                                        {canViewCosts && <TableHead>Total Cost</TableHead>}
                                         <TableHead>Expiry</TableHead>
                                         <TableHead><span className="sr-only">Actions</span></TableHead>
                                     </TableRow>
@@ -578,7 +579,7 @@ export default function IngredientsPage() {
                                 <TableBody>
                                     {isLoading ? (
                                         <TableRow>
-                                            <TableCell colSpan={6} className="h-24 text-center">
+                                            <TableCell colSpan={canViewCosts ? 6 : 4} className="h-24 text-center">
                                                 <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                                             </TableCell>
                                         </TableRow>
@@ -587,8 +588,8 @@ export default function IngredientsPage() {
                                             <TableRow key={ingredient.id}>
                                                 <TableCell className="font-medium">{ingredient.name}</TableCell>
                                                 <TableCell>{(ingredient.stock || 0).toFixed(2)} {ingredient.unit}</TableCell>
-                                                <TableCell>₦{(ingredient.costPerUnit || 0).toFixed(2)}</TableCell>
-                                                <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>
+                                                {canViewCosts && <TableCell>₦{(ingredient.costPerUnit || 0).toFixed(2)}</TableCell>}
+                                                {canViewCosts && <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>}
                                                 <TableCell>{ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
                                                 <TableCell>
                                                     <DropdownMenu>
@@ -610,19 +611,21 @@ export default function IngredientsPage() {
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={6} className="h-24 text-center">
+                                            <TableCell colSpan={canViewCosts ? 6 : 4} className="h-24 text-center">
                                                 No ingredients found.
                                             </TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
-                                <TableFooter>
-                                    <TableRow>
-                                        <TableCell colSpan={3} className="font-bold text-right">Grand Total</TableCell>
-                                        <TableCell className="font-bold">₦{grandTotalCost.toFixed(2)}</TableCell>
-                                        <TableCell colSpan={2}></TableCell>
-                                    </TableRow>
-                                </TableFooter>
+                                {canViewCosts && (
+                                    <TableFooter>
+                                        <TableRow>
+                                            <TableCell colSpan={3} className="font-bold text-right">Grand Total</TableCell>
+                                            <TableCell className="font-bold">₦{grandTotalCost.toFixed(2)}</TableCell>
+                                            <TableCell colSpan={2}></TableCell>
+                                        </TableRow>
+                                    </TableFooter>
+                                )}
                             </Table>
                         </CardContent>
                     </Card>

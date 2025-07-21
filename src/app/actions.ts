@@ -1212,6 +1212,7 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                     const productRef = doc(db, 'products', item.productId);
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
+                 transaction.update(transferRef, { status: 'completed' });
             } else if (transfer.is_sales_run === false) { // Regular stock transfer to staff, not sales run
                 for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
@@ -1235,10 +1236,11 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                         });
                     }
                 }
+                transaction.update(transferRef, { status: 'completed' });
+            } else { // Sales run
+                const newStatus = transfer.is_sales_run ? 'active' : 'completed';
+                transaction.update(transferRef, { status: newStatus });
             }
-            
-            const newStatus = transfer.is_sales_run ? 'active' : 'completed';
-            transaction.update(transferRef, { status: newStatus });
         });
 
         return { success: true };

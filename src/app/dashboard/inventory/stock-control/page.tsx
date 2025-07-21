@@ -554,12 +554,14 @@ export default function StockControlPage() {
      return (
          <div className="flex flex-col gap-4">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
-             <Tabs defaultValue="acknowledge">
+             <Tabs defaultValue={userRole === 'Baker' ? "report-waste" : "acknowledge"}>
                 <TabsList className="grid grid-cols-4 w-full">
-                    <TabsTrigger value="acknowledge" className="relative">
-                        Acknowledge Stock
-                        {pendingTransfers.length > 0 && <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full">{pendingTransfers.length}</Badge>}
-                    </TabsTrigger>
+                    {userRole !== 'Baker' && (
+                        <TabsTrigger value="acknowledge" className="relative">
+                            Acknowledge Stock
+                            {pendingTransfers.length > 0 && <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full">{pendingTransfers.length}</Badge>}
+                        </TabsTrigger>
+                    )}
                      <TabsTrigger value="history">
                         My Transfer History
                     </TabsTrigger>
@@ -570,50 +572,52 @@ export default function StockControlPage() {
                         My Waste Logs
                     </TabsTrigger>
                 </TabsList>
-                <TabsContent value="acknowledge">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Acknowledge Incoming Stock</CardTitle>
-                            <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>From</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Items</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (
-                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                    ) : pendingTransfers.length === 0 ? (
-                                        <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
-                                    ) : (
-                                        pendingTransfers.map(t => (
-                                            <TableRow key={t.id}>
-                                                <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
-                                                <TableCell>{t.from_staff_name}</TableCell>
-                                                <TableCell>
-                                                    {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <AcceptRunDialog transfer={t} onAccept={handleAcknowledge} />
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                {userRole !== 'Baker' && (
+                    <TabsContent value="acknowledge">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Acknowledge Incoming Stock</CardTitle>
+                                <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>From</TableHead>
+                                            <TableHead>Type</TableHead>
+                                            <TableHead>Items</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isLoading ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                        ) : pendingTransfers.length === 0 ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
+                                        ) : (
+                                            pendingTransfers.map(t => (
+                                                <TableRow key={t.id}>
+                                                    <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                                    <TableCell>{t.from_staff_name}</TableCell>
+                                                    <TableCell>
+                                                        {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <AcceptRunDialog transfer={t} onAccept={handleAcknowledge} />
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                )}
                 <TabsContent value="history">
                      <Card>
                         <CardHeader>
