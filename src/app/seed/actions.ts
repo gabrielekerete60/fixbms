@@ -112,6 +112,7 @@ const seedData = {
   transfers: [
       { id: "tsr_1_active", from_staff_id: "700008", from_staff_name: "David Storekeeper", to_staff_id: "400005", to_staff_name: "Akan Delivery", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 20 }], date: daysAgo(1), status: 'active', is_sales_run: true, totalCollected: 0 },
       { id: "trans_1_pending", from_staff_id: "700008", from_staff_name: "David Storekeeper", to_staff_id: "400004", to_staff_name: "Mfon Showroom", items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 10 }], date: Timestamp.now(), status: 'pending', is_sales_run: false },
+       { id: "tsr_2_prod_return", from_staff_id: "500006", from_staff_name: "Blessing Baker", to_staff_id: "700008", to_staff_name: "David Storekeeper", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 50 }], date: daysAgo(0), status: 'pending', is_sales_run: false, notes: 'Return from production batch batch_3_completed_9999' },
   ],
   production_batches: [
     {
@@ -148,12 +149,31 @@ const seedData = {
             { ingredientId: "ing_3", ingredientName: "Unsalted Butter", quantity: 15, unit: "kg", openingStock: 20, closingStock: 5 },
             { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.7, unit: "kg", openingStock: 10, closingStock: 9.3 },
         ]
+    },
+    {
+        id: 'batch_3_completed_9999',
+        recipeId: 'rec_1',
+        recipeName: 'Standard Family Loaf',
+        productId: 'prod_1',
+        productName: 'Family Loaf',
+        requestedById: '500006',
+        requestedByName: 'Blessing Baker',
+        quantityToProduce: 55,
+        status: 'completed',
+        createdAt: daysAgo(2),
+        approvedAt: daysAgo(2),
+        successfullyProduced: 50,
+        wasted: 5,
+        ingredients: [
+            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 27.5, unit: "kg", openingStock: 75, closingStock: 47.5 },
+        ]
     }
   ],
   production_logs: [
       { action: 'Recipe Created', details: 'Created new recipe: Standard Family Loaf', staffId: '100001', staffName: 'Chris Manager', timestamp: daysAgo(3) },
       { action: 'Batch Requested', details: 'Requested 20 of Family Loaf for batch batch_1_pending_1234', staffId: '500006', staffName: 'Blessing Baker', timestamp: daysAgo(1) },
       { action: 'Batch Approved', details: 'Approved batch for 100 of Croissant: batch_2_in_prod_5678', staffId: '700008', staffName: 'David Storekeeper', timestamp: daysAgo(1) },
+      { action: 'Batch Completed', details: 'Completed batch of Family Loaf with 50 produced and 5 wasted: batch_3_completed_9999', staffId: '500006', staffName: 'Blessing Baker', timestamp: daysAgo(0) },
   ],
   ingredient_stock_logs: [
       { id: "supply_log_1", ingredientId: "ing_1", ingredientName: "All-Purpose Flour", change: 50, reason: "Purchase from Flour Mills of Nigeria", date: daysAgo(5), staffName: "David Storekeeper", logRefId: "sup_1" },
