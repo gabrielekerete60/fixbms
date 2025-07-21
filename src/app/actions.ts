@@ -1850,5 +1850,19 @@ export async function getSupplyLog(logId: string): Promise<SupplyLog | null> {
 export async function getStaffByRole(role: string): Promise<any[]> {
     const q = query(collection(db, "staff"), where("role", "==", role));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    // Convert Firestore Timestamps to ISO strings to avoid hydration errors
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const plainData: { [key: string]: any } = {};
+
+        for (const key in data) {
+            if (data[key] instanceof Timestamp) {
+                plainData[key] = data[key].toDate().toISOString();
+            } else {
+                plainData[key] = data[key];
+            }
+        }
+        return { id: doc.id, ...plainData };
+    });
 }
