@@ -1240,7 +1240,7 @@ export type ProductionBatch = {
     quantityToProduce: number;
     status: 'pending_approval' | 'in_production' | 'completed' | 'declined';
     createdAt: string; 
-    ingredients: { ingredientId: string, quantity: number, unit: string, ingredientName: string }[];
+    ingredients: { ingredientId: string; quantity: number, unit: string, ingredientName: string }[];
     successfullyProduced?: number;
     wasted?: number;
 };
@@ -1695,7 +1695,8 @@ export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, user: { staf
             await createProductionLog('Recipe Updated', `Updated recipe: ${recipeData.name}`, user);
             return { success: true };
         } else {
-            await addDoc(collection(db, "recipes"), recipeData);
+            const newRecipeRef = doc(collection(db, "recipes"));
+            await setDoc(newRecipeRef, recipeData);
             await createProductionLog('Recipe Created', `Created new recipe: ${recipeData.name}`, user);
             return { success: true };
         }

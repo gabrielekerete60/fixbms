@@ -331,8 +331,10 @@ const seedData = {
         status: 'pending_approval',
         createdAt: daysAgo(1),
         ingredients: [
-            { ingredientId: 'ing_1', ingredientName: "All-Purpose Flour", quantity: 0.5, unit: "kg" },
-            { ingredientId: 'ing_6', ingredientName: "Yeast", quantity: 0.01, unit: "kg" },
+            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 25, unit: "kg" },
+            { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.5, unit: "kg" },
+            { ingredientId: "ing_2", ingredientName: "Granulated Sugar", quantity: 1, unit: "kg" },
+            { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.25, unit: "kg" },
         ]
     }
   ],
