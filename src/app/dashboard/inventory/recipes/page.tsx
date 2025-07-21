@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,11 +50,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { collection, getDocs, doc, onSnapshot, query, where, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { handleSaveRecipe, handleDeleteRecipe, startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getIngredients, getProducts, getStaffByRole } from "@/app/actions";
+import { handleSaveRecipe, handleDeleteRecipe, startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getProducts, getIngredients, getStaffByRole } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
@@ -158,6 +158,7 @@ function RecipeDialog({
             return;
         }
         const selectedProduct = products.find(p => p.id === selectedProductId);
+        if (!user) return;
 
         const result = await handleSaveRecipe({ 
             name, 
@@ -363,6 +364,25 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
         fetchStorekeepers();
     }, []);
 
+    const handleProducedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const produced = e.target.value;
+        setSuccessfullyProduced(produced);
+        const wastedQty = batch.quantityToProduce - Number(produced);
+        if (!isNaN(wastedQty) && wastedQty >= 0) {
+            setWasted(wastedQty);
+        }
+    };
+
+    const handleWastedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const wastedQty = e.target.value;
+        setWasted(wastedQty);
+        const produced = batch.quantityToProduce - Number(wastedQty);
+        if (!isNaN(produced) && produced >= 0) {
+            setSuccessfullyProduced(produced);
+        }
+    };
+
+
     const handleComplete = async () => {
         if (!storekeepers.length) {
             toast({ variant: 'destructive', title: 'Error', description: 'No Storekeeper found to transfer stock to. Please add a staff member with the "Storekeeper" role.' });
@@ -381,6 +401,7 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
         }
 
         setIsLoading(true);
+        if(!user) return;
         const result = await completeProductionBatch({
             batchId: batch.id,
             productId: batch.productId,
@@ -412,11 +433,11 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
                     <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
                              <Label htmlFor="produced">Successfully Produced</Label>
-                             <Input id="produced" type="number" value={successfullyProduced} onChange={e => setSuccessfullyProduced(e.target.value)} />
+                             <Input id="produced" type="number" value={successfullyProduced} onChange={handleProducedChange} />
                         </div>
                         <div className="grid gap-2">
                              <Label htmlFor="wasted">Wasted / Damaged</Label>
-                             <Input id="wasted" type="number" value={wasted} onChange={e => setWasted(e.target.value)} />
+                             <Input id="wasted" type="number" value={wasted} onChange={handleWastedChange} />
                         </div>
                     </div>
                     <p className="text-sm text-muted-foreground">Completed items will be sent to the main store for acknowledgement. Wasted items will be logged.</p>
@@ -450,6 +471,9 @@ export default function RecipesPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
     
+    const [logActionFilter, setLogActionFilter] = useState('all');
+    const [logStaffFilter, setLogStaffFilter] = useState('all');
+
     const fetchStaticData = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -481,26 +505,23 @@ export default function RecipesPage() {
     
     // Real-time listeners
     useEffect(() => {
-        // Production Batches
         const qBatches = query(collection(db, 'production_batches'), orderBy('createdAt', 'desc'));
         const unsubBatches = onSnapshot(qBatches, (snapshot) => {
             const allBatches = snapshot.docs.map(doc => {
                  const data = doc.data();
                  const createdAt = (data.createdAt as any)?.toDate ? (data.createdAt as any).toDate().toISOString() : data.createdAt;
+                 const approvedAt = (data.approvedAt as any)?.toDate ? (data.approvedAt as any).toDate().toISOString() : data.approvedAt;
                  return {
                     id: doc.id,
                     ...data,
-                    createdAt: createdAt,
+                    createdAt,
+                    approvedAt
                 } as ProductionBatch
             });
             setPendingBatches(allBatches.filter(b => b.status === 'pending_approval'));
             setInProductionBatches(allBatches.filter(b => b.status === 'in_production'));
-        }, (error) => {
-            console.error("Error fetching production batches:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not listen for production batch updates.'});
         });
 
-        // Production Logs
         const qLogs = query(collection(db, 'production_logs'), orderBy('timestamp', 'desc'));
         const unsubLogs = onSnapshot(qLogs, (snapshot) => {
              const logs = snapshot.docs.map(doc => {
@@ -509,30 +530,23 @@ export default function RecipesPage() {
                  return {
                     id: doc.id,
                     ...data,
-                    timestamp: timestamp,
+                    timestamp,
                 } as ProductionLog
              });
             setProductionLogs(logs);
-        }, (error) => {
-            console.error("Error fetching production logs:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not listen for production log updates.'});
         });
         
-        // Listen for recipe changes to keep the list fresh
         const qRecipes = query(collection(db, "recipes"));
         const unsubRecipes = onSnapshot(qRecipes, (snapshot) => {
              setRecipes(snapshot.docs.map((r: any) => ({ ...r.data(), id: r.id, ingredients: r.data().ingredients || [] })));
-        }, (error) => {
-             console.error("Error fetching recipes:", error);
-             toast({ variant: 'destructive', title: 'Error', description: 'Could not listen for recipe updates.'});
-        })
+        });
 
         return () => {
             unsubBatches();
             unsubLogs();
             unsubRecipes();
         }
-    }, [toast]);
+    }, []);
 
     const handleDelete = async () => {
         if (!recipeToDelete || !user) return;
@@ -554,6 +568,17 @@ export default function RecipesPage() {
         setEditingRecipe(recipe);
         setIsDialogOpen(true);
     };
+
+    const logStaffMembers = useMemo(() => ['all', ...new Set(productionLogs.map(log => log.staffName))], [productionLogs]);
+    const logActionTypes = useMemo(() => ['all', ...new Set(productionLogs.map(log => log.action))], [productionLogs]);
+
+    const filteredLogs = useMemo(() => {
+        return productionLogs.filter(log => {
+            const staffMatch = logStaffFilter === 'all' || log.staffName === logStaffFilter;
+            const actionMatch = logActionFilter === 'all' || log.action === logActionFilter;
+            return staffMatch && actionMatch;
+        });
+    }, [productionLogs, logStaffFilter, logActionFilter]);
     
     if (!user) {
          return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
@@ -680,11 +705,11 @@ export default function RecipesPage() {
                         </CardHeader>
                         <CardContent>
                              <Table>
-                                <TableHeader><TableRow><TableHead>Date Started</TableHead><TableHead>Product</TableHead><TableHead>Qty Requested</TableHead><TableHead>Requested By</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+                                <TableHeader><TableRow><TableHead>Time Started</TableHead><TableHead>Product</TableHead><TableHead>Qty Requested</TableHead><TableHead>Requested By</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                      {inProductionBatches.length > 0 ? inProductionBatches.map(batch => (
                                         <TableRow key={batch.id}>
-                                            <TableCell>{format(new Date(batch.createdAt), 'PPP')}</TableCell>
+                                            <TableCell>{batch.approvedAt ? format(new Date(batch.approvedAt), 'Pp') : 'N/A'}</TableCell>
                                             <TableCell>{batch.productName}</TableCell>
                                             <TableCell>{batch.quantityToProduce}</TableCell>
                                             <TableCell>{batch.requestedByName}</TableCell>
@@ -702,20 +727,44 @@ export default function RecipesPage() {
                      <Card>
                         <CardHeader>
                             <CardTitle>Production Logs</CardTitle>
-                            <CardDescription>A complete audit trail of all recipe and production activities.</CardDescription>
+                             <div className="flex items-center justify-between gap-4 pt-4">
+                                <CardDescription>A complete audit trail of all recipe and production activities.</CardDescription>
+                                <div className="flex items-center gap-2">
+                                     <Select value={logStaffFilter} onValueChange={setLogStaffFilter}>
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="Filter by staff" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {logStaffMembers.map(staff => (
+                                                <SelectItem key={staff} value={staff} className="capitalize">{staff}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Select value={logActionFilter} onValueChange={setLogActionFilter}>
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="Filter by action" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {logActionTypes.map(action => (
+                                                <SelectItem key={action} value={action}>{action}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent>
                              <Table>
                                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Staff</TableHead><TableHead>Action</TableHead><TableHead>Details</TableHead></TableRow></TableHeader>
                                 <TableBody>
-                                     {productionLogs.length > 0 ? productionLogs.map(log => (
+                                     {filteredLogs.length > 0 ? filteredLogs.map(log => (
                                         <TableRow key={log.id}>
                                             <TableCell>{format(new Date(log.timestamp), 'Pp')}</TableCell>
                                             <TableCell>{log.staffName}</TableCell>
                                             <TableCell><Badge>{log.action}</Badge></TableCell>
                                             <TableCell>{log.details}</TableCell>
                                         </TableRow>
-                                    )) : <TableRow><TableCell colSpan={4} className="text-center h-24">No production logs found.</TableCell></TableRow>}
+                                    )) : <TableRow><TableCell colSpan={4} className="text-center h-24">No production logs found for this filter.</TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </CardContent>
@@ -741,3 +790,4 @@ export default function RecipesPage() {
         </div>
     );
 }
+

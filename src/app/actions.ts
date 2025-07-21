@@ -1240,6 +1240,7 @@ export type ProductionBatch = {
     quantityToProduce: number;
     status: 'pending_approval' | 'in_production' | 'completed' | 'declined';
     createdAt: string; 
+    approvedAt?: string;
     ingredients: { ingredientId: string; quantity: number, unit: string, ingredientName: string }[];
     successfullyProduced?: number;
     wasted?: number;
@@ -1253,10 +1254,12 @@ export async function getProductionBatches(): Promise<{ pending: ProductionBatch
         const allBatches = snapshot.docs.map(docSnap => {
             const data = docSnap.data();
             const createdAt = data.createdAt as Timestamp;
+            const approvedAt = data.approvedAt as Timestamp;
             return {
                 id: docSnap.id,
                 ...data,
-                createdAt: createdAt.toDate().toISOString(),
+                createdAt: createdAt?.toDate().toISOString(),
+                approvedAt: approvedAt?.toDate().toISOString(),
             } as ProductionBatch;
         });
         
@@ -1284,7 +1287,7 @@ async function createProductionLog(action: string, details: string, user: { staf
     }
 }
 
-export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 'status' | 'createdAt'>, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 'status' | 'createdAt' | 'approvedAt'>, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
     try {
         await addDoc(collection(db, "production_batches"), {
             ...data,
@@ -1304,7 +1307,6 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
         const batchRef = doc(db, 'production_batches', batchId);
 
         await runTransaction(db, async (transaction) => {
-            // Read operations first
             const batchDoc = await transaction.get(batchRef);
             if (!batchDoc.exists() || batchDoc.data().status !== 'pending_approval') {
                 throw new Error("Batch is not pending approval.");
@@ -1313,7 +1315,6 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
             const ingredientRefs = ingredients.map(ing => doc(db, 'ingredients', ing.ingredientId));
             const ingredientDocs = await Promise.all(ingredientRefs.map(ref => transaction.get(ref)));
 
-            // Validation
             for (let i = 0; i < ingredientDocs.length; i++) {
                 const ingDoc = ingredientDocs[i];
                 const reqIng = ingredients[i];
@@ -1322,14 +1323,13 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
                 }
             }
 
-            // Write operations
             for (let i = 0; i < ingredientRefs.length; i++) {
                 const ingRef = ingredientRefs[i];
                 const reqIng = ingredients[i];
                 transaction.update(ingRef, { stock: increment(-reqIng.quantity) });
             }
 
-            transaction.update(batchRef, { status: 'in_production' });
+            transaction.update(batchRef, { status: 'in_production', approvedAt: serverTimestamp() });
         });
         
         const batchDoc = await getDoc(batchRef);
@@ -1375,14 +1375,12 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
         await runTransaction(db, async (transaction) => {
             const batchRef = doc(db, 'production_batches', data.batchId);
             
-            // 1. Update the production batch document
             transaction.update(batchRef, {
                 status: 'completed',
                 successfullyProduced: data.successfullyProduced,
                 wasted: data.wasted
             });
 
-            // 2. Create a transfer to the main inventory (for storekeeper to accept)
             if (data.successfullyProduced > 0) {
                 const transferRef = doc(collection(db, 'transfers'));
                 transaction.set(transferRef, {
@@ -1397,20 +1395,19 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
                     }],
                     date: serverTimestamp(),
                     status: 'pending',
-                    is_sales_run: false, // This is a production return, not a sales run
+                    is_sales_run: false,
                     notes: `Return from production batch ${data.batchId}`
                 });
             }
 
-            // 3. Create a waste log for any wasted items
             if (data.wasted > 0) {
                 const wasteLogRef = doc(collection(db, 'waste_logs'));
                 transaction.set(wasteLogRef, {
                     productId: data.productId,
                     productName: data.productName,
-                    productCategory: 'Breads', // Assuming this for now
+                    productCategory: 'Breads',
                     quantity: data.wasted,
-                    reason: 'Burnt', // Default reason for production waste
+                    reason: 'Burnt',
                     notes: `From production batch ${data.batchId}`,
                     staffId: user.staff_id,
                     staffName: user.name,
@@ -1447,7 +1444,7 @@ export async function getProductionLogs(): Promise<ProductionLog[]> {
             return {
                 id: docSnap.id,
                 ...data,
-                timestamp: timestamp.toDate().toISOString(),
+                timestamp: timestamp?.toDate().toISOString(),
             } as ProductionLog;
         });
     } catch (error) {
@@ -1694,7 +1691,7 @@ export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, user: { staf
             await updateDoc(recipeRef, recipeData);
             await createProductionLog('Recipe Updated', `Updated recipe: ${recipeData.name}`, user);
         } else {
-            const newRecipeRef = await addDoc(collection(db, "recipes"), recipeData);
+            await addDoc(collection(db, "recipes"), recipeData);
             await createProductionLog('Recipe Created', `Created new recipe: ${recipeData.name}`, user);
         }
         return { success: true };
@@ -1734,3 +1731,4 @@ export async function getStaffByRole(role: string): Promise<any[]> {
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+
