@@ -50,7 +50,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -76,6 +76,7 @@ type Ingredient = {
     name: string;
     unit: string;
     stock: number;
+    costPerUnit: number;
 }
 
 type RecipeIngredient = {
@@ -497,10 +498,12 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: Produc
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-2 text-sm">
-            <p><strong>Action:</strong> <Badge>{log.action}</Badge></p>
+            <div className="flex items-center gap-2"><strong>Action:</strong> <Badge>{log.action}</Badge></div>
             <p><strong>Timestamp:</strong> {log.timestamp ? format(new Date(log.timestamp), 'PPp') : 'N/A'}</p>
             <p><strong>Staff Member:</strong> {log.staffName} ({log.staffId})</p>
-            <p><strong>Details:</strong> {log.details}</p>
+            <p>
+                <strong>Details:</strong> {log.details}
+            </p>
         </div>
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)}>Close</Button>
@@ -562,21 +565,21 @@ export default function RecipesPage() {
     
     // Real-time listeners
     useEffect(() => {
-        const qBatches = query(collection(db, 'production_batches'), orderBy('createdAt', 'desc'));
-        const unsubBatches = onSnapshot(qBatches, (snapshot) => {
-            const allBatches = snapshot.docs.map(doc => {
-                 const data = doc.data();
-                 const createdAt = (data.createdAt as any)?.toDate ? (data.createdAt as any).toDate().toISOString() : data.createdAt;
-                 const approvedAt = (data.approvedAt as any)?.toDate ? (data.approvedAt as any).toDate().toISOString() : data.approvedAt;
-                 return {
+        const qPending = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
+        const unsubPending = onSnapshot(qPending, (snapshot) => {
+            setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductionBatch)));
+        });
+
+        const qInProduction = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
+        const unsubInProduction = onSnapshot(qInProduction, (snapshot) => {
+            setInProductionBatches(snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
                     id: doc.id,
                     ...data,
-                    createdAt,
-                    approvedAt
+                    approvedAt: (data.approvedAt)?.toDate().toISOString()
                 } as ProductionBatch
-            });
-            setPendingBatches(allBatches.filter(b => b.status === 'pending_approval'));
-            setInProductionBatches(allBatches.filter(b => b.status === 'in_production'));
+            }));
         });
 
         const qLogs = query(collection(db, 'production_logs'), orderBy('timestamp', 'desc'));
@@ -599,7 +602,8 @@ export default function RecipesPage() {
         });
 
         return () => {
-            unsubBatches();
+            unsubPending();
+            unsubInProduction();
             unsubLogs();
             unsubRecipes();
         }
@@ -857,3 +861,5 @@ export default function RecipesPage() {
         </div>
     );
 }
+
+    
