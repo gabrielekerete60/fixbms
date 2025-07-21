@@ -110,7 +110,7 @@ const seedData = {
     },
   ],
   transfers: [
-      { id: "tsr_1_active", from_staff_id: "700008", from_staff_name: "David Storekeeper", to_staff_id: "400005", to_staff_name: "Akan Delivery", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 20 }], date: daysAgo(1), status: 'active', is_sales_run: true, notes: "Morning sales run to Lekki", totalCollected: 0 },
+      { id: "tsr_1_active", from_staff_id: "700008", from_staff_name: "David Storekeeper", to_staff_id: "400005", to_staff_name: "Akan Delivery", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 20 }], date: daysAgo(1), status: 'active', is_sales_run: true, totalCollected: 0 },
       { id: "trans_1_pending", from_staff_id: "700008", from_staff_name: "David Storekeeper", to_staff_id: "400004", to_staff_name: "Mfon Showroom", items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 10 }], date: Timestamp.now(), status: 'pending', is_sales_run: false },
   ],
   production_batches: [
