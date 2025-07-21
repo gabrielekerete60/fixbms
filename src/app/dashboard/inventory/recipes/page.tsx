@@ -416,6 +416,7 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
 
         if (produced > batch.quantityToProduce) {
             produced = batch.quantityToProduce;
+            toast({ variant: 'destructive', title: 'Error', description: `Cannot produce more than the requested quantity of ${batch.quantityToProduce}.` });
         }
 
         setSuccessfullyProduced(produced);
@@ -440,6 +441,7 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
         
         if (wastedQty > batch.quantityToProduce) {
             wastedQty = batch.quantityToProduce;
+             toast({ variant: 'destructive', title: 'Error', description: `Cannot waste more than the requested quantity of ${batch.quantityToProduce}.` });
         }
 
         setWasted(wastedQty);
@@ -526,23 +528,19 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: Produc
 
     useEffect(() => {
         const fetchDetails = async () => {
-            if (isOpen && log && log.action.includes('Batch') && log.details.includes('batch for')) {
-                // Regex to find a potential batchId (20 alphanumeric chars)
-                const batchIdMatch = log.details.match(/\b[a-zA-Z0-9]{20}\b/);
-                if (batchIdMatch && batchIdMatch[0]) {
-                    const batch = await getProductionBatch(batchIdMatch[0]);
-                    setBatchDetails(batch);
-                } else {
-                    // Fallback for older log formats
-                    const detailsParts = log.details.split(' ');
-                    const batchId = detailsParts[detailsParts.length - 1];
-                    if (batchId && batchId.length === 20) { // Simple validation
-                       const batch = await getProductionBatch(batchId);
-                       setBatchDetails(batch);
+            setBatchDetails(null);
+            if (isOpen && log && log.action.includes('Batch') && log.details) {
+                const batchIdMatch = log.details.match(/\b([a-zA-Z0-9]{20})\b/);
+                const batchId = batchIdMatch ? batchIdMatch[0] : log.details.split(' ').pop();
+                
+                if (batchId) {
+                    try {
+                        const batch = await getProductionBatch(batchId);
+                        setBatchDetails(batch);
+                    } catch (error) {
+                        console.error(`Could not fetch details for batch ${batchId}`, error)
                     }
                 }
-            } else {
-                setBatchDetails(null);
             }
         };
         fetchDetails();
@@ -552,7 +550,7 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: Produc
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Log Details</DialogTitle>
           <DialogDescription>
@@ -575,9 +573,9 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: Produc
                             {batchDetails.ingredients.map(ing => (
                                 <TableRow key={ing.ingredientId}>
                                     <TableCell>{ing.ingredientName}</TableCell>
-                                    <TableCell className="text-right">{(ing.openingStock || 0).toFixed(2)} {ing.unit}</TableCell>
-                                    <TableCell className="text-right">{ing.quantity} {ing.unit}</TableCell>
-                                    <TableCell className="text-right">{(ing.closingStock || 0).toFixed(2)} {ing.unit}</TableCell>
+                                    <TableCell className="text-right">{((ing.openingStock || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {ing.unit}</TableCell>
+                                    <TableCell className="text-right text-destructive">- {ing.quantity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {ing.unit}</TableCell>
+                                    <TableCell className="text-right text-green-600 font-medium">{((ing.closingStock || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {ing.unit}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>

@@ -1345,7 +1345,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
                 const reqIng = ingredients[i];
                 transaction.update(ingRef, { stock: increment(-reqIng.quantity) });
             }
-
+            
             const logRef = doc(collection(db, 'ingredient_stock_logs'));
             transaction.set(logRef, {
                 ingredientId: '', // Consolidated log
@@ -1366,7 +1366,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
         
         const batchDocForLog = await getDoc(batchRef);
         const batchData = batchDocForLog.data();
-        await createProductionLog('Batch Approved', `Approved batch for ${batchData?.quantityToProduce} of ${batchData?.productName}`, user);
+        await createProductionLog('Batch Approved', `Approved batch for ${batchData?.quantityToProduce} of ${batchData?.productName}: ${batchDocForLog.id}`, user);
         
         return { success: true };
     } catch (error) {
@@ -1383,7 +1383,7 @@ export async function declineProductionBatch(batchId: string, user: { staff_id: 
         
         const batchDoc = await getDoc(batchRef);
         const batchData = batchDoc.data();
-        await createProductionLog('Batch Declined', `Declined batch for ${batchData?.quantityToProduce} of ${batchData?.productName}`, user);
+        await createProductionLog('Batch Declined', `Declined batch for ${batchData?.quantityToProduce} of ${batchData?.productName}: ${batchId}`, user);
 
         return { success: true };
     } catch (error) {
@@ -1448,7 +1448,7 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
             }
         });
         
-        await createProductionLog('Batch Completed', `Completed batch of ${data.productName} with ${data.successfullyProduced} produced and ${data.wasted} wasted.`, user);
+        await createProductionLog('Batch Completed', `Completed batch of ${data.productName} with ${data.successfullyProduced} produced and ${data.wasted} wasted: ${data.batchId}`, user);
 
         return { success: true };
     } catch (error) {
@@ -1825,10 +1825,3 @@ export async function getStaffByRole(role: string): Promise<any[]> {
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
-
-
-
-
-
-
-
