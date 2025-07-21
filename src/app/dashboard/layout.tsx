@@ -88,6 +88,9 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
               <div className="flex items-center gap-3">
                 <link.icon className="h-4 w-4" />
                 {link.label}
+                 {link.notificationKey && notificationCounts[link.notificationKey] > 0 && (
+                    <Badge variant="destructive" className="h-5 w-5 flex items-center justify-center p-0">{notificationCounts[link.notificationKey]}</Badge>
+                )}
               </div>
               <ChevronRight className="h-4 w-4 transition-transform" />
             </CollapsibleTrigger>
@@ -108,9 +111,6 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
                         sublink.disabled && "cursor-not-allowed opacity-50"
                         )}>
                     {sublink.label}
-                     {sublink.notificationKey && notificationCounts[sublink.notificationKey] > 0 && (
-                        <Badge variant="destructive" className="absolute right-2 h-5 w-5 flex items-center justify-center p-0">{notificationCounts[sublink.notificationKey]}</Badge>
-                    )}
                 </Link>
               ))}
             </CollapsibleContent>
@@ -157,14 +157,13 @@ export default function DashboardLayout({
   const [notificationCounts, setNotificationCounts] = useState({
       pendingTransfers: 0,
       pendingBatches: 0,
-      productionTransfers: 0,
-      inProduction: 0,
   });
   
   const applyTheme = (theme: string | undefined) => {
-    document.documentElement.className = ''; // Clear existing themes
+    const root = document.documentElement;
+    root.className = ''; // Clear existing theme classes
     if (theme && theme !== 'default') {
-      document.documentElement.classList.add(`theme-${theme}`);
+      root.classList.add(`theme-${theme}`);
     }
   };
 
@@ -177,13 +176,13 @@ export default function DashboardLayout({
       description: description || "You have been successfully logged out.",
     });
   }, [router, toast]);
-
-  // This effect runs once on initial load to set the user from localStorage
+  
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
       setUser(parsedUser);
+      applyTheme(parsedUser.theme);
     } else {
       router.push('/');
     }
@@ -191,7 +190,7 @@ export default function DashboardLayout({
 
 
   useEffect(() => {
-    if (!user) return; // Don't run listeners until user is set
+    if (!user) return;
 
     const checkAttendance = async () => {
       setIsClocking(true);
@@ -218,11 +217,13 @@ export default function DashboardLayout({
             const userData = doc.data();
             if (!userData.is_active) {
                 handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
+                return;
             }
-            // Create a new user object to ensure state updates
-            const updatedUser = { ...user, theme: userData.theme || 'default' };
-            setUser(updatedUser); // Update user state with new theme
-            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser)); // Update local storage
+            // Update user state and local storage with fresh data from DB
+            const updatedUser = { ...user, theme: userData.theme || 'default', name: userData.name };
+            setUser(updatedUser); 
+            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser)); 
+            applyTheme(updatedUser.theme);
         } else {
             handleLogout("Account Deleted", "Your staff profile could not be found.");
         }
@@ -234,29 +235,14 @@ export default function DashboardLayout({
     const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
     const unsubBatches = onSnapshot(pendingBatchesQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingBatches: snap.size })));
     
-    const productionTransfersQuery = query(collection(db, 'transfers'), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'));
-    const unsubProdTransfers = onSnapshot(productionTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, productionTransfers: snap.size })));
-    
-    const inProductionQuery = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
-    const unsubInProduction = onSnapshot(inProductionQuery, (snap) => setNotificationCounts(prev => ({...prev, inProduction: snap.size })));
-
     return () => {
         clearInterval(timer);
         unsubUser();
         unsubPending();
         unsubBatches();
-        unsubProdTransfers();
-        unsubInProduction();
     };
 
-  }, [user?.staff_id, handleLogout]);
-
-  // This dedicated effect handles applying the theme whenever the user's theme property changes.
-  useEffect(() => {
-    if (user?.theme) {
-      applyTheme(user.theme);
-    }
-  }, [user?.theme]);
+  }, [user?.staff_id]);
   
   const handleClockInOut = async () => {
     if (!user) return;
@@ -282,7 +268,6 @@ export default function DashboardLayout({
         toast({ variant: 'destructive', title: "Error", description: result.error });
       }
     }
-    // Dispatch a custom event to notify other components
     window.dispatchEvent(new CustomEvent('attendanceChanged'));
     setIsClocking(false);
   };
@@ -301,7 +286,7 @@ export default function DashboardLayout({
       {
         icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Developer'], sublinks: [
           { href: "/dashboard/inventory/products", label: "Products", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", notificationKey: "production", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'] },
+          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'] },
           { href: "/dashboard/inventory/ingredients", label: "Ingredients", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Developer'] },
@@ -359,9 +344,7 @@ export default function DashboardLayout({
   }, [user]);
 
   const combinedNotificationCounts = useMemo(() => ({
-    ...notificationCounts,
-    stockControl: notificationCounts.pendingTransfers + notificationCounts.productionTransfers,
-    production: notificationCounts.pendingBatches + notificationCounts.inProduction,
+    stockControl: notificationCounts.pendingTransfers + notificationCounts.pendingBatches,
   }), [notificationCounts]);
 
   if (!user) {

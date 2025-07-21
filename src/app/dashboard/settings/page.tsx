@@ -125,9 +125,10 @@ function ThemeSettings({ user }: { user: User }) {
         setIsSaving(true);
         const result = await handleUpdateTheme(user.staff_id, selectedTheme);
         if (result.success) {
-            toast({ title: 'Theme saved!', description: 'Your new theme will be applied momentarily.'});
-            // The layout listener will handle the theme application automatically.
-            // We force a reload for an immediate visual confirmation.
+            // Write to local storage immediately before reload
+            const updatedUser = { ...user, theme: selectedTheme };
+            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+            toast({ title: 'Theme saved!', description: 'Applying new theme...' });
             setTimeout(() => {
                 window.location.reload();
             }, 500);
@@ -181,14 +182,12 @@ export default function SettingsPage() {
         const storedUser = localStorage.getItem('loggedInUser');
         if (storedUser) {
             const parsedUser: User = JSON.parse(storedUser);
-            // Set user state immediately for faster UI render
             setUser(parsedUser);
 
             const unsub = onSnapshot(doc(db, "staff", parsedUser.staff_id), (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
                     setIsMfaEnabled(data.mfa_enabled || false);
-                    // Update user state with potentially new theme from DB
                     setUser(prev => ({...prev!, theme: data.theme || 'default'}));
                 }
                 if (isLoading) setIsLoading(false);
