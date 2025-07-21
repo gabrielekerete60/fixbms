@@ -1747,6 +1747,7 @@ export type IngredientStockLog = {
     reason: string;
     date: string;
     staffName: string;
+    logRefId?: string; // To link to supply_logs or production_batches
 };
 
 export async function getIngredientStockLogs(): Promise<IngredientStockLog[]> {
@@ -1769,5 +1770,6 @@ export async function getStaffByRole(role: string): Promise<any[]> {
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+
 
 
