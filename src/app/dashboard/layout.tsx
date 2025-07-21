@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -76,6 +77,8 @@ type User = {
 };
 
 function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[], pathname: string, notificationCounts: Record<string, number> }) {
+  const { toast } = useToast();
+  
   return (
     <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
       {navLinks.map((link) => 
@@ -89,13 +92,20 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
               <ChevronRight className="h-4 w-4 transition-transform" />
             </CollapsibleTrigger>
             <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l pl-3">
-              {link.sublinks.map(sublink => (
+              {link.sublinks.map((sublink: any) => (
                  <Link 
                     key={sublink.label} 
-                    href={sublink.href} 
+                    href={sublink.disabled ? '#' : sublink.href}
+                    onClick={(e) => {
+                      if (sublink.disabled) {
+                        e.preventDefault();
+                        toast({ variant: 'destructive', title: 'Feature Not Available', description: 'This feature is currently under construction.' });
+                      }
+                    }}
                     className={cn(
                         "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary relative",
-                        pathname === sublink.href && "bg-muted text-primary"
+                        !sublink.disabled && pathname === sublink.href && "bg-muted text-primary",
+                        sublink.disabled && "cursor-not-allowed opacity-50"
                         )}>
                     {sublink.label}
                      {sublink.notificationKey && notificationCounts[sublink.notificationKey] > 0 && (
@@ -108,10 +118,17 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
         ) : (
           <Link
             key={link.label}
-            href={link.href}
+            href={link.disabled ? '#' : link.href}
+            onClick={(e) => {
+                if (link.disabled) {
+                    e.preventDefault();
+                    toast({ variant: 'destructive', title: 'Feature Not Available', description: 'This feature is currently under construction.' });
+                }
+            }}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-              (link.href !== "/dashboard" && pathname.startsWith(link.href)) && "bg-muted text-primary"
+              !link.disabled && (link.href !== "/dashboard" && pathname.startsWith(link.href)) && "bg-muted text-primary",
+              link.disabled && "cursor-not-allowed opacity-50"
             )}
           >
             <link.icon className="h-4 w-4" />
@@ -143,6 +160,13 @@ export default function DashboardLayout({
       productionTransfers: 0,
       inProduction: 0,
   });
+  
+  const applyTheme = (theme: string | undefined) => {
+    document.documentElement.className = ''; // Clear existing themes
+    if (theme && theme !== 'default') {
+      document.documentElement.classList.add(`theme-${theme}`);
+    }
+  };
 
   const handleLogout = useCallback((message?: string, description?: string) => {
     localStorage.removeItem('loggedInUser');
@@ -160,6 +184,7 @@ export default function DashboardLayout({
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
       setUser(parsedUser);
+      applyTheme(parsedUser.theme);
       
       const checkAttendance = async () => {
         setIsClocking(true);
@@ -198,6 +223,10 @@ export default function DashboardLayout({
               if (!userData.is_active) {
                   handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
               }
+              const updatedUser = { ...user, theme: userData.theme || 'default' };
+              setUser(updatedUser);
+              localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+              applyTheme(userData.theme);
           } else {
               handleLogout("Account Deleted", "Your staff profile could not be found.");
           }
@@ -227,7 +256,7 @@ export default function DashboardLayout({
           unsubInProduction();
       };
 
-  }, [user, handleLogout]);
+  }, [user?.staff_id, handleLogout]);
   
   const handleClockInOut = async () => {
     if (!user) return;
@@ -262,11 +291,11 @@ export default function DashboardLayout({
     const allLinks = [
       { href: "/dashboard", icon: Home, label: "Dashboard", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Developer'] },
-      { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor', 'Developer'] },
+      { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor', 'Developer'], disabled: true },
       {
         icon: Inbox, label: "Orders", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Accountant', 'Developer'], sublinks: [
           { href: "/dashboard/orders/regular", label: "Regular Orders" },
-          { href: "#", label: "Custom Orders" },
+          { href: "#", label: "Custom Orders", disabled: true },
         ]
       },
       {
@@ -283,20 +312,20 @@ export default function DashboardLayout({
       {
         icon: Users, label: "Customers", roles: ['Manager', 'Supervisor', 'Developer'], sublinks: [
           { href: "/dashboard/customers/profiles", label: "Profiles" },
-          { href: "#", label: "Feedback" },
-          { href: "#", label: "Loyalty Programs" },
+          { href: "#", label: "Feedback", disabled: true },
+          { href: "#", label: "Loyalty Programs", disabled: true },
         ]
       },
        {
         icon: Users2, label: "Staff", roles: ['Manager', 'Supervisor', 'Developer'], sublinks: [
           { href: "/dashboard/staff/management", label: "Staff Management" },
           { href: "/dashboard/staff/attendance", label: "Attendance" },
-          { href: "/dashboard/staff/payroll", label: "Payroll" },
+          { href: "/dashboard/staff/payroll", label: "Payroll", disabled: true },
         ]
       },
       { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", roles: ['Manager', 'Supervisor', 'Delivery Staff', 'Developer'] },
       { href: "/dashboard/accounting", icon: Wallet, label: "Accounting", roles: ['Manager', 'Accountant', 'Developer'] },
-      { href: "#", icon: GanttChartSquare, label: "AI Analytics", roles: ['Manager', 'Developer'] },
+      { href: "#", icon: GanttChartSquare, label: "AI Analytics", roles: ['Manager', 'Developer'], disabled: true },
       { href: "/dashboard/communication", icon: HelpingHand, label: "Communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/documentation", icon: BookOpen, label: "Documentation", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/settings", icon: Settings, label: "Settings", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },

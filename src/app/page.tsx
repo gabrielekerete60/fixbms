@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -190,7 +191,7 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background transition-colors duration-500">
-      <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-primary/20 via-background to-secondary/20 -z-10" />
+      <div className="absolute top-0 left-0 w-full h-full bg-background -z-10" />
       {view === 'login' ? renderLoginView() : renderMfaView()}
     </main>
   );

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -8,7 +9,7 @@ import { Loader2, ShieldCheck, Copy, KeyRound, Eye, EyeOff } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast';
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { disableMfa, verifyMfaSetup, handleChangePassword } from '@/app/actions';
+import { disableMfa, verifyMfaSetup, handleChangePassword, handleUpdateTheme } from '@/app/actions';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -111,6 +112,51 @@ function ChangePasswordForm({ user }: { user: User }) {
     )
 }
 
+function ThemeSettings({ user }: { user: User }) {
+    const { toast } = useToast();
+    const [selectedTheme, setSelectedTheme] = useState(user.theme || 'default');
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSaveTheme = async () => {
+        setIsSaving(true);
+        const result = await handleUpdateTheme(user.staff_id, selectedTheme);
+        if (result.success) {
+            toast({ title: 'Theme saved!', description: 'Your new theme will be applied.'});
+            // Give toast time to show before reloading
+            setTimeout(() => window.location.reload(), 500);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not save your theme preference.' });
+            setIsSaving(false);
+        }
+    };
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Theme Preference</CardTitle>
+                <CardDescription>Choose a visual theme for your dashboard.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Select value={selectedTheme} onValueChange={setSelectedTheme}>
+                    <SelectTrigger className="w-[280px]">
+                        <SelectValue placeholder="Select a theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="default">Default Dark</SelectItem>
+                        <SelectItem value="classic-light">Classic Light</SelectItem>
+                    </SelectContent>
+                </Select>
+            </CardContent>
+            <CardFooter>
+                 <Button onClick={handleSaveTheme} disabled={isSaving}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    Save Theme
+                </Button>
+            </CardFooter>
+        </Card>
+    )
+}
+
 export default function SettingsPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
@@ -194,6 +240,8 @@ export default function SettingsPage() {
     return (
         <div className="flex flex-col gap-8">
             <h1 className="text-2xl font-bold font-headline">Settings</h1>
+
+            <ThemeSettings user={user} />
             
             <ChangePasswordForm user={user} />
             
