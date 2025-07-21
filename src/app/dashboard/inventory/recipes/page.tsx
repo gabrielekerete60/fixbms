@@ -173,7 +173,7 @@ function RecipeDialog({
     };
     
     const handleStartProduction = async () => {
-        if (!recipe?.id) return;
+        if (!recipe?.id || !user) return;
         
         const quantity = prompt("Enter quantity to produce:", "1");
         if (quantity === null || isNaN(Number(quantity)) || Number(quantity) <= 0) {
@@ -237,7 +237,7 @@ function RecipeDialog({
                                         </SelectContent>
                                     </Select>
                                     <Input type="number" placeholder="Qty" value={ing.quantity} onChange={(e) => handleIngredientChange(index, 'quantity', e.target.value)} />
-                                    <Input placeholder="Unit" value={ing.unit} onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)} />
+                                    <Input placeholder="Unit" value={ing.unit} readOnly />
                                     <Button variant="ghost" size="icon" onClick={() => handleRemoveIngredient(index)}>
                                         <Trash2 className="h-4 w-4 text-destructive" />
                                     </Button>
