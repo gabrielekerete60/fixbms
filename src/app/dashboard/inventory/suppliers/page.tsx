@@ -53,6 +53,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+type User = {
+    name: string;
+    role: string;
+    staff_id: string;
+};
+
 type Supplier = {
   id: string;
   name: string;
@@ -188,12 +194,14 @@ function SupplyLogDialog({
     onSave,
     supplier,
     ingredients,
+    user
 } : {
     isOpen: boolean;
     onOpenChange: (open: boolean) => void;
-    onSave: (log: Omit<SupplyLog, 'id' | 'supplierName'>) => void;
+    onSave: (log: Omit<SupplyLog, 'id' | 'supplierName'>, user: User) => void;
     supplier: Supplier;
     ingredients: Ingredient[];
+    user: User | null;
 }) {
     const [ingredientId, setIngredientId] = useState("");
     const [quantity, setQuantity] = useState(0);
@@ -210,6 +218,10 @@ function SupplyLogDialog({
     }, [selectedIngredient]);
     
     const handleSubmit = () => {
+        if (!user) {
+            toast({ variant: 'destructive', title: 'Error', description: 'User not found.'});
+            return;
+        }
         if (!ingredientId || !quantity || !costPerUnit) {
             toast({ variant: 'destructive', title: 'Error', description: 'Please fill all required fields.'});
             return;
@@ -227,7 +239,7 @@ function SupplyLogDialog({
             totalCost,
             date: new Date().toISOString(),
             invoiceNumber
-        });
+        }, user);
         onOpenChange(false);
     }
 
@@ -272,7 +284,7 @@ function SupplyLogDialog({
     )
 }
 
-function SupplierDetail({ supplier, onBack, onRefresh }: { supplier: Supplier, onBack: () => void, onRefresh: () => void }) {
+function SupplierDetail({ supplier, onBack, onRefresh, user }: { supplier: Supplier, onBack: () => void, onRefresh: () => void, user: User | null }) {
     const { toast } = useToast();
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     const [supplyLogs, setSupplyLogs] = useState<SupplyLog[]>([]);
@@ -309,19 +321,30 @@ function SupplierDetail({ supplier, onBack, onRefresh }: { supplier: Supplier, o
         );
     }, [supplyLogs, searchTerm]);
 
-    const handleSaveLog = async (logData: Omit<SupplyLog, 'id' | 'supplierName'>) => {
+    const handleSaveLog = async (logData: Omit<SupplyLog, 'id' | 'supplierName'>, user: User) => {
         try {
             const batch = writeBatch(db);
 
             // 1. Create new supply log
             const logRef = doc(collection(db, 'supply_logs'));
             batch.set(logRef, { ...logData, supplierName: supplier.name });
+            
+            // 2. Create new ingredient stock log
+            const ingredientStockLogRef = doc(collection(db, 'ingredient_stock_logs'));
+            batch.set(ingredientStockLogRef, {
+                ingredientId: logData.ingredientId,
+                ingredientName: logData.ingredientName,
+                change: logData.quantity,
+                reason: `Purchase from ${supplier.name}`,
+                date: new Date().toISOString(),
+                staffName: user.name,
+            });
 
-            // 2. Update ingredient stock
+            // 3. Update ingredient stock
             const ingredientRef = doc(db, 'ingredients', logData.ingredientId);
             batch.update(ingredientRef, { stock: increment(logData.quantity) });
 
-            // 3. Update supplier amount owed
+            // 4. Update supplier amount owed
             const supplierRef = doc(db, 'suppliers', supplier.id);
             batch.update(supplierRef, { amountOwed: increment(logData.totalCost) });
 
@@ -352,6 +375,7 @@ function SupplierDetail({ supplier, onBack, onRefresh }: { supplier: Supplier, o
                 onSave={handleSaveLog}
                 supplier={supplier}
                 ingredients={ingredients}
+                user={user}
             />
 
             <Tabs defaultValue="logs">
@@ -429,6 +453,7 @@ function SupplierDetail({ supplier, onBack, onRefresh }: { supplier: Supplier, o
 
 export default function SuppliersPage() {
     const { toast } = useToast();
+    const [user, setUser] = useState<User | null>(null);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingSupplier, setEditingSupplier] = useState<Partial<Supplier> | null>(null);
@@ -452,6 +477,10 @@ export default function SuppliersPage() {
     }, [toast]);
 
     useEffect(() => {
+        const storedUser = localStorage.getItem('loggedInUser');
+        if (storedUser) {
+            setUser(JSON.parse(storedUser));
+        }
         fetchSuppliers();
         window.addEventListener('focus', fetchSuppliers);
         return () => {
@@ -508,7 +537,7 @@ export default function SuppliersPage() {
     }, [suppliers]);
 
     if (selectedSupplier) {
-        return <SupplierDetail supplier={selectedSupplier} onBack={() => setSelectedSupplier(null)} onRefresh={fetchSuppliers}/>;
+        return <SupplierDetail supplier={selectedSupplier} onBack={() => setSelectedSupplier(null)} onRefresh={fetchSuppliers} user={user} />;
     }
 
     return (

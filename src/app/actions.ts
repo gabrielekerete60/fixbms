@@ -1247,29 +1247,30 @@ export type ProductionBatch = {
 };
 
 
-export async function getProductionBatches(): Promise<{ pending: ProductionBatch[], in_production: ProductionBatch[] }> {
+export async function getProductionBatches(): Promise<{ pending: ProductionBatch[], in_production: ProductionBatch[], completed: ProductionBatch[] }> {
     try {
         const q = query(collection(db, 'production_batches'), orderBy('createdAt', 'desc'));
         const snapshot = await getDocs(q);
         const allBatches = snapshot.docs.map(docSnap => {
             const data = docSnap.data();
-            const createdAt = data.createdAt as Timestamp;
-            const approvedAt = data.approvedAt as Timestamp;
+            const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString();
+            const approvedAt = (data.approvedAt as Timestamp)?.toDate().toISOString();
             return {
                 id: docSnap.id,
                 ...data,
-                createdAt: createdAt?.toDate().toISOString(),
-                approvedAt: approvedAt?.toDate().toISOString(),
+                createdAt,
+                approvedAt,
             } as ProductionBatch;
         });
         
         const pending = allBatches.filter(b => b.status === 'pending_approval');
         const in_production = allBatches.filter(b => b.status === 'in_production');
+        const completed = allBatches.filter(b => b.status === 'completed');
 
-        return { pending, in_production };
+        return { pending, in_production, completed };
     } catch (error) {
         console.error("Error fetching production batches:", error);
-        return { pending: [], in_production: [] };
+        return { pending: [], in_production: [], completed: [] };
     }
 }
 
@@ -1302,9 +1303,10 @@ export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 's
     }
 }
 
-export async function approveIngredientRequest(batchId: string, ingredients: { ingredientId: string, quantity: number }[], user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+export async function approveIngredientRequest(batchId: string, ingredients: { ingredientId: string, quantity: number, ingredientName: string, unit: string }[], user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
     try {
         const batchRef = doc(db, 'production_batches', batchId);
+        const batchDocForLog = await getDoc(batchRef);
 
         await runTransaction(db, async (transaction) => {
             const batchDoc = await transaction.get(batchRef);
@@ -1318,8 +1320,9 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
             for (let i = 0; i < ingredientDocs.length; i++) {
                 const ingDoc = ingredientDocs[i];
                 const reqIng = ingredients[i];
-                if (!ingDoc.exists() || ingDoc.data().stock < reqIng.quantity) {
-                    throw new Error(`Not enough stock for ingredient ID: ${reqIng.ingredientId}`);
+                const currentStock = ingDoc.exists() ? ingDoc.data().stock : 0;
+                if (!ingDoc.exists() || currentStock < reqIng.quantity) {
+                    throw new Error(`Not enough stock for ${reqIng.ingredientName}. Required: ${reqIng.quantity}, Available: ${currentStock}`);
                 }
             }
 
@@ -1327,13 +1330,22 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
                 const ingRef = ingredientRefs[i];
                 const reqIng = ingredients[i];
                 transaction.update(ingRef, { stock: increment(-reqIng.quantity) });
+
+                const logRef = doc(collection(db, 'ingredient_stock_logs'));
+                transaction.set(logRef, {
+                    ingredientId: reqIng.ingredientId,
+                    ingredientName: reqIng.ingredientName,
+                    change: -reqIng.quantity,
+                    reason: `Production: Batch ${batchId.substring(0, 6)}`,
+                    date: serverTimestamp(),
+                    staffName: user.name,
+                });
             }
 
             transaction.update(batchRef, { status: 'in_production', approvedAt: serverTimestamp() });
         });
         
-        const batchDoc = await getDoc(batchRef);
-        const batchData = batchDoc.data();
+        const batchData = batchDocForLog.data();
         await createProductionLog('Batch Approved', `Approved batch for ${batchData?.quantityToProduce} of ${batchData?.productName}`, user);
         
         return { success: true };
@@ -1440,11 +1452,11 @@ export async function getProductionLogs(): Promise<ProductionLog[]> {
         const snapshot = await getDocs(q);
         return snapshot.docs.map(docSnap => {
             const data = docSnap.data();
-            const timestamp = data.timestamp as Timestamp;
+            const timestamp = (data.timestamp as Timestamp)?.toDate().toISOString();
             return {
                 id: docSnap.id,
                 ...data,
-                timestamp: timestamp?.toDate().toISOString(),
+                timestamp,
             } as ProductionLog;
         });
     } catch (error) {
@@ -1691,7 +1703,8 @@ export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, user: { staf
             await updateDoc(recipeRef, recipeData);
             await createProductionLog('Recipe Updated', `Updated recipe: ${recipeData.name}`, user);
         } else {
-            await addDoc(collection(db, "recipes"), recipeData);
+            const newRecipeRef = doc(collection(db, "recipes"));
+            await setDoc(newRecipeRef, { ...recipeData, id: newRecipeRef.id });
             await createProductionLog('Recipe Created', `Created new recipe: ${recipeData.name}`, user);
         }
         return { success: true };
@@ -1726,9 +1739,35 @@ export async function getIngredients(): Promise<any[]> {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 
+export type IngredientStockLog = {
+    id: string;
+    ingredientId: string;
+    ingredientName: string;
+    change: number;
+    reason: string;
+    date: string;
+    staffName: string;
+};
+
+export async function getIngredientStockLogs(): Promise<IngredientStockLog[]> {
+    try {
+        const q = query(collection(db, 'ingredient_stock_logs'), orderBy('date', 'desc'));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            const date = (data.date as Timestamp)?.toDate().toISOString();
+            return { id: docSnap.id, ...data, date } as IngredientStockLog;
+        });
+    } catch (error) {
+        console.error("Error fetching ingredient stock logs:", error);
+        return [];
+    }
+}
+
 export async function getStaffByRole(role: string): Promise<any[]> {
     const q = query(collection(db, "staff"), where("role", "==", role));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+
 

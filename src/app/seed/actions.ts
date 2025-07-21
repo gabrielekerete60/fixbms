@@ -154,6 +154,10 @@ const seedData = {
       { action: 'Batch Requested', details: 'Requested 20 of Family Loaf', staffId: '500006', staffName: 'Blessing Baker', timestamp: daysAgo(1) },
       { action: 'Batch Approved', details: 'Approved batch for 100 of Croissant', staffId: '700008', staffName: 'David Storekeeper', timestamp: daysAgo(1) },
   ],
+  ingredient_stock_logs: [
+      { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", change: 50, reason: "Purchase from Flour Mills of Nigeria", date: daysAgo(5), staffName: "David Storekeeper" },
+      { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", change: -10, reason: "Production: Batch batch_1", date: daysAgo(1), staffName: "David Storekeeper" },
+  ]
 };
 
 export async function verifySeedPassword(password: string): Promise<ActionResult> {

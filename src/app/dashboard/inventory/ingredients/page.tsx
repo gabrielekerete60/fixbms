@@ -20,7 +20,7 @@ import {
   TableFooter
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, ChevronsUp, Calendar as CalendarIcon } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, ChevronsUp, Calendar as CalendarIcon, ArrowDown, ArrowUp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,11 +54,13 @@ import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRange } from "react-day-picker";
+import { getIngredientStockLogs, IngredientStockLog } from "@/app/actions";
+import { Badge } from "@/components/ui/badge";
 
 
 type Ingredient = {
@@ -176,19 +178,23 @@ export default function IngredientsPage() {
     const { toast } = useToast();
     const router = useRouter();
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+    const [stockLogs, setStockLogs] = useState<IngredientStockLog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingIngredient, setEditingIngredient] = useState<Partial<Ingredient> | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [ingredientToDelete, setIngredientToDelete] = useState<Ingredient | null>(null);
     const [date, setDate] = useState<DateRange | undefined>();
 
-    const fetchIngredients = useCallback(async () => {
+    const fetchPageData = useCallback(async () => {
         setIsLoading(true);
         try {
             const ingredientsCollection = collection(db, "ingredients");
-            const snapshot = await getDocs(ingredientsCollection);
-            const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[];
+            const ingredientSnapshot = await getDocs(ingredientsCollection);
+            const list = ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[];
             setIngredients(list);
+
+            const logsData = await getIngredientStockLogs();
+            setStockLogs(logsData);
         } catch (error) {
             console.error("Error fetching ingredients:", error);
             toast({ variant: "destructive", title: "Error", description: "Could not fetch ingredients." });
@@ -198,12 +204,12 @@ export default function IngredientsPage() {
     }, [toast]);
 
     useEffect(() => {
-        fetchIngredients();
-        window.addEventListener('focus', fetchIngredients);
+        fetchPageData();
+        window.addEventListener('focus', fetchPageData);
         return () => {
-            window.removeEventListener('focus', fetchIngredients);
+            window.removeEventListener('focus', fetchPageData);
         };
-    }, [fetchIngredients]);
+    }, [fetchPageData]);
 
     const handleSaveIngredient = async (ingredientData: Partial<Omit<Ingredient, 'id' | 'stock'>>) => {
         try {
@@ -216,7 +222,7 @@ export default function IngredientsPage() {
                 await addDoc(collection(db, "ingredients"), dataToSave);
                 toast({ title: "Success", description: "Ingredient created successfully." });
             }
-            fetchIngredients();
+            fetchPageData();
         } catch (error) {
             console.error("Error saving ingredient:", error);
             toast({ variant: "destructive", title: "Error", description: "Could not save ingredient." });
@@ -228,7 +234,7 @@ export default function IngredientsPage() {
         try {
             await deleteDoc(doc(db, "ingredients", ingredientToDelete.id));
             toast({ title: "Success", description: "Ingredient deleted successfully." });
-            fetchIngredients();
+            fetchPageData();
         } catch (error) {
             console.error("Error deleting ingredient:", error);
             toast({ variant: "destructive", title: "Error", description: "Could not delete ingredient." });
@@ -257,6 +263,19 @@ export default function IngredientsPage() {
     const grandTotalCost = useMemo(() => {
         return ingredientsWithTotal.reduce((acc, ing) => acc + ing.totalCost, 0);
     }, [ingredientsWithTotal]);
+
+    const filteredLogs = useMemo(() => {
+        if (!date?.from) return stockLogs;
+        
+        const fromDate = startOfDay(date.from);
+        const toDate = date.to ? endOfDay(date.to) : endOfDay(date.from);
+        
+        return stockLogs.filter(log => {
+            const logDate = new Date(log.date);
+            return logDate >= fromDate && logDate <= toDate;
+        });
+    }, [stockLogs, date]);
+
 
     return (
         <div className="flex flex-col gap-4">
@@ -403,23 +422,37 @@ export default function IngredientsPage() {
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <Table>
+                             <Table>
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Date</TableHead>
-                                        <TableHead>Ingredient / Recipe</TableHead>
+                                        <TableHead>Ingredient</TableHead>
+                                        <TableHead>Staff</TableHead>
                                         <TableHead>Change</TableHead>
-                                        <TableHead>New Level</TableHead>
                                         <TableHead>Reason</TableHead>
-                                        <TableHead>Notes</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                                            Stock log functionality is coming soon.
-                                        </TableCell>
-                                    </TableRow>
+                                    {isLoading ? (
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                    ) : filteredLogs.length > 0 ? (
+                                        filteredLogs.map(log => (
+                                            <TableRow key={log.id}>
+                                                <TableCell>{log.date ? format(new Date(log.date), 'Pp') : 'N/A'}</TableCell>
+                                                <TableCell>{log.ingredientName}</TableCell>
+                                                <TableCell>{log.staffName}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={log.change > 0 ? "default" : "destructive"} className="gap-1">
+                                                        {log.change > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                                                        {log.change}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>{log.reason}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No stock logs for this period.</TableCell></TableRow>
+                                    )}
                                 </TableBody>
                             </Table>
                         </CardContent>
