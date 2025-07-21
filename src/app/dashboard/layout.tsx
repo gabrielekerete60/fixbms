@@ -178,13 +178,12 @@ export default function DashboardLayout({
     });
   }, [router, toast]);
 
-  // This effect runs once on initial load to set the user and theme from localStorage
+  // This effect runs once on initial load to set the user from localStorage
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
       setUser(parsedUser);
-      applyTheme(parsedUser.theme);
     } else {
       router.push('/');
     }
@@ -305,7 +304,7 @@ export default function DashboardLayout({
           { href: "/dashboard/inventory/recipes", label: "Recipes & Production", notificationKey: "production", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'] },
           { href: "/dashboard/inventory/ingredients", label: "Ingredients", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
+          { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Developer'] },
           { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", roles: ['Manager', 'Developer'] },
         ]
@@ -338,7 +337,12 @@ export default function DashboardLayout({
       return links.reduce((acc: any[], link) => {
         if (!link.roles || link.roles.includes(user.role)) {
           if (link.sublinks) {
-            const filteredSublinks = link.sublinks.filter((sublink: any) => !sublink.roles || sublink.roles.includes(user.role));
+            const filteredSublinks = link.sublinks.filter((sublink: any) => {
+              if (sublink.href === "/dashboard/inventory/stock-control" && user.role === 'Baker') {
+                return false;
+              }
+              return !sublink.roles || sublink.roles.includes(user.role)
+            });
             if (filteredSublinks.length > 0) {
               acc.push({ ...link, sublinks: filteredSublinks });
             }

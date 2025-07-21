@@ -127,7 +127,7 @@ function ThemeSettings({ user }: { user: User }) {
         if (result.success) {
             toast({ title: 'Theme saved!', description: 'Your new theme will be applied momentarily.'});
             // The layout listener will handle the theme application automatically.
-            // We can force a reload for an immediate visual confirmation.
+            // We force a reload for an immediate visual confirmation.
             setTimeout(() => {
                 window.location.reload();
             }, 500);
