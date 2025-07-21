@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, increment, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, increment, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -58,7 +58,7 @@ import { format, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRange } from "react-day-picker";
-import { getIngredientStockLogs, IngredientStockLog } from "@/app/actions";
+import { getIngredientStockLogs, IngredientStockLog, ProductionBatch, getProductionBatch, getSupplyLog, SupplyLog } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
@@ -313,6 +313,65 @@ function IncreaseStockDialog({ isOpen, onOpenChange, onStockUpdated, ingredients
     )
 }
 
+function LogDetailsDialog({ isOpen, onOpenChange, log, productionBatch, supplyLog }: { isOpen: boolean, onOpenChange: (open: boolean) => void, log: IngredientStockLog | null, productionBatch: ProductionBatch | null, supplyLog: SupplyLog | null }) {
+    if (!isOpen || !log) return null;
+  
+    const isProduction = log.reason.startsWith('Production');
+    const isPurchase = log.reason.startsWith('Purchase');
+  
+    return (
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log Details: {log.id.substring(0, 7)}...</DialogTitle>
+            <DialogDescription>
+              Details for stock change on {format(new Date(log.date), 'PPp')} by {log.staffName}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            {isProduction && productionBatch && (
+              <div>
+                <h4 className="font-semibold mb-2">Production Batch: {productionBatch.id.substring(0,6)}...</h4>
+                <p><strong>Product:</strong> {productionBatch.productName} (x{productionBatch.quantityToProduce})</p>
+                <p><strong>Requested by:</strong> {productionBatch.requestedByName}</p>
+                <Separator className="my-2" />
+                <h5 className="font-medium">Ingredients Used</h5>
+                <Table>
+                  <TableHeader>
+                    <TableRow><TableHead>Ingredient</TableHead><TableHead className="text-right">Quantity</TableHead></TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {productionBatch.ingredients.map(ing => (
+                      <TableRow key={ing.ingredientId}>
+                        <TableCell>{ing.ingredientName}</TableCell>
+                        <TableCell className="text-right">{ing.quantity} {ing.unit}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            {isPurchase && supplyLog && (
+              <div>
+                <h4 className="font-semibold mb-2">Purchase from: {supplyLog.supplierName}</h4>
+                <p><strong>Ingredient:</strong> {supplyLog.ingredientName}</p>
+                <p><strong>Quantity:</strong> {supplyLog.quantity} {supplyLog.unit}</p>
+                <p><strong>Cost per Unit:</strong> ₦{supplyLog.costPerUnit.toLocaleString()}</p>
+                <p><strong>Total Cost:</strong> ₦{supplyLog.totalCost.toLocaleString()}</p>
+              </div>
+            )}
+            {!isProduction && !isPurchase && (
+                <p><strong>Change:</strong> {log.change} | <strong>Reason:</strong> {log.reason}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
 export default function IngredientsPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
@@ -326,6 +385,11 @@ export default function IngredientsPage() {
     const [isIncreaseStockOpen, setIsIncreaseStockOpen] = useState(false);
     const [date, setDate] = useState<DateRange | undefined>();
 
+    const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [selectedLog, setSelectedLog] = useState<IngredientStockLog | null>(null);
+    const [selectedProductionBatch, setSelectedProductionBatch] = useState<ProductionBatch | null>(null);
+    const [selectedSupplyLog, setSelectedSupplyLog] = useState<SupplyLog | null>(null);
+    
     const fetchPageData = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -400,6 +464,23 @@ export default function IngredientsPage() {
         setIsDialogOpen(true);
     };
 
+    const handleViewDetails = async (log: IngredientStockLog) => {
+        setSelectedLog(log);
+        setSelectedProductionBatch(null);
+        setSelectedSupplyLog(null);
+      
+        if (log.logRefId) {
+          if (log.reason.startsWith('Production')) {
+            const batch = await getProductionBatch(log.logRefId);
+            setSelectedProductionBatch(batch);
+          } else if (log.reason.startsWith('Purchase')) {
+            const supplyLog = await getSupplyLog(log.logRefId);
+            setSelectedSupplyLog(supplyLog);
+          }
+        }
+        setIsDetailsOpen(true);
+      };
+
     const ingredientsWithTotal = useMemo(() => {
         return ingredients.map(ing => ({
             ...ing,
@@ -451,6 +532,13 @@ export default function IngredientsPage() {
                 ingredients={ingredients}
                 suppliers={suppliers}
                 user={user}
+            />
+             <LogDetailsDialog 
+                isOpen={isDetailsOpen}
+                onOpenChange={setIsDetailsOpen}
+                log={selectedLog}
+                productionBatch={selectedProductionBatch}
+                supplyLog={selectedSupplyLog}
             />
             
             <Tabs defaultValue="current-stock">
@@ -585,11 +673,12 @@ export default function IngredientsPage() {
                                         <TableHead>Staff</TableHead>
                                         <TableHead>Change</TableHead>
                                         <TableHead>Reason</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {isLoading ? (
-                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
                                     ) : filteredLogs.length > 0 ? (
                                         filteredLogs.map(log => (
                                             <TableRow key={log.id}>
@@ -603,10 +692,15 @@ export default function IngredientsPage() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>{log.reason}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button variant="ghost" size="icon" onClick={() => handleViewDetails(log)} disabled={!log.logRefId}>
+                                                        <Eye className="h-4 w-4"/>
+                                                    </Button>
+                                                </TableCell>
                                             </TableRow>
                                         ))
                                     ) : (
-                                        <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No stock logs for this period.</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No stock logs for this period.</TableCell></TableRow>
                                     )}
                                 </TableBody>
                             </Table>

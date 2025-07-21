@@ -1336,9 +1336,10 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
                     ingredientId: reqIng.ingredientId,
                     ingredientName: reqIng.ingredientName,
                     change: -reqIng.quantity,
-                    reason: `Production: Batch ${batchId.substring(0, 6)}`,
+                    reason: `Production: Batch ${batchId}`,
                     date: serverTimestamp(),
                     staffName: user.name,
+                    logRefId: batchId,
                 });
             }
 
@@ -1739,6 +1740,20 @@ export async function getIngredients(): Promise<any[]> {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 
+export type SupplyLog = {
+    id: string;
+    supplierId: string;
+    supplierName: string;
+    ingredientId: string;
+    ingredientName: string;
+    quantity: number;
+    unit: string;
+    costPerUnit: number;
+    totalCost: number;
+    date: string;
+    invoiceNumber?: string;
+  };
+
 export type IngredientStockLog = {
     id: string;
     ingredientId: string;
@@ -1765,11 +1780,52 @@ export async function getIngredientStockLogs(): Promise<IngredientStockLog[]> {
     }
 }
 
+export async function getProductionBatch(batchId: string): Promise<ProductionBatch | null> {
+    try {
+        const docRef = doc(db, 'production_batches', batchId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            return {
+                id: docSnap.id,
+                ...data,
+                createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+                approvedAt: data.approvedAt ? (data.approvedAt as Timestamp).toDate().toISOString() : undefined,
+            } as ProductionBatch;
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching production batch:", error);
+        return null;
+    }
+}
+
+export async function getSupplyLog(logId: string): Promise<SupplyLog | null> {
+    try {
+        const docRef = doc(db, 'supply_logs', logId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            return {
+                id: docSnap.id,
+                ...data,
+                date: (data.date as Timestamp).toDate().toISOString(),
+            } as SupplyLog;
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching supply log:", error);
+        return null;
+    }
+}
+
+
 export async function getStaffByRole(role: string): Promise<any[]> {
     const q = query(collection(db, "staff"), where("role", "==", role));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+
 
 
 
