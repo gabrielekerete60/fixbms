@@ -32,6 +32,10 @@ import {
   LogIn,
   Loader2,
   Trash2,
+  Wrench,
+  Hourglass,
+  Send,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -61,9 +65,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { getAttendanceStatus, handleClockIn, handleClockOut } from '../actions';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { getAttendanceStatus, handleClockIn, handleClockOut, ProductionBatch } from '../actions';
+import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { Badge } from '@/components/ui/badge';
 
 type User = {
   name: string;
@@ -72,7 +77,7 @@ type User = {
   theme?: string;
 };
 
-function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string }) {
+function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[], pathname: string, notificationCounts: Record<string, number> }) {
   return (
     <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
       {navLinks.map((link) => 
@@ -91,10 +96,13 @@ function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string 
                     key={sublink.label} 
                     href={sublink.href} 
                     className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary relative",
                         pathname === sublink.href && "bg-muted text-primary"
                         )}>
                     {sublink.label}
+                     {sublink.notificationKey && notificationCounts[sublink.notificationKey] > 0 && (
+                        <Badge variant="destructive" className="absolute right-2 h-5 w-5 flex items-center justify-center p-0">{notificationCounts[sublink.notificationKey]}</Badge>
+                    )}
                 </Link>
               ))}
             </CollapsibleContent>
@@ -131,6 +139,12 @@ export default function DashboardLayout({
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [attendanceId, setAttendanceId] = useState<string | null>(null);
   const [isClocking, setIsClocking] = useState(true);
+  const [notificationCounts, setNotificationCounts] = useState({
+      pendingTransfers: 0,
+      pendingBatches: 0,
+      productionTransfers: 0,
+      inProduction: 0,
+  });
 
   const handleLogout = useCallback((message?: string, description?: string) => {
     localStorage.removeItem('loggedInUser');
@@ -175,19 +189,17 @@ export default function DashboardLayout({
     return () => clearInterval(timer);
   }, []);
   
-  // Real-time user status check
+  // Real-time listeners
   useEffect(() => {
       if (!user) return;
 
       const userDocRef = doc(db, "staff", user.staff_id);
-      
-      const unsubscribe = onSnapshot(userDocRef, (doc) => {
+      const unsubUser = onSnapshot(userDocRef, (doc) => {
           if (doc.exists()) {
               const userData = doc.data();
               if (!userData.is_active) {
                   handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
               }
-               // Update theme in state and localStorage
               const theme = userData.theme || 'default';
               if (user.theme !== theme) {
                   const updatedUser = { ...user, theme };
@@ -199,7 +211,29 @@ export default function DashboardLayout({
           }
       });
       
-      return () => unsubscribe();
+      // Listen for pending transfers FOR the logged-in user
+      const pendingTransfersQuery = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'pending'));
+      const unsubPending = onSnapshot(pendingTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingTransfers: snap.size })));
+      
+      // Listen for pending batch approvals (for storekeepers)
+      const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
+      const unsubBatches = onSnapshot(pendingBatchesQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingBatches: snap.size })));
+      
+      // Listen for production transfers (for storekeepers)
+      const productionTransfersQuery = query(collection(db, 'transfers'), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'));
+      const unsubProdTransfers = onSnapshot(productionTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, productionTransfers: snap.size })));
+      
+      // Listen for batches in production (for bakers)
+      const inProductionQuery = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
+      const unsubInProduction = onSnapshot(inProductionQuery, (snap) => setNotificationCounts(prev => ({...prev, inProduction: snap.size })));
+
+      return () => {
+          unsubUser();
+          unsubPending();
+          unsubBatches();
+          unsubProdTransfers();
+          unsubInProduction();
+      };
 
   }, [user, handleLogout]);
 
@@ -255,13 +289,13 @@ export default function DashboardLayout({
       },
       {
         icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Developer'], sublinks: [
-          { href: "/dashboard/inventory/products", label: "Products", icon: Cookie, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList, roles: ['Manager', 'Supervisor', 'Baker', 'Developer'] },
-          { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot, roles: ['Manager', 'Supervisor', 'Accountant', 'Developer'] },
+          { href: "/dashboard/inventory/products", label: "Products", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
+          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", notificationKey: "inProduction", roles: ['Manager', 'Supervisor', 'Baker', 'Developer'] },
+          { href: "/dashboard/inventory/ingredients", label: "Ingredients", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
-          { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", icon: Archive, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", icon: Trash2, roles: ['Manager', 'Developer'] },
+          { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
+          { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
+          { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", roles: ['Manager', 'Developer'] },
         ]
       },
       {
@@ -308,6 +342,11 @@ export default function DashboardLayout({
 
   }, [user]);
 
+  const combinedNotificationCounts = useMemo(() => ({
+    ...notificationCounts,
+    stockControl: notificationCounts.pendingTransfers + notificationCounts.pendingBatches + notificationCounts.productionTransfers
+  }), [notificationCounts]);
+
   if (!user) {
     return null;
   }
@@ -323,7 +362,7 @@ export default function DashboardLayout({
             </Link>
           </div>
           <div className="flex-1 overflow-auto py-2">
-            <SidebarNav navLinks={navLinks} pathname={pathname} />
+            <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
           </div>
           <div className="mt-auto p-4 border-t">
             <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
@@ -369,7 +408,7 @@ export default function DashboardLayout({
                     </Link>
                   </div>
                 <div className="overflow-auto flex-1">
-                    <SidebarNav navLinks={navLinks} pathname={pathname} />
+                    <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
                 </div>
               </SheetContent>
             </Sheet>

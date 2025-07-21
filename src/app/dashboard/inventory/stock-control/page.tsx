@@ -557,7 +557,7 @@ export default function StockControlPage() {
          <div className="flex flex-col gap-4">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
              <Tabs defaultValue={userRole === 'Baker' ? "history" : "acknowledge"}>
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-2">
                     {userRole !== 'Baker' && (
                         <TabsTrigger value="acknowledge" className="relative">
                             Acknowledge Stock
@@ -567,13 +567,9 @@ export default function StockControlPage() {
                      <TabsTrigger value="history">
                         My Transfer History
                     </TabsTrigger>
-                    {userRole !== 'Baker' ? (
+                    {userRole !== 'Baker' && (
                         <TabsTrigger value="report-waste">
                             <Trash className="mr-2 h-4 w-4" /> Report Waste
-                        </TabsTrigger>
-                    ) : (
-                         <TabsTrigger value="waste-logs">
-                            My Waste Logs
                         </TabsTrigger>
                     )}
                 </TabsList>
@@ -674,42 +670,6 @@ export default function StockControlPage() {
                         <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
                     </TabsContent>
                  )}
-                 <TabsContent value="waste-logs">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>My Waste Logs</CardTitle>
-                            <CardDescription>A history of all waste you have reported from your personal inventory.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Product</TableHead>
-                                        <TableHead>Quantity</TableHead>
-                                        <TableHead>Reason</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (
-                                        <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                    ) : myWasteLogs.length === 0 ? (
-                                        <TableRow><TableCell colSpan={4} className="h-24 text-center">You have not reported any waste.</TableCell></TableRow>
-                                    ) : (
-                                        myWasteLogs.map(log => (
-                                            <TableRow key={log.id}>
-                                                <TableCell>{format(new Date(log.date), 'PPP')}</TableCell>
-                                                <TableCell>{log.productName}</TableCell>
-                                                <TableCell>{log.quantity}</TableCell>
-                                                <TableCell>{log.reason}</TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
              </Tabs>
          </div>
      )
