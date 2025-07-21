@@ -580,7 +580,7 @@ export default function RecipesPage() {
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     
     // Real-time states
-    const [inProductionBatches, setInProductionBatches] = useState<ProductionBatch[]>([]);
+    const [productionBatches, setProductionBatches] = useState<ProductionBatch[]>([]);
     const [productionLogs, setProductionLogs] = useState<ProductionLog[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
@@ -625,15 +625,15 @@ export default function RecipesPage() {
     
     // Real-time listeners
     useEffect(() => {
-        const qInProduction = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
-        const unsubInProduction = onSnapshot(qInProduction, (snapshot) => {
-            setInProductionBatches(snapshot.docs.map(doc => {
+        const qBatches = query(collection(db, 'production_batches'), where('status', 'in', ['pending_approval', 'in_production']));
+        const unsubBatches = onSnapshot(qBatches, (snapshot) => {
+            setProductionBatches(snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
                     id: doc.id,
                     ...data,
                     createdAt: data.createdAt.toDate().toISOString(),
-                    approvedAt: (data.approvedAt)?.toDate().toISOString()
+                    approvedAt: data.approvedAt ? (data.approvedAt)?.toDate().toISOString() : null
                 } as ProductionBatch
             }));
         });
@@ -658,7 +658,7 @@ export default function RecipesPage() {
         });
 
         return () => {
-            unsubInProduction();
+            unsubBatches();
             unsubLogs();
             unsubRecipes();
         }
@@ -707,6 +707,15 @@ export default function RecipesPage() {
     }
 
     const canManageRecipes = user.role === 'Manager' || user.role === 'Developer';
+    const canApproveBatches = user.role === 'Manager' || user.role === 'Developer' || user.role === 'Storekeeper';
+
+    const getStatusVariant = (status: string) => {
+        switch(status) {
+            case 'pending_approval': return 'destructive';
+            case 'in_production': return 'default';
+            default: return 'secondary';
+        }
+    }
 
     return (
         <div className="flex flex-col gap-4">
@@ -746,10 +755,10 @@ export default function RecipesPage() {
                 <TabsList>
                     <TabsTrigger value="recipes">Recipes</TabsTrigger>
                     <TabsTrigger value="production" className="relative">
-                        Batches in Production
-                         {inProductionBatches.length > 0 && (
+                        Production Batches
+                        {productionBatches.length > 0 && (
                             <Badge variant="secondary" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
-                                {inProductionBatches.length}
+                                {productionBatches.length}
                             </Badge>
                         )}
                     </TabsTrigger>
@@ -811,24 +820,30 @@ export default function RecipesPage() {
                 <TabsContent value="production">
                      <Card>
                         <CardHeader>
-                            <CardTitle>Batches in Production</CardTitle>
-                            <CardDescription>These batches have been approved and are currently being produced.</CardDescription>
+                            <CardTitle>Active Production Batches</CardTitle>
+                            <CardDescription>Batches that are pending approval or are currently being produced.</CardDescription>
                         </CardHeader>
                         <CardContent>
                              <Table>
-                                <TableHeader><TableRow><TableHead>Time Started</TableHead><TableHead>Product</TableHead><TableHead>Qty Requested</TableHead><TableHead>Requested By</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+                                <TableHeader><TableRow><TableHead>Time Started</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead>Requested By</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
                                 <TableBody>
-                                     {inProductionBatches.length > 0 ? inProductionBatches.map(batch => (
+                                     {productionBatches.length > 0 ? productionBatches.map(batch => (
                                         <TableRow key={batch.id}>
-                                            <TableCell>{batch.approvedAt ? format(new Date(batch.approvedAt), 'Pp') : 'N/A'}</TableCell>
+                                            <TableCell>{batch.approvedAt ? format(new Date(batch.approvedAt), 'Pp') : format(new Date(batch.createdAt), 'Pp')}</TableCell>
                                             <TableCell>{batch.productName}</TableCell>
                                             <TableCell>{batch.quantityToProduce}</TableCell>
                                             <TableCell>{batch.requestedByName}</TableCell>
+                                            <TableCell><Badge variant={getStatusVariant(batch.status)}>{batch.status.replace('_', ' ')}</Badge></TableCell>
                                             <TableCell>
-                                                <CompleteBatchDialog batch={batch} user={user} onBatchCompleted={fetchStaticData} />
+                                                {batch.status === 'pending_approval' && canApproveBatches && (
+                                                    <ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchStaticData} />
+                                                )}
+                                                {batch.status === 'in_production' && (
+                                                    <CompleteBatchDialog batch={batch} user={user} onBatchCompleted={fetchStaticData} />
+                                                )}
                                             </TableCell>
                                         </TableRow>
-                                    )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are in production.</TableCell></TableRow>}
+                                    )) : <TableRow><TableCell colSpan={6} className="text-center h-24">No active batches.</TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </CardContent>

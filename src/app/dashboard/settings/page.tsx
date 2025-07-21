@@ -117,13 +117,20 @@ function ThemeSettings({ user }: { user: User }) {
     const [selectedTheme, setSelectedTheme] = useState(user.theme || 'default');
     const [isSaving, setIsSaving] = useState(false);
 
+    useEffect(() => {
+        setSelectedTheme(user.theme || 'default');
+    }, [user.theme]);
+
     const handleSaveTheme = async () => {
         setIsSaving(true);
         const result = await handleUpdateTheme(user.staff_id, selectedTheme);
         if (result.success) {
-            toast({ title: 'Theme saved!', description: 'Your new theme will be applied.'});
-            // Give toast time to show before reloading
-            setTimeout(() => window.location.reload(), 500);
+            toast({ title: 'Theme saved!', description: 'Your new theme will be applied momentarily.'});
+            // The layout listener will handle the theme application automatically.
+            // We can force a reload for an immediate visual confirmation.
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save your theme preference.' });
             setIsSaving(false);
@@ -174,12 +181,14 @@ export default function SettingsPage() {
         const storedUser = localStorage.getItem('loggedInUser');
         if (storedUser) {
             const parsedUser: User = JSON.parse(storedUser);
+            // Set user state immediately for faster UI render
             setUser(parsedUser);
 
             const unsub = onSnapshot(doc(db, "staff", parsedUser.staff_id), (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
                     setIsMfaEnabled(data.mfa_enabled || false);
+                    // Update user state with potentially new theme from DB
                     setUser(prev => ({...prev!, theme: data.theme || 'default'}));
                 }
                 if (isLoading) setIsLoading(false);

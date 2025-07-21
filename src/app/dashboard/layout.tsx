@@ -178,85 +178,86 @@ export default function DashboardLayout({
     });
   }, [router, toast]);
 
-
+  // This effect runs once on initial load to set the user and theme from localStorage
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
       setUser(parsedUser);
       applyTheme(parsedUser.theme);
-      
-      const checkAttendance = async () => {
-        setIsClocking(true);
-        const status = await getAttendanceStatus(parsedUser.staff_id);
-        if (status) {
-          setIsClockedIn(true);
-          setAttendanceId(status.attendanceId);
-        } else {
-          setIsClockedIn(false);
-          setAttendanceId(null);
-        }
-        setIsClocking(false);
-      };
-      checkAttendance();
-
     } else {
       router.push('/');
     }
   }, [router]);
 
+
   useEffect(() => {
+    if (!user) return; // Don't run listeners until user is set
+
+    const checkAttendance = async () => {
+      setIsClocking(true);
+      const status = await getAttendanceStatus(user.staff_id);
+      if (status) {
+        setIsClockedIn(true);
+        setAttendanceId(status.attendanceId);
+      } else {
+        setIsClockedIn(false);
+        setAttendanceId(null);
+      }
+      setIsClocking(false);
+    };
+    checkAttendance();
+    
     const timer = setInterval(() => {
       setTime(new Date().toLocaleTimeString());
     }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-  
-  // Real-time listeners
-  useEffect(() => {
-      if (!user) return;
+    
+    // Real-time listeners
+    const userDocRef = doc(db, "staff", user.staff_id);
+    const unsubUser = onSnapshot(userDocRef, (doc) => {
+        if (doc.exists()) {
+            const userData = doc.data();
+            if (!userData.is_active) {
+                handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
+            }
+            // Create a new user object to ensure state updates
+            const updatedUser = { ...user, theme: userData.theme || 'default' };
+            setUser(updatedUser); // Update user state with new theme
+            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser)); // Update local storage
+        } else {
+            handleLogout("Account Deleted", "Your staff profile could not be found.");
+        }
+    });
 
-      const userDocRef = doc(db, "staff", user.staff_id);
-      const unsubUser = onSnapshot(userDocRef, (doc) => {
-          if (doc.exists()) {
-              const userData = doc.data();
-              if (!userData.is_active) {
-                  handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
-              }
-              const updatedUser = { ...user, theme: userData.theme || 'default' };
-              setUser(updatedUser);
-              localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-              applyTheme(userData.theme);
-          } else {
-              handleLogout("Account Deleted", "Your staff profile could not be found.");
-          }
-      });
-      
-      // Listen for pending transfers FOR the logged-in user
-      const pendingTransfersQuery = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'pending'));
-      const unsubPending = onSnapshot(pendingTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingTransfers: snap.size })));
-      
-      // Listen for pending batch approvals (for storekeepers)
-      const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
-      const unsubBatches = onSnapshot(pendingBatchesQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingBatches: snap.size })));
-      
-      // Listen for production transfers (for storekeepers)
-      const productionTransfersQuery = query(collection(db, 'transfers'), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'));
-      const unsubProdTransfers = onSnapshot(productionTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, productionTransfers: snap.size })));
-      
-      // Listen for batches in production (for bakers)
-      const inProductionQuery = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
-      const unsubInProduction = onSnapshot(inProductionQuery, (snap) => setNotificationCounts(prev => ({...prev, inProduction: snap.size })));
+    const pendingTransfersQuery = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'pending'));
+    const unsubPending = onSnapshot(pendingTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingTransfers: snap.size })));
+    
+    const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
+    const unsubBatches = onSnapshot(pendingBatchesQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingBatches: snap.size })));
+    
+    const productionTransfersQuery = query(collection(db, 'transfers'), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'));
+    const unsubProdTransfers = onSnapshot(productionTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, productionTransfers: snap.size })));
+    
+    const inProductionQuery = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
+    const unsubInProduction = onSnapshot(inProductionQuery, (snap) => setNotificationCounts(prev => ({...prev, inProduction: snap.size })));
 
-      return () => {
-          unsubUser();
-          unsubPending();
-          unsubBatches();
-          unsubProdTransfers();
-          unsubInProduction();
-      };
+    return () => {
+        clearInterval(timer);
+        unsubUser();
+        unsubPending();
+        unsubBatches();
+        unsubProdTransfers();
+        unsubInProduction();
+    };
 
   }, [user?.staff_id, handleLogout]);
+
+  // This dedicated effect handles applying the theme whenever the user's theme property changes.
+  useEffect(() => {
+    if (user?.theme) {
+      applyTheme(user.theme);
+    }
+  }, [user?.theme]);
   
   const handleClockInOut = async () => {
     if (!user) return;
@@ -301,7 +302,7 @@ export default function DashboardLayout({
       {
         icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Developer'], sublinks: [
           { href: "/dashboard/inventory/products", label: "Products", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", notificationKey: "inProduction", roles: ['Manager', 'Supervisor', 'Baker', 'Developer'] },
+          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", notificationKey: "production", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'] },
           { href: "/dashboard/inventory/ingredients", label: "Ingredients", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
@@ -355,11 +356,12 @@ export default function DashboardLayout({
 
   const combinedNotificationCounts = useMemo(() => ({
     ...notificationCounts,
-    stockControl: notificationCounts.pendingTransfers + notificationCounts.pendingBatches + notificationCounts.productionTransfers
+    stockControl: notificationCounts.pendingTransfers + notificationCounts.productionTransfers,
+    production: notificationCounts.pendingBatches + notificationCounts.inProduction,
   }), [notificationCounts]);
 
   if (!user) {
-    return null;
+    return <div className="flex justify-center items-center h-screen w-screen"><Loader2 className="h-16 w-16 animate-spin"/></div>;
   }
 
   return (
@@ -439,7 +441,7 @@ export default function DashboardLayout({
                 <DropdownMenuItem>Settings</DropdownMenuItem>
               </Link>
               <Link href="/dashboard/support" passHref>
-                <DropdownMenuItem>Support</DropdownMenuItem>
+                <DropdownMenuItem disabled>Support</DropdownMenuItem>
               </Link>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => handleLogout(undefined, "You have been successfully logged out.")}>Logout</DropdownMenuItem>

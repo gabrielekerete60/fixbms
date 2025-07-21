@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   ClipboardList,
   Wrench,
+  Package,
 } from 'lucide-react';
 import {
   Card,
@@ -46,7 +47,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { collection, query, where, onSnapshot, Timestamp, getDocs } from "firebase/firestore";
 import { db } from '@/lib/firebase';
-import { startOfDay, startOfWeek, endOfWeek, startOfMonth, startOfYear, eachDayOfInterval, format } from 'date-fns';
+import { startOfDay, startOfWeek, endOfWeek, startOfMonth, startOfYear, eachDayOfInterval, format, subDays } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
@@ -69,6 +70,11 @@ type StaffDashboardStats = {
     personalStockCount: number;
     pendingTransfersCount: number;
     monthlyWasteReports: number;
+};
+
+type StorekeeperDashboardStats = {
+    totalProductUnits: number;
+    pendingBatchApprovals: number;
 };
 
 function IndexWarning({ indexes }: { indexes: string[] }) {
@@ -412,16 +418,62 @@ const chartConfig = {
 function BakerDashboard({ user }: { user: User }) {
   const [stats, setStats] = useState<BakerDashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [dateRange, setDateRange] = useState<'weekly' | 'monthly'>('weekly');
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      const data = await getBakerDashboardStats();
-      setStats(data);
-      setIsLoading(false);
+    let start, end;
+    const now = new Date();
+    if(dateRange === 'weekly') {
+        start = startOfWeek(now, { weekStartsOn: 1 });
+        end = endOfWeek(now, { weekStartsOn: 1 });
+    } else {
+        start = startOfMonth(now);
+        end = now;
     }
-    fetchData();
-  }, [])
+
+    const qBatches = query(
+        collection(db, 'production_batches'), 
+        where('approvedAt', '>=', Timestamp.fromDate(start)),
+        where('approvedAt', '<=', Timestamp.fromDate(end))
+    );
+    
+    const unsubscribe = onSnapshot(qBatches, (snapshot) => {
+        let producedThisPeriod = 0;
+        
+        const interval = eachDayOfInterval({start, end});
+        const productionData = interval.map(day => ({
+            day: format(day, dateRange === 'weekly' ? 'E' : 'dd'),
+            quantity: 0
+        }));
+
+        snapshot.docs.forEach(doc => {
+            const batch = doc.data();
+            if(batch.status === 'completed') {
+                const produced = batch.successfullyProduced || 0;
+                producedThisPeriod += produced;
+
+                const approvedDate = (batch.approvedAt as Timestamp).toDate();
+                const dayKey = format(approvedDate, dateRange === 'weekly' ? 'E' : 'dd');
+                const index = productionData.findIndex(d => d.day === dayKey);
+                if (index !== -1) {
+                    productionData[index].quantity += produced;
+                }
+            }
+        });
+        
+        const activeBatchesQuery = query(collection(db, 'production_batches'), where('status', 'in', ['in_production', 'pending_approval']));
+        getDocs(activeBatchesQuery).then(activeSnapshot => {
+             setStats({
+                activeBatches: activeSnapshot.size,
+                producedThisWeek: producedThisPeriod,
+                weeklyProduction: productionData,
+            });
+            setIsLoading(false);
+        });
+    });
+
+    return () => unsubscribe();
+  }, [dateRange])
   
   if (isLoading || !stats) {
     return (
@@ -444,13 +496,21 @@ function BakerDashboard({ user }: { user: User }) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.activeBatches}</div>
-            <p className="text-xs text-muted-foreground">Batches currently in production.</p>
+            <p className="text-xs text-muted-foreground">Includes pending and in-production.</p>
           </CardContent>
         </Card>
          <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Produced (This Week)</CardTitle>
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Produced ({dateRange})</CardTitle>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6"><MoreHorizontal className="h-4 w-4 text-muted-foreground"/></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => setDateRange('weekly')}>This Week</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setDateRange('monthly')}>This Month</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.producedThisWeek}</div>
@@ -462,17 +522,9 @@ function BakerDashboard({ user }: { user: User }) {
        <Card className="mt-6">
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
-              <CardTitle>Weekly Production Chart</CardTitle>
-              <CardDescription>Quantity of items you've baked this week.</CardDescription>
+              <CardTitle>Production Chart ({dateRange})</CardTitle>
+              <CardDescription>Quantity of items you've baked this period.</CardDescription>
             </div>
-             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="ml-auto h-8 w-8"><MoreHorizontal className="h-4 w-4"/></Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    <DropdownMenuItem>View Full Report</DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[250px] w-full">
@@ -491,6 +543,64 @@ function BakerDashboard({ user }: { user: User }) {
         </Card>
     </>
   )
+}
+
+function StorekeeperDashboard({ user }: { user: User }) {
+  const [stats, setStats] = useState<StorekeeperDashboardStats>({ totalProductUnits: 0, pendingBatchApprovals: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const productsQuery = collection(db, 'products');
+    const unsubProducts = onSnapshot(productsQuery, (snapshot) => {
+      const totalUnits = snapshot.docs.reduce((sum, doc) => sum + (doc.data().stock || 0), 0);
+      setStats(prev => ({ ...prev, totalProductUnits: totalUnits }));
+      if (isLoading) setIsLoading(false);
+    });
+
+    const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
+    const unsubBatches = onSnapshot(pendingBatchesQuery, (snapshot) => {
+      setStats(prev => ({ ...prev, pendingBatchApprovals: snapshot.size }));
+      if (isLoading) setIsLoading(false);
+    });
+
+    return () => {
+      unsubProducts();
+      unsubBatches();
+    };
+  }, [isLoading]);
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
+  }
+
+  return (
+    <>
+      <h1 className="text-3xl font-bold font-headline">Welcome back, {user.name.split(' ')[0]}!</h1>
+      <p className="text-muted-foreground">Here is your store summary.</p>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Product Units</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalProductUnits.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Total count of all products in main inventory.</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Batch Approvals</CardTitle>
+            <Hourglass className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pendingBatchApprovals}</div>
+            <p className="text-xs text-muted-foreground">Ingredient requests awaiting your approval.</p>
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
 }
 
 export default function Dashboard() {
@@ -515,6 +625,10 @@ export default function Dashboard() {
 
   if (user.role === 'Baker') {
       return <BakerDashboard user={user} />;
+  }
+  
+  if(user.role === 'Storekeeper') {
+      return <StorekeeperDashboard user={user} />;
   }
 
   if (managementRoles.includes(user.role)) {
