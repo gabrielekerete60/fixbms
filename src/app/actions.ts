@@ -1297,12 +1297,14 @@ async function createProductionLog(action: string, details: string, user: { staf
 
 export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 'status' | 'createdAt' | 'approvedAt'>, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
     try {
-        await addDoc(collection(db, "production_batches"), {
+        const newBatchRef = doc(collection(db, "production_batches"));
+        await setDoc(newBatchRef, {
             ...data,
+            id: newBatchRef.id,
             status: 'pending_approval',
             createdAt: serverTimestamp()
         });
-        await createProductionLog('Batch Requested', `Requested ${data.quantityToProduce} of ${data.productName}`, user);
+        await createProductionLog('Batch Requested', `Requested ${data.quantityToProduce} of ${data.productName} for batch ${newBatchRef.id}`, user);
         return { success: true };
     } catch (error) {
         console.error("Error starting production batch:", error);
@@ -1349,7 +1351,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
                 ingredientId: '', // Consolidated log
                 ingredientName: `Production Batch: ${batchDoc.data()?.productName}`,
                 change: -ingredients.reduce((sum, ing) => sum + ing.quantity, 0),
-                reason: `Production`,
+                reason: `Production: ${batchDoc.data()?.productName}`,
                 date: serverTimestamp(),
                 staffName: user.name,
                 logRefId: batchId,
@@ -1823,6 +1825,7 @@ export async function getStaffByRole(role: string): Promise<any[]> {
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+
 
 
 

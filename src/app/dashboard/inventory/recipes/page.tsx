@@ -526,11 +526,20 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: Produc
 
     useEffect(() => {
         const fetchDetails = async () => {
-            if (isOpen && log && log.action.includes('Batch') && log.details.includes('batch')) {
-                const batchIdMatch = log.details.match(/batch\s([a-zA-Z0-9]+)/);
-                if (batchIdMatch && batchIdMatch[1]) {
-                    const batch = await getProductionBatch(batchIdMatch[1]);
+            if (isOpen && log && log.action.includes('Batch') && log.details.includes('batch for')) {
+                // Regex to find a potential batchId (20 alphanumeric chars)
+                const batchIdMatch = log.details.match(/\b[a-zA-Z0-9]{20}\b/);
+                if (batchIdMatch && batchIdMatch[0]) {
+                    const batch = await getProductionBatch(batchIdMatch[0]);
                     setBatchDetails(batch);
+                } else {
+                    // Fallback for older log formats
+                    const detailsParts = log.details.split(' ');
+                    const batchId = detailsParts[detailsParts.length - 1];
+                    if (batchId && batchId.length === 20) { // Simple validation
+                       const batch = await getProductionBatch(batchId);
+                       setBatchDetails(batch);
+                    }
                 }
             } else {
                 setBatchDetails(null);
@@ -566,9 +575,9 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: Produc
                             {batchDetails.ingredients.map(ing => (
                                 <TableRow key={ing.ingredientId}>
                                     <TableCell>{ing.ingredientName}</TableCell>
-                                    <TableCell className="text-right">{ing.openingStock?.toFixed(2)} {ing.unit}</TableCell>
+                                    <TableCell className="text-right">{(ing.openingStock || 0).toFixed(2)} {ing.unit}</TableCell>
                                     <TableCell className="text-right">{ing.quantity} {ing.unit}</TableCell>
-                                    <TableCell className="text-right">{ing.closingStock?.toFixed(2)} {ing.unit}</TableCell>
+                                    <TableCell className="text-right">{(ing.closingStock || 0).toFixed(2)} {ing.unit}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -940,5 +949,3 @@ export default function RecipesPage() {
         </div>
     );
 }
-
-    

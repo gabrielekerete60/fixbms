@@ -115,7 +115,7 @@ const seedData = {
   ],
   production_batches: [
     {
-        id: 'batch_1_pending',
+        id: 'batch_1_pending_1234',
         recipeId: 'rec_1',
         recipeName: 'Standard Family Loaf',
         productId: 'prod_1',
@@ -132,7 +132,7 @@ const seedData = {
         ]
     },
     {
-        id: 'batch_2_in_prod',
+        id: 'batch_2_in_prod_5678',
         recipeId: 'rec_2',
         recipeName: 'Classic Croissant',
         productId: 'prod_5',
@@ -144,19 +144,19 @@ const seedData = {
         createdAt: daysAgo(2),
         approvedAt: daysAgo(1),
         ingredients: [
-            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 25, unit: "kg" },
-            { ingredientId: "ing_3", ingredientName: "Unsalted Butter", quantity: 15, unit: "kg" },
+            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 25, unit: "kg", openingStock: 100, closingStock: 75 },
+            { ingredientId: "ing_3", ingredientName: "Unsalted Butter", quantity: 15, unit: "kg", openingStock: 20, closingStock: 5 },
         ]
     }
   ],
   production_logs: [
       { action: 'Recipe Created', details: 'Created new recipe: Standard Family Loaf', staffId: '100001', staffName: 'Chris Manager', timestamp: daysAgo(3) },
-      { action: 'Batch Requested', details: 'Requested 20 of Family Loaf', staffId: '500006', staffName: 'Blessing Baker', timestamp: daysAgo(1) },
+      { action: 'Batch Requested', details: 'Requested 20 of Family Loaf for batch batch_1_pending_1234', staffId: '500006', staffName: 'Blessing Baker', timestamp: daysAgo(1) },
       { action: 'Batch Approved', details: 'Approved batch for 100 of Croissant', staffId: '700008', staffName: 'David Storekeeper', timestamp: daysAgo(1) },
   ],
   ingredient_stock_logs: [
       { id: "supply_log_1", ingredientId: "ing_1", ingredientName: "All-Purpose Flour", change: 50, reason: "Purchase from Flour Mills of Nigeria", date: daysAgo(5), staffName: "David Storekeeper", logRefId: "sup_1" },
-      { id: "prod_log_1", ingredientId: "", ingredientName: "Production Batch", change: -25, reason: "Production: Classic Croissant", date: daysAgo(1), staffName: "David Storekeeper", logRefId: "batch_2_in_prod" },
+      { id: "prod_log_1", ingredientId: "", ingredientName: "Production Batch: Classic Croissant", change: -40, reason: "Production: Classic Croissant", date: daysAgo(1), staffName: "David Storekeeper", logRefId: "batch_2_in_prod_5678" },
   ]
 };
 
