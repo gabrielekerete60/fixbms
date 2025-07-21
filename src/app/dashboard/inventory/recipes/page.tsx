@@ -36,6 +36,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -384,12 +385,12 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted }: { batch: Product
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild><Button size="sm">Complete Batch</Button></DialogTrigger>
             <DialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Complete Production Batch</AlertDialogTitle>
-                    <AlertDialogDescription>
+                <DialogHeader>
+                    <DialogTitle>Complete Production Batch</DialogTitle>
+                    <DialogDescription>
                         Enter the final counts for <strong>{batch.quantityToProduce} x {batch.productName}</strong>.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
+                    </DialogDescription>
+                </DialogHeader>
                 <div className="py-4 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
@@ -403,13 +404,13 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted }: { batch: Product
                     </div>
                     <p className="text-sm text-muted-foreground">Completed items will be sent to the main store for acknowledgement. Wasted items will be logged.</p>
                 </div>
-                <AlertDialogFooter>
+                <DialogFooter>
                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
                     <Button onClick={handleComplete} disabled={isLoading}>
                          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         Complete Batch
                     </Button>
-                </AlertDialogFooter>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
@@ -709,9 +710,11 @@ export default function RecipesPage() {
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold font-headline">Recipes &amp; Production</h1>
-                <Button onClick={openAddDialog}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Recipe
-                </Button>
+                 {user.role !== 'Storekeeper' && (
+                    <Button onClick={openAddDialog}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Recipe
+                    </Button>
+                )}
             </div>
 
             {isRecipeDialogOpen && (
@@ -784,10 +787,10 @@ export default function RecipesPage() {
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end">
                                                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                        <DropdownMenuItem onSelect={() => openProductionDialog(recipe)}><Rocket/>Start Production</DropdownMenuItem>
-                                                        <DropdownMenuItem onSelect={() => openEditDialog(recipe)}><Edit />Edit Recipe</DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => openProductionDialog(recipe)}><Rocket className="mr-2 h-4 w-4"/>Start Production</DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => openEditDialog(recipe)}><Edit className="mr-2 h-4 w-4"/>Edit Recipe</DropdownMenuItem>
                                                         <DropdownMenuSeparator />
-                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setRecipeToDelete(recipe)}><Trash2/>Delete</DropdownMenuItem>
+                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setRecipeToDelete(recipe)}><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </TableCell>
