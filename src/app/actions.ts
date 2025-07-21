@@ -1202,6 +1202,7 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
         await runTransaction(db, async (transaction) => {
             const transferDoc = await transaction.get(transferRef);
             if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
+            
             const transfer = transferDoc.data() as Transfer;
             if (transfer.status !== 'pending') throw new Error("This transfer has already been processed.");
             
@@ -1210,6 +1211,7 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             if (isProductionReturn) {
                  for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
+                    // No need to get, just increment. Firestore handles non-existent fields if they are numbers.
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
                  transaction.update(transferRef, { status: 'completed' });

@@ -271,20 +271,25 @@ function RecipeDialog({
     );
 }
 
-function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: User }) {
+function CompleteBatchDialog({ batch, user, onBatchCompleted }: { batch: ProductionBatch, user: User, onBatchCompleted: () => void }) {
     const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [storekeepers, setStorekeepers] = useState<any[]>([]);
     const [successfullyProduced, setSuccessfullyProduced] = useState<number | string>(batch.quantityToProduce);
     const [wasted, setWasted] = useState<number | string>(0);
     
     useEffect(() => {
-        const fetchStorekeepers = async () => {
-            const staff = await getStaffByRole('Storekeeper');
-            setStorekeepers(staff);
-        };
-        fetchStorekeepers();
-    }, []);
+        if (isOpen) {
+            const fetchStorekeepers = async () => {
+                const staff = await getStaffByRole('Storekeeper');
+                setStorekeepers(staff);
+            };
+            fetchStorekeepers();
+            setSuccessfullyProduced(batch.quantityToProduce);
+            setWasted(0);
+        }
+    }, [isOpen, batch.quantityToProduce]);
 
     const handleProducedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
@@ -366,7 +371,9 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
         }, user);
 
         if (result.success) {
-            toast({ title: 'Success', description: 'Production batch completed.' });
+            toast({ title: 'Success', description: 'Production batch completed and sent for acknowledgement.' });
+            onBatchCompleted();
+            setIsOpen(false);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -374,9 +381,9 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
     }
 
     return (
-        <AlertDialog>
-            <AlertDialogTrigger asChild><Button size="sm">Complete Batch</Button></AlertDialogTrigger>
-            <AlertDialogContent>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild><Button size="sm">Complete Batch</Button></DialogTrigger>
+            <DialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Complete Production Batch</AlertDialogTitle>
                     <AlertDialogDescription>
@@ -397,14 +404,14 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
                     <p className="text-sm text-muted-foreground">Completed items will be sent to the main store for acknowledgement. Wasted items will be logged.</p>
                 </div>
                 <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleComplete} disabled={isLoading}>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleComplete} disabled={isLoading}>
                          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         Complete Batch
-                    </AlertDialogAction>
+                    </Button>
                 </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -809,7 +816,7 @@ export default function RecipesPage() {
                                             <TableCell>{batch.quantityToProduce}</TableCell>
                                             <TableCell>{batch.requestedByName}</TableCell>
                                             <TableCell>
-                                                <CompleteBatchDialog batch={batch} user={user} />
+                                                <CompleteBatchDialog batch={batch} user={user} onBatchCompleted={fetchStaticData} />
                                             </TableCell>
                                         </TableRow>
                                     )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are in production.</TableCell></TableRow>}
