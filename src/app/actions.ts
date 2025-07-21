@@ -1205,7 +1205,6 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             const transfer = transferDoc.data() as Transfer;
             if (transfer.status !== 'pending') throw new Error("This transfer has already been processed.");
             
-            // Differentiate between Production return and Staff transfer
             const isProductionReturn = transfer.notes?.startsWith('Return from production batch');
 
             if (isProductionReturn) {
@@ -1214,33 +1213,18 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
             } else {
-                 const productRefs: any[] = [];
-                const staffStockRefs: any[] = [];
-                
                 for (const item of transfer.items) {
-                    productRefs.push(doc(db, 'products', item.productId));
-                    staffStockRefs.push(doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId));
-                }
-
-                const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
-                const staffStockDocs = await Promise.all(staffStockRefs.map(ref => transaction.get(ref)));
-                
-                for (let i = 0; i < transfer.items.length; i++) {
-                    const item = transfer.items[i];
-                    const productDoc = productDocs[i];
+                    const productRef = doc(db, 'products', item.productId);
+                    const staffStockRef = doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId);
+                    
+                    const productDoc = await transaction.get(productRef);
                     if (!productDoc.exists() || productDoc.data().stock < item.quantity) {
                         throw new Error(`Not enough stock for ${item.productName} in main inventory.`);
                     }
-                }
-                
-                for (let i = 0; i < transfer.items.length; i++) {
-                    const item = transfer.items[i];
-                    const productRef = productRefs[i];
-                    const staffStockRef = staffStockRefs[i];
-                    const staffStockDoc = staffStockDocs[i];
 
                     transaction.update(productRef, { stock: increment(-item.quantity) });
-
+                    
+                    const staffStockDoc = await transaction.get(staffStockRef);
                     if (staffStockDoc.exists()) {
                         transaction.update(staffStockRef, { stock: increment(item.quantity) });
                     } else {
