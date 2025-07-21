@@ -365,18 +365,36 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
     }, []);
 
     const handleProducedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const produced = e.target.value;
+        let produced = Number(e.target.value);
+        if (isNaN(produced)) {
+             setSuccessfullyProduced('');
+             return;
+        }
+
+        if (produced > batch.quantityToProduce) {
+            produced = batch.quantityToProduce;
+        }
+
         setSuccessfullyProduced(produced);
-        const wastedQty = batch.quantityToProduce - Number(produced);
+        const wastedQty = batch.quantityToProduce - produced;
         if (!isNaN(wastedQty) && wastedQty >= 0) {
             setWasted(wastedQty);
         }
     };
 
     const handleWastedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const wastedQty = e.target.value;
+        let wastedQty = Number(e.target.value);
+        if (isNaN(wastedQty)) {
+            setWasted('');
+            return;
+        }
+        
+        if (wastedQty > batch.quantityToProduce) {
+            wastedQty = batch.quantityToProduce;
+        }
+
         setWasted(wastedQty);
-        const produced = batch.quantityToProduce - Number(wastedQty);
+        const produced = batch.quantityToProduce - wastedQty;
         if (!isNaN(produced) && produced >= 0) {
             setSuccessfullyProduced(produced);
         }
@@ -759,7 +777,7 @@ export default function RecipesPage() {
                                 <TableBody>
                                      {filteredLogs.length > 0 ? filteredLogs.map(log => (
                                         <TableRow key={log.id}>
-                                            <TableCell>{format(new Date(log.timestamp), 'Pp')}</TableCell>
+                                            <TableCell>{log.timestamp ? format(new Date(log.timestamp), 'Pp') : 'N/A'}</TableCell>
                                             <TableCell>{log.staffName}</TableCell>
                                             <TableCell><Badge>{log.action}</Badge></TableCell>
                                             <TableCell>{log.details}</TableCell>
@@ -790,4 +808,3 @@ export default function RecipesPage() {
         </div>
     );
 }
-
