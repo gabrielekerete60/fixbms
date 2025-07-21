@@ -69,6 +69,7 @@ type User = {
   name: string;
   role: string;
   staff_id: string;
+  theme?: string;
 };
 
 function SidebarNav({ navLinks, pathname }: { navLinks: any[], pathname: string }) {
@@ -186,6 +187,13 @@ export default function DashboardLayout({
               if (!userData.is_active) {
                   handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
               }
+               // Update theme in state and localStorage
+              const theme = userData.theme || 'default';
+              if (user.theme !== theme) {
+                  const updatedUser = { ...user, theme };
+                  setUser(updatedUser);
+                  localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+              }
           } else {
               handleLogout("Account Deleted", "Your staff profile could not be found.");
           }
@@ -194,6 +202,15 @@ export default function DashboardLayout({
       return () => unsubscribe();
 
   }, [user, handleLogout]);
+
+  // Apply theme class to HTML element
+  useEffect(() => {
+    if (user?.theme && user.theme !== 'default') {
+        document.documentElement.className = `theme-${user.theme}`;
+    } else {
+        document.documentElement.className = '';
+    }
+  }, [user?.theme]);
 
   
   const handleClockInOut = async () => {
@@ -240,7 +257,7 @@ export default function DashboardLayout({
         icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Developer'], sublinks: [
           { href: "/dashboard/inventory/products", label: "Products", icon: Cookie, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/recipes", label: "Recipes & Production", icon: ClipboardList, roles: ['Manager', 'Supervisor', 'Baker', 'Developer'] },
-          { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
+          { href: "/dashboard/inventory/ingredients", label: "Ingredients", icon: Carrot, roles: ['Manager', 'Supervisor', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/stock-control", label: "Stock Control", icon: ListChecks, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
           { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", icon: Archive, roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },

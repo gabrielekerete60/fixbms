@@ -557,7 +557,7 @@ export default function StockControlPage() {
          <div className="flex flex-col gap-4">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
              <Tabs defaultValue={userRole === 'Baker' ? "report-waste" : "acknowledge"}>
-                <TabsList className="grid grid-cols-3 w-full">
+                <TabsList className="grid grid-cols-2 w-full">
                     {userRole !== 'Baker' && (
                         <TabsTrigger value="acknowledge" className="relative">
                             Acknowledge Stock
@@ -567,9 +567,11 @@ export default function StockControlPage() {
                      <TabsTrigger value="history">
                         My Transfer History
                     </TabsTrigger>
-                    <TabsTrigger value="report-waste">
-                        <Trash className="mr-2 h-4 w-4" /> Report Waste
-                    </TabsTrigger>
+                    {userRole !== 'Baker' && (
+                        <TabsTrigger value="report-waste">
+                            <Trash className="mr-2 h-4 w-4" /> Report Waste
+                        </TabsTrigger>
+                    )}
                      <TabsTrigger value="waste-logs">
                         My Waste Logs
                     </TabsTrigger>
@@ -666,9 +668,11 @@ export default function StockControlPage() {
                         </CardContent>
                     </Card>
                 </TabsContent>
-                <TabsContent value="report-waste">
-                    <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
-                </TabsContent>
+                 {userRole !== 'Baker' && (
+                    <TabsContent value="report-waste">
+                        <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
+                    </TabsContent>
+                 )}
                  <TabsContent value="waste-logs">
                     <Card>
                         <CardHeader>

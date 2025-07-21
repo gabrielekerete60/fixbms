@@ -495,6 +495,58 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
     }
 }
 
+export type BakerDashboardStats = {
+    activeBatches: number;
+    producedThisWeek: number;
+    weeklyProduction: { day: string, quantity: number }[];
+};
+
+export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
+    const now = new Date();
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const weekStartTimestamp = Timestamp.fromDate(weekStart);
+
+    try {
+        const activeBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
+        const activeBatchesSnapshot = await getDocs(activeBatchesQuery);
+
+        const recentCompletedQuery = query(collection(db, 'production_batches'), where('status', '==', 'completed'), where('approvedAt', '>=', weekStartTimestamp));
+        const recentCompletedSnapshot = await getDocs(recentCompletedQuery);
+        
+        let producedThisWeek = 0;
+        const weeklyProductionData = eachDayOfInterval({ start: weekStart, end: endOfWeek(now) }).map(day => ({
+            day: format(day, 'E'),
+            quantity: 0,
+        }));
+        
+        recentCompletedSnapshot.forEach(doc => {
+            const batch = doc.data();
+            const produced = batch.successfullyProduced || 0;
+            producedThisWeek += produced;
+
+            const approvedDate = (batch.approvedAt as Timestamp).toDate();
+            const dayOfWeek = format(approvedDate, 'E');
+            const index = weeklyProductionData.findIndex(d => d.day === dayOfWeek);
+            if (index !== -1) {
+                weeklyProductionData[index].quantity += produced;
+            }
+        });
+
+        return {
+            activeBatches: activeBatchesSnapshot.size,
+            producedThisWeek,
+            weeklyProduction: weeklyProductionData,
+        };
+    } catch (error) {
+        console.error("Error fetching baker dashboard stats:", error);
+        return {
+            activeBatches: 0,
+            producedThisWeek: 0,
+            weeklyProduction: eachDayOfInterval({ start: weekStart, end: endOfWeek(now) }).map(day => ({ day: format(day, 'E'), quantity: 0 })),
+        };
+    }
+}
+
 
 export type SalesRun = {
     id: string;

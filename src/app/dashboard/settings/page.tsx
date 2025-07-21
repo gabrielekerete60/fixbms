@@ -9,19 +9,21 @@ import { Loader2, ShieldCheck, Copy, KeyRound, Eye, EyeOff } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast';
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { disableMfa, verifyMfaSetup, handleChangePassword } from '@/app/actions';
+import { disableMfa, verifyMfaSetup, handleChangePassword, handleUpdateTheme } from '@/app/actions';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type User = {
     name: string;
     role: string;
     staff_id: string;
     email: string;
+    theme?: string;
 };
 
 type MfaSetup = {
@@ -110,6 +112,51 @@ function ChangePasswordForm({ user }: { user: User }) {
     )
 }
 
+function ThemeSelector({ user, currentTheme }: { user: User, currentTheme: string }) {
+    const { toast } = useToast();
+    const [selectedTheme, setSelectedTheme] = useState(currentTheme);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const handleThemeChange = async () => {
+        setIsSubmitting(true);
+        const result = await handleUpdateTheme(user.staff_id, selectedTheme);
+        if (result.success) {
+            toast({ title: 'Theme Updated!', description: 'Your new theme has been applied.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Theme Preference</CardTitle>
+                <CardDescription>Choose a color theme for your dashboard experience.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Select value={selectedTheme} onValueChange={setSelectedTheme}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select a theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="default">Apricot & Rose (Default)</SelectItem>
+                        <SelectItem value="oceanic">Oceanic Blue</SelectItem>
+                        <SelectItem value="forest">Forest Green</SelectItem>
+                        <SelectItem value="royal">Royal Purple</SelectItem>
+                    </SelectContent>
+                </Select>
+            </CardContent>
+            <CardFooter>
+                <Button onClick={handleThemeChange} disabled={isSubmitting || selectedTheme === currentTheme}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    Save Theme
+                </Button>
+            </CardFooter>
+        </Card>
+    )
+}
+
 export default function SettingsPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
@@ -131,7 +178,9 @@ export default function SettingsPage() {
 
             const unsub = onSnapshot(doc(db, "staff", parsedUser.staff_id), (doc) => {
                 if (doc.exists()) {
-                    setIsMfaEnabled(doc.data().mfa_enabled || false);
+                    const data = doc.data();
+                    setIsMfaEnabled(data.mfa_enabled || false);
+                    setUser(prev => ({...prev!, theme: data.theme || 'default'}));
                 }
                 if (isLoading) setIsLoading(false);
             });
@@ -193,6 +242,7 @@ export default function SettingsPage() {
             <h1 className="text-2xl font-bold font-headline">Settings</h1>
             
             <ChangePasswordForm user={user} />
+            <ThemeSelector user={user} currentTheme={user.theme || 'default'} />
             
             <Card>
                 <CardHeader>

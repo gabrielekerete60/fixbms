@@ -16,6 +16,8 @@ import {
   Trash2,
   Users,
   AlertTriangle,
+  ClipboardList,
+  Wrench,
 } from 'lucide-react';
 import {
   Card,
@@ -33,7 +35,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RevenueChart } from '@/components/revenue-chart';
-import { checkForMissingIndexes } from '../actions';
+import { checkForMissingIndexes, getBakerDashboardStats, BakerDashboardStats } from '../actions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +47,9 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { collection, query, where, onSnapshot, Timestamp, getDocs } from "firebase/firestore";
 import { db } from '@/lib/firebase';
 import { startOfDay, startOfWeek, endOfWeek, startOfMonth, startOfYear, eachDayOfInterval, format } from 'date-fns';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+
 
 type User = {
   name: string;
@@ -397,6 +402,97 @@ function StaffDashboard({ user }: { user: User }) {
   );
 }
 
+const chartConfig = {
+  quantity: {
+    label: "Quantity",
+    color: "hsl(var(--chart-1))",
+  },
+};
+
+function BakerDashboard({ user }: { user: User }) {
+  const [stats, setStats] = useState<BakerDashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      const data = await getBakerDashboardStats();
+      setStats(data);
+      setIsLoading(false);
+    }
+    fetchData();
+  }, [])
+  
+  if (isLoading || !stats) {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <Loader2 className="h-16 w-16 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+     <>
+      <h1 className="text-3xl font-bold font-headline">Welcome back, {user.name.split(' ')[0]}!</h1>
+      <p className="text-muted-foreground">Here's your production summary.</p>
+      
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Production Batches</CardTitle>
+            <Wrench className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.activeBatches}</div>
+            <p className="text-xs text-muted-foreground">Batches currently in production.</p>
+          </CardContent>
+        </Card>
+         <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Produced (This Week)</CardTitle>
+            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.producedThisWeek}</div>
+            <p className="text-xs text-muted-foreground">Total items successfully produced.</p>
+          </CardContent>
+        </Card>
+      </div>
+
+       <Card className="mt-6">
+          <CardHeader className="flex flex-row items-center">
+            <div className="grid gap-2">
+              <CardTitle>Weekly Production Chart</CardTitle>
+              <CardDescription>Quantity of items you've baked this week.</CardDescription>
+            </div>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="ml-auto h-8 w-8"><MoreHorizontal className="h-4 w-4"/></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem>View Full Report</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                <BarChart data={stats.weeklyProduction}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent indicator="dot" />}
+                />
+                <Bar dataKey="quantity" fill="var(--color-quantity)" radius={4} />
+                </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+    </>
+  )
+}
+
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
 
@@ -417,13 +513,13 @@ export default function Dashboard() {
 
   const managementRoles = ['Manager', 'Supervisor', 'Accountant', 'Developer'];
 
-  return (
-    <div className="flex flex-col gap-4">
-      {managementRoles.includes(user.role) ? (
-        <ManagementDashboard />
-      ) : (
-        <StaffDashboard user={user} />
-      )}
-    </div>
-  );
+  if (user.role === 'Baker') {
+      return <BakerDashboard user={user} />;
+  }
+
+  if (managementRoles.includes(user.role)) {
+      return <ManagementDashboard />;
+  }
+
+  return <StaffDashboard user={user} />;
 }
