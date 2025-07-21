@@ -1135,22 +1135,26 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
      try {
         const q = query(
             collection(db, 'transfers'),
-            where('notes', '>=', 'Return from production batch'),
-            where('notes', '<', 'Return from production batch' + '\uf8ff'),
+            where('notes', '!=', null),
             where('status', '==', 'pending'),
+            where('is_sales_run', '==', false),
             orderBy('notes'),
             orderBy('date', 'desc')
         );
         const querySnapshot = await getDocs(q);
 
-        return querySnapshot.docs.map(docSnap => {
-            const data = docSnap.data();
-            return {
-                id: docSnap.id,
-                ...data,
-                date: (data.date as Timestamp).toDate().toISOString(),
-            } as Transfer;
-        });
+        const transfers = querySnapshot.docs
+            .map(docSnap => {
+                const data = docSnap.data();
+                return {
+                    id: docSnap.id,
+                    ...data,
+                    date: (data.date as Timestamp).toDate().toISOString(),
+                } as Transfer;
+            })
+            .filter(t => t.notes?.startsWith('Return from production batch'));
+            
+        return transfers;
 
     } catch (error) {
         console.error("Error fetching production transfers:", error);
@@ -1211,7 +1215,6 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             if (isProductionReturn) {
                  for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
-                    // No need to get, just increment. Firestore handles non-existent fields if they are numbers.
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
                  transaction.update(transferRef, { status: 'completed' });
