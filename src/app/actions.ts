@@ -1284,14 +1284,14 @@ async function createProductionLog(action: string, details: string, user: { staf
     }
 }
 
-export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 'status' | 'createdAt'>): Promise<{success: boolean, error?: string}> {
+export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 'status' | 'createdAt'>, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
     try {
         await addDoc(collection(db, "production_batches"), {
             ...data,
             status: 'pending_approval',
             createdAt: serverTimestamp()
         });
-        await createProductionLog('Batch Requested', `Requested ${data.quantityToProduce} of ${data.productName}`, { staff_id: data.requestedById, name: data.requestedByName });
+        await createProductionLog('Batch Requested', `Requested ${data.quantityToProduce} of ${data.productName}`, user);
         return { success: true };
     } catch (error) {
         console.error("Error starting production batch:", error);
@@ -1693,13 +1693,11 @@ export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, user: { staf
             const recipeRef = doc(db, "recipes", recipeId);
             await updateDoc(recipeRef, recipeData);
             await createProductionLog('Recipe Updated', `Updated recipe: ${recipeData.name}`, user);
-            return { success: true };
         } else {
-            const newRecipeRef = doc(collection(db, "recipes"));
-            await setDoc(newRecipeRef, recipeData);
+            const newRecipeRef = await addDoc(collection(db, "recipes"), recipeData);
             await createProductionLog('Recipe Created', `Created new recipe: ${recipeData.name}`, user);
-            return { success: true };
         }
+        return { success: true };
     } catch (error) {
         console.error("Error saving recipe:", error);
         return { success: false, error: "Could not save recipe." };
@@ -1715,4 +1713,18 @@ export async function handleDeleteRecipe(recipeId: string, recipeName: string, u
         console.error("Error deleting recipe:", error);
         return { success: false, error: "Could not delete recipe." };
     }
+}
+
+
+export async function getRecipes(): Promise<any[]> {
+    const snapshot = await getDocs(collection(db, "recipes"));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+export async function getProducts(): Promise<any[]> {
+    const snapshot = await getDocs(collection(db, "products"));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+export async function getIngredients(): Promise<any[]> {
+    const snapshot = await getDocs(collection(db, "ingredients"));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }

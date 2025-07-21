@@ -50,15 +50,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { collection, getDocs, doc } from "firebase/firestore";
+import { collection, getDocs, doc, onSnapshot, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { handleSaveRecipe, handleDeleteRecipe, startProductionBatch, getProductionBatches, approveIngredientRequest, declineProductionBatch, getProductionLogs } from "@/app/actions";
-import type { ProductionBatch, ProductionLog } from "@/app/actions";
+import { handleSaveRecipe, handleDeleteRecipe, startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getProductionLogs, getRecipes, getIngredients, getProducts } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 type User = {
     name: string;
@@ -98,7 +98,6 @@ type Recipe = {
 function RecipeDialog({
   isOpen,
   onOpenChange,
-  onSave,
   recipe,
   products,
   ingredients: allIngredients,
@@ -106,7 +105,6 @@ function RecipeDialog({
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: Omit<Recipe, 'id'>, recipeId?: string) => void;
   recipe: Partial<Recipe> | null;
   products: Product[];
   ingredients: Ingredient[];
@@ -155,20 +153,26 @@ function RecipeDialog({
         setRecipeIngredients(newIngredients);
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!name || !selectedProductId || recipeIngredients.some(i => !i.ingredientId)) {
             toast({ variant: 'destructive', title: 'Error', description: 'Recipe name, product, and all ingredients must be filled.' });
             return;
         }
         const selectedProduct = products.find(p => p.id === selectedProductId);
 
-        onSave({ 
+        const result = await handleSaveRecipe({ 
             name, 
             description, 
             productId: selectedProductId,
             productName: selectedProduct?.name || '',
             ingredients: recipeIngredients,
-        }, recipe?.id);
+        }, user, recipe?.id);
+
+        if (result.success) {
+            toast({ title: "Success", description: "Recipe saved successfully." });
+        } else {
+            toast({ variant: "destructive", title: "Error", description: result.error });
+        }
         onOpenChange(false);
     };
     
@@ -192,7 +196,7 @@ function RecipeDialog({
             ingredients: recipe.ingredients || [],
         };
         
-        const result = await startProductionBatch(batchData);
+        const result = await startProductionBatch(batchData, user);
         if (result.success) {
             toast({ title: 'Success', description: 'Production batch requested for approval.'});
             onOpenChange(false);
@@ -265,16 +269,27 @@ function RecipeDialog({
     );
 }
 
-function ApproveBatchDialog({ batch, user, onAction }: { batch: ProductionBatch, user: User, onAction: () => void }) {
+function ApproveBatchDialog({ batch, user, allIngredients }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[] }) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    
+    const ingredientsWithStock = useMemo(() => {
+        return batch.ingredients.map(reqIng => {
+            const stockIng = allIngredients.find(sIng => sIng.id === reqIng.ingredientId);
+            const stockAvailable = stockIng?.stock || 0;
+            const hasEnough = stockAvailable >= reqIng.quantity;
+            return { ...reqIng, stockAvailable, hasEnough };
+        });
+    }, [batch.ingredients, allIngredients]);
+
+    const canApprove = ingredientsWithStock.every(ing => ing.hasEnough);
     
     const handleApprove = async () => {
         setIsLoading(true);
         const result = await approveIngredientRequest(batch.id, batch.ingredients, user);
         if (result.success) {
             toast({ title: 'Success', description: 'Batch approved and moved to production.' });
-            onAction();
+            // onAction will be handled by real-time listener
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -286,7 +301,7 @@ function ApproveBatchDialog({ batch, user, onAction }: { batch: ProductionBatch,
         const result = await declineProductionBatch(batch.id, user);
         if (result.success) {
             toast({ title: 'Success', description: 'Batch has been declined.' });
-            onAction();
+            // onAction will be handled by real-time listener
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -300,30 +315,33 @@ function ApproveBatchDialog({ batch, user, onAction }: { batch: ProductionBatch,
                 <AlertDialogHeader>
                     <AlertDialogTitle>Approve Production Batch?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Batch ID: {batch.id}<br/>
-                        Approve this request for <strong>{batch.quantityToProduce} x {batch.productName}</strong>? This will deduct the required ingredients from inventory.
+                        Batch ID: {batch.id.substring(0,6)}...<br/>
+                        Request for <strong>{batch.quantityToProduce} x {batch.productName}</strong>. This will deduct ingredients from inventory.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="max-h-60 overflow-y-auto">
                     <Table>
-                        <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead>Required</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead>Required</TableHead><TableHead>In Stock</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                         <TableBody>
-                            {batch.ingredients.map(ing => (
+                            {ingredientsWithStock.map(ing => (
                                 <TableRow key={ing.ingredientId}>
                                     <TableCell>{ing.ingredientName}</TableCell>
                                     <TableCell>{ing.quantity} {ing.unit}</TableCell>
+                                    <TableCell>{ing.stockAvailable.toFixed(2)} {ing.unit}</TableCell>
+                                    <TableCell>
+                                        {ing.hasEnough ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-destructive" />}
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
                 </div>
                 <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
                      <Button variant="destructive" onClick={handleDecline} disabled={isLoading}>
                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4" />}
                         Decline
                     </Button>
-                     <Button onClick={handleApprove} disabled={isLoading}>
+                     <Button onClick={handleApprove} disabled={isLoading || !canApprove}>
                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
                         Approve
                     </Button>
@@ -333,14 +351,16 @@ function ApproveBatchDialog({ batch, user, onAction }: { batch: ProductionBatch,
     );
 }
 
-
 export default function RecipesPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
     const [recipes, setRecipes] = useState<Recipe[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-    const [productionData, setProductionData] = useState<{ pending: ProductionBatch[], in_production: ProductionBatch[] }>({ pending: [], in_production: [] });
+    
+    // Real-time states
+    const [pendingBatches, setPendingBatches] = useState<ProductionBatch[]>([]);
+    const [inProductionBatches, setInProductionBatches] = useState<ProductionBatch[]>([]);
     const [productionLogs, setProductionLogs] = useState<ProductionLog[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
@@ -348,56 +368,80 @@ export default function RecipesPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
     
-    const fetchAllData = useCallback(async () => {
+    const fetchStaticData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [recipeSnapshot, productSnapshot, ingredientSnapshot, batchData, logData] = await Promise.all([
-                getDocs(collection(db, "recipes")),
-                getDocs(collection(db, "products")),
-                getDocs(collection(db, "ingredients")),
-                getProductionBatches(),
-                getProductionLogs(),
+            const [recipeData, productData, ingredientData] = await Promise.all([
+                getRecipes(),
+                getProducts(),
+                getIngredients(),
             ]);
 
-            setRecipes(recipeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), ingredients: doc.data().ingredients || [] } as Recipe)));
-            setProducts(productSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, category: doc.data().category } as Product)));
-            setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ingredient)));
-            setProductionData(batchData);
-            setProductionLogs(logData);
+            setRecipes(recipeData);
+            setProducts(productData);
+            setIngredients(ingredientData);
 
         } catch (error) {
             console.error("Error fetching data:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not fetch data from the database." });
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch static data." });
         } finally {
             setIsLoading(false);
         }
     }, [toast]);
-
+    
+    // Initial static data fetch
     useEffect(() => {
         const storedUser = localStorage.getItem('loggedInUser');
         if (storedUser) {
             setUser(JSON.parse(storedUser));
         }
-        fetchAllData();
-    }, [fetchAllData]);
+        fetchStaticData();
+    }, [fetchStaticData]);
+    
+    // Real-time listeners
+    useEffect(() => {
+        // Production Batches
+        const qBatches = query(collection(db, 'production_batches'), orderBy('createdAt', 'desc'));
+        const unsubBatches = onSnapshot(qBatches, (snapshot) => {
+            const allBatches = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                createdAt: (doc.data().createdAt as any).toDate().toISOString(),
+            } as ProductionBatch));
+            setPendingBatches(allBatches.filter(b => b.status === 'pending_approval'));
+            setInProductionBatches(allBatches.filter(b => b.status === 'in_production'));
+        });
 
-    const handleSave = async (recipeData: Omit<Recipe, 'id'>, recipeId?: string) => {
-        if (!user) return;
-        const result = await handleSaveRecipe(recipeData, user, recipeId);
-        if (result.success) {
-            toast({ title: "Success", description: "Recipe saved successfully." });
-            fetchAllData();
-        } else {
-            toast({ variant: "destructive", title: "Error", description: result.error });
+        // Production Logs
+        const qLogs = query(collection(db, 'production_logs'), orderBy('timestamp', 'desc'));
+        const unsubLogs = onSnapshot(qLogs, (snapshot) => {
+             const logs = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                timestamp: (doc.data().timestamp as any).toDate().toISOString(),
+            } as ProductionLog));
+            setProductionLogs(logs);
+        });
+        
+        // Listen for recipe changes to keep the list fresh
+        const qRecipes = query(collection(db, "recipes"));
+        const unsubRecipes = onSnapshot(qRecipes, (snapshot) => {
+            setRecipes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recipe)))
+        })
+
+
+        return () => {
+            unsubBatches();
+            unsubLogs();
+            unsubRecipes();
         }
-    };
+    }, []);
 
     const handleDelete = async () => {
         if (!recipeToDelete || !user) return;
         const result = await handleDeleteRecipe(recipeToDelete.id, recipeToDelete.name, user);
         if (result.success) {
             toast({ title: "Success", description: "Recipe deleted successfully." });
-            fetchAllData();
         } else {
             toast({ variant: "destructive", title: "Error", description: "Could not delete recipe." });
         }
@@ -431,7 +475,6 @@ export default function RecipesPage() {
                 <RecipeDialog
                     isOpen={isDialogOpen}
                     onOpenChange={setIsDialogOpen}
-                    onSave={handleSave}
                     recipe={editingRecipe}
                     products={products}
                     ingredients={ingredients}
@@ -442,7 +485,14 @@ export default function RecipesPage() {
             <Tabs defaultValue="recipes">
                 <TabsList>
                     <TabsTrigger value="recipes">Recipes</TabsTrigger>
-                    <TabsTrigger value="pending">Pending Approval</TabsTrigger>
+                    <TabsTrigger value="pending" className="relative">
+                        Pending Approval
+                        {pendingBatches.length > 0 && (
+                            <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                                {pendingBatches.length}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
                     <TabsTrigger value="production">Batches in Production</TabsTrigger>
                     <TabsTrigger value="logs">Production Logs</TabsTrigger>
                 </TabsList>
@@ -501,24 +551,20 @@ export default function RecipesPage() {
                             <CardDescription>Batches requested by bakers that need ingredient approval.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                             {isLoading ? (
-                                <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                            ) : (
                             <Table>
                                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Product</TableHead><TableHead>Quantity</TableHead><TableHead>Requested By</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
                                 <TableBody>
-                                    {productionData.pending.length > 0 ? productionData.pending.map(batch => (
+                                    {pendingBatches.length > 0 ? pendingBatches.map(batch => (
                                         <TableRow key={batch.id}>
                                             <TableCell>{format(new Date(batch.createdAt), 'PPP')}</TableCell>
                                             <TableCell>{batch.productName}</TableCell>
                                             <TableCell>{batch.quantityToProduce}</TableCell>
                                             <TableCell>{batch.requestedByName}</TableCell>
-                                            <TableCell><ApproveBatchDialog batch={batch} user={user} onAction={fetchAllData} /></TableCell>
+                                            <TableCell><ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} /></TableCell>
                                         </TableRow>
                                     )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are pending approval.</TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -529,13 +575,10 @@ export default function RecipesPage() {
                             <CardDescription>These batches have been approved and are currently being produced.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                             {isLoading ? (
-                                <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                            ) : (
                              <Table>
                                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Product</TableHead><TableHead>Quantity</TableHead><TableHead>Requested By</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                                 <TableBody>
-                                     {productionData.in_production.length > 0 ? productionData.in_production.map(batch => (
+                                     {inProductionBatches.length > 0 ? inProductionBatches.map(batch => (
                                         <TableRow key={batch.id}>
                                             <TableCell>{format(new Date(batch.createdAt), 'PPP')}</TableCell>
                                             <TableCell>{batch.productName}</TableCell>
@@ -546,7 +589,6 @@ export default function RecipesPage() {
                                     )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are in production.</TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -557,9 +599,6 @@ export default function RecipesPage() {
                             <CardDescription>A complete audit trail of all recipe and production activities.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                             {isLoading ? (
-                                <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                            ) : (
                              <Table>
                                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Staff</TableHead><TableHead>Action</TableHead><TableHead>Details</TableHead></TableRow></TableHeader>
                                 <TableBody>
@@ -573,7 +612,6 @@ export default function RecipesPage() {
                                     )) : <TableRow><TableCell colSpan={4} className="text-center h-24">No production logs found.</TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>
