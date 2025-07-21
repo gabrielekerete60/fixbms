@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -54,7 +55,7 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -261,6 +262,7 @@ export default function StockControlPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [initiatedTransfers, setInitiatedTransfers] = useState<Transfer[]>([]);
   const [pendingTransfers, setPendingTransfers] = useState<Transfer[]>([]);
+  const [productionTransfers, setProductionTransfers] = useState<Transfer[]>([]);
   const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([]);
   const [myWasteLogs, setMyWasteLogs] = useState<WasteLog[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
@@ -302,14 +304,16 @@ export default function StockControlPage() {
             }
             
             // Fetch data specific to the logged-in user
-            const [pendingData, completedData, wasteData] = await Promise.all([
+            const [pendingData, completedData, wasteData, prodTransfers] = await Promise.all([
                 getPendingTransfersForStaff(currentUser.staff_id),
                 getCompletedTransfersForStaff(currentUser.staff_id),
-                getWasteLogsForStaff(currentUser.staff_id)
+                getWasteLogsForStaff(currentUser.staff_id),
+                getProductionTransfers()
             ]);
             setPendingTransfers(pendingData);
             setCompletedTransfers(completedData);
             setMyWasteLogs(wasteData);
+            setProductionTransfers(prodTransfers);
 
 
         } catch (error) {
@@ -737,6 +741,48 @@ export default function StockControlPage() {
          <TabsContent value="report-waste">
             <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
          </TabsContent>
+         <TabsContent value="production-transfers">
+              <Card>
+                <CardHeader>
+                    <CardTitle>Production Transfers</CardTitle>
+                    <CardDescription>Acknowledge finished goods transferred from the production unit to the main store.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>From</TableHead>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Quantity</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                             {isLoading ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : productionTransfers.length === 0 ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers from production.</TableCell></TableRow>
+                            ) : (
+                                productionTransfers.map(t => (
+                                    <TableRow key={t.id}>
+                                        <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                        <TableCell>{t.from_staff_name}</TableCell>
+                                        <TableCell>{t.items[0]?.productName}</TableCell>
+                                        <TableCell>{t.items[0]?.quantity}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button size="sm" onClick={() => handleAcknowledge(t.id, 'accept')}>
+                                                <Check className="mr-2 h-4 w-4" /> Accept
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+              </Card>
+          </TabsContent>
           <TabsContent value="pending-transfers">
               <Card>
                 <CardHeader>

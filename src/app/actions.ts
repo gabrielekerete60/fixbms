@@ -1084,6 +1084,7 @@ export type Transfer = {
   status: 'pending' | 'active' | 'completed' | 'cancelled';
   totalValue?: number;
   is_sales_run?: boolean;
+  notes?: string;
 };
 
 
@@ -1126,6 +1127,33 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
         } else {
             console.error("Error fetching pending transfers:", error);
         }
+        return [];
+    }
+}
+
+export async function getProductionTransfers(): Promise<Transfer[]> {
+     try {
+        const q = query(
+            collection(db, 'transfers'),
+            where('notes', '>=', 'Return from production batch'),
+            where('notes', '<', 'Return from production batch' + '\uf8ff'),
+            where('status', '==', 'pending'),
+            orderBy('notes'),
+            orderBy('date', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+
+        return querySnapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            return {
+                id: docSnap.id,
+                ...data,
+                date: (data.date as Timestamp).toDate().toISOString(),
+            } as Transfer;
+        });
+
+    } catch (error) {
+        console.error("Error fetching production transfers:", error);
         return [];
     }
 }
@@ -1174,49 +1202,58 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
         await runTransaction(db, async (transaction) => {
             const transferDoc = await transaction.get(transferRef);
             if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
-            if (transferDoc.data().status !== 'pending') throw new Error("This transfer has already been processed.");
-            
             const transfer = transferDoc.data() as Transfer;
-
-            const productRefs: any[] = [];
-            const staffStockRefs: any[] = [];
+            if (transfer.status !== 'pending') throw new Error("This transfer has already been processed.");
             
-            for (const item of transfer.items) {
-                productRefs.push(doc(db, 'products', item.productId));
-                staffStockRefs.push(doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId));
-            }
+            // Differentiate between Production return and Staff transfer
+            const isProductionReturn = transfer.notes?.startsWith('Return from production batch');
 
-            const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
-            const staffStockDocs = await Promise.all(staffStockRefs.map(ref => transaction.get(ref)));
-            
-            for (let i = 0; i < transfer.items.length; i++) {
-                const item = transfer.items[i];
-                const productDoc = productDocs[i];
-                if (!productDoc.exists() || productDoc.data().stock < item.quantity) {
-                    throw new Error(`Not enough stock for ${item.productName} in main inventory.`);
+            if (isProductionReturn) {
+                 for (const item of transfer.items) {
+                    const productRef = doc(db, 'products', item.productId);
+                    transaction.update(productRef, { stock: increment(item.quantity) });
+                }
+            } else {
+                 const productRefs: any[] = [];
+                const staffStockRefs: any[] = [];
+                
+                for (const item of transfer.items) {
+                    productRefs.push(doc(db, 'products', item.productId));
+                    staffStockRefs.push(doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId));
+                }
+
+                const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
+                const staffStockDocs = await Promise.all(staffStockRefs.map(ref => transaction.get(ref)));
+                
+                for (let i = 0; i < transfer.items.length; i++) {
+                    const item = transfer.items[i];
+                    const productDoc = productDocs[i];
+                    if (!productDoc.exists() || productDoc.data().stock < item.quantity) {
+                        throw new Error(`Not enough stock for ${item.productName} in main inventory.`);
+                    }
+                }
+                
+                for (let i = 0; i < transfer.items.length; i++) {
+                    const item = transfer.items[i];
+                    const productRef = productRefs[i];
+                    const staffStockRef = staffStockRefs[i];
+                    const staffStockDoc = staffStockDocs[i];
+
+                    transaction.update(productRef, { stock: increment(-item.quantity) });
+
+                    if (staffStockDoc.exists()) {
+                        transaction.update(staffStockRef, { stock: increment(item.quantity) });
+                    } else {
+                        transaction.set(staffStockRef, { 
+                            productId: item.productId,
+                            productName: item.productName,
+                            stock: item.quantity
+                        });
+                    }
                 }
             }
             
-            for (let i = 0; i < transfer.items.length; i++) {
-                const item = transfer.items[i];
-                const productRef = productRefs[i];
-                const staffStockRef = staffStockRefs[i];
-                const staffStockDoc = staffStockDocs[i];
-
-                transaction.update(productRef, { stock: increment(-item.quantity) });
-
-                if (staffStockDoc.exists()) {
-                    transaction.update(staffStockRef, { stock: increment(item.quantity) });
-                } else {
-                    transaction.set(staffStockRef, { 
-                        productId: item.productId,
-                        productName: item.productName,
-                        stock: item.quantity
-                    });
-                }
-            }
-            
-            const newStatus = transferDoc.data().is_sales_run ? 'active' : 'completed';
+            const newStatus = transfer.is_sales_run ? 'active' : 'completed';
             transaction.update(transferRef, { status: newStatus });
         });
 
@@ -1411,6 +1448,7 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
     try {
         await runTransaction(db, async (transaction) => {
             const batchRef = doc(db, 'production_batches', data.batchId);
+            const storekeeperDoc = await getDoc(doc(db, 'staff', data.storekeeperId));
             
             transaction.update(batchRef, {
                 status: 'completed',
@@ -1424,7 +1462,7 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
                     from_staff_id: user.staff_id,
                     from_staff_name: user.name,
                     to_staff_id: data.storekeeperId,
-                    to_staff_name: 'Main Store',
+                    to_staff_name: storekeeperDoc.exists() ? storekeeperDoc.data().name : 'Main Store',
                     items: [{
                         productId: data.productId,
                         productName: data.productName,
