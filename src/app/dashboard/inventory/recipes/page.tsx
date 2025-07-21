@@ -578,7 +578,7 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: Produc
                                 <TableRow key={ing.ingredientId}>
                                     <TableCell>{ing.ingredientName}</TableCell>
                                     <TableCell className="text-right">{((ing.openingStock || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {ing.unit}</TableCell>
-                                    <TableCell className="text-right text-destructive">- {ing.quantity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {ing.unit}</TableCell>
+                                    <TableCell className="text-right text-red-500">- {ing.quantity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {ing.unit}</TableCell>
                                     <TableCell className="text-right text-green-600 font-medium">{((ing.closingStock || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} {ing.unit}</TableCell>
                                 </TableRow>
                             ))}

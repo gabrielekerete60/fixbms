@@ -1326,24 +1326,29 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
             const ingredientDocs = await Promise.all(ingredientRefs.map(ref => transaction.get(ref)));
             const ingredientsWithStock = [];
 
+            // Step 1: Validate stock for all ingredients first
             for (let i = 0; i < ingredientDocs.length; i++) {
                 const ingDoc = ingredientDocs[i];
                 const reqIng = ingredients[i];
-                const currentStock = ingDoc.exists() ? ingDoc.data().stock : 0;
-                if (!ingDoc.exists() || currentStock < reqIng.quantity) {
-                    throw new Error(`Not enough stock for ${reqIng.ingredientName}. Required: ${reqIng.quantity}, Available: ${currentStock}`);
+                if (!ingDoc.exists() || ingDoc.data().stock < reqIng.quantity) {
+                    throw new Error(`Not enough stock for ${reqIng.ingredientName}. Required: ${reqIng.quantity}, Available: ${ingDoc.data()?.stock || 0}`);
                 }
+            }
+
+            // Step 2: If all validations pass, perform updates
+            for (let i = 0; i < ingredientDocs.length; i++) {
+                const ingDoc = ingredientDocs[i];
+                const reqIng = ingredients[i];
+                const currentStock = ingDoc.data().stock;
+
                 ingredientsWithStock.push({
                     ...reqIng,
                     openingStock: currentStock,
                     closingStock: currentStock - reqIng.quantity
                 });
-            }
-
-            for (let i = 0; i < ingredientRefs.length; i++) {
-                const ingRef = ingredientRefs[i];
-                const reqIng = ingredients[i];
-                transaction.update(ingRef, { stock: increment(-reqIng.quantity) });
+                
+                // Update ingredient stock
+                transaction.update(ingredientRefs[i], { stock: increment(-reqIng.quantity) });
             }
             
             const logRef = doc(collection(db, 'ingredient_stock_logs'));
