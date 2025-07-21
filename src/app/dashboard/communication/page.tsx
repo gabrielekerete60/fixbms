@@ -14,7 +14,7 @@ import { postAnnouncement, submitReport, Announcement as AnnouncementType } from
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 type User = {
@@ -109,7 +109,14 @@ export default function CommunicationPage() {
     useEffect(() => {
         const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AnnouncementType));
+            const data = snapshot.docs.map(doc => {
+                 const docData = doc.data();
+                 // This ensures that we only try to convert valid Timestamps
+                 const timestamp = docData.timestamp instanceof Timestamp 
+                    ? docData.timestamp.toDate().toISOString() 
+                    : null;
+                return { id: doc.id, ...docData, timestamp } as AnnouncementType;
+            });
             setAnnouncements(data);
             setIsLoading(false);
         }, (error) => {
@@ -179,7 +186,7 @@ export default function CommunicationPage() {
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-semibold">{announcement.staffName}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        {announcement.timestamp ? format(new Date(announcement.timestamp), 'PPp') : ''}
+                                                        {announcement.timestamp ? format(new Date(announcement.timestamp), 'PPp') : 'Sending...'}
                                                     </p>
                                                 </div>
                                                 <p className="text-sm">{announcement.message}</p>
