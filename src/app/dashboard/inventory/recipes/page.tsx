@@ -439,7 +439,7 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange, user }: { log: 
         fetchDetails();
     }, [isOpen, log]);
     
-    if (!log || !isOpen) return null;
+    if (!log || !isOpen || !user) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -454,7 +454,7 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange, user }: { log: 
             <div className="flex items-center gap-2"><strong>Action:</strong> <Badge>{log.action}</Badge></div>
             <p><strong>Staff Member:</strong> {log.staffName}</p>
             <p><strong>Details:</strong> {log.details}</p>
-            {batchDetails && user?.role !== 'Baker' && (
+            {batchDetails && user.role !== 'Baker' && (
                  <>
                     <Separator className="my-4"/>
                     <h4 className="font-semibold text-base">Production Batch Details</h4>
@@ -706,11 +706,13 @@ export default function RecipesPage() {
          return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
     }
 
+    const canManageRecipes = user.role === 'Manager' || user.role === 'Developer';
+
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold font-headline">Recipes &amp; Production</h1>
-                 {user.role !== 'Storekeeper' && (
+                 {canManageRecipes && (
                     <Button onClick={openAddDialog}>
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Recipe
                     </Button>
@@ -788,9 +790,13 @@ export default function RecipesPage() {
                                                     <DropdownMenuContent align="end">
                                                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                         <DropdownMenuItem onSelect={() => openProductionDialog(recipe)}><Rocket className="mr-2 h-4 w-4"/>Start Production</DropdownMenuItem>
-                                                        <DropdownMenuItem onSelect={() => openEditDialog(recipe)}><Edit className="mr-2 h-4 w-4"/>Edit Recipe</DropdownMenuItem>
-                                                        <DropdownMenuSeparator />
-                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setRecipeToDelete(recipe)}><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                                        {canManageRecipes && (
+                                                            <>
+                                                                <DropdownMenuItem onSelect={() => openEditDialog(recipe)}><Edit className="mr-2 h-4 w-4"/>Edit Recipe</DropdownMenuItem>
+                                                                <DropdownMenuSeparator />
+                                                                <DropdownMenuItem className="text-destructive" onSelect={() => setRecipeToDelete(recipe)}><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                                                            </>
+                                                        )}
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </TableCell>

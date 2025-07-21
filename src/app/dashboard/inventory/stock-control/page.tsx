@@ -556,8 +556,8 @@ export default function StockControlPage() {
      return (
          <div className="flex flex-col gap-4">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
-             <Tabs defaultValue={userRole === 'Baker' ? "report-waste" : "acknowledge"}>
-                <TabsList className="grid grid-cols-2 w-full">
+             <Tabs defaultValue={userRole === 'Baker' ? "history" : "acknowledge"}>
+                <TabsList className="grid w-full grid-cols-3">
                     {userRole !== 'Baker' && (
                         <TabsTrigger value="acknowledge" className="relative">
                             Acknowledge Stock
@@ -567,14 +567,15 @@ export default function StockControlPage() {
                      <TabsTrigger value="history">
                         My Transfer History
                     </TabsTrigger>
-                    {userRole !== 'Baker' && (
+                    {userRole !== 'Baker' ? (
                         <TabsTrigger value="report-waste">
                             <Trash className="mr-2 h-4 w-4" /> Report Waste
                         </TabsTrigger>
+                    ) : (
+                         <TabsTrigger value="waste-logs">
+                            My Waste Logs
+                        </TabsTrigger>
                     )}
-                     <TabsTrigger value="waste-logs">
-                        My Waste Logs
-                    </TabsTrigger>
                 </TabsList>
                 {userRole !== 'Baker' && (
                     <TabsContent value="acknowledge">
@@ -721,7 +722,7 @@ export default function StockControlPage() {
         <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
       </div>
       <Tabs defaultValue="initiate-transfer">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="initiate-transfer">
               <Send className="mr-2 h-4 w-4" /> Initiate Transfer
           </TabsTrigger>
@@ -733,14 +734,21 @@ export default function StockControlPage() {
                 </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="production-transfers">
+          <TabsTrigger value="production-transfers" className="relative">
             <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
-          </TabsTrigger>
-          <TabsTrigger value="report-waste">
-            <Trash className="mr-2 h-4 w-4" /> Report Waste
+             {productionTransfers.length > 0 && (
+                <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                    {productionTransfers.length}
+                </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="pending-transfers" className="relative">
             <Hourglass className="mr-2 h-4 w-4" /> All Pending
+             {initiatedTransfers.filter(t => t.status === 'pending').length > 0 && (
+                <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                    {initiatedTransfers.filter(t => t.status === 'pending').length}
+                </Badge>
+            )}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="initiate-transfer">
@@ -878,9 +886,6 @@ export default function StockControlPage() {
                 </CardContent>
             </Card>
         </TabsContent>
-         <TabsContent value="report-waste">
-            <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
-         </TabsContent>
          <TabsContent value="production-transfers">
               <Card>
                 <CardHeader>
@@ -941,9 +946,24 @@ export default function StockControlPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">Feature coming soon.</TableCell>
-                            </TableRow>
+                            {isLoading ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : (
+                                initiatedTransfers.filter(t => t.status === 'pending').map(transfer => (
+                                    <TableRow key={transfer.id}>
+                                        <TableCell>{transfer.date ? format(new Date(transfer.date), 'PPpp') : 'N/A'}</TableCell>
+                                        <TableCell>{transfer.from_staff_name}</TableCell>
+                                        <TableCell>{transfer.to_staff_name}</TableCell>
+                                        <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
+                                        <TableCell><Badge variant="secondary">{transfer.status}</Badge></TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                             { !isLoading && initiatedTransfers.filter(t => t.status === 'pending').length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center">No pending transfers found.</TableCell>
+                                </TableRow>
+                            )}
                         </TableBody>
                     </Table>
                 </CardContent>
