@@ -256,7 +256,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
     );
 }
 
-function ApproveBatchDialog({ batch, user, allIngredients }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[] }) {
+function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[], onApproval: () => void }) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
     
@@ -276,6 +276,7 @@ function ApproveBatchDialog({ batch, user, allIngredients }: { batch: Production
         const result = await approveIngredientRequest(batch.id, batch.ingredients, user);
         if (result.success) {
             toast({ title: 'Success', description: 'Batch approved and moved to production.' });
+            onApproval();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -287,6 +288,7 @@ function ApproveBatchDialog({ batch, user, allIngredients }: { batch: Production
         const result = await declineProductionBatch(batch.id, user);
         if (result.success) {
             toast({ title: 'Success', description: 'Batch has been declined.' });
+            onApproval();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -555,7 +557,7 @@ export default function StockControlPage() {
          <div className="flex flex-col gap-4">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
              <Tabs defaultValue={userRole === 'Baker' ? "report-waste" : "acknowledge"}>
-                <TabsList className="grid grid-cols-4 w-full">
+                <TabsList className="grid grid-cols-3 w-full">
                     {userRole !== 'Baker' && (
                         <TabsTrigger value="acknowledge" className="relative">
                             Acknowledge Stock
@@ -864,7 +866,7 @@ export default function StockControlPage() {
                                     <TableCell>{batch.productName}</TableCell>
                                     <TableCell>{batch.quantityToProduce}</TableCell>
                                     <TableCell>{batch.requestedByName}</TableCell>
-                                    <TableCell><ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} /></TableCell>
+                                    <TableCell><ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchPageData} /></TableCell>
                                 </TableRow>
                             )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are pending approval.</TableCell></TableRow>}
                         </TableBody>

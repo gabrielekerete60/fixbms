@@ -408,7 +408,7 @@ function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: Us
     );
 }
 
-function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: ProductionLog | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+function ProductionLogDetailsDialog({ log, isOpen, onOpenChange, user }: { log: ProductionLog | null, isOpen: boolean, onOpenChange: (open: boolean) => void, user: User | null }) {
     const [batchDetails, setBatchDetails] = useState<ProductionBatch | null>(null);
 
     useEffect(() => {
@@ -446,7 +446,7 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: Produc
             <div className="flex items-center gap-2"><strong>Action:</strong> <Badge>{log.action}</Badge></div>
             <p><strong>Staff Member:</strong> {log.staffName}</p>
             <p><strong>Details:</strong> {log.details}</p>
-            {batchDetails && (
+            {batchDetails && user?.role !== 'Baker' && (
                  <>
                     <Separator className="my-4"/>
                     <h4 className="font-semibold text-base">Production Batch Details</h4>
@@ -727,6 +727,7 @@ export default function RecipesPage() {
                 log={viewingLog}
                 isOpen={!!viewingLog}
                 onOpenChange={() => setViewingLog(null)}
+                user={user}
             />
             
             <Tabs defaultValue="recipes">
