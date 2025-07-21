@@ -611,22 +611,28 @@ export default function RecipesPage() {
             return [];
         }
         const ingredientsMap = new Map(ingredients.map(i => [i.id, i]));
+        
         return recipes.map(recipe => {
             const cost = (recipe.ingredients || []).reduce((acc, currentIng) => {
                 const ingredientData = ingredientsMap.get(currentIng.ingredientId);
                 if (!ingredientData) return acc;
-                let quantityInBaseUnit = currentIng.quantity;
-                // Handle unit conversions
-                if (ingredientData.unit && currentIng.unit) {
-                    if (ingredientData.unit.toLowerCase() === 'kg' && currentIng.unit.toLowerCase() === 'g') {
-                        quantityInBaseUnit = currentIng.quantity / 1000;
-                    } else if (ingredientData.unit.toLowerCase() === 'l' && currentIng.unit.toLowerCase() === 'ml') {
-                         quantityInBaseUnit = currentIng.quantity / 1000;
-                    }
+
+                const costPerUnit = Number(ingredientData.costPerUnit) || 0;
+                let quantityInBaseUnit = Number(currentIng.quantity) || 0;
+
+                // Handle unit conversions safely
+                const ingredientUnit = ingredientData.unit?.toLowerCase();
+                const recipeUnit = currentIng.unit?.toLowerCase();
+
+                if (ingredientUnit === 'kg' && recipeUnit === 'g') {
+                    quantityInBaseUnit = quantityInBaseUnit / 1000;
+                } else if (ingredientUnit === 'l' && recipeUnit === 'ml') {
+                    quantityInBaseUnit = quantityInBaseUnit / 1000;
                 }
                 
-                return acc + ((ingredientData.costPerUnit || 0) * quantityInBaseUnit);
+                return acc + (costPerUnit * quantityInBaseUnit);
             }, 0);
+
             return { ...recipe, cost };
         });
     }, [recipes, ingredients, isLoading]);
@@ -839,5 +845,3 @@ export default function RecipesPage() {
         </div>
     );
 }
-
-    
