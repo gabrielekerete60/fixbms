@@ -4,7 +4,7 @@ import './globals.css';
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
 export const metadata: Metadata = {
-  title: 'Sweet Track',
+  title: 'BMS',
   description: 'A Bakery Management System',
 };
 
