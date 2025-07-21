@@ -1728,3 +1728,9 @@ export async function getIngredients(): Promise<any[]> {
     const snapshot = await getDocs(collection(db, "ingredients"));
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+
+export async function getStaffByRole(role: string): Promise<any[]> {
+    const q = query(collection(db, "staff"), where("role", "==", role));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}

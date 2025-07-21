@@ -54,11 +54,10 @@ import { collection, getDocs, doc, onSnapshot, query, where, orderBy } from "fir
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { handleSaveRecipe, handleDeleteRecipe, startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getIngredients, getProducts } from "@/app/actions";
+import { handleSaveRecipe, handleDeleteRecipe, startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getIngredients, getProducts, getStaffByRole } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
 
 type User = {
     name: string;
@@ -148,7 +147,6 @@ function RecipeDialog({
         } else if (field === 'quantity') {
             newIngredients[index].quantity = Number(value);
         } else {
-            // This case might not be used if unit is read-only, but good practice
             newIngredients[index][field as 'unit' | 'ingredientName'] = value as string;
         }
         setRecipeIngredients(newIngredients);
@@ -350,6 +348,91 @@ function ApproveBatchDialog({ batch, user, allIngredients }: { batch: Production
     );
 }
 
+function CompleteBatchDialog({ batch, user }: { batch: ProductionBatch, user: User }) {
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+    const [storekeepers, setStorekeepers] = useState<any[]>([]);
+    const [successfullyProduced, setSuccessfullyProduced] = useState<number | string>(batch.quantityToProduce);
+    const [wasted, setWasted] = useState<number | string>(0);
+    
+    useEffect(() => {
+        const fetchStorekeepers = async () => {
+            const staff = await getStaffByRole('Storekeeper');
+            setStorekeepers(staff);
+        };
+        fetchStorekeepers();
+    }, []);
+
+    const handleComplete = async () => {
+        if (!storekeepers.length) {
+            toast({ variant: 'destructive', title: 'Error', description: 'No Storekeeper found to transfer stock to. Please add a staff member with the "Storekeeper" role.' });
+            return;
+        }
+
+        const produced = Number(successfullyProduced);
+        const wastedQty = Number(wasted);
+        if (isNaN(produced) || isNaN(wastedQty) || produced < 0 || wastedQty < 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please enter valid numbers for produced and wasted quantities.'});
+            return;
+        }
+        if ((produced + wastedQty) > batch.quantityToProduce) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Produced + Wasted cannot be greater than the quantity requested.'});
+            return;
+        }
+
+        setIsLoading(true);
+        const result = await completeProductionBatch({
+            batchId: batch.id,
+            productId: batch.productId,
+            productName: batch.productName,
+            successfullyProduced: produced,
+            wasted: wastedQty,
+            storekeeperId: storekeepers[0].id // Assuming first storekeeper
+        }, user);
+
+        if (result.success) {
+            toast({ title: 'Success', description: 'Production batch completed.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    }
+
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild><Button size="sm">Complete Batch</Button></AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Complete Production Batch</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Enter the final counts for <strong>{batch.quantityToProduce} x {batch.productName}</strong>.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                             <Label htmlFor="produced">Successfully Produced</Label>
+                             <Input id="produced" type="number" value={successfullyProduced} onChange={e => setSuccessfullyProduced(e.target.value)} />
+                        </div>
+                        <div className="grid gap-2">
+                             <Label htmlFor="wasted">Wasted / Damaged</Label>
+                             <Input id="wasted" type="number" value={wasted} onChange={e => setWasted(e.target.value)} />
+                        </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Completed items will be sent to the main store for acknowledgement. Wasted items will be logged.</p>
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleComplete} disabled={isLoading}>
+                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Complete Batch
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
 export default function RecipesPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
@@ -376,7 +459,7 @@ export default function RecipesPage() {
                 getIngredients(),
             ]);
 
-            setRecipes(recipeData);
+            setRecipes(recipeData.map((r: any) => ({ ...r, ingredients: r.ingredients || [] })));
             setProducts(productData);
             setIngredients(ingredientData);
 
@@ -438,7 +521,7 @@ export default function RecipesPage() {
         // Listen for recipe changes to keep the list fresh
         const qRecipes = query(collection(db, "recipes"));
         const unsubRecipes = onSnapshot(qRecipes, (snapshot) => {
-            setRecipes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recipe)))
+             setRecipes(snapshot.docs.map((r: any) => ({ ...r.data(), id: r.id, ingredients: r.data().ingredients || [] })));
         }, (error) => {
              console.error("Error fetching recipes:", error);
              toast({ variant: 'destructive', title: 'Error', description: 'Could not listen for recipe updates.'});
@@ -597,7 +680,7 @@ export default function RecipesPage() {
                         </CardHeader>
                         <CardContent>
                              <Table>
-                                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Product</TableHead><TableHead>Quantity</TableHead><TableHead>Requested By</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                                <TableHeader><TableRow><TableHead>Date Started</TableHead><TableHead>Product</TableHead><TableHead>Qty Requested</TableHead><TableHead>Requested By</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                      {inProductionBatches.length > 0 ? inProductionBatches.map(batch => (
                                         <TableRow key={batch.id}>
@@ -605,7 +688,9 @@ export default function RecipesPage() {
                                             <TableCell>{batch.productName}</TableCell>
                                             <TableCell>{batch.quantityToProduce}</TableCell>
                                             <TableCell>{batch.requestedByName}</TableCell>
-                                            <TableCell><Badge variant="secondary">{batch.status}</Badge></TableCell>
+                                            <TableCell>
+                                                <CompleteBatchDialog batch={batch} user={user} />
+                                            </TableCell>
                                         </TableRow>
                                     )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are in production.</TableCell></TableRow>}
                                 </TableBody>
