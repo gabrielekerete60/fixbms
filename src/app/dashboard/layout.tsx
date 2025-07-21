@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import Link from 'next/link';
@@ -200,12 +198,6 @@ export default function DashboardLayout({
               if (!userData.is_active) {
                   handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
               }
-              const theme = userData.theme || 'default';
-              if (user.theme !== theme) {
-                  const updatedUser = { ...user, theme };
-                  setUser(updatedUser);
-                  localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-              }
           } else {
               handleLogout("Account Deleted", "Your staff profile could not be found.");
           }
@@ -236,16 +228,6 @@ export default function DashboardLayout({
       };
 
   }, [user, handleLogout]);
-
-  // Apply theme class to HTML element
-  useEffect(() => {
-    if (user?.theme && user.theme !== 'default') {
-        document.documentElement.className = `theme-${user.theme}`;
-    } else {
-        document.documentElement.className = '';
-    }
-  }, [user?.theme]);
-
   
   const handleClockInOut = async () => {
     if (!user) return;

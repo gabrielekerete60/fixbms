@@ -1,5 +1,3 @@
-
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -202,17 +200,6 @@ export async function handleChangePassword(staffId: string, currentPass: string,
         return { success: false, error: "Failed to change password." };
     }
 }
-
-export async function handleUpdateTheme(staffId: string, theme: string): Promise<{success: boolean; error?: string}> {
-    try {
-        await updateDoc(doc(db, "staff", staffId), { theme });
-        return { success: true };
-    } catch (error) {
-        console.error("Error updating theme:", error);
-        return { success: false, error: "Failed to update theme." };
-    }
-}
-
 
 type InitializePaystackResult = {
     success: boolean;
