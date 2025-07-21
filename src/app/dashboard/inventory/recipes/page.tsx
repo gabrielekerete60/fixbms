@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye, Edit, Rocket } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -212,35 +212,6 @@ function RecipeDialog({
         }
     };
     
-    const handleStartProduction = async () => {
-        if (!recipe?.id || !user) return;
-        
-        const quantity = prompt("Enter quantity to produce:", "1");
-        if (quantity === null || isNaN(Number(quantity)) || Number(quantity) <= 0) {
-            toast({ variant: 'destructive', title: 'Invalid quantity' });
-            return;
-        }
-        
-        const batchData = {
-            recipeId: recipe.id,
-            recipeName: recipe.name || '',
-            productId: recipe.productId || '',
-            productName: recipe.productName || '',
-            requestedById: user.staff_id,
-            requestedByName: user.name,
-            quantityToProduce: Number(quantity),
-            ingredients: recipe.ingredients || [],
-        };
-        
-        const result = await startProductionBatch(batchData, user);
-        if (result.success) {
-            toast({ title: 'Success', description: 'Production batch requested for approval.'});
-            onOpenChange(false);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error});
-        }
-    }
-
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[600px]">
@@ -290,11 +261,6 @@ function RecipeDialog({
                     </div>
                 </div>
                 <DialogFooter className="justify-between">
-                    <div>
-                        {recipe?.id && (
-                             <Button variant="secondary" onClick={handleStartProduction}>Start Production Batch</Button>
-                        )}
-                    </div>
                     <div className="flex gap-2">
                         <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
                         <Button onClick={handleSubmit}>{recipe?.id ? 'Save Changes' : 'Create Recipe'}</Button>
@@ -515,6 +481,89 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: Produc
   );
 }
 
+function StartProductionDialog({
+    isOpen,
+    onOpenChange,
+    recipe,
+    user
+}: {
+    isOpen: boolean;
+    onOpenChange: (open: boolean) => void;
+    recipe: Recipe | null;
+    user: User | null;
+}) {
+    const { toast } = useToast();
+    const [quantity, setQuantity] = useState<number | string>(1);
+    const [isLoading, setIsLoading] = useState(false);
+    
+    useEffect(() => {
+        if (isOpen) {
+            setQuantity(1);
+        }
+    }, [isOpen]);
+
+    const handleStartProduction = async () => {
+        if (!recipe || !user || !quantity || Number(quantity) <= 0) {
+            toast({ variant: 'destructive', title: 'Invalid input', description: 'Please enter a valid quantity.' });
+            return;
+        }
+        
+        setIsLoading(true);
+
+        const batchData = {
+            recipeId: recipe.id,
+            recipeName: recipe.name,
+            productId: recipe.productId,
+            productName: recipe.productName,
+            requestedById: user.staff_id,
+            requestedByName: user.name,
+            quantityToProduce: Number(quantity),
+            ingredients: recipe.ingredients,
+        };
+        
+        const result = await startProductionBatch(batchData, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Production batch requested for approval.'});
+            onOpenChange(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error});
+        }
+        setIsLoading(false);
+    }
+
+    if (!recipe) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Start Production: {recipe.name}</DialogTitle>
+                    <DialogDescription>
+                        Enter the quantity of "{recipe.productName}" you want to produce. This will send an ingredient request to the storekeeper.
+                    </DialogDescription>
+                </DialogHeader>
+                 <div className="py-4">
+                    <Label htmlFor="quantity-to-produce">Quantity to Produce</Label>
+                    <Input 
+                        id="quantity-to-produce"
+                        type="number"
+                        value={quantity}
+                        onChange={(e) => setQuantity(e.target.value)}
+                        min="1"
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleStartProduction} disabled={isLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Request Ingredients
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function RecipesPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
@@ -528,7 +577,9 @@ export default function RecipesPage() {
     
     const [isLoading, setIsLoading] = useState(true);
     const [editingRecipe, setEditingRecipe] = useState<Partial<Recipe> | null>(null);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [recipeToProduce, setRecipeToProduce] = useState<Recipe | null>(null);
+    const [isRecipeDialogOpen, setIsRecipeDialogOpen] = useState(false);
+    const [isProductionDialogOpen, setIsProductionDialogOpen] = useState(false);
     const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
     const [viewingLog, setViewingLog] = useState<ProductionLog | null>(null);
     
@@ -619,12 +670,17 @@ export default function RecipesPage() {
 
     const openAddDialog = () => {
         setEditingRecipe({});
-        setIsDialogOpen(true);
+        setIsRecipeDialogOpen(true);
     };
 
     const openEditDialog = (recipe: Recipe) => {
         setEditingRecipe(recipe);
-        setIsDialogOpen(true);
+        setIsRecipeDialogOpen(true);
+    };
+    
+    const openProductionDialog = (recipe: Recipe) => {
+        setRecipeToProduce(recipe);
+        setIsProductionDialogOpen(true);
     };
 
     const logStaffMembers = useMemo(() => ['all', ...new Set(productionLogs.map(log => log.staffName))], [productionLogs]);
@@ -651,16 +707,22 @@ export default function RecipesPage() {
                 </Button>
             </div>
 
-            {isDialogOpen && (
+            {isRecipeDialogOpen && (
                 <RecipeDialog
-                    isOpen={isDialogOpen}
-                    onOpenChange={setIsDialogOpen}
+                    isOpen={isRecipeDialogOpen}
+                    onOpenChange={setIsRecipeDialogOpen}
                     recipe={editingRecipe}
                     products={products}
                     ingredients={ingredients}
                     user={user}
                 />
             )}
+            <StartProductionDialog
+                isOpen={isProductionDialogOpen}
+                onOpenChange={setIsProductionDialogOpen}
+                recipe={recipeToProduce}
+                user={user}
+            />
              <ProductionLogDetailsDialog 
                 log={viewingLog}
                 isOpen={!!viewingLog}
@@ -714,9 +776,10 @@ export default function RecipesPage() {
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end">
                                                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                        <DropdownMenuItem onSelect={() => openEditDialog(recipe)}>Edit / Start Production</DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => openProductionDialog(recipe)}><Rocket/>Start Production</DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => openEditDialog(recipe)}><Edit />Edit Recipe</DropdownMenuItem>
                                                         <DropdownMenuSeparator />
-                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setRecipeToDelete(recipe)}>Delete</DropdownMenuItem>
+                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setRecipeToDelete(recipe)}><Trash2/>Delete</DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </TableCell>

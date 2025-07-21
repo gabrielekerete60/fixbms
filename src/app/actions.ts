@@ -1212,7 +1212,7 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                     const productRef = doc(db, 'products', item.productId);
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
-            } else {
+            } else if (transfer.is_sales_run === false) { // Regular stock transfer to staff, not sales run
                 for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
                     const staffStockRef = doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId);
