@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, increment } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, increment, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -225,7 +225,7 @@ function IncreaseStockDialog({ isOpen, onOpenChange, onStockUpdated, ingredients
                 unit: selectedIngredient.unit,
                 costPerUnit: Number(costPerUnit),
                 totalCost,
-                date: new Date().toISOString(),
+                date: serverTimestamp(),
                 staffName: user.name,
                 staffId: user.staff_id,
             });
@@ -242,7 +242,7 @@ function IncreaseStockDialog({ isOpen, onOpenChange, onStockUpdated, ingredients
                 ingredientName: selectedIngredient.name,
                 change: Number(quantity),
                 reason: `Purchase from ${selectedSupplier.name}`,
-                date: new Date(),
+                date: serverTimestamp(),
                 staffName: user.name,
                 logRefId: logRef.id,
             });
@@ -265,7 +265,7 @@ function IncreaseStockDialog({ isOpen, onOpenChange, onStockUpdated, ingredients
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Increase Ingredient Stock</DialogTitle>
-                    <DialogDescription>Record a new delivery of ingredients from a supplier.</DialogDescription>
+                    <DialogDescription>Record a new delivery of ingredients from a supplier. This will update inventory and the supplier's balance.</DialogDescription>
                 </DialogHeader>
                  <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
@@ -489,7 +489,7 @@ export default function IngredientsPage() {
                                         ingredientsWithTotal.map(ingredient => (
                                             <TableRow key={ingredient.id}>
                                                 <TableCell className="font-medium">{ingredient.name}</TableCell>
-                                                <TableCell>{(ingredient.stock || 0).toFixed(3)} {ingredient.unit}</TableCell>
+                                                <TableCell>{(ingredient.stock || 0).toFixed(2)} {ingredient.unit}</TableCell>
                                                 <TableCell>₦{(ingredient.costPerUnit || 0).toFixed(2)}</TableCell>
                                                 <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>
                                                 <TableCell>{ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
@@ -581,7 +581,7 @@ export default function IngredientsPage() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Date</TableHead>
-                                        <TableHead>Activity</TableHead>
+                                        <TableHead>Ingredient</TableHead>
                                         <TableHead>Staff</TableHead>
                                         <TableHead>Change</TableHead>
                                         <TableHead>Reason</TableHead>
