@@ -567,7 +567,12 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange }: { log: Produc
                     <p><strong>Product:</strong> {batchDetails.productName} (x{batchDetails.quantityToProduce})</p>
                     <p><strong>Requested by:</strong> {batchDetails.requestedByName}</p>
                     <Table>
-                        <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead className="text-right">Opening</TableHead><TableHead className="text-right">Used</TableHead><TableHead className="text-right">Remaining</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow>
+                            <TableHead>Ingredient</TableHead>
+                            <TableHead className="text-right">Available Before Prod</TableHead>
+                            <TableHead className="text-right">Used</TableHead>
+                            <TableHead className="text-right">Available After Prod</TableHead>
+                        </TableRow></TableHeader>
                         <TableBody>
                             {batchDetails.ingredients.map(ing => (
                                 <TableRow key={ing.ingredientId}>
