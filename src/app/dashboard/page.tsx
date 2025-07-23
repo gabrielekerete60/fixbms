@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -19,6 +18,8 @@ import {
   ClipboardList,
   Wrench,
   Package,
+  Carrot,
+  Archive,
 } from 'lucide-react';
 import {
   Card,
@@ -75,6 +76,10 @@ type StaffDashboardStats = {
 type StorekeeperDashboardStats = {
     totalProductUnits: number;
     pendingBatchApprovals: number;
+    totalInventoryValue: number;
+    lowStockIngredients: number;
+    productCategories: number;
+    inventoryValueByCategory: { name: string, value: number }[];
 };
 
 function IndexWarning({ indexes }: { indexes: string[] }) {
@@ -413,6 +418,10 @@ const chartConfig = {
     label: "Quantity",
     color: "hsl(var(--chart-1))",
   },
+  value: {
+    label: "Value",
+    color: "hsl(var(--chart-1))",
+  }
 };
 
 function BakerDashboard({ user }: { user: User }) {
@@ -546,15 +555,53 @@ function BakerDashboard({ user }: { user: User }) {
 }
 
 function StorekeeperDashboard({ user }: { user: User }) {
-  const [stats, setStats] = useState<StorekeeperDashboardStats>({ totalProductUnits: 0, pendingBatchApprovals: 0 });
+  const [stats, setStats] = useState<StorekeeperDashboardStats>({
+    totalProductUnits: 0,
+    pendingBatchApprovals: 0,
+    totalInventoryValue: 0,
+    lowStockIngredients: 0,
+    productCategories: 0,
+    inventoryValueByCategory: []
+  });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const productsQuery = collection(db, 'products');
     const unsubProducts = onSnapshot(productsQuery, (snapshot) => {
       const totalUnits = snapshot.docs.reduce((sum, doc) => sum + (doc.data().stock || 0), 0);
-      setStats(prev => ({ ...prev, totalProductUnits: totalUnits }));
+      const categories = new Set(snapshot.docs.map(doc => doc.data().category));
+      setStats(prev => ({ ...prev, totalProductUnits: totalUnits, productCategories: categories.size }));
       if (isLoading) setIsLoading(false);
+    });
+
+    const ingredientsQuery = collection(db, 'ingredients');
+    const unsubIngredients = onSnapshot(ingredientsQuery, (snapshot) => {
+        let inventoryValue = 0;
+        let lowStockCount = 0;
+        const valueByCategory: Record<string, number> = {};
+
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const stock = data.stock || 0;
+            const cost = data.costPerUnit || 0;
+            inventoryValue += stock * cost;
+
+            if (stock < 20 && stock > 0) { // Assuming low stock is < 20
+                lowStockCount++;
+            }
+            // Grouping by first word of name for simplicity
+            const category = data.name.split(' ')[0] || 'Other';
+            if(!valueByCategory[category]) valueByCategory[category] = 0;
+            valueByCategory[category] += stock * cost;
+
+        });
+
+        const inventoryValueByCategory = Object.entries(valueByCategory)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a,b) => b.value - a.value)
+            .slice(0, 5); // top 5
+
+        setStats(prev => ({ ...prev, totalInventoryValue: inventoryValue, lowStockIngredients: lowStockCount, inventoryValueByCategory }));
     });
 
     const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
@@ -565,6 +612,7 @@ function StorekeeperDashboard({ user }: { user: User }) {
 
     return () => {
       unsubProducts();
+      unsubIngredients();
       unsubBatches();
     };
   }, [isLoading]);
@@ -577,7 +625,7 @@ function StorekeeperDashboard({ user }: { user: User }) {
     <>
       <h1 className="text-3xl font-bold font-headline">Welcome back, {user.name.split(' ')[0]}!</h1>
       <p className="text-muted-foreground">Here is your store summary.</p>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mt-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Product Units</CardTitle>
@@ -585,35 +633,90 @@ function StorekeeperDashboard({ user }: { user: User }) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalProductUnits.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Total count of all products in main inventory.</p>
+            <p className="text-xs text-muted-foreground">Finished goods in stock.</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Batch Approvals</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₦{stats.totalInventoryValue.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Value of all ingredients.</p>
+          </CardContent>
+        </Card>
+         <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Low Stock Ingredients</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.lowStockIngredients}</div>
+            <p className="text-xs text-muted-foreground">Items with less than 20 units.</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Product Categories</CardTitle>
+            <Archive className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.productCategories}</div>
+            <p className="text-xs text-muted-foreground">Number of unique categories.</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
             <Hourglass className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.pendingBatchApprovals}</div>
-            <p className="text-xs text-muted-foreground">Ingredient requests awaiting your approval.</p>
+            <p className="text-xs text-muted-foreground">Awaiting your approval.</p>
           </CardContent>
         </Card>
       </div>
+
+       <Card className="mt-6">
+          <CardHeader className="flex flex-row items-center">
+            <div className="grid gap-2">
+              <CardTitle>Inventory Value by Category</CardTitle>
+              <CardDescription>Top 5 most valuable ingredient categories.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                <BarChart data={stats.inventoryValueByCategory} layout="vertical" margin={{ left: 10, right: 30 }}>
+                <CartesianGrid horizontal={false} />
+                <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={80} />
+                <XAxis dataKey="value" type="number" hide />
+                <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent indicator="dot" formatter={(value) => `₦${value.toLocaleString()}`} />}
+                />
+                <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+                </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
     </>
   );
 }
 
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
+    setIsLoading(false);
   }, []);
 
-  if (!user) {
+  if (isLoading || !user) {
     return (
       <div className="flex justify-center items-center h-full">
         <Loader2 className="h-16 w-16 animate-spin" />
