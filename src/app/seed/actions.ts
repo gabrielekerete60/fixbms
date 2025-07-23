@@ -81,11 +81,12 @@ const seedData = {
   customers: [
       { id: 'cust_1', name: 'Adebisi Onyeka', phone: '08012345678', email: 'a.onyeka@example.com', address: '123, Allen Avenue, Ikeja', joinedDate: Timestamp.fromDate(new Date('2023-01-15T10:00:00Z')), totalSpent: 150000, amountOwed: 5000, amountPaid: 0 },
       { id: 'cust_2', name: 'Ngozi Okoro', phone: '09087654321', email: 'n.okoro@example.com', address: '45, Lekki Phase 1', joinedDate: Timestamp.fromDate(new Date('2023-02-20T11:30:00Z')), totalSpent: 75000, amountOwed: 0, amountPaid: 75000 },
+      { id: 'cust_3', name: 'Chinedu Alabi', phone: '08022334455', email: 'c.alabi@example.com', address: '78, Airport Road, Uyo', joinedDate: daysAgo(30), totalSpent: 25000, amountOwed: 10000, amountPaid: 5000 },
   ],
    orders: [
     {
       id: "ord_1",
-      items: [{ id: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }],
+      items: [{ productId: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }],
       total: 1100,
       date: daysAgo(2), 
       paymentMethod: 'Card',
@@ -97,8 +98,8 @@ const seedData = {
     {
       id: "ord_2",
       items: [
-        { id: "prod_3", name: "Jumbo Loaf", price: 900, quantity: 1, costPrice: 500 },
-        { id: "prod_7", name: "Coca-Cola (50cl)", price: 300, quantity: 2, costPrice: 200 },
+        { productId: "prod_3", name: "Jumbo Loaf", price: 900, quantity: 1, costPrice: 500 },
+        { productId: "prod_7", name: "Coca-Cola (50cl)", price: 300, quantity: 2, costPrice: 200 },
       ],
       total: 1500,
       date: daysAgo(1),
@@ -108,9 +109,23 @@ const seedData = {
       status: 'Completed',
       staffId: '400004'
     },
+     {
+      id: "ord_3",
+      items: [
+        { productId: "prod_6", name: "Meat Pie", price: 600, quantity: 5, costPrice: 350 },
+      ],
+      total: 3000,
+      date: daysAgo(3),
+      paymentMethod: 'Credit',
+      customerName: 'Chinedu Alabi',
+      customerId: 'cust_3',
+      status: 'Completed',
+      staffId: '400005',
+      salesRunId: 'tsr_1_active'
+    },
   ],
   transfers: [
-      { id: "tsr_1_active", from_staff_id: "700008", from_staff_name: "David Storekeeper", to_staff_id: "400005", to_staff_name: "Akan Delivery", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 20 }], date: daysAgo(1), status: 'active', is_sales_run: true, totalCollected: 0 },
+      { id: "tsr_1_active", from_staff_id: "700008", from_staff_name: "David Storekeeper", to_staff_id: "400005", to_staff_name: "Akan Delivery", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 20 }, { productId: "prod_6", productName: "Meat Pie", quantity: 15 }], date: daysAgo(1), status: 'active', is_sales_run: true, totalCollected: 0 },
       { id: "trans_1_pending", from_staff_id: "700008", from_staff_name: "David Storekeeper", to_staff_id: "400004", to_staff_name: "Mfon Showroom", items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 10 }], date: Timestamp.now(), status: 'pending', is_sales_run: false },
        { id: "tsr_2_prod_return", from_staff_id: "500006", from_staff_name: "Blessing Baker", to_staff_id: "700008", to_staff_name: "David Storekeeper", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 50 }], date: daysAgo(0), status: 'pending', is_sales_run: false, notes: 'Return from production batch batch_3_completed_9999' },
   ],
@@ -178,7 +193,34 @@ const seedData = {
   ingredient_stock_logs: [
       { id: "supply_log_1", ingredientId: "ing_1", ingredientName: "All-Purpose Flour", change: 50, reason: "Purchase from Flour Mills of Nigeria", date: daysAgo(5), staffName: "David Storekeeper", logRefId: "sup_1" },
       { id: "prod_log_1", ingredientId: "", ingredientName: "Production Batch: Classic Croissant", change: -40.7, reason: "Production: Classic Croissant", date: daysAgo(1), staffName: "David Storekeeper", logRefId: "batch_2_in_prod_5678" },
-  ]
+  ],
+   payment_confirmations: [
+    { id: 'pay_conf_1', date: daysAgo(0), driverId: '400005', driverName: 'Akan Delivery', runId: 'tsr_1_active', amount: 2000, status: 'pending', customerName: 'New Customer', items: [], isDebtPayment: true, customerId: 'cust_1' },
+    { id: 'pay_conf_2', date: daysAgo(1), driverId: '400005', driverName: 'Akan Delivery', runId: 'tsr_1_active', amount: 1500, status: 'approved', customerName: 'Old Customer', items: [], isDebtPayment: true, customerId: 'cust_2' },
+  ],
+  expenses: [
+    { id: 'exp_1', category: 'Utilities', description: 'NEPA Bill', amount: 25000, date: daysAgo(5).toDate().toISOString() },
+    { id: 'exp_2', category: 'Logistics', description: 'Fuel for delivery van', amount: 15000, date: daysAgo(2).toDate().toISOString() },
+  ],
+  announcements: [
+    { id: 'anno_1', staffId: '100001', staffName: 'Chris Manager', message: 'Team meeting tomorrow at 9 AM sharp.', timestamp: daysAgo(0) },
+    { id: 'anno_2', staffId: '200002', staffName: 'Vic Supervisor', message: 'Please remember to clean your stations before closing.', timestamp: daysAgo(1) },
+  ],
+  reports: [
+    { id: 'rep_1', subject: 'Faulty Mixer', reportType: 'Maintenance', message: 'The main mixer in the kitchen is making a loud noise.', staffId: '500006', staffName: 'Blessing Baker', timestamp: daysAgo(0), status: 'new' },
+  ],
+  waste_logs: [
+    { id: 'waste_1', productId: 'prod_1', productName: 'Family Loaf', productCategory: 'Breads', quantity: 2, reason: 'Spoiled', staffId: '400004', staffName: 'Mfon Showroom', date: daysAgo(1) },
+  ],
+  attendance: [
+      // Today
+      { id: 'att_1', staff_id: '100001', clock_in_time: daysAgo(0), clock_out_time: null, date: new Date().toISOString().split('T')[0] },
+      { id: 'att_2', staff_id: '400004', clock_in_time: daysAgo(0), clock_out_time: null, date: new Date().toISOString().split('T')[0] },
+      // Yesterday
+      { id: 'att_3', staff_id: '100001', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
+      { id: 'att_4', staff_id: '200002', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
+      { id: 'att_5', staff_id: '500006', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
+  ],
 };
 
 export async function verifySeedPassword(password: string): Promise<ActionResult> {
@@ -215,11 +257,13 @@ export async function seedDatabase(): Promise<ActionResult> {
                 
                 const itemWithTimestamps = { ...item };
                 for (const key of Object.keys(itemWithTimestamps)) {
-                    if ( (key.toLowerCase().includes('date') || key.toLowerCase().includes('timestamp') || key.toLowerCase().includes('at')) && typeof itemWithTimestamps[key] === 'string' && itemWithTimestamps[key]) {
+                    if ( (key.toLowerCase().includes('date') || key.toLowerCase().includes('timestamp') || key.toLowerCase().includes('at')) && (typeof itemWithTimestamps[key] === 'string' || itemWithTimestamps[key] instanceof Date) && itemWithTimestamps[key]) {
                         const date = new Date(itemWithTimestamps[key]);
                         if (!isNaN(date.getTime())) { 
                            itemWithTimestamps[key] = Timestamp.fromDate(date);
                         }
+                    } else if (itemWithTimestamps[key] instanceof Timestamp) {
+                        // It's already a timestamp, do nothing.
                     }
                 }
 
