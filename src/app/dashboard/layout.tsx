@@ -161,7 +161,7 @@ export default function DashboardLayout({
   
   const applyTheme = useCallback((theme: string | undefined) => {
     const root = document.documentElement;
-    root.classList.remove('theme-classic-light'); // Remove any existing theme
+    root.className = ''; // Clear all existing theme classes
     if (theme && theme !== 'default') {
       root.classList.add(`theme-${theme}`);
     }
@@ -219,10 +219,13 @@ export default function DashboardLayout({
                 handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
                 return;
             }
-            const updatedUser = { ...user, theme: userData.theme || 'default', name: userData.name };
-            setUser(updatedUser); 
-            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser)); 
-            applyTheme(updatedUser.theme);
+            // Only update theme if it's different to avoid re-renders
+            if (user.theme !== userData.theme) {
+              const updatedUser = { ...user, theme: userData.theme || 'default', name: userData.name };
+              setUser(updatedUser); 
+              localStorage.setItem('loggedInUser', JSON.stringify(updatedUser)); 
+              applyTheme(updatedUser.theme);
+            }
         } else {
             handleLogout("Account Deleted", "Your staff profile could not be found.");
         }
@@ -241,7 +244,7 @@ export default function DashboardLayout({
         unsubBatches();
     };
 
-  }, [user?.staff_id, handleLogout]);
+  }, [user?.staff_id, handleLogout, user.theme]);
   
   const handleClockInOut = async () => {
     if (!user) return;
@@ -285,10 +288,10 @@ export default function DashboardLayout({
       {
         icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Developer'], sublinks: [
           { href: "/dashboard/inventory/products", label: "Products", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'] },
+          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", roles: ['Manager', 'Supervisor', 'Baker', 'Developer'] },
           { href: "/dashboard/inventory/ingredients", label: "Ingredients", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Developer'] },
+          { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
           { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", roles: ['Manager', 'Developer'] },
         ]
@@ -322,6 +325,7 @@ export default function DashboardLayout({
         if (!link.roles || link.roles.includes(user.role)) {
           if (link.sublinks) {
             const filteredSublinks = link.sublinks.filter((sublink: any) => {
+              // Specific rule to hide "Stock Control" from Baker
               if (sublink.href === "/dashboard/inventory/stock-control" && user.role === 'Baker') {
                 return false;
               }
