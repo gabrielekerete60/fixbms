@@ -37,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -218,6 +219,7 @@ function RecipeDialog({
             <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                     <DialogTitle>{recipe?.id ? 'Edit Recipe' : 'Add New Recipe'}</DialogTitle>
+                     <DialogClose />
                 </DialogHeader>
                 <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
                     <div className="grid gap-2">
@@ -390,6 +392,7 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted }: { batch: Product
                     <DialogDescription>
                         Enter the final counts for <strong>{batch.quantityToProduce} x {batch.productName}</strong>.
                     </DialogDescription>
+                     <DialogClose />
                 </DialogHeader>
                 <div className="py-4 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -449,6 +452,7 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange, user }: { log: 
           <DialogDescription>
             Detailed information for log entry on {log.timestamp ? format(new Date(log.timestamp), 'PPp') : 'N/A'}.
           </DialogDescription>
+           <DialogClose />
         </DialogHeader>
         <div className="py-4 space-y-4 text-sm max-h-[60vh] overflow-y-auto">
             <div className="flex items-center gap-2"><strong>Action:</strong> <Badge>{log.action}</Badge></div>
@@ -549,6 +553,7 @@ function StartProductionDialog({
                     <DialogDescription>
                         Enter the quantity of "{recipe.productName}" you want to produce. This will send an ingredient request to the storekeeper.
                     </DialogDescription>
+                     <DialogClose />
                 </DialogHeader>
                  <div className="py-4">
                     <Label htmlFor="quantity-to-produce">Quantity to Produce</Label>
@@ -790,6 +795,7 @@ export default function RecipesPage() {
 
     const canManageRecipes = user.role === 'Manager' || user.role === 'Developer';
     const canApproveBatches = user.role === 'Manager' || user.role === 'Developer' || user.role === 'Storekeeper';
+    const canCompleteBatches = user.role === 'Manager' || user.role === 'Developer' || user.role === 'Supervisor';
 
     const getStatusVariant = (status: string) => {
         switch(status) {
@@ -920,7 +926,7 @@ export default function RecipesPage() {
                                                 {batch.status === 'pending_approval' && canApproveBatches && (
                                                     <ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchStaticData} />
                                                 )}
-                                                {batch.status === 'in_production' && (
+                                                {batch.status === 'in_production' && canCompleteBatches && (
                                                     <CompleteBatchDialog batch={batch} user={user} onBatchCompleted={fetchStaticData} />
                                                 )}
                                             </TableCell>
