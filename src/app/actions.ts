@@ -1248,71 +1248,79 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
 }
 
 export async function handleAcknowledgeTransfer(transferId: string, action: 'accept' | 'decline'): Promise<{success: boolean, error?: string}> {
-     const transferRef = doc(db, 'transfers', transferId);
-     
-     if (action === 'decline') {
+    const transferRef = doc(db, 'transfers', transferId);
+
+    if (action === 'decline') {
         try {
             await updateDoc(transferRef, { status: 'cancelled' });
             return { success: true };
         } catch (error) {
-             console.error("Error declining transfer:", error);
-             return { success: false, error: "Failed to decline transfer." };
+            console.error("Error declining transfer:", error);
+            return { success: false, error: "Failed to decline transfer." };
         }
-     }
+    }
 
-     try {
+    try {
         await runTransaction(db, async (transaction) => {
             const transferDoc = await transaction.get(transferRef);
             if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
-            
+
             const transfer = transferDoc.data() as Transfer;
             if (transfer.status !== 'pending') throw new Error("This transfer has already been processed.");
-            
+
             const isProductionReturn = transfer.notes?.startsWith('Return from production batch');
 
             if (isProductionReturn) {
-                 for (const item of transfer.items) {
+                // Return from production goes back to main inventory
+                for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
-                 transaction.update(transferRef, { status: 'completed' });
-            } else if (transfer.is_sales_run === false) { // Regular stock transfer to staff, not sales run
-                for (const item of transfer.items) {
-                    const productRef = doc(db, 'products', item.productId);
-                    const staffStockRef = doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId);
-                    
-                    const productDoc = await transaction.get(productRef);
-                    if (!productDoc.exists() || productDoc.data().stock < item.quantity) {
+            } else if (transfer.is_sales_run === false) {
+                // Regular stock transfer to staff, NOT a sales run
+                // These reads must happen before any writes
+                const productRefs = transfer.items.map(item => doc(db, 'products', item.productId));
+                const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
+                const staffStockRefs = transfer.items.map(item => doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId));
+                const staffStockDocs = await Promise.all(staffStockRefs.map(ref => transaction.get(ref)));
+
+                for (let i = 0; i < transfer.items.length; i++) {
+                    const item = transfer.items[i];
+                    const productDoc = productDocs[i];
+                    const staffStockDoc = staffStockDocs[i];
+
+                    if (!productDoc.exists() || (productDoc.data().stock || 0) < item.quantity) {
                         throw new Error(`Not enough stock for ${item.productName} in main inventory.`);
                     }
 
-                    transaction.update(productRef, { stock: increment(-item.quantity) });
-                    
-                    const staffStockDoc = await transaction.get(staffStockRef);
+                    // Decrement main inventory
+                    transaction.update(productRefs[i], { stock: increment(-item.quantity) });
+
+                    // Increment or set staff personal stock
                     if (staffStockDoc.exists()) {
-                        transaction.update(staffStockRef, { stock: increment(item.quantity) });
+                        transaction.update(staffStockRefs[i], { stock: increment(item.quantity) });
                     } else {
-                        transaction.set(staffStockRef, { 
+                        transaction.set(staffStockRefs[i], {
                             productId: item.productId,
                             productName: item.productName,
-                            stock: item.quantity
+                            stock: item.quantity,
                         });
                     }
                 }
-                transaction.update(transferRef, { status: 'completed' });
-            } else { // Sales run
-                const newStatus = transfer.is_sales_run ? 'active' : 'completed';
-                transaction.update(transferRef, { status: newStatus });
             }
+            
+            // This is a write, happens after all reads
+            const newStatus = transfer.is_sales_run ? 'active' : 'completed';
+            transaction.update(transferRef, { status: newStatus });
         });
 
         return { success: true };
 
-     } catch (error) {
+    } catch (error) {
         console.error("Error accepting transfer:", error);
         const errorMessage = error instanceof Error ? error.message : "Failed to accept transfer.";
         return { success: false, error: errorMessage };
-     }
+    }
 }
 
 export type ProductionBatch = {
