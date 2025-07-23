@@ -61,7 +61,7 @@ import { useToast } from "@/hooks/use-toast";
 import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import Link from "next/link";
 
 type User = {
@@ -115,6 +115,7 @@ function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept:
                     <DialogDescription>
                         You are about to accept responsibility for the following items. This action cannot be undone.
                     </DialogDescription>
+                    <DialogClose />
                 </DialogHeader>
                 <div className="py-4 max-h-[400px] overflow-y-auto">
                     <Table>

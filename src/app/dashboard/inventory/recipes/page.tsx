@@ -645,6 +645,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
                     </Table>
                 </div>
                 <AlertDialogFooter>
+                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                      <Button variant="destructive" onClick={handleDecline} disabled={isLoading}>
                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4" />}
                         Decline
