@@ -219,7 +219,7 @@ export async function updateAppSettings(settings: { storeAddress?: string, staff
         const currentSettingsDoc = await getDoc(settingsRef);
         const currentSettings = currentSettingsDoc.exists() ? currentSettingsDoc.data() : {};
         
-        await updateDoc(settingsRef, settings);
+        await setDoc(settingsRef, settings, { merge: true });
         
         // Handle Staff ID length change if it's different from the current one
         if (settings.staffIdLength && settings.staffIdLength !== currentSettings.staffIdLength) {
