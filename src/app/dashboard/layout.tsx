@@ -219,7 +219,6 @@ export default function DashboardLayout({
                 handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
                 return;
             }
-            // Only update theme if it's different to avoid re-renders
             if (user.theme !== userData.theme) {
               const updatedUser = { ...user, theme: userData.theme || 'default', name: userData.name };
               setUser(updatedUser); 
@@ -244,7 +243,7 @@ export default function DashboardLayout({
         unsubBatches();
     };
 
-  }, [user?.staff_id, handleLogout, user.theme]);
+  }, [user?.staff_id, handleLogout, user?.theme]);
   
   const handleClockInOut = async () => {
     if (!user) return;
@@ -325,9 +324,11 @@ export default function DashboardLayout({
         if (!link.roles || link.roles.includes(user.role)) {
           if (link.sublinks) {
             const filteredSublinks = link.sublinks.filter((sublink: any) => {
-              // Specific rule to hide "Stock Control" from Baker
               if (sublink.href === "/dashboard/inventory/stock-control" && user.role === 'Baker') {
                 return false;
+              }
+              if (sublink.href === "/dashboard/inventory/recipes" && user.role === 'Storekeeper') {
+                  return false;
               }
               return !sublink.roles || sublink.roles.includes(user.role)
             });
