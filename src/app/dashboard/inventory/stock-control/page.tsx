@@ -58,7 +58,7 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -254,88 +254,6 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
                 </div>
             </CardContent>
         </Card>
-    );
-}
-
-function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[], onApproval: () => void }) {
-    const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState(false);
-    
-    const ingredientsWithStock = useMemo(() => {
-        return batch.ingredients.map(reqIng => {
-            const stockIng = allIngredients.find(sIng => sIng.id === reqIng.ingredientId);
-            const stockAvailable = stockIng?.stock || 0;
-            const hasEnough = stockAvailable >= reqIng.quantity;
-            return { ...reqIng, stockAvailable, hasEnough };
-        });
-    }, [batch.ingredients, allIngredients]);
-
-    const canApprove = ingredientsWithStock.every(ing => ing.hasEnough);
-    
-    const handleApprove = async () => {
-        setIsLoading(true);
-        const result = await approveIngredientRequest(batch.id, batch.ingredients, user);
-        if (result.success) {
-            toast({ title: 'Success', description: 'Batch approved and moved to production.' });
-            onApproval();
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setIsLoading(false);
-    }
-
-    const handleDecline = async () => {
-        setIsLoading(true);
-        const result = await declineProductionBatch(batch.id, user);
-        if (result.success) {
-            toast({ title: 'Success', description: 'Batch has been declined.' });
-            onApproval();
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setIsLoading(false);
-    }
-
-    return (
-        <AlertDialog>
-            <AlertDialogTrigger asChild><Button size="sm">Review</Button></AlertDialogTrigger>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Approve Production Batch?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Batch ID: {batch.id.substring(0,6)}...<br/>
-                        Request for <strong>{batch.quantityToProduce} x {batch.productName}</strong>. This will deduct ingredients from inventory.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="max-h-60 overflow-y-auto">
-                    <Table>
-                        <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead>Required</TableHead><TableHead>In Stock</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            {ingredientsWithStock.map(ing => (
-                                <TableRow key={ing.ingredientId}>
-                                    <TableCell>{ing.ingredientName}</TableCell>
-                                    <TableCell>{ing.quantity} {ing.unit}</TableCell>
-                                    <TableCell>{ing.stockAvailable.toFixed(2)} {ing.unit}</TableCell>
-                                    <TableCell>
-                                        {ing.hasEnough ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-destructive" />}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-                <AlertDialogFooter>
-                     <Button variant="destructive" onClick={handleDecline} disabled={isLoading}>
-                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4" />}
-                        Decline
-                    </Button>
-                     <Button onClick={handleApprove} disabled={isLoading || !canApprove}>
-                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
-                        Approve
-                    </Button>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
     );
 }
 
@@ -820,7 +738,7 @@ export default function StockControlPage() {
                                     <TableCell>{batch.productName}</TableCell>
                                     <TableCell>{batch.quantityToProduce}</TableCell>
                                     <TableCell>{batch.requestedByName}</TableCell>
-                                    <TableCell><ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchPageData} /></TableCell>
+                                    <TableCell>Implement Dialog Here</TableCell>
                                 </TableRow>
                             )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are pending approval.</TableCell></TableRow>}
                         </TableBody>
