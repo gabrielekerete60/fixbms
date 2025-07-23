@@ -580,6 +580,7 @@ function StartProductionDialog({
 function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[], onApproval: () => void }) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
     
     const ingredientsWithStock = useMemo(() => {
         return batch.ingredients.map(reqIng => {
@@ -598,6 +599,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
         if (result.success) {
             toast({ title: 'Success', description: 'Batch approved and moved to production.' });
             onApproval();
+            setIsOpen(false);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -610,6 +612,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
         if (result.success) {
             toast({ title: 'Success', description: 'Batch has been declined.' });
             onApproval();
+            setIsOpen(false);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -617,16 +620,17 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
     }
 
     return (
-        <AlertDialog>
-            <AlertDialogTrigger asChild><Button size="sm">Review</Button></AlertDialogTrigger>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Approve Production Batch?</AlertDialogTitle>
-                    <AlertDialogDescription>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild><Button size="sm">Review</Button></DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Approve Production Batch?</DialogTitle>
+                    <DialogDescription>
                         Batch ID: {batch.id.substring(0,6)}...<br/>
                         Request for <strong>{batch.quantityToProduce} x {batch.productName}</strong>. This will deduct ingredients from inventory.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
+                    </DialogDescription>
+                    <DialogClose />
+                </DialogHeader>
                 <div className="max-h-60 overflow-y-auto">
                     <Table>
                         <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead>Required</TableHead><TableHead>In Stock</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
@@ -644,8 +648,8 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
                         </TableBody>
                     </Table>
                 </div>
-                <AlertDialogFooter>
-                     <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <DialogFooter>
+                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
                      <Button variant="destructive" onClick={handleDecline} disabled={isLoading}>
                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4" />}
                         Decline
@@ -654,9 +658,9 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
                         Approve
                     </Button>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
 
