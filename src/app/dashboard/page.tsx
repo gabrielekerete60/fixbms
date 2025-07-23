@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -576,7 +577,6 @@ function StorekeeperDashboard({ user }: { user: User }) {
 
     const ingredientsQuery = collection(db, 'ingredients');
     const unsubIngredients = onSnapshot(ingredientsQuery, (snapshot) => {
-        let inventoryValue = 0;
         let lowStockCount = 0;
         const valueByCategory: Record<string, number> = {};
 
@@ -584,9 +584,8 @@ function StorekeeperDashboard({ user }: { user: User }) {
             const data = doc.data();
             const stock = data.stock || 0;
             const cost = data.costPerUnit || 0;
-            inventoryValue += stock * cost;
 
-            if (stock < 20 && stock > 0) { // Assuming low stock is < 20
+            if (stock > 0 && stock < 20) { // Assuming low stock is < 20
                 lowStockCount++;
             }
             // Grouping by first word of name for simplicity
@@ -601,7 +600,7 @@ function StorekeeperDashboard({ user }: { user: User }) {
             .sort((a,b) => b.value - a.value)
             .slice(0, 5); // top 5
 
-        setStats(prev => ({ ...prev, totalInventoryValue: inventoryValue, lowStockIngredients: lowStockCount, inventoryValueByCategory }));
+        setStats(prev => ({ ...prev, lowStockIngredients: lowStockCount, inventoryValueByCategory }));
     });
 
     const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
@@ -625,7 +624,7 @@ function StorekeeperDashboard({ user }: { user: User }) {
     <>
       <h1 className="text-3xl font-bold font-headline">Welcome back, {user.name.split(' ')[0]}!</h1>
       <p className="text-muted-foreground">Here is your store summary.</p>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mt-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Product Units</CardTitle>
@@ -638,15 +637,15 @@ function StorekeeperDashboard({ user }: { user: User }) {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Product Categories</CardTitle>
+            <Archive className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₦{stats.totalInventoryValue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Value of all ingredients.</p>
+            <div className="text-2xl font-bold">{stats.productCategories}</div>
+            <p className="text-xs text-muted-foreground">Number of unique categories.</p>
           </CardContent>
         </Card>
-         <Card>
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Low Stock Ingredients</CardTitle>
             <AlertTriangle className="h-4 w-4 text-yellow-500" />
@@ -654,16 +653,6 @@ function StorekeeperDashboard({ user }: { user: User }) {
           <CardContent>
             <div className="text-2xl font-bold">{stats.lowStockIngredients}</div>
             <p className="text-xs text-muted-foreground">Items with less than 20 units.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Product Categories</CardTitle>
-            <Archive className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.productCategories}</div>
-            <p className="text-xs text-muted-foreground">Number of unique categories.</p>
           </CardContent>
         </Card>
         <Card>
