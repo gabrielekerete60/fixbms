@@ -795,7 +795,7 @@ export default function RecipesPage() {
 
     const canManageRecipes = user.role === 'Manager' || user.role === 'Developer';
     const canApproveBatches = user.role === 'Manager' || user.role === 'Developer' || user.role === 'Storekeeper';
-    const canCompleteBatches = user.role === 'Manager' || user.role === 'Developer' || user.role === 'Supervisor';
+    const canCompleteBatches = user.role === 'Baker';
 
     const getStatusVariant = (status: string) => {
         switch(status) {
