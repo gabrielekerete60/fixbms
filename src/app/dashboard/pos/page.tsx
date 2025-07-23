@@ -101,6 +101,54 @@ type PaymentStatus = {
     message?: string;
 }
 
+const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
+    return (
+        <div ref={ref}>
+            <h2 className="text-2xl font-bold text-center">BMS</h2>
+            <p className="text-center text-sm">{storeAddress || 'Your Friendly Bakery'}</p>
+            <p className="text-center text-sm">Sale Receipt</p>
+            <div className="py-4 space-y-4">
+                <div className="text-sm text-muted-foreground">
+                    <p><strong>Order ID:</strong> {order.id}</p>
+                    <p><strong>Date:</strong> {order.date.toDate().toLocaleString()}</p>
+                    <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
+                    <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
+                </div>
+                <Separator />
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead className="text-center">Qty</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {order.items.map((item, i) => (
+                        <TableRow key={i}>
+                            <TableCell>{item.name}</TableCell>
+                            <TableCell className="text-center">{item.quantity}</TableCell>
+                            <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
+                        </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+                <Separator />
+                <div className="w-full space-y-1 text-sm pr-2">
+                    <div className="flex justify-between font-bold text-base mt-1">
+                        <span>Total</span>
+                        <span>₦{order.total.toFixed(2)}</span>
+                    </div>
+                </div>
+                <Separator />
+                <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
+            </div>
+        </div>
+    )
+});
+Receipt.displayName = 'Receipt';
+
+
 const handlePrint = (node: HTMLElement | null) => {
     if (!node) return;
     const printWindow = window.open('', '_blank');
@@ -165,6 +213,7 @@ function POSPageContent() {
   const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
+  const [storeAddress, setStoreAddress] = useState<string | undefined>();
   
   const [paymentStatus, setPaymentStatus] = useLocalStorage<PaymentStatus>('paymentStatus', { status: 'idle' });
 
@@ -239,6 +288,10 @@ function POSPageContent() {
         } else {
           setSelectedStaffId(parsedUser.staff_id);
         }
+      }
+      const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
+      if (settingsDoc.exists()) {
+          setStoreAddress(settingsDoc.data().storeAddress);
       }
     };
     initializePos();
@@ -818,44 +871,7 @@ function POSPageContent() {
         <div className="hidden">
             {lastCompletedOrder && (
                 <div ref={receiptRef}>
-                    <h2 className="text-2xl font-bold text-center">BMS</h2>
-                    <p className="text-center text-sm">Sale Receipt</p>
-                    <div className="py-4 space-y-4">
-                        <div className="text-sm text-muted-foreground">
-                            <p><strong>Order ID:</strong> {lastCompletedOrder.id}</p>
-                            <p><strong>Date:</strong> {lastCompletedOrder.date.toDate().toLocaleString()}</p>
-                            <p><strong>Payment Method:</strong> {lastCompletedOrder.paymentMethod}</p>
-                            <p><strong>Customer:</strong> {lastCompletedOrder.customerName || 'Walk-in'}</p>
-                        </div>
-                        <Separator />
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                <TableHead>Item</TableHead>
-                                <TableHead className="text-center">Qty</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {lastCompletedOrder.items.map((item, i) => (
-                                <TableRow key={i}>
-                                    <TableCell>{item.name}</TableCell>
-                                    <TableCell className="text-center">{item.quantity}</TableCell>
-                                    <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
-                                </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                        <Separator />
-                        <div className="w-full space-y-1 text-sm pr-2">
-                            <div className="flex justify-between font-bold text-base mt-1">
-                                <span>Total</span>
-                                <span>₦{lastCompletedOrder.total.toFixed(2)}</span>
-                            </div>
-                        </div>
-                        <Separator />
-                        <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
-                    </div>
+                    <Receipt order={lastCompletedOrder} storeAddress={storeAddress} />
                 </div>
             )}
         </div>

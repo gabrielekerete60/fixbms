@@ -213,6 +213,49 @@ export async function handleUpdateTheme(staffId: string, theme: string): Promise
     }
 }
 
+export async function updateAppSettings(settings: { storeAddress?: string, staffIdLength?: number }): Promise<{ success: boolean; error?: string }> {
+    try {
+        const settingsRef = doc(db, 'settings', 'app_config');
+        const currentSettingsDoc = await getDoc(settingsRef);
+        const currentSettings = currentSettingsDoc.exists() ? currentSettingsDoc.data() : {};
+        
+        await updateDoc(settingsRef, settings);
+        
+        // Handle Staff ID length change if it's different from the current one
+        if (settings.staffIdLength && settings.staffIdLength !== currentSettings.staffIdLength) {
+            const allStaffQuery = collection(db, 'staff');
+            const staffSnapshot = await getDocs(allStaffQuery);
+
+            const batch = writeBatch(db);
+            
+            for (const staffDoc of staffSnapshot.docs) {
+                const oldId = staffDoc.id;
+                const staffData = staffDoc.data();
+                
+                let newId = oldId;
+                if (oldId.length > settings.staffIdLength) {
+                    newId = oldId.substring(0, settings.staffIdLength);
+                } else if (oldId.length < settings.staffIdLength) {
+                    newId = oldId.padEnd(settings.staffIdLength, '0');
+                }
+
+                if (newId !== oldId) {
+                    // Re-create the document with the new ID and delete the old one
+                    const newStaffRef = doc(db, 'staff', newId);
+                    batch.set(newStaffRef, staffData);
+                    batch.delete(staffDoc.ref);
+                }
+            }
+            await batch.commit();
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error updating app settings:", error);
+        return { success: false, error: 'Failed to update application settings.' };
+    }
+}
+
 type InitializePaystackResult = {
     success: boolean;
     reference?: string;

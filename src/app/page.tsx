@@ -19,6 +19,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { handleLogin, verifyMfa } from "./actions";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -26,6 +28,7 @@ export default function LoginPage() {
   const [view, setView] = useState<'login' | 'mfa'>('login');
   const [staffId, setStaffId] = useState('');
   const [mfaToken, setMfaToken] = useState('');
+  const [staffIdLength, setStaffIdLength] = useState(6); // Default length
   const router = useRouter();
   const { toast } = useToast();
 
@@ -35,6 +38,16 @@ export default function LoginPage() {
     if (storedUser) {
       router.push('/dashboard');
     }
+    
+    // Fetch app settings for staff ID length
+    const fetchSettings = async () => {
+        const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
+        if (settingsDoc.exists()) {
+            setStaffIdLength(settingsDoc.data().staffIdLength || 6);
+        }
+    };
+    fetchSettings();
+
   }, [router]);
 
 
@@ -109,7 +122,7 @@ export default function LoginPage() {
                 <Label htmlFor="staff_id" className="font-headline text-primary-foreground/80 block mb-1.5">Staff ID</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input id="staff_id" name="staff_id" placeholder="Your 6-character ID" maxLength={6} className="transition-all duration-300 focus:bg-background pl-10" required />
+                  <Input id="staff_id" name="staff_id" placeholder={`Your ${staffIdLength}-character ID`} maxLength={staffIdLength} className="transition-all duration-300 focus:bg-background pl-10" required />
                 </div>
               </div>
               <div className="relative">

@@ -52,7 +52,7 @@ import { Input } from "@/components/ui/input"
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, Timestamp, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -82,12 +82,13 @@ type CompletedOrder = {
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
 
-const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder }>(({ order }, ref) => {
+const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
   return (
     <div ref={ref} className="print:p-8">
       <div className="text-center mb-4">
           <h2 className="font-headline text-2xl text-center">BMS</h2>
           <p className="text-center text-sm">Sale Receipt</p>
+          {storeAddress && <p className="text-center text-xs text-muted-foreground">{storeAddress}</p>}
         </div>
         <div className="py-2 space-y-2">
             <div className="text-xs text-muted-foreground">
@@ -191,7 +192,7 @@ const getStatusVariant = (status?: string) => {
     }
 }
 
-function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean }) {
+function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected, storeAddress }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean, storeAddress?: string }) {
     const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
     const [printingOrder, setPrintingOrder] = useState<CompletedOrder | null>(null);
     const receiptRef = useRef<HTMLDivElement>(null);
@@ -211,7 +212,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                 <DialogHeader>
                     <DialogTitle>Order Details</DialogTitle>
                 </DialogHeader>
-                {viewingOrder && <Receipt order={viewingOrder} />}
+                {viewingOrder && <Receipt order={viewingOrder} storeAddress={storeAddress} />}
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setViewingOrder(null)}>Close</Button>
                 </DialogFooter>
@@ -219,7 +220,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
         </Dialog>
 
         <div className="hidden">
-            {printingOrder && <Receipt order={printingOrder} ref={receiptRef} />}
+            {printingOrder && <Receipt order={printingOrder} ref={receiptRef} storeAddress={storeAddress}/>}
         </div>
         
         <Table>
@@ -389,6 +390,8 @@ export default function RegularOrdersPage() {
   const [date, setDate] = useState<DateRange | undefined>();
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
+  const [storeAddress, setStoreAddress] = useState<string | undefined>();
+
 
   const selectedOrdersRef = useRef<HTMLDivElement>(null);
   const [ordersToPrint, setOrdersToPrint] = useState<CompletedOrder[]>([]);
@@ -413,6 +416,12 @@ export default function RegularOrdersPage() {
         const orderSnapshot = await getDocs(ordersQuery);
         const ordersList = orderSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CompletedOrder[];
         setAllOrders(ordersList);
+
+        const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
+        if (settingsDoc.exists()) {
+            setStoreAddress(settingsDoc.data().storeAddress);
+        }
+
       } catch (error) {
         console.error("Error fetching orders:", error);
         toast({
@@ -503,6 +512,7 @@ export default function RegularOrdersPage() {
         onSelectAll={handleSelectAll}
         selectedOrders={selectedOrders}
         allOrdersSelected={selectedOrders.length > 0 && selectedOrders.length === orders.length}
+        storeAddress={storeAddress}
       />
     );
   };
@@ -603,7 +613,7 @@ export default function RegularOrdersPage() {
                 <h1 className="text-2xl font-bold mb-4">Selected Orders</h1>
                 {ordersToPrint.map(order => (
                     <div key={order.id} className="mb-8 p-4 border rounded-lg page-break-before:always">
-                        <Receipt order={order} />
+                        <Receipt order={order} storeAddress={storeAddress} />
                     </div>
                 ))}
             </div>

@@ -5,11 +5,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, ShieldCheck, Copy, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Loader2, ShieldCheck, Copy, KeyRound, Eye, EyeOff, Store, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { disableMfa, verifyMfaSetup, handleChangePassword, handleUpdateTheme } from '@/app/actions';
+import { disableMfa, verifyMfaSetup, handleChangePassword, handleUpdateTheme, updateAppSettings } from '@/app/actions';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -125,20 +125,9 @@ function ThemeSettings({ user }: { user: User }) {
         setIsSaving(true);
         const result = await handleUpdateTheme(user.staff_id, selectedTheme);
         if (result.success) {
-            const updatedUser = { ...user, theme: selectedTheme };
-            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-            
-            const root = document.documentElement;
-            root.classList.remove('theme-classic-light');
-            if (selectedTheme !== 'default') {
-                root.classList.add(`theme-${selectedTheme}`);
-            }
-
+            localStorage.setItem('loggedInUser', JSON.stringify({ ...user, theme: selectedTheme }));
             toast({ title: 'Theme saved!', description: 'Applying new theme...' });
-            
-            setTimeout(() => {
-                window.location.reload();
-            }, 300);
+            window.location.reload();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save your theme preference.' });
             setIsSaving(false);
@@ -172,12 +161,77 @@ function ThemeSettings({ user }: { user: User }) {
     )
 }
 
+function StoreCustomization({ currentSettings }: { currentSettings: any }) {
+    const { toast } = useToast();
+    const [storeAddress, setStoreAddress] = useState(currentSettings.storeAddress || '');
+    const [staffIdLength, setStaffIdLength] = useState(currentSettings.staffIdLength || 6);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSave = async () => {
+        setIsSubmitting(true);
+        const result = await updateAppSettings({
+            storeAddress,
+            staffIdLength: Number(staffIdLength)
+        });
+        if (result.success) {
+            toast({ title: 'Success!', description: 'Application settings have been updated.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Store Customization</CardTitle>
+                <CardDescription>Manage global settings for your store.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="store-address">Store Address</Label>
+                    <Input id="store-address" value={storeAddress} onChange={e => setStoreAddress(e.target.value)} placeholder="e.g., 123 Bakery Lane, Uyo" />
+                    <p className="text-xs text-muted-foreground">This address will appear on printed receipts.</p>
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="staff-id-length">Staff ID Length</Label>
+                    <Input id="staff-id-length" type="number" min="4" max="10" value={staffIdLength} onChange={e => setStaffIdLength(Number(e.target.value))} />
+                    <p className="text-xs text-muted-foreground">Sets the character length for staff IDs (4-10). Changing this will update all existing staff IDs.</p>
+                </div>
+            </CardContent>
+            <CardFooter>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                         <Button disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            Save Customizations
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Changing the Staff ID length is an irreversible action that will modify all existing staff records. Please confirm you want to proceed.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleSave}>Yes, I Understand</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </CardFooter>
+        </Card>
+    )
+}
+
 export default function SettingsPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
     const [isMfaEnabled, setIsMfaEnabled] = useState<boolean | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [view, setView] = useState<'main' | 'setup' | 'verify'>('main');
+    const [appSettings, setAppSettings] = useState({});
 
     // MFA Setup State
     const [mfaSetup, setMfaSetup] = useState<MfaSetup | null>(null);
@@ -191,7 +245,7 @@ export default function SettingsPage() {
             const parsedUser: User = JSON.parse(storedUser);
             setUser(parsedUser);
 
-            const unsub = onSnapshot(doc(db, "staff", parsedUser.staff_id), (doc) => {
+            const unsubUser = onSnapshot(doc(db, "staff", parsedUser.staff_id), (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
                     setIsMfaEnabled(data.mfa_enabled || false);
@@ -199,7 +253,17 @@ export default function SettingsPage() {
                 }
                 if (isLoading) setIsLoading(false);
             });
-            return () => unsub();
+            
+            const unsubSettings = onSnapshot(doc(db, "settings", "app_config"), (doc) => {
+                if(doc.exists()) {
+                    setAppSettings(doc.data());
+                }
+            });
+
+            return () => {
+                unsubUser();
+                unsubSettings();
+            };
         } else {
             setIsLoading(false);
         }
@@ -252,9 +316,13 @@ export default function SettingsPage() {
         return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin"/></div>
     }
 
+    const canCustomizeStore = user.role === 'Manager' || user.role === 'Developer';
+
     return (
         <div className="flex flex-col gap-8">
             <h1 className="text-2xl font-bold font-headline">Settings</h1>
+
+            {canCustomizeStore && <StoreCustomization currentSettings={appSettings} />}
 
             <ThemeSettings user={user} />
             
