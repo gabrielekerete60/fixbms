@@ -58,11 +58,12 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import Link from "next/link";
+import { Separator } from "@/components/ui/separator";
 
 type User = {
     name: string;
@@ -94,6 +95,94 @@ type Ingredient = {
     unit: string;
     stock: number;
 };
+
+
+function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[], onApproval: () => void }) {
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+    
+    const ingredientsWithStock = useMemo(() => {
+        return batch.ingredients.map(reqIng => {
+            const stockIng = allIngredients.find(sIng => sIng.id === reqIng.ingredientId);
+            const stockAvailable = stockIng?.stock || 0;
+            const hasEnough = stockAvailable >= reqIng.quantity;
+            return { ...reqIng, stockAvailable, hasEnough };
+        });
+    }, [batch.ingredients, allIngredients]);
+
+    const canApprove = ingredientsWithStock.every(ing => ing.hasEnough);
+    
+    const handleApprove = async () => {
+        setIsLoading(true);
+        const result = await approveIngredientRequest(batch.id, batch.ingredients, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Batch approved and moved to production.' });
+            onApproval();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    }
+
+    const handleDecline = async () => {
+        setIsLoading(true);
+        const result = await declineProductionBatch(batch.id, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Batch has been declined.' });
+            onApproval();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild><Button size="sm">Review</Button></DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Approve Production Batch?</DialogTitle>
+                    <DialogDescription>
+                        Batch ID: {batch.id.substring(0,6)}...<br/>
+                        Request for <strong>{batch.quantityToProduce} x {batch.productName}</strong>. This will deduct ingredients from inventory.
+                    </DialogDescription>
+                    <DialogClose />
+                </DialogHeader>
+                <div className="max-h-60 overflow-y-auto">
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead>Required</TableHead><TableHead>In Stock</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {ingredientsWithStock.map(ing => (
+                                <TableRow key={ing.ingredientId}>
+                                    <TableCell>{ing.ingredientName}</TableCell>
+                                    <TableCell>{ing.quantity} {ing.unit}</TableCell>
+                                    <TableCell>{ing.stockAvailable.toFixed(2)} {ing.unit}</TableCell>
+                                    <TableCell>
+                                        {ing.hasEnough ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-destructive" />}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                <DialogFooter className="gap-2">
+                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                     <Button variant="destructive" onClick={handleDecline} disabled={isLoading}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4" />}
+                        Decline
+                    </Button>
+                     <Button onClick={handleApprove} disabled={isLoading || !canApprove}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
+                        Approve
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -137,6 +226,12 @@ function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept:
                         </TableBody>
                     </Table>
                 </div>
+                {transfer.notes && (
+                    <div className="text-sm space-y-1 mt-2">
+                        <p className="font-semibold">Notes from Sender:</p>
+                        <p className="p-2 bg-muted rounded-md">{transfer.notes}</p>
+                    </div>
+                )}
                 <div className="font-bold text-lg flex justify-between border-t pt-4">
                     <span>Total Run Value:</span>
                     <span>₦{(transfer.totalValue || 0).toLocaleString()}</span>
@@ -199,7 +294,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
     }
     
     return (
-        <Card>
+        <Card className="flex-1">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Trash /> Report Spoiled or Damaged Stock</CardTitle>
                 <CardDescription>
@@ -479,102 +574,106 @@ export default function StockControlPage() {
      return (
          <div className="flex flex-col gap-6">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
-            
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Package />
-                        Acknowledge Incoming Stock
-                        {pendingTransfers.length > 0 && <Badge variant="destructive">{pendingTransfers.length}</Badge>}
-                    </CardTitle>
-                    <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>From</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Items</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                            ) : pendingTransfers.length === 0 ? (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
-                            ) : (
-                                pendingTransfers.map(t => (
-                                    <TableRow key={t.id}>
-                                        <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
-                                        <TableCell>{t.from_staff_name}</TableCell>
-                                        <TableCell>
-                                            {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
-                                        </TableCell>
-                                        <TableCell>
-                                            {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <AcceptRunDialog transfer={t} onAccept={handleAcknowledge} />
-                                        </TableCell>
+            <div className="flex flex-col lg:flex-row gap-6">
+                 <div className="flex flex-col gap-6 flex-[2]">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Package />
+                                Acknowledge Incoming Stock
+                                {pendingTransfers.length > 0 && <Badge variant="destructive">{pendingTransfers.length}</Badge>}
+                            </CardTitle>
+                            <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>From</TableHead>
+                                        <TableHead>Type</TableHead>
+                                        <TableHead>Items</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                    ) : pendingTransfers.length === 0 ? (
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
+                                    ) : (
+                                        pendingTransfers.map(t => (
+                                            <TableRow key={t.id}>
+                                                <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                                <TableCell>{t.from_staff_name}</TableCell>
+                                                <TableCell>
+                                                    {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <AcceptRunDialog transfer={t} onAccept={handleAcknowledge} />
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><History /> My Transfer History</CardTitle>
-                    <CardDescription>A log of all stock transfers you have successfully accepted.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>From</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Action</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                        ) : completedTransfers.length === 0 ? (
-                            <TableRow><TableCell colSpan={5} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
-                        ) : (
-                            completedTransfers.map(t => (
-                                <TableRow key={t.id}>
-                                    <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
-                                    <TableCell>{t.from_staff_name}</TableCell>
-                                    <TableCell>
-                                        {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
-                                    </TableCell>
-                                    <TableCell><Badge>{t.status}</Badge></TableCell>
-                                    <TableCell className="text-right">
-                                        {t.is_sales_run && t.status === 'completed' && (
-                                            <Button variant="outline" size="sm" asChild>
-                                                <Link href={`/dashboard/sales-runs/${t.id}`}><Eye className="mr-2 h-4 w-4"/>View Details</Link>
-                                            </Button>
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-            
-            {userRole !== 'Baker' && (
-                <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
-            )}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><History /> My Transfer History</CardTitle>
+                            <CardDescription>A log of all stock transfers you have successfully accepted.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>From</TableHead>
+                                        <TableHead>Type</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Action</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                    <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                ) : completedTransfers.length === 0 ? (
+                                    <TableRow><TableCell colSpan={5} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
+                                ) : (
+                                    completedTransfers.map(t => (
+                                        <TableRow key={t.id}>
+                                            <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                            <TableCell>{t.from_staff_name}</TableCell>
+                                            <TableCell>
+                                                {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
+                                            </TableCell>
+                                            <TableCell><Badge>{t.status}</Badge></TableCell>
+                                            <TableCell className="text-right">
+                                                {t.is_sales_run && t.status === 'completed' && (
+                                                    <Button variant="outline" size="sm" asChild>
+                                                        <Link href={`/dashboard/sales-runs/${t.id}`}><Eye className="mr-2 h-4 w-4"/>View Details</Link>
+                                                    </Button>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </div>
+                {userRole !== 'Baker' && (
+                    <div className="flex-1">
+                        <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
+                    </div>
+                )}
+            </div>
          </div>
      )
   }
@@ -744,7 +843,7 @@ export default function StockControlPage() {
                                     <TableCell>{batch.productName}</TableCell>
                                     <TableCell>{batch.quantityToProduce}</TableCell>
                                     <TableCell>{batch.requestedByName}</TableCell>
-                                    <TableCell>Implement Dialog Here</TableCell>
+                                    <TableCell><ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchPageData} /></TableCell>
                                 </TableRow>
                             )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are pending approval.</TableCell></TableRow>}
                         </TableBody>
