@@ -327,24 +327,38 @@ export async function clearDatabase(): Promise<ActionResult> {
 }
 
 export async function seedEmptyData(): Promise<ActionResult> {
-  console.log("Attempting to seed empty collections...");
-  const collectionsToCreate = Object.keys(seedData);
-  
+  console.log("Attempting to seed empty data with users...");
   try {
-    for (const collectionName of collectionsToCreate) {
-      const placeholderRef = doc(collection(db, collectionName), '__placeholder__');
-      const batch = writeBatch(db);
-      batch.set(placeholderRef, { exists: true });
-      batch.delete(placeholderRef);
-      await batch.commit();
-      console.log(`Created empty collection: ${collectionName}`);
+    // First, clear the entire database to ensure a fresh start
+    await clearDatabase();
+    
+    // Then, create a batch to seed only the staff
+    const batch = writeBatch(db);
+    
+    // Create all collections by adding and deleting a placeholder, except for staff
+    const allCollections = Object.keys(seedData);
+    for (const collectionName of allCollections) {
+        if (collectionName !== 'staff') {
+            const placeholderRef = doc(collection(db, collectionName), '__placeholder__');
+            batch.set(placeholderRef, { exists: true });
+            batch.delete(placeholderRef);
+        }
     }
-    console.log("Empty collections created successfully.");
+
+    // Now, seed the staff data
+    seedData.staff.forEach((staffMember) => {
+      const docRef = doc(db, "staff", staffMember.staff_id);
+      batch.set(docRef, staffMember);
+    });
+
+    await batch.commit();
+
+    console.log("Database seeded with only staff successfully.");
     return { success: true };
   } catch (error) {
-    console.error("Error seeding empty collections:", error);
+    console.error("Error seeding empty data:", error);
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-    return { success: false, error: `Failed to seed empty collections: ${errorMessage}` };
+    return { success: false, error: `Failed to seed empty data: ${errorMessage}` };
   }
 }
 
@@ -352,3 +366,4 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
+

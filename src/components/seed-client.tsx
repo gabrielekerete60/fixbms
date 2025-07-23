@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useTransition } from "react";
@@ -88,7 +89,7 @@ export function SeedClient() {
       if (result.success) {
         toast({
           title: "Success!",
-          description: "Empty collections have been created.",
+          description: "Empty collections with only staff data have been created.",
         });
       } else {
         toast({
@@ -132,14 +133,14 @@ export function SeedClient() {
         <AlertDialogTrigger asChild>
           <Button variant="secondary" disabled={isPending} className="w-full font-headline">
             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Seed Information
+            Seed Full Demo Data
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-headline">Are you sure?</AlertDialogTitle>
             <AlertDialogDescription className="font-body">
-              This will add initial data to the database. Existing data with the same IDs may be overwritten.
+              This will add initial data to all collections. Existing data with the same IDs may be overwritten.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -153,14 +154,14 @@ export function SeedClient() {
         <AlertDialogTrigger asChild>
           <Button variant="outline" disabled={isPending} className="w-full font-headline">
             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Seed Empty Data
+            Seed Empty (Users Only)
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-headline">Seed empty structure?</AlertDialogTitle>
             <AlertDialogDescription className="font-body">
-              This will create all necessary collections in the database but will not add any data. This is useful for a clean production setup.
+              This will clear the database, then create all collections with only staff data. Useful for a clean production setup.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
