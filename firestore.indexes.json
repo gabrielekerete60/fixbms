@@ -10,10 +10,6 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "date",
           "order": "DESCENDING"
         }
@@ -23,30 +19,26 @@
       "collectionGroup": "transfers",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "to_staff_id",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "date",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "transfers",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "to_staff_id",
-          "order": "ASCENDING"
-        },
         {
           "fieldPath": "is_sales_run",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "to_staff_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "transfers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "to_staff_id",
           "order": "ASCENDING"
         },
         {

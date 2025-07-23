@@ -1243,8 +1243,7 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
         const q = query(
             collection(db, 'transfers'),
             where('status', '==', 'pending'),
-            where('notes', '>=', 'Return from production batch'),
-            where('notes', '<=', 'Return from production batch' + '\uf8ff')
+            where('notes', 'like', 'Return from production batch%')
         );
         const querySnapshot = await getDocs(q);
 
@@ -1674,6 +1673,9 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
         () => getDocs(query(collection(db, 'transfers'), where('is_sales_run', '==', true), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('is_sales_run', '==', true), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'waste_logs'), where('staffId', '==', 'test'), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'pending'), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'completed'), orderBy('date', 'desc'))),
+
     ];
 
     const missingIndexes = new Set<string>();

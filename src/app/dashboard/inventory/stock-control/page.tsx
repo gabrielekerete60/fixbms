@@ -280,6 +280,7 @@ export default function StockControlPage() {
   const [myWasteLogs, setMyWasteLogs] = useState<WasteLog[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingBatches, setIsLoadingBatches] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const fetchPageData = async () => {
@@ -343,9 +344,11 @@ export default function StockControlPage() {
     fetchPageData();
 
     // Real-time listener for pending batches (for storekeeper)
+    setIsLoadingBatches(true);
     const qPending = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
     const unsubPending = onSnapshot(qPending, (snapshot) => {
         setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate().toISOString() } as ProductionBatch)));
+        setIsLoadingBatches(false);
     });
 
     return () => unsubPending();
@@ -733,7 +736,9 @@ export default function StockControlPage() {
                     <Table>
                         <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Product</TableHead><TableHead>Quantity</TableHead><TableHead>Requested By</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
-                            {pendingBatches.length > 0 ? pendingBatches.map(batch => (
+                            {isLoadingBatches ? (
+                                 <TableRow><TableCell colSpan={5} className="text-center h-24"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : pendingBatches.length > 0 ? pendingBatches.map(batch => (
                                 <TableRow key={batch.id}>
                                     <TableCell>{format(new Date(batch.createdAt), 'PPP')}</TableCell>
                                     <TableCell>{batch.productName}</TableCell>
