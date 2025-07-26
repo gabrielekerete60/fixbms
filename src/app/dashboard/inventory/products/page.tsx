@@ -9,6 +9,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter
 } from "@/components/ui/card";
 import {
   Table,
@@ -17,10 +18,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, FileUp, Loader2, Calendar as CalendarIcon } from "lucide-react";
+import { MoreHorizontal, PlusCircle, FileUp, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,10 +65,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { DateRange } from "react-day-picker";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 
 type Product = {
   id: string;
@@ -78,6 +76,12 @@ type Product = {
   image: string;
   "data-ai-hint": string;
   costPrice?: number;
+};
+
+type User = {
+  name: string;
+  role: string;
+  staff_id: string;
 };
 
 const getStatusBadge = (stock: number) => {
@@ -116,11 +120,11 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
 
     useEffect(() => {
         if (product) {
-            setName(product.name);
-            setCategory(product.category);
+            setName(product.name || "");
+            setCategory(product.category || "");
             setCostPrice(product.costPrice || 0);
-            setPrice(product.price);
-            setStock(product.stock);
+            setPrice(product.price || 0);
+            setStock(product.stock || 0);
             setUnit(product.unit || "");
         } else {
             setName("");
@@ -215,6 +219,7 @@ function ExportDialog({ children, onExport }: { children: React.ReactNode, onExp
 
 export default function ProductsPage() {
   const { toast } = useToast();
+  const [user, setUser] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
@@ -244,6 +249,10 @@ export default function ProductsPage() {
   }, [toast]);
 
   useEffect(() => {
+    const storedUser = localStorage.getItem('loggedInUser');
+    if (storedUser) {
+        setUser(JSON.parse(storedUser));
+    }
     fetchProducts();
     window.addEventListener('focus', fetchProducts);
     return () => {
@@ -284,10 +293,46 @@ export default function ProductsPage() {
     }
   };
 
+  const { productsWithFinancials, grandTotalValue, grandTotalProfit } = useMemo(() => {
+    const filtered = products.filter(p => {
+        if (activeTab === 'all') return true;
+        if (activeTab === 'in-stock') return p.stock >= 20;
+        if (activeTab === 'low-stock') return p.stock > 0 && p.stock < 20;
+        if (activeTab === 'out-of-stock') return p.stock === 0;
+        return true;
+    });
+
+    let grandTotalValue = 0;
+    let grandTotalProfit = 0;
+
+    const productsWithFinancials = filtered.map(p => {
+      const price = Number(p.price) || 0;
+      const costPrice = Number(p.costPrice) || 0;
+      const stock = Number(p.stock) || 0;
+
+      const totalValue = stock * costPrice;
+      const totalProfit = (price - costPrice) * stock;
+
+      grandTotalValue += totalValue;
+      grandTotalProfit += totalProfit;
+
+      return {
+        ...p,
+        price,
+        costPrice,
+        profitPerItem: price - costPrice,
+        totalValue,
+        totalProfit
+      };
+    });
+
+    return { productsWithFinancials, grandTotalValue, grandTotalProfit };
+  }, [products, activeTab]);
+  
   const handleExport = () => {
-    const headers = ["ID", "Name", "Category", "Cost Price", "Selling Price", "Stock", "Unit"];
-    const rows = productsWithProfit.map(p => 
-        [p.id, p.name, p.category, p.costPrice || 0, p.price, p.stock, p.unit].join(',')
+    const headers = ["ID", "Name", "Category", "Cost Price", "Selling Price", "Profit Per Item", "Stock", "Unit", "Total Value", "Total Profit"];
+    const rows = productsWithFinancials.map(p => 
+        [p.id, p.name, p.category, p.costPrice || 0, p.price, p.profitPerItem, p.stock, p.unit, p.totalValue, p.totalProfit].join(',')
     );
     const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.join("\n");
     const encodedUri = encodeURI(csvContent);
@@ -300,29 +345,9 @@ export default function ProductsPage() {
     toast({ title: "Success", description: "Product data exported." });
   };
 
+  const categories = useMemo(() => ['All', ...new Set(products.map(p => p.category))], [products]);
 
-  const productsWithProfit = useMemo(() => {
-    const filtered = products.filter(p => {
-        if (activeTab === 'all') return true;
-        if (activeTab === 'in-stock') return p.stock >= 20;
-        if (activeTab === 'low-stock') return p.stock > 0 && p.stock < 20;
-        if (activeTab === 'out-of-stock') return p.stock === 0;
-        return true;
-    });
-
-    return filtered.map(p => {
-      const price = Number(p.price) || 0;
-      const costPrice = Number(p.costPrice) || 0;
-      return {
-        ...p,
-        price: price,
-        costPrice: costPrice,
-        profit: price - costPrice,
-      };
-    });
-  }, [products, activeTab]);
-
-  const categories = useMemo(() => [...new Set(products.map(p => p.category))], [products]);
+  const canViewFinancials = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer';
 
   return (
     <div className="flex flex-col gap-4">
@@ -378,10 +403,11 @@ export default function ProductsPage() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Cost Price</TableHead>
+                    {canViewFinancials && <TableHead>Cost Price</TableHead>}
                     <TableHead>Selling Price</TableHead>
-                    <TableHead>Profit</TableHead>
                     <TableHead>Stock</TableHead>
+                    {canViewFinancials && <TableHead>Total Value</TableHead>}
+                    {canViewFinancials && <TableHead>Total Profit</TableHead>}
                     <TableHead>
                       <span className="sr-only">Actions</span>
                     </TableHead>
@@ -390,12 +416,12 @@ export default function ProductsPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">
+                      <TableCell colSpan={canViewFinancials ? 8 : 6} className="h-24 text-center">
                         <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                       </TableCell>
                     </TableRow>
-                  ) : productsWithProfit.length > 0 ? (
-                    productsWithProfit.map((product) => (
+                  ) : productsWithFinancials.length > 0 ? (
+                    productsWithFinancials.map((product) => (
                       <TableRow key={product.id}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
@@ -411,12 +437,15 @@ export default function ProductsPage() {
                           </div>
                         </TableCell>
                         <TableCell>{getStatusBadge(product.stock)}</TableCell>
-                        <TableCell>₦{(product.costPrice || 0).toFixed(2)}</TableCell>
+                        {canViewFinancials && <TableCell>₦{(product.costPrice || 0).toFixed(2)}</TableCell>}
                         <TableCell>₦{product.price.toFixed(2)}</TableCell>
-                        <TableCell className={product.profit < 0 ? 'text-destructive' : 'text-green-600'}>
-                           {product.profit < 0 ? `-₦${Math.abs(product.profit).toFixed(2)}` : `₦${product.profit.toFixed(2)}`}
-                        </TableCell>
-                        <TableCell>{product.stock > 0 ? `${product.stock} ${product.unit}` : '--'}</TableCell>
+                        <TableCell>{product.stock > 0 ? `${product.stock} ${product.unit || ''}`.trim() : '--'}</TableCell>
+                        {canViewFinancials && <TableCell>₦{product.totalValue.toFixed(2)}</TableCell>}
+                        {canViewFinancials && 
+                          <TableCell className={product.totalProfit < 0 ? 'text-destructive' : 'text-green-600'}>
+                              {product.totalProfit < 0 ? `-₦${Math.abs(product.totalProfit).toFixed(2)}` : `₦${product.totalProfit.toFixed(2)}`}
+                          </TableCell>
+                        }
                         <TableCell>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -444,12 +473,22 @@ export default function ProductsPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">
+                      <TableCell colSpan={canViewFinancials ? 8 : 6} className="h-24 text-center">
                         No products found for this filter.
                       </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
+                {canViewFinancials && (
+                    <TableFooter>
+                        <TableRow>
+                            <TableCell colSpan={5} className="font-bold text-right">Grand Totals</TableCell>
+                            <TableCell className="font-bold">₦{grandTotalValue.toFixed(2)}</TableCell>
+                            <TableCell className="font-bold text-green-600">₦{grandTotalProfit.toFixed(2)}</TableCell>
+                            <TableCell></TableCell>
+                        </TableRow>
+                    </TableFooter>
+                )}
               </Table>
                 </CardContent>
               </Card>
@@ -485,3 +524,5 @@ export default function ProductsPage() {
     </div>
   );
 }
+
+    
