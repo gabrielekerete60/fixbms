@@ -445,7 +445,7 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
         const customersSnapshot = await getDocs(customersQuery);
 
         const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-        const weekEnd = endOfDay(now);
+        const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
         const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
         const weeklyRevenueData = daysInWeek.map(day => ({
@@ -549,7 +549,7 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
     const weekStartTimestamp = Timestamp.fromDate(weekStart);
 
     try {
-        const activeBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
+        const activeBatchesQuery = query(collection(db, 'production_batches'), where('status', 'in', ['in_production', 'pending_approval']));
         const activeBatchesSnapshot = await getDocs(activeBatchesQuery);
 
         const recentCompletedQuery = query(collection(db, 'production_batches'), where('status', '==', 'completed'), where('approvedAt', '>=', weekStartTimestamp));

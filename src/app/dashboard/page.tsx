@@ -38,7 +38,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RevenueChart } from '@/components/revenue-chart';
-import { checkForMissingIndexes, getBakerDashboardStats, BakerDashboardStats } from '../actions';
+import { checkForMissingIndexes, getDashboardStats, getStaffDashboardStats, getBakerDashboardStats } from '../actions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +49,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { collection, query, where, onSnapshot, Timestamp, getDocs } from "firebase/firestore";
 import { db } from '@/lib/firebase';
-import { startOfDay, startOfWeek, endOfWeek, startOfMonth, startOfYear, eachDayOfInterval, format, subDays } from 'date-fns';
+import { startOfMonth } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
@@ -72,6 +72,12 @@ type StaffDashboardStats = {
     personalStockCount: number;
     pendingTransfersCount: number;
     monthlyWasteReports: number;
+};
+
+type BakerDashboardStats = {
+    activeBatches: number;
+    producedThisWeek: number;
+    weeklyProduction: { day: string, quantity: number }[];
 };
 
 type StorekeeperDashboardStats = {
@@ -115,85 +121,28 @@ function ManagementDashboard() {
   const [missingIndexes, setMissingIndexes] = useState<string[]>([]);
   const [revenueFilter, setRevenueFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
 
-  const fetchIndexData = useCallback(async () => {
-    const indexData = await checkForMissingIndexes();
-    setMissingIndexes(indexData.requiredIndexes);
+  const fetchDashboardData = useCallback(async (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
+    setIsLoading(true);
+    try {
+        const [indexData, dashboardStats] = await Promise.all([
+            checkForMissingIndexes(),
+            getDashboardStats(filter)
+        ]);
+        setMissingIndexes(indexData.requiredIndexes);
+        setStats(dashboardStats);
+    } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+    } finally {
+        setIsLoading(false);
+    }
   }, []);
 
+
   useEffect(() => {
-    fetchIndexData();
-
-    const now = new Date();
-    let startOfPeriod: Date;
-
-    switch (revenueFilter) {
-        case 'daily':
-            startOfPeriod = startOfDay(now);
-            break;
-        case 'weekly':
-            startOfPeriod = startOfWeek(now, { weekStartsOn: 1 });
-            break;
-        case 'monthly':
-        default:
-            startOfPeriod = startOfMonth(now);
-            break;
-        case 'yearly':
-            startOfPeriod = startOfYear(now);
-            break;
-    }
-    const startOfPeriodTimestamp = Timestamp.fromDate(startOfPeriod);
-
-    // Real-time listener for orders
-    const ordersQuery = query(collection(db, "orders"), where("date", ">=", startOfPeriodTimestamp));
-    const unsubscribeOrders = onSnapshot(ordersQuery, (querySnapshot) => {
-        let revenue = 0;
-        let activeOrders = 0;
-        let sales = querySnapshot.size;
-
-        querySnapshot.forEach(doc => {
-            const order = doc.data();
-            revenue += order.total;
-            if (order.status === 'Pending') {
-                activeOrders++;
-            }
-        });
-        
-        // Real-time weekly revenue calculation
-        const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-        const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-        const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
-        const weeklyRevenueData = daysInWeek.map(day => ({ day: format(day, 'E'), revenue: 0 }));
-        
-        querySnapshot.forEach(doc => {
-            const order = doc.data();
-            const orderDate = (order.date as Timestamp).toDate();
-            if (orderDate >= weekStart && orderDate <= weekEnd) {
-                const dayOfWeek = format(orderDate, 'E'); 
-                const index = weeklyRevenueData.findIndex(d => d.day === dayOfWeek);
-                if (index !== -1) {
-                    weeklyRevenueData[index].revenue += order.total;
-                }
-            }
-        });
-        
-        setStats(prev => ({ ...prev, revenue, activeOrders, sales, weeklyRevenue: weeklyRevenueData } as DashboardStats));
-        if (isLoading) setIsLoading(false);
-    });
-
-    // One-time fetch for customers
-    const fetchCustomers = async () => {
-        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfPeriodTimestamp));
-        const customersSnapshot = await getDocs(customersQuery);
-        setStats(prev => ({ ...prev, customers: customersSnapshot.size } as DashboardStats));
-    };
-    
-    fetchCustomers();
-
-    return () => unsubscribeOrders();
-  }, [revenueFilter, isLoading, fetchIndexData]);
+    fetchDashboardData(revenueFilter);
+  }, [revenueFilter, fetchDashboardData]);
 
   const handleFilterChange = (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
-    setIsLoading(true);
     setRevenueFilter(filter);
   };
   
@@ -270,27 +219,39 @@ function ManagementDashboard() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Recent Allotment Activity</CardTitle>
-            <CardDescription>A log of ingredients recently taken by bakers from their weekly allotment.</CardDescription>
+            <CardTitle>Real Experience Score</CardTitle>
+            <CardDescription>Measures the overall user experience.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Baker</TableHead>
-                  <TableHead>Ingredient</TableHead>
-                  <TableHead className="text-right">Quantity</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    No allotment activity yet.
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+          <CardContent className="flex flex-col items-center justify-center gap-4">
+            <div className="relative h-32 w-32">
+                 <svg className="w-full h-full" viewBox="0 0 36 36">
+                    <path
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        className="stroke-current text-muted"
+                        strokeWidth="3"
+                        fill="none"
+                    />
+                    <path
+                        className="stroke-current text-yellow-500"
+                        strokeWidth="3"
+                        strokeDasharray="72, 100"
+                        strokeLinecap="round"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    />
+                 </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-4xl font-bold text-yellow-500">72</span>
+                </div>
+            </div>
+             <div className="text-center">
+              <p className="font-semibold text-lg text-yellow-500">Needs Improvement</p>
+              <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
+                <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                <span>Below 90</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">Less than 75% of visits had a great experience.</p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -305,32 +266,15 @@ function StaffDashboard({ user }: { user: User }) {
   useEffect(() => {
     if (!user.staff_id) return;
     
-    const personalStockQuery = collection(db, 'staff', user.staff_id, 'personal_stock');
-    const pendingTransfersQuery = query(collection(db, 'transfers'), where('to_staff_id', '==', user.staff_id), where('status', '==', 'pending'));
-    const wasteLogsQuery = query(collection(db, 'waste_logs'), where('staffId', '==', user.staff_id), where('date', '>=', Timestamp.fromDate(startOfMonth(new Date()))));
-
-    const unsubPersonalStock = onSnapshot(personalStockQuery, (snapshot) => {
-        const personalStockCount = snapshot.docs.reduce((sum, doc) => sum + doc.data().stock, 0);
-        setStats(prev => ({...prev, personalStockCount} as StaffDashboardStats));
-        if (isLoading) setIsLoading(false);
-    });
-
-    const unsubPendingTransfers = onSnapshot(pendingTransfersQuery, (snapshot) => {
-        setStats(prev => ({...prev, pendingTransfersCount: snapshot.size} as StaffDashboardStats));
-        if (isLoading) setIsLoading(false);
-    });
-
-    const unsubWasteLogs = onSnapshot(wasteLogsQuery, (snapshot) => {
-        setStats(prev => ({...prev, monthlyWasteReports: snapshot.size} as StaffDashboardStats));
-        if (isLoading) setIsLoading(false);
-    });
-
-    return () => {
-        unsubPersonalStock();
-        unsubPendingTransfers();
-        unsubWasteLogs();
+    const fetchStats = async () => {
+        setIsLoading(true);
+        const data = await getStaffDashboardStats(user.staff_id);
+        setStats(data);
+        setIsLoading(false);
     }
-  }, [user.staff_id, isLoading]);
+    fetchStats();
+
+  }, [user.staff_id]);
   
   if (isLoading || !stats) {
     return (
@@ -431,59 +375,14 @@ function BakerDashboard({ user }: { user: User }) {
   const [dateRange, setDateRange] = useState<'weekly' | 'monthly'>('weekly');
 
   useEffect(() => {
-    let start, end;
-    const now = new Date();
-    if(dateRange === 'weekly') {
-        start = startOfWeek(now, { weekStartsOn: 1 });
-        end = endOfWeek(now, { weekStartsOn: 1 });
-    } else {
-        start = startOfMonth(now);
-        end = now;
+    const fetchBakerData = async () => {
+        setIsLoading(true);
+        const data = await getBakerDashboardStats();
+        setStats(data);
+        setIsLoading(false);
     }
-
-    const qBatches = query(
-        collection(db, 'production_batches'), 
-        where('approvedAt', '>=', Timestamp.fromDate(start)),
-        where('approvedAt', '<=', Timestamp.fromDate(end))
-    );
-    
-    const unsubscribe = onSnapshot(qBatches, (snapshot) => {
-        let producedThisPeriod = 0;
-        
-        const interval = eachDayOfInterval({start, end});
-        const productionData = interval.map(day => ({
-            day: format(day, dateRange === 'weekly' ? 'E' : 'dd'),
-            quantity: 0
-        }));
-
-        snapshot.docs.forEach(doc => {
-            const batch = doc.data();
-            if(batch.status === 'completed') {
-                const produced = batch.successfullyProduced || 0;
-                producedThisPeriod += produced;
-
-                const approvedDate = (batch.approvedAt as Timestamp).toDate();
-                const dayKey = format(approvedDate, dateRange === 'weekly' ? 'E' : 'dd');
-                const index = productionData.findIndex(d => d.day === dayKey);
-                if (index !== -1) {
-                    productionData[index].quantity += produced;
-                }
-            }
-        });
-        
-        const activeBatchesQuery = query(collection(db, 'production_batches'), where('status', 'in', ['in_production', 'pending_approval']));
-        getDocs(activeBatchesQuery).then(activeSnapshot => {
-             setStats({
-                activeBatches: activeSnapshot.size,
-                producedThisWeek: producedThisPeriod,
-                weeklyProduction: productionData,
-            });
-            setIsLoading(false);
-        });
-    });
-
-    return () => unsubscribe();
-  }, [dateRange])
+    fetchBakerData();
+  }, [])
   
   if (isLoading || !stats) {
     return (
@@ -511,16 +410,7 @@ function BakerDashboard({ user }: { user: User }) {
         </Card>
          <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Produced ({dateRange})</CardTitle>
-             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6"><MoreHorizontal className="h-4 w-4 text-muted-foreground"/></Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                    <DropdownMenuItem onSelect={() => setDateRange('weekly')}>This Week</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setDateRange('monthly')}>This Month</DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
+            <CardTitle className="text-sm font-medium">Total Produced This Week</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.producedThisWeek}</div>
@@ -532,7 +422,7 @@ function BakerDashboard({ user }: { user: User }) {
        <Card className="mt-6">
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
-              <CardTitle>Production Chart ({dateRange})</CardTitle>
+              <CardTitle>Production Chart (This Week)</CardTitle>
               <CardDescription>Quantity of items you've baked this period.</CardDescription>
             </div>
           </CardHeader>
