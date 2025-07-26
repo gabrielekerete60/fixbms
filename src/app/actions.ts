@@ -807,6 +807,34 @@ export async function getFinancialSummary() {
     }
 }
 
+type DirectCostData = { description: string; category: string; quantity: number; total: number; };
+export async function addDirectCost(data: DirectCostData) {
+    try {
+        await addDoc(collection(db, 'directCosts'), {
+            ...data,
+            date: serverTimestamp()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error adding direct cost:", error);
+        return { success: false, error: 'Failed to add direct cost.' };
+    }
+}
+
+type IndirectCostData = { description: string; category: string; amount: number; };
+export async function addIndirectCost(data: IndirectCostData) {
+    try {
+        await addDoc(collection(db, 'indirectCosts'), {
+            ...data,
+            date: serverTimestamp()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error adding indirect cost:", error);
+        return { success: false, error: 'Failed to add indirect cost.' };
+    }
+}
+
 // ---- END NEW ACCOUNTING FUNCTIONS ----
 
 export type Creditor = {
@@ -2046,3 +2074,5 @@ export async function getStaffByRole(role: string): Promise<any[]> {
         return { id: doc.id, ...plainData };
     });
 }
+
+    

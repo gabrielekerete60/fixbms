@@ -5,10 +5,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, Users, TrendingDown, TrendingUp, HandCoins, MinusCircle, PlusCircle } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, Users, TrendingDown, TrendingUp, HandCoins, MinusCircle, PlusCircle, PenSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages } from '@/app/actions';
+import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost } from '@/app/actions';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 // --- Helper Functions & Type Definitions ---
 const formatCurrency = (amount: number) => `₦${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -25,6 +29,112 @@ type DirectCost = { id: string; date: { toDate: () => Date }; description: strin
 type IndirectCost = { id: string; date: { toDate: () => Date }; description: string; category: string; amount: number; };
 type ClosingStock = { id: string; item: string; remainingStock: string; amount: number; };
 type Wage = { id: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number }; netPay: number; };
+
+// --- DIALOGS FOR ADDING DATA ---
+
+function AddDirectCostDialog({ onCostAdded }: { onCostAdded: () => void }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [description, setDescription] = useState('');
+    const [category, setCategory] = useState('');
+    const [quantity, setQuantity] = useState<number | string>('');
+    const [total, setTotal] = useState<number | string>('');
+
+    const handleSubmit = async () => {
+        if (!description || !category || !quantity || !total) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fill all fields.' });
+            return;
+        }
+        setIsLoading(true);
+        const result = await addDirectCost({ description, category, quantity: Number(quantity), total: Number(total) });
+        if (result.success) {
+            toast({ title: 'Success', description: 'Direct cost added.' });
+            onCostAdded();
+            setIsOpen(false);
+            setDescription(''); setCategory(''); setQuantity(''); setTotal('');
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    };
+    
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm"><PenSquare className="mr-2 h-4 w-4" /> Add Direct Cost</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Add New Direct Cost</DialogTitle>
+                    <DialogDescription>Record a cost directly related to production, like raw materials.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid gap-2"><Label>Description</Label><Input value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Bag of Flour" /></div>
+                    <div className="grid gap-2"><Label>Category</Label><Input value={category} onChange={e => setCategory(e.target.value)} placeholder="e.g. Flour" /></div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2"><Label>Quantity</Label><Input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} /></div>
+                        <div className="grid gap-2"><Label>Total Cost (₦)</Label><Input type="number" value={total} onChange={e => setTotal(e.target.value)} /></div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleSubmit} disabled={isLoading}>{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Add Cost</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function AddIndirectCostDialog({ onCostAdded }: { onCostAdded: () => void }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [description, setDescription] = useState('');
+    const [category, setCategory] = useState('');
+    const [amount, setAmount] = useState<number | string>('');
+
+    const handleSubmit = async () => {
+        if (!description || !category || !amount) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fill all fields.' });
+            return;
+        }
+        setIsLoading(true);
+        const result = await addIndirectCost({ description, category, amount: Number(amount) });
+        if (result.success) {
+            toast({ title: 'Success', description: 'Indirect cost added.' });
+            onCostAdded();
+            setIsOpen(false);
+            setDescription(''); setCategory(''); setAmount('');
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    };
+    
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm"><PenSquare className="mr-2 h-4 w-4" /> Add Indirect Cost</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Add New Indirect Cost</DialogTitle>
+                    <DialogDescription>Record an operational cost not directly tied to a product, like rent or utilities.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid gap-2"><Label>Description</Label><Input value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Diesel for Generator" /></div>
+                    <div className="grid gap-2"><Label>Category</Label><Input value={category} onChange={e => setCategory(e.target.value)} placeholder="e.g. Utilities" /></div>
+                    <div className="grid gap-2"><Label>Amount (₦)</Label><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleSubmit} disabled={isLoading}>{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Add Cost</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 // --- Tab Components ---
 
@@ -147,7 +257,8 @@ function ExpensesTab() {
     const [closingStocks, setClosingStocks] = useState<ClosingStock[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
+    const fetchCosts = () => {
+        setIsLoading(true);
         Promise.all([
             getDirectCosts(),
             getIndirectCosts(),
@@ -158,6 +269,10 @@ function ExpensesTab() {
             setClosingStocks(stocks as ClosingStock[]);
             setIsLoading(false);
         });
+    }
+
+    useEffect(() => {
+        fetchCosts();
     }, []);
     
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -171,7 +286,10 @@ function ExpensesTab() {
             </TabsList>
             <TabsContent value="direct" className="mt-4">
                  <Card>
-                    <CardHeader><CardTitle>Direct Costs</CardTitle></CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <div className="space-y-1.5"><CardTitle>Direct Costs</CardTitle><CardDescription>Costs directly tied to production, like ingredients.</CardDescription></div>
+                        <AddDirectCostDialog onCostAdded={fetchCosts} />
+                    </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Quantity</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
@@ -182,7 +300,10 @@ function ExpensesTab() {
             </TabsContent>
             <TabsContent value="indirect" className="mt-4">
                 <Card>
-                    <CardHeader><CardTitle>Indirect Costs</CardTitle></CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <div className="space-y-1.5"><CardTitle>Indirect Costs</CardTitle><CardDescription>Operational costs not tied to a single product.</CardDescription></div>
+                         <AddIndirectCostDialog onCostAdded={fetchCosts} />
+                    </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
@@ -272,3 +393,5 @@ export default function AccountingPage() {
     </div>
   );
 }
+
+    
