@@ -1240,10 +1240,12 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
 
 export async function getProductionTransfers(): Promise<Transfer[]> {
      try {
+        const notesPrefix = 'Return from production batch';
         const q = query(
             collection(db, 'transfers'),
             where('status', '==', 'pending'),
-            where('notes', 'like', 'Return from production batch%')
+            where('notes', '>=', notesPrefix),
+            where('notes', '<=', notesPrefix + '\uf8ff')
         );
         const querySnapshot = await getDocs(q);
 
