@@ -309,18 +309,20 @@ export default function AccountingPage() {
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-bold font-headline">Accounting Dashboard</h1>
       <Tabs defaultValue="summary">
-        <TabsList className="grid w-full grid-cols-5 md:grid-cols-10">
-          <TabsTrigger value="summary">Summary</TabsTrigger>
-          <TabsTrigger value="sales-records">Sales records</TabsTrigger>
-          <TabsTrigger value="sales-drinks">Sales - Drinks</TabsTrigger>
-          <TabsTrigger value="direct-cost">Direct cost</TabsTrigger>
-          <TabsTrigger value="indirect-cost">Indirect cost</TabsTrigger>
-          <TabsTrigger value="debt">Debt</TabsTrigger>
-          <TabsTrigger value="wages">Wages</TabsTrigger>
-          <TabsTrigger value="closing-stocks">Closing Stocks</TabsTrigger>
-          <TabsTrigger value="trading-acct">Trading acct.</TabsTrigger>
-          <TabsTrigger value="financials">Financials</TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto">
+          <TabsList className="md:grid md:w-full md:grid-cols-10">
+            <TabsTrigger value="summary">Summary</TabsTrigger>
+            <TabsTrigger value="sales-records">Sales records</TabsTrigger>
+            <TabsTrigger value="sales-drinks">Sales - Drinks</TabsTrigger>
+            <TabsTrigger value="direct-cost">Direct cost</TabsTrigger>
+            <TabsTrigger value="indirect-cost">Indirect cost</TabsTrigger>
+            <TabsTrigger value="debt">Debt</TabsTrigger>
+            <TabsTrigger value="wages">Wages</TabsTrigger>
+            <TabsTrigger value="closing-stocks">Closing Stocks</TabsTrigger>
+            <TabsTrigger value="trading-acct">Trading acct.</TabsTrigger>
+            <TabsTrigger value="financials">Financials</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="summary" className="mt-4"><SummaryTab /></TabsContent>
         <TabsContent value="sales-records" className="mt-4"><SalesRecordsTab /></TabsContent>
