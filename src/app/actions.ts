@@ -756,6 +756,20 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
 
 // ---- START NEW ACCOUNTING FUNCTIONS ----
 
+export async function getSales() {
+    const snapshot = await getDocs(query(collection(db, "sales"), orderBy("date", "desc")));
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp)?.toDate().toISOString();
+        return { id: doc.id, ...data, date };
+    });
+}
+
+export async function getDrinkSales() {
+    const snapshot = await getDocs(query(collection(db, "drinkSales")));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
 export async function getDebtRecords() {
     const snapshot = await getDocs(query(collection(db, "debt"), orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
@@ -2086,5 +2100,3 @@ export async function getStaffByRole(role: string): Promise<any[]> {
         return { id: doc.id, ...plainData };
     });
 }
-
-    
