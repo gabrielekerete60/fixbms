@@ -235,17 +235,63 @@ function IndirectCostsTab() {
     );
 }
 
+// New Tabs
+function SalesRecordsTab() {
+    const [records, setRecords] = useState<Sale[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    useEffect(() => { getSales().then(data => { setRecords(data as Sale[]); setIsLoading(false); }); }, []);
+    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    return (
+        <Card>
+            <CardHeader><CardTitle>Daily Sales Records</CardTitle><CardDescription>A log of all daily sales transactions.</CardDescription></CardHeader>
+            <CardContent>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Cash</TableHead><TableHead className="text-right">Transfer</TableHead><TableHead className="text-right">POS</TableHead><TableHead className="text-right">Credit Sales</TableHead><TableHead className="text-right">Shortage</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
+                        <TableBody>{records.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell className="text-right">{formatCurrency(r.cash)}</TableCell><TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell><TableCell className="text-right">{formatCurrency(r.pos)}</TableCell><TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell><TableCell className="text-right">{formatCurrency(r.shortage)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell></TableRow>)}</TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function DrinkSalesTab() {
+    const [records, setRecords] = useState<DrinkSale[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    useEffect(() => { getDrinkSales().then(data => { setRecords(data as DrinkSale[]); setIsLoading(false); }); }, []);
+    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    return (
+        <Card>
+            <CardHeader><CardTitle>Drink Sales</CardTitle><CardDescription>Sales records specifically for drinks.</CardDescription></CardHeader>
+            <CardContent>
+                 <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Drink Type</TableHead><TableHead className="text-right">Purchase Amount</TableHead><TableHead className="text-right">Qty Sold</TableHead><TableHead className="text-right">Selling Price</TableHead><TableHead className="text-right">Total Amount</TableHead></TableRow></TableHeader>
+                        <TableBody>{records.map(r => <TableRow key={r.id}><TableCell>{r.drinkType}</TableCell><TableCell className="text-right">{formatCurrency(r.amountPurchases)}</TableCell><TableCell className="text-right">{r.quantitySold}</TableCell><TableCell className="text-right">{formatCurrency(r.sellingPrice)}</TableCell><TableCell className="text-right">{formatCurrency(r.amount)}</TableCell></TableRow>)}</TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+
 export default function AccountingPage() {
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-bold font-headline">Accounting Dashboard</h1>
       <Tabs defaultValue="summary" className="space-y-4">
-        <TabsList>
-            <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="debt">Debtors & Creditors</TabsTrigger>
-            <TabsTrigger value="expenses">Expenses</TabsTrigger>
-            <TabsTrigger value="payments">Payroll & Payments</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-2">
+            <TabsList>
+                <TabsTrigger value="summary">Summary</TabsTrigger>
+                <TabsTrigger value="debt">Debtors & Creditors</TabsTrigger>
+                <TabsTrigger value="expenses">Expenses</TabsTrigger>
+                <TabsTrigger value="payments">Payroll & Payments</TabsTrigger>
+                <TabsTrigger value="sales-records">Sales Records</TabsTrigger>
+                <TabsTrigger value="drink-sales">Drink Sales</TabsTrigger>
+            </TabsList>
+        </div>
 
         <TabsContent value="summary"><SummaryTab /></TabsContent>
 
@@ -265,6 +311,10 @@ export default function AccountingPage() {
         <TabsContent value="payments">
             <Card><CardHeader><CardTitle>Payroll & Payments</CardTitle><CardDescription>This feature is coming soon.</CardDescription></CardHeader><CardContent className="flex h-48 items-center justify-center"><p>Payroll, salaries, and other payment requests will be managed here.</p></CardContent></Card>
         </TabsContent>
+
+        <TabsContent value="sales-records"><SalesRecordsTab /></TabsContent>
+
+        <TabsContent value="drink-sales"><DrinkSalesTab /></TabsContent>
 
       </Tabs>
     </div>

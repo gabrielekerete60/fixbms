@@ -566,238 +566,242 @@ function POSPageContent() {
 
   return (
      <>
-     <div className="grid grid-cols-1 xl:grid-cols-[1fr_450px] gap-6 h-full print:hidden">
+     <div className="flex flex-col xl:flex-row gap-6 h-full print:hidden">
       {/* Products Section */}
-      <Card className="flex flex-col h-full">
-        <CardContent className="p-4 flex flex-col gap-4 flex-grow">
-          <header className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-              <div>
-                <h1 className="text-2xl font-bold font-headline">Point of Sale</h1>
-                {selectedStaffId && (
-                    <div 
-                      className={cn("text-sm text-muted-foreground", (user?.role === 'Manager' || user?.role === 'Developer') && "hover:text-primary cursor-pointer")}
-                      onClick={() => user?.role === 'Manager' || user?.role === 'Developer' ? setIsStaffSelectionOpen(true) : null}
-                    >
-                      Operating as: <span className="font-semibold">{selectedStaffName}</span>
-                    </div>
-                )}
-              </div>
-               <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input placeholder="Search products..." className="pl-10 w-full sm:w-64" />
+      <div className="flex-grow xl:w-2/3">
+        <Card className="flex flex-col h-full">
+            <CardContent className="p-4 flex flex-col gap-4 flex-grow">
+            <header className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold font-headline">Point of Sale</h1>
+                    {selectedStaffId && (
+                        <div 
+                        className={cn("text-sm text-muted-foreground", (user?.role === 'Manager' || user?.role === 'Developer') && "hover:text-primary cursor-pointer")}
+                        onClick={() => user?.role === 'Manager' || user?.role === 'Developer' ? setIsStaffSelectionOpen(true) : null}
+                        >
+                        Operating as: <span className="font-semibold">{selectedStaffName}</span>
+                        </div>
+                    )}
                 </div>
-          </header>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow">
-            <div className="overflow-x-auto pb-2">
-                <TabsList>
-                    {categories.map(category => (
-                        <TabsTrigger key={category} value={category} disabled={!selectedStaffId}>
-                            {category}
+                <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input placeholder="Search products..." className="pl-10 w-full sm:w-64" />
+                    </div>
+            </header>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow">
+                <div className="overflow-x-auto pb-2">
+                    <TabsList>
+                        {categories.map(category => (
+                            <TabsTrigger key={category} value={category} disabled={!selectedStaffId}>
+                                {category}
+                            </TabsTrigger>
+                        ))}
+                        <TabsTrigger value="held-orders" className="flex gap-2" disabled={!selectedStaffId}>
+                            Held Orders <Badge>{heldOrders.length}</Badge>
                         </TabsTrigger>
-                    ))}
-                    <TabsTrigger value="held-orders" className="flex gap-2" disabled={!selectedStaffId}>
-                        Held Orders <Badge>{heldOrders.length}</Badge>
-                    </TabsTrigger>
-                </TabsList>
-            </div>
+                    </TabsList>
+                </div>
 
-              <TabsContent value={activeTab} className="mt-4 flex-grow">
-                  <ScrollArea className="h-[calc(100vh_-_24rem)]">
-                      {isLoadingProducts ? (
-                         <div className="flex items-center justify-center h-full">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                         </div>
-                      ) : (
-                        filteredProducts.length > 0 ? (
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pr-4">
-                            {filteredProducts.map((product) => (
-                                <Card
-                                key={product.id}
-                                onClick={() => addToCart(product)}
-                                className={`cursor-pointer hover:shadow-lg transition-shadow group relative overflow-hidden ${product.stock === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
-                                >
-                                    <CardContent className="p-0">
-                                        <Image
-                                        src={product.image}
-                                        alt={product.name}
-                                        width={150}
-                                        height={150}
-                                        className="rounded-t-lg object-cover w-full aspect-square transition-transform group-hover:scale-105"
-                                        data-ai-hint={product['data-ai-hint']}
-                                        />
-                                        <Badge variant="secondary" className="absolute top-2 right-2">
-                                            Stock: {product.stock}
-                                        </Badge>
-                                        {product.stock === 0 && (
-                                            <div className="absolute inset-0 bg-card/80 flex items-center justify-center rounded-lg">
-                                                <p className="font-bold text-lg text-destructive">Out of Stock</p>
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                    <CardFooter className="p-3 flex flex-col items-start bg-muted/50">
-                                        <h3 className="font-semibold text-sm">{product.name}</h3>
-                                        <p className="text-sm text-primary font-bold">₦{product.price.toFixed(2)}</p>
-                                    </CardFooter>
-                                </Card>
-                            ))}
+                <TabsContent value={activeTab} className="mt-4 flex-grow">
+                    <ScrollArea className="h-[calc(100vh_-_24rem)]">
+                        {isLoadingProducts ? (
+                            <div className="flex items-center justify-center h-full">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             </div>
                         ) : (
-                             <div className="flex items-center justify-center h-full text-muted-foreground">
-                                <p>{selectedStaffId ? "No products in this staff's inventory." : "Select a staff member to begin."}</p>
-                            </div>
-                        )
-                      )}
-                  </ScrollArea>
-              </TabsContent>
-               <TabsContent value="held-orders" className="mt-4">
-                  <ScrollArea className="h-[calc(100vh_-_22rem)]">
-                    {heldOrders.length === 0 ? (
-                      <div className="flex items-center justify-center h-full text-muted-foreground">
-                        <p>No orders on hold.</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2 pr-4">
-                        {heldOrders.map((heldCart, index) => (
-                           <Card key={index} className="p-2 flex justify-between items-center">
-                              <div>
-                                <p className="font-semibold">Held Order #{index + 1}</p>
-                                <p className="text-sm text-muted-foreground">{heldCart.length} items - Total: ₦{heldCart.reduce((acc, item) => acc + item.price * item.quantity, 0).toFixed(2)}</p>
-                              </div>
-                              <Button size="sm" onClick={() => resumeOrder(index)}>Resume</Button>
-                           </Card>
-                        ))}
-                      </div>
-                    )}
-                  </ScrollArea>
-               </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+                            filteredProducts.length > 0 ? (
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pr-4">
+                                {filteredProducts.map((product) => (
+                                    <Card
+                                    key={product.id}
+                                    onClick={() => addToCart(product)}
+                                    className={`cursor-pointer hover:shadow-lg transition-shadow group relative overflow-hidden ${product.stock === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                    >
+                                        <CardContent className="p-0">
+                                            <Image
+                                            src={product.image}
+                                            alt={product.name}
+                                            width={150}
+                                            height={150}
+                                            className="rounded-t-lg object-cover w-full aspect-square transition-transform group-hover:scale-105"
+                                            data-ai-hint={product['data-ai-hint']}
+                                            />
+                                            <Badge variant="secondary" className="absolute top-2 right-2">
+                                                Stock: {product.stock}
+                                            </Badge>
+                                            {product.stock === 0 && (
+                                                <div className="absolute inset-0 bg-card/80 flex items-center justify-center rounded-lg">
+                                                    <p className="font-bold text-lg text-destructive">Out of Stock</p>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                        <CardFooter className="p-3 flex flex-col items-start bg-muted/50">
+                                            <h3 className="font-semibold text-sm">{product.name}</h3>
+                                            <p className="text-sm text-primary font-bold">₦{product.price.toFixed(2)}</p>
+                                        </CardFooter>
+                                    </Card>
+                                ))}
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-muted-foreground">
+                                    <p>{selectedStaffId ? "No products in this staff's inventory." : "Select a staff member to begin."}</p>
+                                </div>
+                            )
+                        )}
+                    </ScrollArea>
+                </TabsContent>
+                <TabsContent value="held-orders" className="mt-4">
+                    <ScrollArea className="h-[calc(100vh_-_22rem)]">
+                        {heldOrders.length === 0 ? (
+                        <div className="flex items-center justify-center h-full text-muted-foreground">
+                            <p>No orders on hold.</p>
+                        </div>
+                        ) : (
+                        <div className="space-y-2 pr-4">
+                            {heldOrders.map((heldCart, index) => (
+                            <Card key={index} className="p-2 flex justify-between items-center">
+                                <div>
+                                    <p className="font-semibold">Held Order #{index + 1}</p>
+                                    <p className="text-sm text-muted-foreground">{heldCart.length} items - Total: ₦{heldCart.reduce((acc, item) => acc + item.price * item.quantity, 0).toFixed(2)}</p>
+                                </div>
+                                <Button size="sm" onClick={() => resumeOrder(index)}>Resume</Button>
+                            </Card>
+                            ))}
+                        </div>
+                        )}
+                    </ScrollArea>
+                </TabsContent>
+            </Tabs>
+            </CardContent>
+        </Card>
+      </div>
 
       {/* Order Summary Section */}
-      <Card className="flex flex-col h-full">
-        <CardContent className="p-4 flex flex-col gap-4 flex-grow">
-          <h2 className="text-xl font-bold font-headline mb-2">Current Order</h2>
-            <div className="space-y-4">
-                 <div className="grid grid-cols-2 gap-2">
-                    <Button variant={customerType === 'walk-in' ? 'default' : 'outline'} onClick={() => setCustomerType('walk-in')}>
-                        <User className="mr-2 h-4 w-4" />
-                        Walk-in
-                    </Button>
-                    <Button variant={customerType === 'registered' ? 'default' : 'outline'} onClick={() => setCustomerType('registered')}>
-                        <Building className="mr-2 h-4 w-4" />
-                        Registered
-                    </Button>
-                 </div>
-                 {customerType === 'walk-in' && (
-                     <div className="space-y-1.5">
-                        <Label htmlFor="customer-name">Customer Name (Optional)</Label>
-                        <Input id="customer-name" placeholder="Enter name for walk-in" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+       <div className="xl:w-1/3 xl:min-w-[450px]">
+            <Card className="flex flex-col h-full">
+                <CardContent className="p-4 flex flex-col gap-4 flex-grow">
+                <h2 className="text-xl font-bold font-headline mb-2">Current Order</h2>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-2">
+                            <Button variant={customerType === 'walk-in' ? 'default' : 'outline'} onClick={() => setCustomerType('walk-in')}>
+                                <User className="mr-2 h-4 w-4" />
+                                Walk-in
+                            </Button>
+                            <Button variant={customerType === 'registered' ? 'default' : 'outline'} onClick={() => setCustomerType('registered')}>
+                                <Building className="mr-2 h-4 w-4" />
+                                Registered
+                            </Button>
+                        </div>
+                        {customerType === 'walk-in' && (
+                            <div className="space-y-1.5">
+                                <Label htmlFor="customer-name">Customer Name (Optional)</Label>
+                                <Input id="customer-name" placeholder="Enter name for walk-in" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                            </div>
+                        )}
+                        {customerType === 'registered' && (
+                            <div className="space-y-1.5">
+                                <Label htmlFor="customer-search">Search Registered Customer</Label>
+                                <Input id="customer-search" placeholder="Search by name or phone..." />
+                            </div>
+                        )}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="customer-email">Customer Email (for receipt)</Label>
+                            <Input id="customer-email" placeholder="customer@example.com" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} />
+                        </div>
                     </div>
-                 )}
-                 {customerType === 'registered' && (
-                     <div className="space-y-1.5">
-                        <Label htmlFor="customer-search">Search Registered Customer</Label>
-                         <Input id="customer-search" placeholder="Search by name or phone..." />
-                     </div>
-                 )}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="customer-email">Customer Email (for receipt)</Label>
-                    <Input id="customer-email" placeholder="customer@example.com" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} />
-                </div>
-            </div>
-            <Separator />
-          
-          <ScrollArea className="flex-grow -mr-4 pr-4 mb-4 min-h-[150px]">
-            {cart.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <p>Click on a product to add it to the order.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {cart.map((item) => (
-                  <div key={item.id} className="flex items-center gap-4 text-sm">
-                    <div className="flex-grow">
-                      <p className="font-semibold">{item.name}</p>
-                      <p className="text-muted-foreground">₦{item.price.toFixed(2)}</p>
+                    <Separator />
+                
+                <ScrollArea className="flex-grow -mr-4 pr-4 mb-4 min-h-[150px]">
+                    {cart.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                        <p>Click on a product to add it to the order.</p>
                     </div>
-                    <div className="flex items-center gap-2 bg-muted/50 rounded-md p-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <span className="font-bold w-4 text-center">{item.quantity}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
+                    ) : (
+                    <div className="space-y-4">
+                        {cart.map((item) => (
+                        <div key={item.id} className="flex items-center gap-4 text-sm">
+                            <div className="flex-grow">
+                            <p className="font-semibold">{item.name}</p>
+                            <p className="text-muted-foreground">₦{item.price.toFixed(2)}</p>
+                            </div>
+                            <div className="flex items-center gap-2 bg-muted/50 rounded-md p-1">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            >
+                                <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="font-bold w-4 text-center">{item.quantity}</span>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Button>
+                            </div>
+                            <p className="font-semibold w-16 text-right">₦{(item.price * item.quantity).toFixed(2)}</p>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive/70 hover:text-destructive"
+                                onClick={() => updateQuantity(item.id, 0)}
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        ))}
                     </div>
-                     <p className="font-semibold w-16 text-right">₦{(item.price * item.quantity).toFixed(2)}</p>
-                     <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive/70 hover:text-destructive"
-                        onClick={() => updateQuantity(item.id, 0)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </CardContent>
+                    )}
+                </ScrollArea>
+                </CardContent>
 
-        <CardFooter className="p-4 flex flex-col gap-4 border-t bg-muted/20">
-            <div className="w-full space-y-2 text-sm">
-                <div className="flex justify-between font-bold text-lg">
-                    <span>Total</span>
-                    <span>₦{total.toFixed(2)}</span>
-                </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 w-full">
-                <Button variant="outline" onClick={holdOrder} disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'}>
-                    <Hand /> Hold
-                </Button>
-                 <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'}>
-                            <Trash2/> Clear
+                <CardFooter className="p-4 flex flex-col gap-4 border-t bg-muted/20">
+                    <div className="w-full space-y-2 text-sm">
+                        <div className="flex justify-between font-bold text-lg">
+                            <span>Total</span>
+                            <span>₦{total.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 w-full">
+                        <Button variant="outline" onClick={holdOrder} disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'}>
+                            <Hand /> Hold
                         </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This will clear all items from the current cart. This action cannot be undone.
-                        </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={clearCart}>Yes, Clear Cart</AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </div>
-             <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'} onClick={() => setIsCheckoutOpen(true)}>
-                {paymentStatus.status === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                Checkout
-             </Button>
-             {paymentStatus.status === 'processing' && (
-                <Button variant="outline" size="sm" className="w-full" onClick={() => setPaymentStatus({ status: 'idle' })}>
-                    Cancel Payment
-                </Button>
-             )}
-        </CardFooter>
-      </Card>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'}>
+                                    <Trash2/> Clear
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will clear all items from the current cart. This action cannot be undone.
+                                </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={clearCart}>Yes, Clear Cart</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                    <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'} onClick={() => setIsCheckoutOpen(true)}>
+                        {paymentStatus.status === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Checkout
+                    </Button>
+                    {paymentStatus.status === 'processing' && (
+                        <Button variant="outline" size="sm" className="w-full" onClick={() => setPaymentStatus({ status: 'idle' })}>
+                            Cancel Payment
+                        </Button>
+                    )}
+                </CardFooter>
+            </Card>
+       </div>
       </div>
 
        {/* ---- DIALOGS ---- */}

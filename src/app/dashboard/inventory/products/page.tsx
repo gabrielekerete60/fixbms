@@ -398,6 +398,7 @@ export default function ProductsPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
+                <div className="overflow-x-auto">
                 <Table>
                 <TableHeader>
                   <TableRow>
@@ -490,6 +491,7 @@ export default function ProductsPage() {
                     </TableFooter>
                 )}
               </Table>
+              </div>
                 </CardContent>
               </Card>
             </CardContent>
@@ -524,5 +526,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-
-    

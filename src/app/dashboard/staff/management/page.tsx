@@ -281,7 +281,7 @@ function StaffDetailDialog({ staff, isOpen, onOpenChange }: { staff: Staff | nul
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Pay Rate:</span>
-                                <span>₦{(staff.pay_rate || 0).toLocaleString()} / {staff.pay_type === 'Salary' ? 'month' : 'hour'}</span>
+                                <span>₦{(staff.pay_rate || 0).toLocaleString()} / {staff.pay_type === 'Salary' ? 'mo' : 'hr'}</span>
                             </div>
                              <div className="flex justify-between">
                                 <span className="text-muted-foreground">Bank Name:</span>

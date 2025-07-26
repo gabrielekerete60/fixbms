@@ -222,7 +222,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
         <div className="hidden">
             {printingOrder && <Receipt order={printingOrder} ref={receiptRef} storeAddress={storeAddress}/>}
         </div>
-        
+        <div className="overflow-x-auto">
         <Table>
             <TableHeader>
                 <TableRow>
@@ -300,6 +300,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                 )}
             </TableBody>
         </Table>
+        </div>
         </>
     );
 }
@@ -521,7 +522,7 @@ export default function RegularOrdersPage() {
     <div className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold font-headline">Regular Orders</h1>
         <Tabs defaultValue="All Orders">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                 <TabsList>
                     {TABS.map(tab => <TabsTrigger key={tab} value={tab}>{tab}</TabsTrigger>)}
                 </TabsList>
@@ -534,10 +535,10 @@ export default function RegularOrdersPage() {
             </div>
             <Card>
                 <CardHeader>
-                    <div className="flex items-center justify-start gap-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-start gap-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                            <Input placeholder="Search by Order ID or customer..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                            <Input placeholder="Search by Order ID or customer..." className="pl-10 w-full sm:w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                         </div>
                         <Popover>
                             <PopoverTrigger asChild>
@@ -545,7 +546,7 @@ export default function RegularOrdersPage() {
                                 id="date"
                                 variant={"outline"}
                                 className={cn(
-                                "w-[260px] justify-start text-left font-normal",
+                                "w-full sm:w-[260px] justify-start text-left font-normal",
                                 !date && "text-muted-foreground"
                                 )}
                             >
@@ -576,7 +577,7 @@ export default function RegularOrdersPage() {
                             </PopoverContent>
                         </Popover>
                          <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
-                            <SelectTrigger className="w-[180px]">
+                            <SelectTrigger className="w-full sm:w-[180px]">
                                 <SelectValue placeholder="Filter by payment" />
                             </SelectTrigger>
                             <SelectContent>
