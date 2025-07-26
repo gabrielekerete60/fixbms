@@ -250,7 +250,7 @@ function ManagementDashboard() {
                 <AlertTriangle className="h-4 w-4 text-yellow-500" />
                 <span>Below 90</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Less than 75% of visits had a great experience.</p>
+              <p className="text-xs text-muted-foreground mt-2 max-w-[200px]">Less than 75% of visits had a great experience.</p>
             </div>
           </CardContent>
         </Card>
