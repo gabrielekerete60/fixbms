@@ -10,14 +10,14 @@ const daysAgo = (days: number) => Timestamp.fromDate(new Date(new Date().setDate
 
 const seedData = {
   products: [
-      { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 50, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300 },
-      { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 30, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250 },
-      { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 25, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500 },
-      { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 40, category: 'Breads', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280 },
-      { id: "prod_5", name: "Croissant", price: 400.00, stock: 60, category: 'Pastries', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'croissant pastry', costPrice: 220 },
-      { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 45, category: 'Pastries', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350 },
-      { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 100, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200 },
-      { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 150, category: 'Drinks', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100 },
+      { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 50, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300 },
+      { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 30, category: 'Breads', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250 },
+      { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 25, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500 },
+      { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 40, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280 },
+      { id: "prod_5", name: "Croissant", price: 400.00, stock: 60, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'croissant pastry', costPrice: 220 },
+      { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 45, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350 },
+      { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 100, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200 },
+      { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 150, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100 },
   ],
   staff: [
     { staff_id: '100001', name: 'Chris Manager', email: 'chris.manager@example.com', password: 'ManagerPass1!', role: 'Manager', is_active: true, pay_type: 'Salary', pay_rate: 350000, bank_name: "GTBank", account_number: "0123456789", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
@@ -366,4 +366,3 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
-

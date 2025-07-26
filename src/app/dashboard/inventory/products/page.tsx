@@ -39,6 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -72,6 +73,7 @@ type Product = {
   name: string;
   price: number;
   stock: number;
+  unit: string;
   category: string;
   image: string;
   "data-ai-hint": string;
@@ -95,6 +97,7 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
     const [costPrice, setCostPrice] = useState(0);
     const [price, setPrice] = useState(0);
     const [stock, setStock] = useState(0);
+    const [unit, setUnit] = useState("");
 
     const handleSubmit = () => {
         const newProductData = {
@@ -103,6 +106,7 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
             costPrice: Number(costPrice),
             price: Number(price),
             stock: Number(stock),
+            unit: unit,
             image: product?.image || "https://placehold.co/150x150.png",
             "data-ai-hint": product?.['data-ai-hint'] || "product image"
         };
@@ -117,12 +121,14 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
             setCostPrice(product.costPrice || 0);
             setPrice(product.price);
             setStock(product.stock);
+            setUnit(product.unit || "");
         } else {
             setName("");
             setCategory(categories[0] || "");
             setCostPrice(0);
             setPrice(0);
             setStock(0);
+            setUnit("");
         }
     }, [product, categories]);
     
@@ -136,6 +142,7 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
                     <DialogDescription>
                         {product?.id ? "Update the details of this product." : "Fill in the details for the new product."}
                     </DialogDescription>
+                    <DialogClose />
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
@@ -163,9 +170,15 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
                         <Label htmlFor="price" className="text-right">Selling Price (₦)</Label>
                         <Input id="price" type="number" value={price} onChange={(e) => setPrice(parseFloat(e.target.value))} className="col-span-3" />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="stock" className="text-right">Stock</Label>
-                        <Input id="stock" type="number" value={stock} onChange={(e) => setStock(parseInt(e.target.value))} className="col-span-3" />
+                    <div className="grid grid-cols-2 gap-4">
+                         <div className="grid gap-2">
+                            <Label htmlFor="stock">Stock</Label>
+                            <Input id="stock" type="number" value={stock} onChange={(e) => setStock(parseInt(e.target.value))} />
+                         </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="unit">Unit</Label>
+                            <Input id="unit" placeholder="e.g., loaf, pcs" value={unit} onChange={(e) => setUnit(e.target.value)} />
+                         </div>
                     </div>
                 </div>
                 <DialogFooter>
@@ -189,6 +202,7 @@ function ExportDialog({ children, onExport }: { children: React.ReactNode, onExp
           <DialogDescription>
             All current products will be included in the CSV file.
           </DialogDescription>
+          <DialogClose />
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
@@ -271,9 +285,9 @@ export default function ProductsPage() {
   };
 
   const handleExport = () => {
-    const headers = ["ID", "Name", "Category", "Cost Price", "Selling Price", "Stock"];
+    const headers = ["ID", "Name", "Category", "Cost Price", "Selling Price", "Stock", "Unit"];
     const rows = productsWithProfit.map(p => 
-        [p.id, p.name, p.category, p.costPrice || 0, p.price, p.stock].join(',')
+        [p.id, p.name, p.category, p.costPrice || 0, p.price, p.stock, p.unit].join(',')
     );
     const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.join("\n");
     const encodedUri = encodeURI(csvContent);
@@ -402,7 +416,7 @@ export default function ProductsPage() {
                         <TableCell className={product.profit < 0 ? 'text-destructive' : 'text-green-600'}>
                            {product.profit < 0 ? `-₦${Math.abs(product.profit).toFixed(2)}` : `₦${product.profit.toFixed(2)}`}
                         </TableCell>
-                        <TableCell>{product.stock > 0 ? product.stock : '--'}</TableCell>
+                        <TableCell>{product.stock > 0 ? `${product.stock} ${product.unit}` : '--'}</TableCell>
                         <TableCell>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
