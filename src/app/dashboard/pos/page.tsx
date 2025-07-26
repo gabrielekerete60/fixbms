@@ -321,20 +321,22 @@ function POSPageContent() {
         if (storedStatusRaw) {
             const newStatus: PaymentStatus = JSON.parse(storedStatusRaw);
 
-            if (newStatus.status === 'success' && newStatus.orderId) {
-                toast({ title: "Payment Successful", description: "Order completed." });
-                const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
-                if (orderDoc.exists()) {
-                    setLastCompletedOrder(orderDoc.data() as CompletedOrder);
-                    setIsReceiptOpen(true);
+            if (newStatus.status !== paymentStatus.status) {
+                if (newStatus.status === 'success' && newStatus.orderId) {
+                    toast({ title: "Payment Successful", description: "Order completed." });
+                    const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
+                    if (orderDoc.exists()) {
+                        setLastCompletedOrder(orderDoc.data() as CompletedOrder);
+                        setIsReceiptOpen(true);
+                    }
+                    setPaymentStatus({ status: 'idle' });
+                } else if (newStatus.status === 'cancelled') {
+                    toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
+                    setPaymentStatus({ status: 'idle' });
+                } else if (newStatus.status === 'failed') {
+                    toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
+                    setPaymentStatus({ status: 'idle' });
                 }
-                setPaymentStatus({ status: 'idle' }); // Reset status
-            } else if (newStatus.status === 'cancelled') {
-                toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
-                setPaymentStatus({ status: 'idle' });
-            } else if (newStatus.status === 'failed') {
-                toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
-                setPaymentStatus({ status: 'idle' });
             }
         }
     }
@@ -342,7 +344,7 @@ function POSPageContent() {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
 
-  }, [toast, setPaymentStatus]);
+  }, [toast, setPaymentStatus, paymentStatus.status]);
 
   useEffect(() => {
     if (isReceiptOpen && lastCompletedOrder) {

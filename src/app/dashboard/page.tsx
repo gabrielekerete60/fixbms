@@ -144,6 +144,7 @@ function ManagementDashboard() {
 
   const handleFilterChange = (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
     setRevenueFilter(filter);
+    fetchDashboardData(filter);
   };
   
   if (isLoading || !stats) {
