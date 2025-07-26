@@ -221,6 +221,42 @@ const seedData = {
       { id: 'att_4', staff_id: '200002', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
       { id: 'att_5', staff_id: '500006', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
   ],
+  sales: [
+    { date: "2025-06-01T00:00:00Z", description: "Sale", cash: 6850, transfer: 19300, pos: 5200, creditSales: 0, shortage: 0, total: 31350 },
+    { date: "2025-06-02T00:00:00Z", description: "Sale", cash: 33600, transfer: 18400, pos: 4200, creditSales: 117900, shortage: 0, total: 174100 },
+    { date: "2025-06-03T00:00:00Z", description: "Sale", cash: 65400, transfer: 31350, pos: 6900, creditSales: 202900, shortage: 0, total: 306550 }
+  ],
+  drinkSales: [
+    { drinkType: "Fanta", amountPurchases: 4600, quantitySold: 12, sellingPrice: 500, amount: 6000 },
+    { drinkType: "CoKe", amountPurchases: 4600, quantitySold: 12, sellingPrice: 500, amount: 6000 },
+    { drinkType: "Freshyo", amountPurchases: 6500, quantitySold: 12, sellingPrice: 700, amount: 8400 }
+  ],
+  debt: [
+    { date: "2025-05-31T00:00:00Z", description: "Debtor/Creditor Bal bf", debit: 369500, credit: 300660 },
+    { date: "2025-06-30T00:00:00Z", description: "Debtor/Creditor for June", debit: 3715250, credit: 659950 }
+  ],
+  directCosts: [
+    { date: "2025-06-02T00:00:00Z", description: "Bag of Flour", category: "Flour", quantity: 2, total: 108000 },
+    { date: "2025-06-02T00:00:00Z", description: "Half Bag of Sugar", category: "Sugar", quantity: 1, total: 39500 },
+    { date: "2025-06-04T00:00:00Z", description: "Carton of Butter", category: "Butter", quantity: 1, total: 39000 }
+  ],
+  indirectCosts: [
+    { date: "2025-06-02T00:00:00Z", description: "Diesel Generator", category: "Diesel", amount: 73000 },
+    { date: "2025-06-02T00:00:00Z", description: "Part payment for Bread Nylon", category: "Nylon", amount: 180000 },
+    { date: "2025-06-23T00:00:00Z", description: "Borehold Repair", category: "Repair", amount: 80000 },
+    { date: "2025-06-30T00:00:00Z", description: "Bad and Damage", category: "General Expenses", amount: 70060 },
+    { date: "2025-06-30T00:00:00Z", description: "Discount Allowed", category: "General Expenses", amount: 73000 }
+  ],
+  wages: [
+    { name: "Wisdom Effiong Edet", department: "Managerial", position: "Manager", salary: 80000, deductions: { shortages: 0, advanceSalary: 20000 }, netPay: 60000 },
+    { name: "MR Bassey OFFIONG", department: "Production", position: "Chief Baker", salary: 60000, deductions: { shortages: 2400, advanceSalary: 10000 }, netPay: 47600 }
+  ],
+  closingStocks: [
+    { item: "Flour", remainingStock: "100KG", amount: 108000 },
+    { item: "Yeast", remainingStock: "9 Pack", amount: 27000 },
+    { item: "Egg", remainingStock: "75 Pices", amount: 13230 },
+    { item: "Oil", remainingStock: "13.53CL", amount: 37030 }
+  ]
 };
 
 export async function verifySeedPassword(password: string): Promise<ActionResult> {

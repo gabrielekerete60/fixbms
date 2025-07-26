@@ -754,6 +754,61 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
     }
 }
 
+// ---- START NEW ACCOUNTING FUNCTIONS ----
+
+export async function getDebtRecords() {
+    const snapshot = await getDocs(query(collection(db, "debt"), orderBy("date", "desc")));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function getDirectCosts() {
+    const snapshot = await getDocs(query(collection(db, "directCosts"), orderBy("date", "desc")));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function getIndirectCosts() {
+    const snapshot = await getDocs(query(collection(db, "indirectCosts"), orderBy("date", "desc")));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function getClosingStocks() {
+    const snapshot = await getDocs(query(collection(db, "closingStocks")));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function getWages() {
+    const snapshot = await getDocs(query(collection(db, "wages")));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function getFinancialSummary() {
+    try {
+        const salesQuery = await getDocs(collection(db, "sales"));
+        const directCostsQuery = await getDocs(collection(db, "directCosts"));
+        const indirectCostsQuery = await getDocs(collection(db, "indirectCosts"));
+
+        const totalRevenue = salesQuery.docs.reduce((sum, doc) => sum + doc.data().total, 0);
+        const totalDirectCosts = directCostsQuery.docs.reduce((sum, doc) => sum + doc.data().total, 0);
+        const totalIndirectCosts = indirectCostsQuery.docs.reduce((sum, doc) => sum + doc.data().amount, 0);
+
+        const totalExpenditure = totalDirectCosts + totalIndirectCosts;
+        const grossProfit = totalRevenue - totalDirectCosts;
+        const netProfit = grossProfit - totalIndirectCosts;
+
+        return {
+            totalRevenue,
+            totalExpenditure,
+            grossProfit,
+            netProfit
+        };
+    } catch(error) {
+        console.error("Error fetching financial summary:", error);
+        return { totalRevenue: 0, totalExpenditure: 0, grossProfit: 0, netProfit: 0 };
+    }
+}
+
+// ---- END NEW ACCOUNTING FUNCTIONS ----
+
 export type Creditor = {
     id: string;
     name: string;
