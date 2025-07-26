@@ -24,9 +24,9 @@ type FinancialSummary = {
     netProfit: number;
 };
 
-type DebtRecord = { id: string; date: { toDate: () => Date }; description: string; debit: number; credit: number; };
-type DirectCost = { id: string; date: { toDate: () => Date }; description: string; category: string; quantity: number; total: number; };
-type IndirectCost = { id: string; date: { toDate: () => Date }; description: string; category: string; amount: number; };
+type DebtRecord = { id: string; date: string; description: string; debit: number; credit: number; };
+type DirectCost = { id: string; date: string; description: string; category: string; quantity: number; total: number; };
+type IndirectCost = { id: string; date: string; description: string; category: string; amount: number; };
 type ClosingStock = { id: string; item: string; remainingStock: string; amount: number; };
 type Wage = { id: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number }; netPay: number; };
 
@@ -231,7 +231,7 @@ function DebtorsCreditorsTab() {
                     <TableBody>
                         {records.map(rec => (
                             <TableRow key={rec.id}>
-                                <TableCell>{format(rec.date.toDate(), 'PPP')}</TableCell>
+                                <TableCell>{format(new Date(rec.date), 'PPP')}</TableCell>
                                 <TableCell>{rec.description}</TableCell>
                                 <TableCell className="text-right">{formatCurrency(rec.debit)}</TableCell>
                                 <TableCell className="text-right">{formatCurrency(rec.credit)}</TableCell>
@@ -293,7 +293,7 @@ function ExpensesTab() {
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Quantity</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
-                            <TableBody>{directCosts.map(c => <TableRow key={c.id}><TableCell>{format(c.date.toDate(), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{c.quantity}</TableCell><TableCell className="text-right">{formatCurrency(c.total)}</TableCell></TableRow>)}</TableBody>
+                            <TableBody>{directCosts.map(c => <TableRow key={c.id}><TableCell>{format(new Date(c.date), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{c.quantity}</TableCell><TableCell className="text-right">{formatCurrency(c.total)}</TableCell></TableRow>)}</TableBody>
                         </Table>
                     </CardContent>
                 </Card>
@@ -307,7 +307,7 @@ function ExpensesTab() {
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
-                            <TableBody>{indirectCosts.map(c => <TableRow key={c.id}><TableCell>{format(c.date.toDate(), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{formatCurrency(c.amount)}</TableCell></TableRow>)}</TableBody>
+                            <TableBody>{indirectCosts.map(c => <TableRow key={c.id}><TableCell>{format(new Date(c.date), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{formatCurrency(c.amount)}</TableCell></TableRow>)}</TableBody>
                         </Table>
                     </CardContent>
                 </Card>

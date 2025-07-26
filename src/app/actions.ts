@@ -758,17 +758,29 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
 
 export async function getDebtRecords() {
     const snapshot = await getDocs(query(collection(db, "debt"), orderBy("date", "desc")));
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp)?.toDate().toISOString();
+        return { id: doc.id, ...data, date };
+    });
 }
 
 export async function getDirectCosts() {
     const snapshot = await getDocs(query(collection(db, "directCosts"), orderBy("date", "desc")));
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+     return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp)?.toDate().toISOString();
+        return { id: doc.id, ...data, date };
+    });
 }
 
 export async function getIndirectCosts() {
     const snapshot = await getDocs(query(collection(db, "indirectCosts"), orderBy("date", "desc")));
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp)?.toDate().toISOString();
+        return { id: doc.id, ...data, date };
+    });
 }
 
 export async function getClosingStocks() {
