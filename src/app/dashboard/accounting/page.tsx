@@ -13,9 +13,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 // --- Helper Functions & Type Definitions ---
-const formatCurrency = (amount: number) => `₦${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 type FinancialSummary = {
     totalRevenue: number;
@@ -374,24 +375,79 @@ function PaymentsTab() {
     );
 }
 
+function FinancialsTab() {
+    const [costs, setCosts] = useState<IndirectCost[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        getIndirectCosts().then(data => {
+            setCosts(data as IndirectCost[]);
+            setIsLoading(false);
+        });
+    }, []);
+    
+    const categories = ['Diesel', 'Office Equipment', 'Cleaning', 'Nylon', 'Gas', 'Repair', 'Petrol', 'General Expenses', 'Salary', 'Transportation'];
+
+    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Financials - Indirect Expenses</CardTitle>
+                <CardDescription>A detailed breakdown of indirect expenses for the month.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ScrollArea className="w-full whitespace-nowrap">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="sticky left-0 bg-card">Date</TableHead>
+                                <TableHead className="sticky left-24 bg-card min-w-48">Description</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                                {categories.map(cat => (
+                                    <TableHead key={cat} className="text-right min-w-32">{cat}</TableHead>
+                                ))}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {costs.map(cost => (
+                                <TableRow key={cost.id}>
+                                    <TableCell className="sticky left-0 bg-card">{format(new Date(cost.date), 'PPP')}</TableCell>
+                                    <TableCell className="sticky left-24 bg-card">{cost.description}</TableCell>
+                                    <TableCell className="text-right font-semibold">{formatCurrency(cost.amount)}</TableCell>
+                                    {categories.map(cat => (
+                                        <TableCell key={cat} className="text-right">
+                                            {cost.category === cat ? formatCurrency(cost.amount) : ''}
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function AccountingPage() {
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-bold font-headline">Accounting Dashboard</h1>
       <Tabs defaultValue="summary">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="summary">Reports & Summary</TabsTrigger>
           <TabsTrigger value="debtors">Debtors/Creditors</TabsTrigger>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
           <TabsTrigger value="payments">Payments & Requests</TabsTrigger>
+          <TabsTrigger value="financials">Financials</TabsTrigger>
         </TabsList>
         <TabsContent value="summary" className="mt-4"><ReportsSummaryTab /></TabsContent>
         <TabsContent value="debtors" className="mt-4"><DebtorsCreditorsTab /></TabsContent>
         <TabsContent value="expenses" className="mt-4"><ExpensesTab /></TabsContent>
         <TabsContent value="payments" className="mt-4"><PaymentsTab /></TabsContent>
+        <TabsContent value="financials" className="mt-4"><FinancialsTab /></TabsContent>
       </Tabs>
     </div>
   );
 }
-
-    

@@ -205,8 +205,7 @@ function ManagementDashboard() {
           </CardContent>
         </Card>
       </div>
-      <div className="grid gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
+       <Card>
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
               <CardTitle>This Week's Revenue</CardTitle>
@@ -217,44 +216,6 @@ function ManagementDashboard() {
             <RevenueChart data={stats.weeklyRevenue} />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Real Experience Score</CardTitle>
-            <CardDescription>Measures the overall user experience.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center gap-4">
-            <div className="relative h-32 w-32">
-                 <svg className="w-full h-full" viewBox="0 0 36 36">
-                    <path
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        className="stroke-current text-muted"
-                        strokeWidth="3"
-                        fill="none"
-                    />
-                    <path
-                        className="stroke-current text-yellow-500"
-                        strokeWidth="3"
-                        strokeDasharray="72, 100"
-                        strokeLinecap="round"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    />
-                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-4xl font-bold text-yellow-500">72</span>
-                </div>
-            </div>
-             <div className="text-center">
-              <p className="font-semibold text-lg text-yellow-500">Needs Improvement</p>
-              <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
-                <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                <span>Below 90</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2 max-w-[200px]">Less than 75% of visits had a great experience.</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </>
   );
 }
