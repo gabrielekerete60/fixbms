@@ -295,7 +295,7 @@ function POSPageContent() {
       }
     };
     initializePos();
-  }, []);
+  }, [customerEmail, selectedStaffId, setCustomerEmail]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
@@ -566,11 +566,11 @@ function POSPageContent() {
 
   return (
      <>
-     <div className="grid grid-cols-1 xl:grid-cols-[1fr_450px] gap-6 h-[calc(100vh_-_8rem)] print:hidden">
+     <div className="grid grid-cols-1 xl:grid-cols-[1fr_450px] gap-6 h-full print:hidden">
       {/* Products Section */}
-      <Card className="flex flex-col">
+      <Card className="flex flex-col h-full">
         <CardContent className="p-4 flex flex-col gap-4 flex-grow">
-          <header className="flex justify-between items-center">
+          <header className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
                 <h1 className="text-2xl font-bold font-headline">Point of Sale</h1>
                 {selectedStaffId && (
@@ -584,23 +584,25 @@ function POSPageContent() {
               </div>
                <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input placeholder="Search products..." className="pl-10 w-64" />
+                    <Input placeholder="Search products..." className="pl-10 w-full sm:w-64" />
                 </div>
           </header>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList>
-                  {categories.map(category => (
-                      <TabsTrigger key={category} value={category} disabled={!selectedStaffId}>
-                          {category}
-                      </TabsTrigger>
-                  ))}
-                  <TabsTrigger value="held-orders" className="flex gap-2" disabled={!selectedStaffId}>
-                      Held Orders <Badge>{heldOrders.length}</Badge>
-                  </TabsTrigger>
-              </TabsList>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow">
+            <div className="overflow-x-auto pb-2">
+                <TabsList>
+                    {categories.map(category => (
+                        <TabsTrigger key={category} value={category} disabled={!selectedStaffId}>
+                            {category}
+                        </TabsTrigger>
+                    ))}
+                    <TabsTrigger value="held-orders" className="flex gap-2" disabled={!selectedStaffId}>
+                        Held Orders <Badge>{heldOrders.length}</Badge>
+                    </TabsTrigger>
+                </TabsList>
+            </div>
 
               <TabsContent value={activeTab} className="mt-4 flex-grow">
-                  <ScrollArea className="h-[calc(100vh_-_22rem)]">
+                  <ScrollArea className="h-[calc(100vh_-_24rem)]">
                       {isLoadingProducts ? (
                          <div className="flex items-center justify-center h-full">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />

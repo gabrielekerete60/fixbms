@@ -127,8 +127,7 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
             }}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-              !link.disabled && (link.href !== "/dashboard" && pathname.startsWith(link.href)) && "bg-muted text-primary",
-              link.disabled && "cursor-not-allowed opacity-50"
+              !link.disabled && pathname.startsWith(link.href) && (link.href !== '/dashboard' || pathname === '/dashboard') && "bg-muted text-primary"
             )}
           >
             <link.icon className="h-4 w-4" />
@@ -243,7 +242,7 @@ export default function DashboardLayout({
         unsubBatches();
     };
 
-  }, [user?.staff_id, handleLogout, user?.theme]);
+  }, [user, handleLogout]);
   
   const handleClockInOut = async () => {
     if (!user) return;
@@ -277,7 +276,6 @@ export default function DashboardLayout({
     const allLinks = [
       { href: "/dashboard", icon: Home, label: "Dashboard", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Developer'] },
-      { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor', 'Developer'], disabled: true },
       {
         icon: Inbox, label: "Orders", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Accountant', 'Developer'], sublinks: [
           { href: "/dashboard/orders/regular", label: "Regular Orders" },
@@ -287,7 +285,7 @@ export default function DashboardLayout({
       {
         icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Developer'], sublinks: [
           { href: "/dashboard/inventory/products", label: "Products", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", roles: ['Manager', 'Supervisor', 'Baker', 'Developer'] },
+          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'] },
           { href: "/dashboard/inventory/ingredients", label: "Ingredients", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
@@ -311,7 +309,7 @@ export default function DashboardLayout({
       },
       { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", roles: ['Manager', 'Supervisor', 'Delivery Staff', 'Developer'] },
       { href: "/dashboard/accounting", icon: Wallet, label: "Accounting", roles: ['Manager', 'Accountant', 'Developer'] },
-      { href: "#", icon: GanttChartSquare, label: "AI Analytics", roles: ['Manager', 'Developer'], disabled: true },
+      { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor', 'Developer'], disabled: true },
       { href: "/dashboard/communication", icon: HelpingHand, label: "Communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/documentation", icon: BookOpen, label: "Documentation", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/settings", icon: Settings, label: "Settings", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
@@ -391,7 +389,7 @@ export default function DashboardLayout({
           </div>
         </div>
       </div>
-      <div className="flex flex-col max-h-screen">
+      <div className="flex flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 shrink-0">
           <Sheet>
               <SheetTrigger asChild>
@@ -404,7 +402,7 @@ export default function DashboardLayout({
                   <span className="sr-only">Toggle navigation menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="flex flex-col p-0">
+              <SheetContent side="left" className="flex flex-col p-0 w-full max-w-xs sm:max-w-sm">
                  <div className="flex h-14 shrink-0 items-center border-b px-4 lg:h-[60px]">
                     <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
                       <Pizza className="h-6 w-6 text-primary" />

@@ -387,8 +387,8 @@ export default function StaffManagementPage() {
     };
 
     return (
-        <div className="flex flex-col gap-4 h-full">
-            <div className="flex items-center justify-between shrink-0">
+        <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold font-headline">Staff</h1>
                 <Button onClick={openAddDialog}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Staff
@@ -408,82 +408,84 @@ export default function StaffManagementPage() {
                 onOpenChange={setIsDetailDialogOpen}
             />
 
-            <Card className="flex-grow flex flex-col">
+            <Card>
                 <CardHeader>
                     <CardTitle>Manage Staff</CardTitle>
                     <CardDescription>
                         A list of all staff members in your bakery.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="flex-grow overflow-auto">
-                    <Table>
-                        <TableHeader className="sticky top-0 bg-card">
-                            <TableRow>
-                                <TableHead>Staff Member</TableHead>
-                                <TableHead>Role</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Pay Rate</TableHead>
-                                <TableHead><span className="sr-only">Actions</span></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                         <TableBody>
-                            {isLoading ? (
+                <CardContent>
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">
-                                        <Loader2 className="mx-auto h-8 w-8 animate-spin" />
-                                    </TableCell>
+                                    <TableHead>Staff Member</TableHead>
+                                    <TableHead>Role</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Pay Rate</TableHead>
+                                    <TableHead><span className="sr-only">Actions</span></TableHead>
                                 </TableRow>
-                            ) : staffList.length > 0 ? (
-                                staffList.map(staff => (
-                                    <TableRow key={staff.staff_id}>
-                                        <TableCell className="font-medium">
-                                            <div className="flex items-center gap-3">
-                                                <Avatar>
-                                                    <AvatarImage src={`https://placehold.co/40x64.png?text=${staff.name.charAt(0)}`} alt={staff.name} data-ai-hint="person face" />
-                                                    <AvatarFallback>{staff.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                                </Avatar>
-                                                <div>
-                                                    <div className="font-semibold">{staff.name}</div>
-                                                    <div className="text-sm text-muted-foreground">{staff.email}</div>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>{staff.role}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={getStatusVariant(staff.is_active)}>
-                                                {staff.is_active ? 'Active' : 'Inactive'}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>₦{(staff.pay_rate || 0).toLocaleString()}/{staff.pay_type === 'Salary' ? 'mo' : 'hr'}</TableCell>
-                                        <TableCell>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button aria-haspopup="true" size="icon" variant="ghost">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                        <span className="sr-only">Toggle menu</span>
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                    <DropdownMenuItem onSelect={() => openEditDialog(staff)}>Edit</DropdownMenuItem>
-                                                    <DropdownMenuItem onSelect={() => openDetailDialog(staff)}>View Details</DropdownMenuItem>
-                                                    <DropdownMenuItem disabled>Pay Staff</DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem className="text-destructive" onSelect={() => setStaffToDelete(staff)}>Delete</DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                            </TableHeader>
+                             <TableBody>
+                                {isLoading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">
+                                            <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">
-                                        No staff members found.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                                ) : staffList.length > 0 ? (
+                                    staffList.map(staff => (
+                                        <TableRow key={staff.staff_id}>
+                                            <TableCell className="font-medium">
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar>
+                                                        <AvatarImage src={`https://placehold.co/40x64.png?text=${staff.name.charAt(0)}`} alt={staff.name} data-ai-hint="person face" />
+                                                        <AvatarFallback>{staff.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <div className="font-semibold">{staff.name}</div>
+                                                        <div className="text-sm text-muted-foreground">{staff.email}</div>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>{staff.role}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={getStatusVariant(staff.is_active)}>
+                                                    {staff.is_active ? 'Active' : 'Inactive'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>₦{(staff.pay_rate || 0).toLocaleString()}/{staff.pay_type === 'Salary' ? 'mo' : 'hr'}</TableCell>
+                                            <TableCell>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button aria-haspopup="true" size="icon" variant="ghost">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                            <span className="sr-only">Toggle menu</span>
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                        <DropdownMenuItem onSelect={() => openEditDialog(staff)}>Edit</DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => openDetailDialog(staff)}>View Details</DropdownMenuItem>
+                                                        <DropdownMenuItem disabled>Pay Staff</DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setStaffToDelete(staff)}>Delete</DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">
+                                            No staff members found.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
             </Card>
 

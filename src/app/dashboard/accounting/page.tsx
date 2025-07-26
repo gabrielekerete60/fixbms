@@ -133,7 +133,6 @@ function AddIndirectCostDialog({ onCostAdded }: { onCostAdded: () => void }) {
     );
 }
 
-
 // --- Tab Components ---
 
 function SummaryTab() {
@@ -189,10 +188,12 @@ function DebtTab() {
     return (
         <Card><CardHeader><CardTitle>Debtors & Creditors</CardTitle><CardDescription>Manage all money owed to and by the bakery.</CardDescription></CardHeader>
             <CardContent>
-                <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Debit (Owed to Us)</TableHead><TableHead className="text-right">Credit (We Owe)</TableHead></TableRow></TableHeader>
-                    <TableBody>{records.map(rec => (<TableRow key={rec.id}><TableCell>{format(new Date(rec.date), 'PPP')}</TableCell><TableCell>{rec.description}</TableCell><TableCell className="text-right">{formatCurrency(rec.debit)}</TableCell><TableCell className="text-right">{formatCurrency(rec.credit)}</TableCell></TableRow>))}</TableBody>
-                    <TableFooter><TableRow><TableCell colSpan={2} className="text-right font-bold">Totals</TableCell><TableCell className="text-right font-bold">{formatCurrency(totals.debit)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(totals.credit)}</TableCell></TableRow></TableFooter>
-                </Table>
+                 <div className="overflow-x-auto">
+                    <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Debit (Owed to Us)</TableHead><TableHead className="text-right">Credit (We Owe)</TableHead></TableRow></TableHeader>
+                        <TableBody>{records.map(rec => (<TableRow key={rec.id}><TableCell>{format(new Date(rec.date), 'PPP')}</TableCell><TableCell>{rec.description}</TableCell><TableCell className="text-right">{formatCurrency(rec.debit)}</TableCell><TableCell className="text-right">{formatCurrency(rec.credit)}</TableCell></TableRow>))}</TableBody>
+                        <TableFooter><TableRow><TableCell colSpan={2} className="text-right font-bold">Totals</TableCell><TableCell className="text-right font-bold">{formatCurrency(totals.debit)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(totals.credit)}</TableCell></TableRow></TableFooter>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
@@ -207,7 +208,11 @@ function DirectCostsTab() {
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between"><div className="space-y-1.5"><CardTitle>Direct Costs</CardTitle><CardDescription>Costs directly tied to production, like ingredients.</CardDescription></div><AddDirectCostDialog onCostAdded={fetchCosts} /></CardHeader>
-            <CardContent><Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Quantity</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{costs.map(c => <TableRow key={c.id}><TableCell>{format(new Date(c.date), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{c.quantity}</TableCell><TableCell className="text-right">{formatCurrency(c.total)}</TableCell></TableRow>)}</TableBody></Table></CardContent>
+            <CardContent>
+                <div className="overflow-x-auto">
+                    <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Quantity</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{costs.map(c => <TableRow key={c.id}><TableCell>{format(new Date(c.date), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{c.quantity}</TableCell><TableCell className="text-right">{formatCurrency(c.total)}</TableCell></TableRow>)}</TableBody></Table>
+                </div>
+            </CardContent>
         </Card>
     );
 }
@@ -221,121 +226,46 @@ function IndirectCostsTab() {
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between"><div className="space-y-1.5"><CardTitle>Indirect Costs</CardTitle><CardDescription>Operational costs not tied to a single product.</CardDescription></div><AddIndirectCostDialog onCostAdded={fetchCosts} /></CardHeader>
-            <CardContent><Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader><TableBody>{costs.map(c => <TableRow key={c.id}><TableCell>{format(new Date(c.date), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{formatCurrency(c.amount)}</TableCell></TableRow>)}</TableBody></Table></CardContent>
-        </Card>
-    );
-}
-
-function ClosingStockTab() {
-    const [stocks, setStocks] = useState<ClosingStock[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    useEffect(() => { getClosingStocks().then(data => { setStocks(data as ClosingStock[]); setIsLoading(false); }); }, []);
-    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-    return (
-        <Card>
-            <CardHeader><CardTitle>Closing Stock</CardTitle><CardDescription>Value of remaining inventory at the end of a period.</CardDescription></CardHeader>
-            <CardContent><Table><TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Remaining</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader><TableBody>{stocks.map(s => <TableRow key={s.id}><TableCell>{s.item}</TableCell><TableCell>{s.remainingStock}</TableCell><TableCell className="text-right">{formatCurrency(s.amount)}</TableCell></TableRow>)}</TableBody></Table></CardContent>
-        </Card>
-    );
-}
-
-function WagesTab() {
-    const [wages, setWages] = useState<Wage[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    useEffect(() => { getWages().then(data => { setWages(data as Wage[]); setIsLoading(false); }); }, []);
-    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-    return (
-        <Card><CardHeader><CardTitle>Payroll & Payments</CardTitle><CardDescription>Manage employee payroll and other payment requests.</CardDescription></CardHeader>
-            <CardContent><Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Position</TableHead><TableHead className="text-right">Salary</TableHead><TableHead className="text-right">Deductions</TableHead><TableHead className="text-right">Net Pay</TableHead></TableRow></TableHeader><TableBody>{wages.map(w => (<TableRow key={w.id}><TableCell>{w.name}</TableCell><TableCell>{w.position} ({w.department})</TableCell><TableCell className="text-right">{formatCurrency(w.salary)}</TableCell><TableCell className="text-right text-destructive">{formatCurrency(w.deductions.shortages + w.deductions.advanceSalary)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(w.netPay)}</TableCell></TableRow>))}</TableBody></Table></CardContent>
-        </Card>
-    );
-}
-
-function SalesRecordsTab() {
-    const [sales, setSales] = useState<Sale[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    useEffect(() => { getSales().then(data => { setSales(data as Sale[]); setIsLoading(false); }); }, []);
-    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-    return (
-        <Card><CardHeader><CardTitle>Sales Records</CardTitle><CardDescription>Detailed log of daily sales transactions.</CardDescription></CardHeader>
-            <CardContent><Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Cash</TableHead><TableHead className="text-right">Transfer</TableHead><TableHead className="text-right">POS</TableHead><TableHead className="text-right">Credit</TableHead><TableHead className="text-right">Shortage</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{sales.map(s => (<TableRow key={s.id}><TableCell>{format(new Date(s.date), 'PPP')}</TableCell><TableCell>{s.description}</TableCell><TableCell className="text-right">{formatCurrency(s.cash)}</TableCell><TableCell className="text-right">{formatCurrency(s.transfer)}</TableCell><TableCell className="text-right">{formatCurrency(s.pos)}</TableCell><TableCell className="text-right">{formatCurrency(s.creditSales)}</TableCell><TableCell className="text-right">{formatCurrency(s.shortage)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(s.total)}</TableCell></TableRow>))}</TableBody></Table></CardContent>
-        </Card>
-    )
-}
-
-function DrinkSalesTab() {
-    const [sales, setSales] = useState<DrinkSale[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    useEffect(() => { getDrinkSales().then(data => { setSales(data as DrinkSale[]); setIsLoading(false); }); }, []);
-    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-    return (
-        <Card><CardHeader><CardTitle>Drink Sales</CardTitle><CardDescription>Sales records specific to drinks.</CardDescription></CardHeader>
-            <CardContent><Table><TableHeader><TableRow><TableHead>Drink</TableHead><TableHead>Amount Purchased</TableHead><TableHead>Qty Sold</TableHead><TableHead>Selling Price</TableHead><TableHead className="text-right">Total Amount</TableHead></TableRow></TableHeader><TableBody>{sales.map(s => (<TableRow key={s.id}><TableCell>{s.drinkType}</TableCell><TableCell>{formatCurrency(s.amountPurchases)}</TableCell><TableCell>{s.quantitySold}</TableCell><TableCell>{formatCurrency(s.sellingPrice)}</TableCell><TableCell className="text-right">{formatCurrency(s.amount)}</TableCell></TableRow>))}</TableBody></Table></CardContent>
-        </Card>
-    );
-}
-
-function FinancialsTab() {
-    const [costs, setCosts] = useState<IndirectCost[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        getIndirectCosts().then(data => {
-            setCosts(data as IndirectCost[]);
-            setIsLoading(false);
-        });
-    }, []);
-    
-    const categories = ['Diesel', 'Office Equipment', 'Cleaning', 'Nylon', 'Gas', 'Repair', 'Petrol', 'General Expenses', 'Salary', 'Transportation'];
-
-    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-
-    return (
-        <Card><CardHeader><CardTitle>Financials - Indirect Expenses</CardTitle><CardDescription>A detailed breakdown of indirect expenses for the month.</CardDescription></CardHeader>
             <CardContent>
-                <ScrollArea className="w-full whitespace-nowrap">
-                    <Table><TableHeader><TableRow><TableHead className="sticky left-0 bg-card">Date</TableHead><TableHead className="sticky left-24 bg-card min-w-48">Description</TableHead><TableHead className="text-right">Amount</TableHead>{categories.map(cat => (<TableHead key={cat} className="text-right min-w-32">{cat}</TableHead>))}</TableRow></TableHeader>
-                        <TableBody>{costs.map(cost => (<TableRow key={cost.id}><TableCell className="sticky left-0 bg-card">{format(new Date(cost.date), 'PPP')}</TableCell><TableCell className="sticky left-24 bg-card">{cost.description}</TableCell><TableCell className="text-right font-semibold">{formatCurrency(cost.amount)}</TableCell>{categories.map(cat => (<TableCell key={cat} className="text-right">{cost.category === cat ? formatCurrency(cost.amount) : ''}</TableCell>))}</TableRow>))}</TableBody>
-                    </Table>
-                </ScrollArea>
+                <div className="overflow-x-auto">
+                    <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader><TableBody>{costs.map(c => <TableRow key={c.id}><TableCell>{format(new Date(c.date), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{formatCurrency(c.amount)}</TableCell></TableRow>)}</TableBody></Table>
+                </div>
             </CardContent>
         </Card>
     );
 }
 
-
 export default function AccountingPage() {
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-bold font-headline">Accounting Dashboard</h1>
-      <Tabs defaultValue="summary">
-        <div className="w-full overflow-x-auto">
-          <TabsList className="md:grid md:w-full md:grid-cols-10">
+      <Tabs defaultValue="summary" className="space-y-4">
+        <TabsList>
             <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="sales-records">Sales records</TabsTrigger>
-            <TabsTrigger value="sales-drinks">Sales - Drinks</TabsTrigger>
-            <TabsTrigger value="direct-cost">Direct cost</TabsTrigger>
-            <TabsTrigger value="indirect-cost">Indirect cost</TabsTrigger>
-            <TabsTrigger value="debt">Debt</TabsTrigger>
-            <TabsTrigger value="wages">Wages</TabsTrigger>
-            <TabsTrigger value="closing-stocks">Closing Stocks</TabsTrigger>
-            <TabsTrigger value="trading-acct">Trading acct.</TabsTrigger>
-            <TabsTrigger value="financials">Financials</TabsTrigger>
-          </TabsList>
-        </div>
+            <TabsTrigger value="debt">Debtors & Creditors</TabsTrigger>
+            <TabsTrigger value="expenses">Expenses</TabsTrigger>
+            <TabsTrigger value="payments">Payroll & Payments</TabsTrigger>
+        </TabsList>
 
-        <TabsContent value="summary" className="mt-4"><SummaryTab /></TabsContent>
-        <TabsContent value="sales-records" className="mt-4"><SalesRecordsTab /></TabsContent>
-        <TabsContent value="sales-drinks" className="mt-4"><DrinkSalesTab /></TabsContent>
-        <TabsContent value="direct-cost" className="mt-4"><DirectCostsTab /></TabsContent>
-        <TabsContent value="indirect-cost" className="mt-4"><IndirectCostsTab /></TabsContent>
-        <TabsContent value="debt" className="mt-4"><DebtTab /></TabsContent>
-        <TabsContent value="wages" className="mt-4"><WagesTab /></TabsContent>
-        <TabsContent value="closing-stocks" className="mt-4"><ClosingStockTab /></TabsContent>
-        <TabsContent value="trading-acct" className="mt-4">
-            <Card><CardHeader><CardTitle>Trading Account</CardTitle></CardHeader><CardContent className="flex h-48 items-center justify-center"><p>Trading account details will be displayed here.</p></CardContent></Card>
+        <TabsContent value="summary"><SummaryTab /></TabsContent>
+
+        <TabsContent value="debt"><DebtTab /></TabsContent>
+        
+        <TabsContent value="expenses">
+            <Tabs defaultValue="direct" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="direct">Direct Costs</TabsTrigger>
+                    <TabsTrigger value="indirect">Indirect Costs</TabsTrigger>
+                </TabsList>
+                <TabsContent value="direct"><DirectCostsTab /></TabsContent>
+                <TabsContent value="indirect"><IndirectCostsTab /></TabsContent>
+            </Tabs>
         </TabsContent>
-        <TabsContent value="financials" className="mt-4"><FinancialsTab /></TabsContent>
+
+        <TabsContent value="payments">
+            <Card><CardHeader><CardTitle>Payroll & Payments</CardTitle><CardDescription>This feature is coming soon.</CardDescription></CardHeader><CardContent className="flex h-48 items-center justify-center"><p>Payroll, salaries, and other payment requests will be managed here.</p></CardContent></Card>
+        </TabsContent>
+
       </Tabs>
     </div>
   );
