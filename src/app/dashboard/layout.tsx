@@ -191,17 +191,25 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!user) return;
 
+    let hasCheckedAttendance = false;
     const checkAttendance = async () => {
-      setIsClocking(true);
-      const status = await getAttendanceStatus(user.staff_id);
-      if (status) {
-        setIsClockedIn(true);
-        setAttendanceId(status.attendanceId);
-      } else {
-        setIsClockedIn(false);
-        setAttendanceId(null);
-      }
-      setIsClocking(false);
+        if(hasCheckedAttendance) return;
+        setIsClocking(true);
+        try {
+            const status = await getAttendanceStatus(user.staff_id);
+            if (status) {
+                setIsClockedIn(true);
+                setAttendanceId(status.attendanceId);
+            } else {
+                setIsClockedIn(false);
+                setAttendanceId(null);
+            }
+        } catch (error) {
+            console.error("Failed to check attendance status:", error);
+        } finally {
+            setIsClocking(false);
+            hasCheckedAttendance = true;
+        }
     };
     checkAttendance();
     
@@ -209,22 +217,22 @@ export default function DashboardLayout({
       setTime(new Date().toLocaleTimeString());
     }, 1000);
     
-    // Real-time listeners
     const userDocRef = doc(db, "staff", user.staff_id);
     const unsubUser = onSnapshot(userDocRef, (doc) => {
         if (doc.exists()) {
             const userData = doc.data();
-             if (!userData.is_active) {
+            if (!userData.is_active) {
                 handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
                 return;
             }
-
-            // Only update state and re-render if something has actually changed
             setUser(currentUser => {
-                if (currentUser && (currentUser.name !== userData.name || currentUser.theme !== (userData.theme || 'default'))) {
-                    const updatedUser = { ...currentUser, name: userData.name, theme: userData.theme || 'default' };
+                const newTheme = userData.theme || 'default';
+                if (currentUser && (currentUser.name !== userData.name || currentUser.theme !== newTheme || currentUser.role !== userData.role)) {
+                    const updatedUser = { ...currentUser, name: userData.name, role: userData.role, theme: newTheme };
                     localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-                    applyTheme(updatedUser.theme);
+                    if (currentUser.theme !== newTheme) {
+                        applyTheme(newTheme);
+                    }
                     return updatedUser;
                 }
                 return currentUser;
@@ -246,7 +254,6 @@ export default function DashboardLayout({
         unsubPending();
         unsubBatches();
     };
-
   }, [user?.staff_id, handleLogout, applyTheme]);
   
   const handleClockInOut = async () => {
@@ -394,7 +401,7 @@ export default function DashboardLayout({
           </div>
         </div>
       </div>
-      <div className="flex flex-col">
+      <div className="flex flex-col md:h-screen">
         <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 shrink-0">
           <Sheet>
               <SheetTrigger asChild>
@@ -442,9 +449,11 @@ export default function DashboardLayout({
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background overflow-auto relative">
-          <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
-          {children}
+        <main className="flex-1 overflow-auto bg-background relative">
+           <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
+           <div className="p-4 lg:p-6">
+             {children}
+           </div>
         </main>
       </div>
     </div>
