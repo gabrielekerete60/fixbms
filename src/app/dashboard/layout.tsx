@@ -194,6 +194,7 @@ export default function DashboardLayout({
     let hasCheckedAttendance = false;
     const checkAttendance = async () => {
         if(hasCheckedAttendance) return;
+        hasCheckedAttendance = true;
         setIsClocking(true);
         try {
             const status = await getAttendanceStatus(user.staff_id);
@@ -208,7 +209,6 @@ export default function DashboardLayout({
             console.error("Failed to check attendance status:", error);
         } finally {
             setIsClocking(false);
-            hasCheckedAttendance = true;
         }
     };
     checkAttendance();
@@ -401,8 +401,8 @@ export default function DashboardLayout({
           </div>
         </div>
       </div>
-      <div className="flex flex-col md:h-screen">
-        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 shrink-0">
+      <div className="flex flex-col">
+        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
           <Sheet>
               <SheetTrigger asChild>
                 <Button
@@ -449,7 +449,7 @@ export default function DashboardLayout({
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
-        <main className="flex-1 overflow-auto bg-background relative">
+        <main className="flex-1 overflow-auto bg-background">
            <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
            <div className="p-4 lg:p-6">
              {children}

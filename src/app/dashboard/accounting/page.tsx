@@ -266,6 +266,7 @@ function DebtorsCreditorsTab() {
                     <CardDescription>Suppliers to whom the business has an outstanding balance.</CardDescription>
                 </CardHeader>
                 <CardContent>
+                   <div className="overflow-x-auto">
                     <Table>
                         <TableHeader><TableRow><TableHead>Supplier</TableHead><TableHead>Contact</TableHead><TableHead className="text-right">Balance</TableHead><TableHead className="text-center">Action</TableHead></TableRow></TableHeader>
                         <TableBody>
@@ -280,6 +281,7 @@ function DebtorsCreditorsTab() {
                             ))}
                         </TableBody>
                     </Table>
+                    </div>
                 </CardContent>
             </Card>
              <Card>
@@ -288,6 +290,7 @@ function DebtorsCreditorsTab() {
                     <CardDescription>Customers who have an outstanding credit balance with the business.</CardDescription>
                 </CardHeader>
                 <CardContent>
+                    <div className="overflow-x-auto">
                     <Table>
                          <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader>
                          <TableBody>
@@ -301,6 +304,7 @@ function DebtorsCreditorsTab() {
                             ))}
                          </TableBody>
                     </Table>
+                    </div>
                 </CardContent>
             </Card>
         </div>
@@ -395,6 +399,7 @@ function PaymentsRequestsTab() {
                     </div>
                 </CardHeader>
                 <CardContent>
+                   <div className="overflow-x-auto">
                     <Table>
                         <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Run ID</TableHead><TableHead>Amount</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
@@ -426,6 +431,7 @@ function PaymentsRequestsTab() {
                         )}
                         </TableBody>
                     </Table>
+                    </div>
                 </CardContent>
             </Card>
              <Card>
@@ -434,6 +440,7 @@ function PaymentsRequestsTab() {
                     <CardDescription>A log of all previously approved and declined payment requests.</CardDescription>
                 </CardHeader>
                 <CardContent>
+                    <div className="overflow-x-auto">
                     <Table>
                          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                          <TableBody>
@@ -453,6 +460,7 @@ function PaymentsRequestsTab() {
                             )}
                          </TableBody>
                     </Table>
+                    </div>
                 </CardContent>
             </Card>
         </div>
@@ -507,7 +515,7 @@ export default function AccountingPage() {
       <h1 className="text-2xl font-bold font-headline">Accounting</h1>
       <Tabs defaultValue="summary" className="space-y-4">
         <div className="overflow-x-auto pb-2">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:flex lg:w-auto">
+            <TabsList>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
                 <TabsTrigger value="debt">Debtors & Creditors</TabsTrigger>
                 <TabsTrigger value="expenses">Expenses</TabsTrigger>
@@ -544,5 +552,3 @@ export default function AccountingPage() {
     </div>
   );
 }
-
-    

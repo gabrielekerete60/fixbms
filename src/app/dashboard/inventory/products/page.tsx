@@ -377,27 +377,21 @@ export default function ProductsPage() {
           <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="logs">Product Logs</TabsTrigger>
         </TabsList>
-        <TabsContent value="products">
+        <TabsContent value="products" className="mt-4">
           <Card>
             <CardHeader>
-               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList>
-                  <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="in-stock">In Stock</TabsTrigger>
-                  <TabsTrigger value="low-stock">Low Stock</TabsTrigger>
-                  <TabsTrigger value="out-of-stock">Out of Stock</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="overflow-x-auto pb-2">
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList>
+                    <TabsTrigger value="all">All</TabsTrigger>
+                    <TabsTrigger value="in-stock">In Stock</TabsTrigger>
+                    <TabsTrigger value="low-stock">Low Stock</TabsTrigger>
+                    <TabsTrigger value="out-of-stock">Out of Stock</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </CardHeader>
             <CardContent>
-              <Card>
-                 <CardHeader>
-                    <CardTitle>Products</CardTitle>
-                    <CardDescription>
-                    Manage your products and view their inventory levels.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
                 <div className="overflow-x-auto">
                 <Table>
                 <TableHeader>
@@ -492,8 +486,6 @@ export default function ProductsPage() {
                 )}
               </Table>
               </div>
-                </CardContent>
-              </Card>
             </CardContent>
           </Card>
         </TabsContent>

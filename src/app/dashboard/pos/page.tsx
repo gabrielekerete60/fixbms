@@ -321,7 +321,7 @@ function POSPageContent() {
         if (storedStatusRaw) {
             const newStatus: PaymentStatus = JSON.parse(storedStatusRaw);
 
-            if (newStatus.status !== paymentStatus.status) {
+            if (newStatus.status !== paymentStatus.status && newStatus.status !== 'idle' && newStatus.status !== 'processing') {
                 if (newStatus.status === 'success' && newStatus.orderId) {
                     toast({ title: "Payment Successful", description: "Order completed." });
                     const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
@@ -329,14 +329,12 @@ function POSPageContent() {
                         setLastCompletedOrder(orderDoc.data() as CompletedOrder);
                         setIsReceiptOpen(true);
                     }
-                    setPaymentStatus({ status: 'idle' });
                 } else if (newStatus.status === 'cancelled') {
                     toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
-                    setPaymentStatus({ status: 'idle' });
                 } else if (newStatus.status === 'failed') {
                     toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
-                    setPaymentStatus({ status: 'idle' });
                 }
+                setPaymentStatus({ status: 'idle' });
             }
         }
     }
@@ -446,8 +444,8 @@ function POSPageContent() {
           if (finalOrder) {
             setIsReceiptOpen(true);
             toast({ title: 'Payment Successful', description: 'Order has been completed.' });
+            setPaymentStatus({ status: 'success', orderId: finalOrder?.id });
           }
-          setPaymentStatus({ status: 'success', orderId: finalOrder?.id });
         },
         onCancel: () => {
           toast({ variant: 'destructive', title: 'Payment Cancelled' });
@@ -796,11 +794,6 @@ function POSPageContent() {
                         {paymentStatus.status === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         Checkout
                     </Button>
-                    {paymentStatus.status === 'processing' && (
-                        <Button variant="outline" size="sm" className="w-full" onClick={() => setPaymentStatus({ status: 'idle' })}>
-                            Cancel Payment
-                        </Button>
-                    )}
                 </CardFooter>
             </Card>
        </div>
