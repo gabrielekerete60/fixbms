@@ -58,6 +58,8 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
+  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -227,8 +229,9 @@ export default function DashboardLayout({
             }
             setUser(currentUser => {
                 const newTheme = userData.theme || 'default';
-                if (currentUser && (currentUser.name !== userData.name || currentUser.theme !== newTheme || currentUser.role !== userData.role)) {
-                    const updatedUser = { ...currentUser, name: userData.name, role: userData.role, theme: newTheme };
+                const hasChanged = currentUser && (currentUser.name !== userData.name || currentUser.theme !== newTheme || currentUser.role !== userData.role || currentUser.is_active !== userData.is_active);
+                if (hasChanged) {
+                    const updatedUser = { ...currentUser, name: userData.name, role: userData.role, theme: newTheme, is_active: userData.is_active };
                     localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
                     if (currentUser.theme !== newTheme) {
                         applyTheme(newTheme);
@@ -402,7 +405,7 @@ export default function DashboardLayout({
         </div>
       </div>
       <div className="flex flex-col">
-        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
+        <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
           <Sheet>
               <SheetTrigger asChild>
                 <Button
@@ -415,12 +418,13 @@ export default function DashboardLayout({
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="flex flex-col p-0 w-full max-w-xs sm:max-w-sm">
-                 <div className="flex h-14 shrink-0 items-center border-b px-4 lg:h-[60px]">
+                  <SheetHeader className="h-14 shrink-0 items-center border-b px-4 lg:h-[60px]">
+                    <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                     <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
                       <Pizza className="h-6 w-6 text-primary" />
                       <span className="font-headline">BMS</span>
                     </Link>
-                  </div>
+                  </SheetHeader>
                 <div className="overflow-auto flex-1">
                     <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
                 </div>
@@ -449,9 +453,9 @@ export default function DashboardLayout({
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
-        <main className="flex-1 overflow-auto bg-background">
+        <main className="flex flex-1 flex-col overflow-auto bg-background">
            <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
-           <div className="p-4 lg:p-6">
+           <div className="p-4 lg:p-6 overflow-auto">
              {children}
            </div>
         </main>
