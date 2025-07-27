@@ -234,6 +234,12 @@ const seedData = {
     { date: "2025-05-31T00:00:00Z", description: "Debtor/Creditor Bal bf", debit: 369500, credit: 300660 },
     { date: "2025-06-30T00:00:00Z", description: "Debtor/Creditor for June", debit: 3715250, credit: 659950 }
   ],
+  directCosts: [
+    { date: "2025-06-02T00:00:00Z", description: "Flour", category: "Flour", quantity: 270, total: 2430000 },
+    { date: "2025-06-02T00:00:00Z", description: "Sugar", category: "Sugar", quantity: 41, total: 1066000 },
+    { date: "2025-06-02T00:00:00Z", description: "Butter", category: "Butter", quantity: 38, total: 1216000 },
+    { date: "2025-06-03T00:00:00Z", description: "Yeast", category: "Yeast", quantity: 12, total: 540000 },
+  ],
   indirectCosts: [
     { date: "2025-06-02T00:00:00Z", description: "Diesel Generator", category: "Diesel", amount: 73000 },
     { date: "2025-06-02T00:00:00Z", description: "Part payment for Bread Nylon", category: "Nylon", amount: 180000 },
