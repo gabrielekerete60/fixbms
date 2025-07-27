@@ -273,8 +273,19 @@ const seedData = {
     { date: "2025-06-21T00:00:00Z", description: "Petrol For Distribution Van", category: "Petrol", amount: 30000 }
   ],
   wages: [
-    { name: "Wisdom Effiong Edet", department: "Managerial", position: "Manager", salary: 80000, deductions: { shortages: 0, advanceSalary: 20000 }, netPay: 60000 },
-    { name: "MR Bassey OFFIONG", department: "Production", position: "Chief Baker", salary: 60000, deductions: { shortages: 2400, advanceSalary: 10000 }, netPay: 47600 }
+    { id: "wage_1", name: "Wisdom Effiong Edet", department: "Managerial", position: "Manager", salary: 80000, deductions: { shortages: 0, advanceSalary: 20000, debt: 0, fine: 0 }, netPay: 60000 },
+    { id: "wage_2", name: "Mr Bassey Smith Daniel", department: "Account", position: "Accountant", salary: 80000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 80000 },
+    { id: "wage_3", name: "MR Bassey OFFIONG", department: "Production", position: "Chief Baker", salary: 60000, deductions: { shortages: 2400, advanceSalary: 10000, debt: 0, fine: 0 }, netPay: 47600 },
+    { id: "wage_4", name: "Mr Ukeme Akpan Thompson", department: "Production", position: "Ass.Chief", salary: 100000, deductions: { shortages: 0, advanceSalary: 10000, debt: 0, fine: 0 }, netPay: 90000 },
+    { id: "wage_5", name: "Victory Peter Ekerete", department: "Store", position: "Store keeper", salary: 40000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 500 }, netPay: 39500 },
+    { id: "wage_6", name: "Mary Felix Ating", department: "Sale", position: "Sale rep", salary: 40000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 500 }, netPay: 39500 },
+    { id: "wage_7", name: "Ubom Robert Okon", department: "Production", position: "Bakery Assistant", salary: 35000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 35000 },
+    { id: "wage_8", name: "Nnamso George Walter", department: "Cleaning", position: "Cleaner", salary: 30000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 30000 },
+    { id: "wage_9", name: "Zion Ekerete", department: "Production", position: "Bakery Assistant", salary: 40000, deductions: { shortages: 0, advanceSalary: 20000, debt: 0, fine: 0 }, netPay: 20000 },
+    { id: "wage_10", name: "Edet Edet Nyong", department: "Transport", position: "Driver", salary: 25000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 25000 },
+    { id: "wage_11", name: "Benog Security Services", department: "Security", position: "Chief Security", salary: 20000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 20000 },
+    { id: "wage_12", name: "Nsikak Udo Essiet", department: "Security", position: "Security", salary: 25000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 25000 },
+    { id: "wage_13", name: "Aniefon Udo Bassey", department: "Security", position: "Security", salary: 25000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 25000 }
   ],
   closingStocks: [
     { item: "Flour", remainingStock: "100KG", amount: 108000 },

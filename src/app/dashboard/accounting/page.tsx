@@ -37,7 +37,7 @@ type DebtRecord = { id: string; date: string; description: string; debit: number
 type DirectCost = { id: string; date: string; description: string; category: string; quantity: number; total: number; };
 type IndirectCost = { id: string; date: string; description: string; category: string; amount: number; };
 type ClosingStock = { id: string; item: string; remainingStock: string; amount: number; };
-type Wage = { id: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number }; netPay: number; };
+type Wage = { id: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
 type Sale = { id: string; date: string; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; };
 type DrinkSale = { id: string; drinkType: string; amountPurchases: number; quantitySold: number; sellingPrice: number; amount: number; };
 const chartConfig = {
@@ -623,6 +623,76 @@ function DrinkSalesTab() {
     );
 }
 
+function WagesTab() {
+    const [records, setRecords] = useState<Wage[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        getWages().then(data => {
+            setRecords(data as Wage[]);
+            setIsLoading(false);
+        });
+    }, []);
+
+    const totals = useMemo(() => {
+        return records.reduce((acc, curr) => {
+            acc.salary += curr.salary || 0;
+            acc.shortages += curr.deductions?.shortages || 0;
+            acc.advanceSalary += curr.deductions?.advanceSalary || 0;
+            acc.debt += curr.deductions?.debt || 0;
+            acc.fine += curr.deductions?.fine || 0;
+            acc.netPay += curr.netPay || 0;
+            return acc;
+        }, { salary: 0, shortages: 0, advanceSalary: 0, debt: 0, fine: 0, netPay: 0 });
+    }, [records]);
+
+    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
+    const totalDeductions = (r: Wage) => (r.deductions?.shortages || 0) + (r.deductions?.advanceSalary || 0) + (r.deductions?.debt || 0) + (r.deductions?.fine || 0);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Wages & Salaries</CardTitle>
+                <CardDescription>Monthly staff emolument records.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Position</TableHead>
+                                <TableHead className="text-right">Salary</TableHead>
+                                <TableHead className="text-right">Total Deductions</TableHead>
+                                <TableHead className="text-right">Net Pay</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {records.map(r => (
+                                <TableRow key={r.id}>
+                                    <TableCell>{r.name}</TableCell>
+                                    <TableCell>{r.position}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.salary)}</TableCell>
+                                    <TableCell className="text-right text-destructive">{formatCurrency(totalDeductions(r))}</TableCell>
+                                    <TableCell className="text-right font-bold">{formatCurrency(r.netPay)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                        <TableFooter>
+                            <TableRow>
+                                <TableCell colSpan={2} className="text-right font-bold">Total</TableCell>
+                                <TableCell className="text-right font-bold">{formatCurrency(totals.salary)}</TableCell>
+                                <TableCell className="text-right font-bold text-destructive">{formatCurrency(totals.shortages + totals.advanceSalary + totals.debt + totals.fine)}</TableCell>
+                                <TableCell className="text-right font-bold">{formatCurrency(totals.netPay)}</TableCell>
+                            </TableRow>
+                        </TableFooter>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function AccountingPage() {
   return (
@@ -637,33 +707,28 @@ export default function AccountingPage() {
                 <TabsTrigger value="payments">Payments & Requests</TabsTrigger>
                 <TabsTrigger value="sales-records">Sales Records</TabsTrigger>
                 <TabsTrigger value="drink-sales">Drink Sales</TabsTrigger>
+                <TabsTrigger value="wages">Wages</TabsTrigger>
             </TabsList>
         </div>
 
         <TabsContent value="summary"><SummaryTab /></TabsContent>
-
         <TabsContent value="debt"><DebtorsCreditorsTab /></TabsContent>
-        
         <TabsContent value="expenses">
-            <Tabs defaultValue="direct" className="space-y-4">
+            <Tabs defaultValue="indirect" className="space-y-4">
                  <div className="overflow-x-auto pb-2">
                     <TabsList>
-                        <TabsTrigger value="direct">Direct Costs</TabsTrigger>
                         <TabsTrigger value="indirect">Indirect Costs</TabsTrigger>
+                        <TabsTrigger value="direct">Direct Costs</TabsTrigger>
                     </TabsList>
                 </div>
-                <TabsContent value="direct"><DirectCostsTab /></TabsContent>
                 <TabsContent value="indirect"><IndirectCostsTab /></TabsContent>
+                <TabsContent value="direct"><DirectCostsTab /></TabsContent>
             </Tabs>
         </TabsContent>
-
-        <TabsContent value="payments">
-            <PaymentsRequestsTab />
-        </TabsContent>
-
+        <TabsContent value="payments"><PaymentsRequestsTab /></TabsContent>
         <TabsContent value="sales-records"><SalesRecordsTab /></TabsContent>
-
         <TabsContent value="drink-sales"><DrinkSalesTab /></TabsContent>
+        <TabsContent value="wages"><WagesTab /></TabsContent>
 
       </Tabs>
     </div>
