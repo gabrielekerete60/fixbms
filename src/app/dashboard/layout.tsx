@@ -214,16 +214,21 @@ export default function DashboardLayout({
     const unsubUser = onSnapshot(userDocRef, (doc) => {
         if (doc.exists()) {
             const userData = doc.data();
-            if (!userData.is_active) {
+             if (!userData.is_active) {
                 handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
                 return;
             }
-            if (user.theme !== userData.theme) {
-              const updatedUser = { ...user, theme: userData.theme || 'default', name: userData.name };
-              setUser(updatedUser); 
-              localStorage.setItem('loggedInUser', JSON.stringify(updatedUser)); 
-              applyTheme(updatedUser.theme);
-            }
+
+            // Only update state and re-render if something has actually changed
+            setUser(currentUser => {
+                if (currentUser && (currentUser.name !== userData.name || currentUser.theme !== (userData.theme || 'default'))) {
+                    const updatedUser = { ...currentUser, name: userData.name, theme: userData.theme || 'default' };
+                    localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+                    applyTheme(updatedUser.theme);
+                    return updatedUser;
+                }
+                return currentUser;
+            });
         } else {
             handleLogout("Account Deleted", "Your staff profile could not be found.");
         }
@@ -242,7 +247,7 @@ export default function DashboardLayout({
         unsubBatches();
     };
 
-  }, [user, handleLogout]);
+  }, [user?.staff_id, handleLogout, applyTheme]);
   
   const handleClockInOut = async () => {
     if (!user) return;
