@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSales, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment } from '@/app/actions';
@@ -26,6 +26,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
 // --- Helper Functions & Type Definitions ---
 const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -38,7 +40,12 @@ type ClosingStock = { id: string; item: string; remainingStock: string; amount: 
 type Wage = { id: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number }; netPay: number; };
 type Sale = { id: string; date: string; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; };
 type DrinkSale = { id: string; drinkType: string; amountPurchases: number; quantitySold: number; sellingPrice: number; amount: number; };
-
+const chartConfig = {
+  amount: {
+    label: "Amount (₦)",
+    color: "hsl(var(--primary))",
+  },
+};
 // --- DIALOGS FOR ADDING DATA ---
 
 function AddDirectCostDialog({ onCostAdded }: { onCostAdded: () => void }) {
@@ -332,18 +339,125 @@ function DirectCostsTab() {
 function IndirectCostsTab() {
     const [costs, setCosts] = useState<IndirectCost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const fetchCosts = () => { setIsLoading(true); getIndirectCosts().then(data => { setCosts(data as IndirectCost[]); setIsLoading(false); }); };
-    useEffect(() => { fetchCosts(); }, []);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const fetchCosts = useCallback(() => {
+        setIsLoading(true);
+        getIndirectCosts().then(data => {
+            setCosts(data as IndirectCost[]);
+            setIsLoading(false);
+        });
+    }, []);
+
+    useEffect(() => {
+        fetchCosts();
+    }, [fetchCosts]);
+
+    const { totalCost, categoryTotals, chartData } = useMemo(() => {
+        const filteredCosts = costs.filter(cost => cost.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        
+        const total = filteredCosts.reduce((sum, cost) => sum + cost.amount, 0);
+
+        const totals: { [key: string]: number } = filteredCosts.reduce((acc, cost) => {
+            acc[cost.category] = (acc[cost.category] || 0) + cost.amount;
+            return acc;
+        }, {});
+
+        const sortedCategories = Object.entries(totals)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5);
+
+        const chart = sortedCategories.map(([name, amount]) => ({ name, amount }));
+
+        return { totalCost: total, categoryTotals: sortedCategories, chartData: chart };
+    }, [costs, searchTerm]);
+
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
     return (
-        <Card>
-            <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"><div className="space-y-1.5"><CardTitle>Indirect Costs</CardTitle><CardDescription>Operational costs not tied to a single product.</CardDescription></div><AddIndirectCostDialog onCostAdded={fetchCosts} /></CardHeader>
-            <CardContent>
-                <div className="overflow-x-auto">
-                    <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader><TableBody>{costs.map(c => <TableRow key={c.id}><TableCell>{format(new Date(c.date), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{formatCurrency(c.amount)}</TableCell></TableRow>)}</TableBody></Table>
-                </div>
-            </CardContent>
-        </Card>
+        <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Indirect Cost</CardTitle>
+                        <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{formatCurrency(totalCost)}</div>
+                        <p className="text-xs text-muted-foreground">For all fetched records</p>
+                    </CardContent>
+                </Card>
+                {categoryTotals.map(([name, amount]) => (
+                    <Card key={name}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">{name}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{formatCurrency(amount)}</div>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-5">
+                <Card className="md:col-span-3">
+                    <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="space-y-1.5">
+                            <CardTitle>Indirect Costs Log</CardTitle>
+                            <CardDescription>All operational costs not tied to a single product.</CardDescription>
+                        </div>
+                        <div className="flex w-full md:w-auto items-center gap-2">
+                             <div className="relative flex-1 md:flex-initial">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                            </div>
+                            <AddIndirectCostDialog onCostAdded={fetchCosts} />
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {costs.filter(c => c.description.toLowerCase().includes(searchTerm.toLowerCase())).map(c => (
+                                        <TableRow key={c.id}>
+                                            <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
+                                            <TableCell>{c.description}</TableCell>
+                                            <TableCell><Badge variant="outline">{c.category}</Badge></TableCell>
+                                            <TableCell className="text-right">{formatCurrency(c.amount)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="md:col-span-2">
+                    <CardHeader>
+                        <CardTitle>Top 5 Expense Categories</CardTitle>
+                        <CardDescription>A visual breakdown of your top indirect costs.</CardDescription>
+                    </CardHeader>
+                     <CardContent>
+                        <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                            <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 30 }}>
+                                <CartesianGrid horizontal={false} />
+                                <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={80} />
+                                <XAxis dataKey="amount" type="number" hide />
+                                <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
+                                <Bar dataKey="amount" fill="var(--color-amount)" radius={4} />
+                            </BarChart>
+                        </ChartContainer>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
     );
 }
 
@@ -532,10 +646,12 @@ export default function AccountingPage() {
         
         <TabsContent value="expenses">
             <Tabs defaultValue="direct" className="space-y-4">
-                <TabsList>
-                    <TabsTrigger value="direct">Direct Costs</TabsTrigger>
-                    <TabsTrigger value="indirect">Indirect Costs</TabsTrigger>
-                </TabsList>
+                 <div className="overflow-x-auto pb-2">
+                    <TabsList>
+                        <TabsTrigger value="direct">Direct Costs</TabsTrigger>
+                        <TabsTrigger value="indirect">Indirect Costs</TabsTrigger>
+                    </TabsList>
+                </div>
                 <TabsContent value="direct"><DirectCostsTab /></TabsContent>
                 <TabsContent value="indirect"><IndirectCostsTab /></TabsContent>
             </Tabs>

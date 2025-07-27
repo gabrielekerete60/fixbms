@@ -234,11 +234,6 @@ const seedData = {
     { date: "2025-05-31T00:00:00Z", description: "Debtor/Creditor Bal bf", debit: 369500, credit: 300660 },
     { date: "2025-06-30T00:00:00Z", description: "Debtor/Creditor for June", debit: 3715250, credit: 659950 }
   ],
-  directCosts: [
-    { date: "2025-06-02T00:00:00Z", description: "Bag of Flour", category: "Flour", quantity: 2, total: 108000 },
-    { date: "2025-06-02T00:00:00Z", description: "Half Bag of Sugar", category: "Sugar", quantity: 1, total: 39500 },
-    { date: "2025-06-04T00:00:00Z", description: "Carton of Butter", category: "Butter", quantity: 1, total: 39000 }
-  ],
   indirectCosts: [
     { date: "2025-06-02T00:00:00Z", description: "Diesel Generator", category: "Diesel", amount: 73000 },
     { date: "2025-06-02T00:00:00Z", description: "Part payment for Bread Nylon", category: "Nylon", amount: 180000 },
@@ -267,20 +262,15 @@ const seedData = {
     { date: "2025-06-14T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 30000 },
     { date: "2025-06-14T00:00:00Z", description: "Distribution Van repair", category: "Repair", amount: 101000 },
     { date: "2025-06-16T00:00:00Z", description: "Police Van Petrol and Entry", category: "General Expenses", amount: 15000 },
-    { date: "2025-06-17T00:00:00Z", description: "Cell Phone Memory card", category: "General Expenses", amount: 31500 },
+    { date: "2025-06-17T00:00:00Z", description: "Cell Phone Memory card", category: "Office Equipment", amount: 31500 },
     { date: "2025-06-17T00:00:00Z", description: "Diesel", category: "Diesel", amount: 70500 },
     { date: "2025-06-18T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 35000 },
-    { date: "2025-06-18T00:00:00Z", description: "Salary Advance", category: "Salary", amount: 20000 },
-    { date: "2025-06-18T00:00:00Z", description: "part payment for Solar Pack", category: "Office Equipment", amount: 370000 },
     { date: "2025-06-18T00:00:00Z", description: "Advance Salary", category: "Salary", amount: 20000 },
     { date: "2025-06-19T00:00:00Z", description: "Petrol For Distribution Van", category: "Petrol", amount: 20000 },
-    { date: "2025-06-19T00:00:00Z", description: "Market Ticket", category: "General Expenses", amount: 200 },
     { date: "2025-06-20T00:00:00Z", description: "Petrol For Distribution Van", category: "Petrol", amount: 20000 },
     { date: "2025-06-20T00:00:00Z", description: "Milk For Baker", category: "General Expenses", amount: 15000 },
-    { date: "2025-06-20T00:00:00Z", description: "Market Ticket", category: "General Expenses", amount: 200 },
     { date: "2025-06-21T00:00:00Z", description: "Face Book Promotion", category: "General Expenses", amount: 11000 },
-    { date: "2025-06-21T00:00:00Z", description: "Petrol For Distribution Van", category: "Petrol", amount: 30000 },
-    { date: "2025-06-21T00:00:00Z", description: "Market Ticket", category: "General Expenses", amount: 200 },
+    { date: "2025-06-21T00:00:00Z", description: "Petrol For Distribution Van", category: "Petrol", amount: 30000 }
   ],
   wages: [
     { name: "Wisdom Effiong Edet", department: "Managerial", position: "Manager", salary: 80000, deductions: { shortages: 0, advanceSalary: 20000 }, netPay: 60000 },
