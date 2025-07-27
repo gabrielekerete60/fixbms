@@ -1,19 +1,29 @@
-
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSales } from '@/app/actions';
+import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSales, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation } from '@/app/actions';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // --- Helper Functions & Type Definitions ---
 const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -235,7 +245,123 @@ function IndirectCostsTab() {
     );
 }
 
-// New Tabs
+// --- New Payments & Requests Tab ---
+function PaymentsRequestsTab() {
+    const { toast } = useToast();
+    const [confirmations, setConfirmations] = useState<PaymentConfirmation[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [actioningId, setActioningId] = useState<string | null>(null);
+
+    const fetchConfirmations = useCallback(() => {
+        setIsLoading(true);
+        getPaymentConfirmations().then(data => {
+            setConfirmations(data);
+        }).catch(() => {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch payment confirmations.' });
+        }).finally(() => {
+            setIsLoading(false);
+        });
+    }, [toast]);
+    
+    useEffect(() => {
+        fetchConfirmations();
+    }, [fetchConfirmations]);
+
+    const handleAction = async (confirmationId: string, action: 'approve' | 'decline') => {
+        setActioningId(confirmationId);
+        const result = await handlePaymentConfirmation(confirmationId, action);
+        if (result.success) {
+            toast({ title: 'Success', description: `Payment has been ${action}d.` });
+            fetchConfirmations(); // Refresh the list
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setActioningId(null);
+    }
+    
+    const pendingConfirmations = confirmations.filter(c => c.status === 'pending');
+    const resolvedConfirmations = confirmations.filter(c => c.status !== 'pending');
+    
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle>Pending Payment Confirmations</CardTitle>
+                            <CardDescription>Review and approve payments reported by delivery staff for credit sales.</CardDescription>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={fetchConfirmations} disabled={isLoading}>
+                            <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Run ID</TableHead><TableHead>Amount</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                        {isLoading ? (
+                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                        ) : pendingConfirmations.length === 0 ? (
+                            <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending confirmations.</TableCell></TableRow>
+                        ) : (
+                            pendingConfirmations.map(c => (
+                            <TableRow key={c.id}>
+                                <TableCell>{format(new Date(c.date), 'Pp')}</TableCell>
+                                <TableCell>{c.driverName}</TableCell>
+                                <TableCell>{c.runId.substring(0, 8)}...</TableCell>
+                                <TableCell>{formatCurrency(c.amount)}</TableCell>
+                                <TableCell className="text-right">
+                                     <div className="flex gap-2 justify-end">
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild><Button variant="destructive" size="sm" disabled={!!actioningId}>Decline</Button></AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader><AlertDialogTitle>Are you sure you want to decline?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                                <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleAction(c.id, 'decline')}>Decline</AlertDialogAction></AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                        <Button size="sm" onClick={() => handleAction(c.id, 'approve')} disabled={actioningId === c.id}>{actioningId === c.id ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Approve'}</Button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                            ))
+                        )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader>
+                    <CardTitle>Resolved Requests</CardTitle>
+                    <CardDescription>A log of all previously approved and declined payment requests.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                         <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                         <TableBody>
+                             {isLoading ? (
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : resolvedConfirmations.length === 0 ? (
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center">No resolved requests.</TableCell></TableRow>
+                            ) : (
+                                resolvedConfirmations.map(c => (
+                                <TableRow key={c.id}>
+                                    <TableCell>{format(new Date(c.date), 'Pp')}</TableCell>
+                                    <TableCell>{c.driverName}</TableCell>
+                                    <TableCell>{formatCurrency(c.amount)}</TableCell>
+                                    <TableCell><Badge variant={c.status === 'approved' ? 'default' : 'destructive'}>{c.status}</Badge></TableCell>
+                                </TableRow>
+                                ))
+                            )}
+                         </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        </div>
+    )
+}
+
+
 function SalesRecordsTab() {
     const [records, setRecords] = useState<Sale[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -280,14 +406,14 @@ function DrinkSalesTab() {
 export default function AccountingPage() {
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold font-headline">Accounting Dashboard</h1>
+      <h1 className="text-2xl font-bold font-headline">Accounting</h1>
       <Tabs defaultValue="summary" className="space-y-4">
         <div className="overflow-x-auto pb-2">
-            <TabsList>
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:flex lg:w-auto">
                 <TabsTrigger value="summary">Summary</TabsTrigger>
                 <TabsTrigger value="debt">Debtors & Creditors</TabsTrigger>
                 <TabsTrigger value="expenses">Expenses</TabsTrigger>
-                <TabsTrigger value="payments">Payroll & Payments</TabsTrigger>
+                <TabsTrigger value="payments">Payments & Requests</TabsTrigger>
                 <TabsTrigger value="sales-records">Sales Records</TabsTrigger>
                 <TabsTrigger value="drink-sales">Drink Sales</TabsTrigger>
             </TabsList>
@@ -309,7 +435,7 @@ export default function AccountingPage() {
         </TabsContent>
 
         <TabsContent value="payments">
-            <Card><CardHeader><CardTitle>Payroll & Payments</CardTitle><CardDescription>This feature is coming soon.</CardDescription></CardHeader><CardContent className="flex h-48 items-center justify-center"><p>Payroll, salaries, and other payment requests will be managed here.</p></CardContent></Card>
+            <PaymentsRequestsTab />
         </TabsContent>
 
         <TabsContent value="sales-records"><SalesRecordsTab /></TabsContent>

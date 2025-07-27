@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -458,458 +457,409 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                                                 <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateCartQuantity(item.productId, item.quantity + 1)}><Plus className="h-4 w-4" /></Button>
                                             </div>
                                             <span className="w-20 text-right font-medium">₦{(item.price * item.quantity).toLocaleString()}</span>
-                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleRemoveFromCart(item.productId)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
                                         </div>
                                     ))}
+                                    <Separator />
+                                    <div className="font-bold text-right">Total: ₦{total.toLocaleString()}</div>
                                 </>
-                           )}
+                            )}
                         </div>
-                         {/* Total and Payment */}
-                        <div className="font-bold text-lg flex justify-between">
-                            <span>Total:</span>
-                            <span>₦{total.toLocaleString()}</span>
-                        </div>
-                        <div className="space-y-2">
+
+                         {/* Payment Options */}
+                         <div className="space-y-2">
                             <Label>Payment Method</Label>
-                            <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'Cash' | 'Credit' | 'Card')}>
-                                <SelectTrigger><SelectValue placeholder="Select payment method" /></SelectTrigger>
+                            <Select onValueChange={setPaymentMethod} defaultValue={paymentMethod}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select payment method" />
+                                </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Cash"><Wallet className="inline-block mr-2 h-4 w-4" />Cash</SelectItem>
-                                    <SelectItem value="Card"><CreditCard className="inline-block mr-2 h-4 w-4"/>Card (Paystack)</SelectItem>
-                                    <SelectItem value="Credit">Credit</SelectItem>
+                                    <SelectItem value="Cash"><HandCoins className="mr-2 h-4 w-4"/> Cash</SelectItem>
+                                    <SelectItem value="Card"><CreditCard className="mr-2 h-4 w-4"/> Card</SelectItem>
+                                    <SelectItem value="Credit"><Wallet className="mr-2 h-4 w-4"/> Credit</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        <DialogFooter>
+                            <Button type="button" variant="outline" disabled={isLoading} onClick={() => setIsOpen(false)}>Cancel</Button>
+                            <Button type="submit" disabled={isLoading} onClick={handleSubmit}>
+                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Record Sale
+                            </Button>
+                        </DialogFooter>
                     </div>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isLoading || cart.length === 0}>
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Confirm Sale
-                    </Button>
-                </DialogFooter>
-                 <AlertDialog open={isCashConfirmOpen} onOpenChange={setIsCashConfirmOpen}>
+            </DialogContent>
+
+               <AlertDialog open={isCashConfirmOpen} onOpenChange={setIsCashConfirmOpen}>
                     <AlertDialogContent>
                         <AlertDialogHeader>
-                            <AlertDialogTitle>Confirm Cash Received</AlertDialogTitle>
+                            <AlertDialogTitle>Confirm Cash Payment</AlertDialogTitle>
                             <AlertDialogDescription>
-                                Have you collected ₦{total.toLocaleString()} in cash? This will be sent to the accountant for approval.
+                                Are you sure you want to record this sale as a cash payment?
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleCashConfirmation}>Yes, Submit for Approval</AlertDialogAction>
+                            <AlertDialogCancel onClick={() => setIsCashConfirmOpen(false)}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleCashConfirmation}>Confirm</AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-            </DialogContent>
         </Dialog>
-    )
+    );
 }
 
-function RecordPaymentDialog({ run, user, customers, onPaymentMade }: { run: SalesRun, user: User | null, customers: RunCustomer[], onPaymentMade: () => void }) {
+function SalesRunDetails() {
+    const { runId } = useParams();
+    const router = useRouter();
     const { toast } = useToast();
-    const [isOpen, setIsOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
-
-    const [selectedCustomerId, setSelectedCustomerId] = useState('');
-    const [amount, setAmount] = useState<number | string>('');
-    
-    const debtors = customers.filter(c => (c.totalSold - c.totalPaid) > 0);
-    const selectedDebtor = debtors.find(d => d.customerId === selectedCustomerId);
-    const balance = selectedDebtor ? selectedDebtor.totalSold - selectedDebtor.totalPaid : 0;
-    
-    const handleCashSubmit = async () => {
-        if (!user || !selectedCustomerId || !amount || Number(amount) <= 0) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please select a debtor and enter a valid amount.'});
-            return;
-        }
-        setIsCashConfirmOpen(false);
-        setIsLoading(true);
-        const result = await handleRecordCashPaymentForRun({
-            runId: run.id,
-            customerId: selectedCustomerId,
-            customerName: selectedDebtor?.customerName || 'Unknown',
-            driverId: user.staff_id,
-            driverName: user.name,
-            amount: Number(amount)
-        });
-        if (result.success) {
-            toast({ title: 'Success', description: 'Cash payment submitted for approval.' });
-            onPaymentMade();
-            setIsOpen(false);
-            setAmount('');
-            setSelectedCustomerId('');
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setIsLoading(false);
-    }
-    
-    const handleCardPayment = async () => {
-        if (!user || !selectedDebtor || !amount || Number(amount) <= 0) return;
-
-        setIsLoading(true);
-        const paystackResult = await initializePaystackTransaction({
-            isDebtPayment: true,
-            runId: run.id,
-            customerId: selectedDebtor.customerId,
-            total: Number(amount),
-            email: "debt-payment@example.com" // Placeholder email
-        });
-
-        if (paystackResult.success && paystackResult.reference) {
-            const PaystackPop = (await import('@paystack/inline-js')).default;
-            const paystack = new PaystackPop();
-            paystack.newTransaction({
-                key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-                email: "debt-payment@example.com",
-                amount: Math.round(Number(amount) * 100),
-                ref: paystackResult.reference,
-                onSuccess: (transaction) => {
-                    toast({ title: 'Payment Successful', description: 'The payment has been submitted for verification.' });
-                    localStorage.setItem('paymentStatus', JSON.stringify({ status: 'success' }));
-                    onPaymentMade();
-                    setIsOpen(false);
-                },
-                onCancel: () => {
-                    toast({ variant: 'destructive', title: 'Payment Cancelled' });
-                }
-            });
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
-        }
-        setIsLoading(false);
-    }
-
-    return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                 <Button variant="outline" className="h-20 flex-col gap-1">
-                    <HandCoins className="h-5 w-5"/>
-                    <span>Record Payment</span>
-                </Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Record Customer Payment</DialogTitle>
-                    <DialogDescription>Record a payment received for a credit sale on this run.</DialogDescription>
-                </DialogHeader>
-                 <div className="py-4 space-y-4">
-                    <div className="space-y-2">
-                        <Label>Debtor</Label>
-                        <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                            <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
-                            <SelectContent>
-                                {debtors.length > 0 ? debtors.map(c => <SelectItem key={c.customerId} value={c.customerId}>{c.customerName} (Owes ₦{(c.totalSold - c.totalPaid).toLocaleString()})</SelectItem>) : <SelectItem value="none" disabled>No debtors for this run</SelectItem>}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                     <div className="space-y-2">
-                        <Label>Amount Paid</Label>
-                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={`Outstanding: ₦${balance.toLocaleString()}`} />
-                    </div>
-                </div>
-                <DialogFooter className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="h-16" onClick={() => setIsCashConfirmOpen(true)} disabled={isLoading || !selectedCustomerId || !amount}>
-                        <Wallet className="mr-2 h-5 w-5"/> Pay with Cash
-                    </Button>
-                     <Button className="h-16" onClick={handleCardPayment} disabled={isLoading || !selectedCustomerId || !amount}>
-                        {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <CreditCard className="mr-2 h-5 w-5"/>}
-                        Pay with Card
-                    </Button>
-                </DialogFooter>
-                 <AlertDialog open={isCashConfirmOpen} onOpenChange={setIsCashConfirmOpen}>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Confirm Cash Received</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Have you collected ₦{Number(amount).toLocaleString()} in cash? This will be sent to the accountant for approval.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleCashSubmit}>Yes, Submit for Approval</AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-function OrderDetailsDialog({ order, isOpen, onOpenChange }: { order: CompletedOrder | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
-    const receiptRef = useRef<HTMLDivElement>(null);
-    
-    const onPrint = () => {
-        handlePrint(receiptRef.current);
-    }
-
-    if (!isOpen || !order) return null;
-
-    return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
-                <div ref={receiptRef}>
-                    <DialogHeader className="text-center mb-4">
-                        <DialogTitle className="text-2xl font-bold">Sale Receipt</DialogTitle>
-                        <DialogDescription>Order ID: {order.id.substring(0, 8)}</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-2 text-sm">
-                        <p><strong>Date:</strong> {format(new Date(order.date), "PPP p")}</p>
-                        <p><strong>Customer:</strong> {order.customerName}</p>
-                        <p><strong>Payment:</strong> {order.paymentMethod}</p>
-                    </div>
-                    <Separator className="my-4" />
-                    <Table>
-                        <TableHeader><TableRow><TableHead>Item</TableHead><TableHead className="text-center">Qty</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            {order.items.map(item => (
-                                <TableRow key={item.productId}><TableCell>{item.name}</TableCell><TableCell className="text-center">{item.quantity}</TableCell><TableCell className="text-right">₦{(item.price * item.quantity).toLocaleString()}</TableCell></TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                    <Separator className="my-4" />
-                    <div className="flex justify-end font-bold text-lg">
-                        <p>Total: ₦{order.total.toLocaleString()}</p>
-                    </div>
-                </div>
-                 <DialogFooter>
-                    <Button variant="outline" onClick={onPrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
-                    <Button onClick={() => onOpenChange(false)}>Close</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-export default function SalesRunPage() {
-    const params = useParams();
-    const runId = params.runId as string;
-    const [runDetails, setRunDetails] = useState<SalesRun | null>(null);
-    const [runCustomers, setRunCustomers] = useState<RunCustomer[]>([]);
-    const [runOrders, setRunOrders] = useState<CompletedOrder[]>([]);
+    const [run, setRun] = useState<SalesRun | null>(null);
+    const [orders, setOrders] = useState<CompletedOrder[]>([]);
+    const [customers, setCustomers] = useState<RunCustomer[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState<User | null>(null);
-    const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
-
-     const fetchData = async () => {
-        if (!runId) return;
-        setIsLoading(true);
-        const [runData, runCustomersData, runOrdersData] = await Promise.all([
-            getSalesRunDetails(runId),
-            getCustomersForRun(runId),
-            getOrdersForRun(runId)
-        ]);
-        setRunDetails(runData);
-        setRunCustomers(runCustomersData);
-        setRunOrders(runOrdersData as CompletedOrder[]);
-        setIsLoading(false);
-    };
-
-    const handleSaleMade = (order: CompletedOrder) => {
-        const receiptRef = document.createElement('div');
-        const orderToPrint = {...order, date: new Date(order.date).toISOString()};
-
-        fetchData(); // Refresh all data
-    };
-    
-    const handlePaymentMade = () => {
-        fetchData();
-    }
+    const [isSettling, setIsSettling] = useState(false);
+    const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+    const receiptRef = useRef<HTMLDivElement>(null);
+    const [newDebtPaymentAmount, setNewDebtPaymentAmount] = useState('');
+    const [paymentConfirmations, setPaymentConfirmations] = useState<any[]>([]);
 
     useEffect(() => {
-        const storedUser = localStorage.getItem('loggedInUser');
-        if (storedUser) {
-            setUser(JSON.parse(storedUser));
-        }
+      const userJSON = localStorage.getItem('user');
+      if (userJSON) {
+          setUser(JSON.parse(userJSON));
+      }
+    }, []);
 
-        const unsub = onSnapshot(doc(db, "transfers", runId), (doc) => {
-            if (doc.exists()) {
-                fetchData();
+    const fetchRunDetails = async () => {
+        setIsLoading(true);
+        try {
+            const runDetails = await getSalesRunDetails(runId as string);
+            if (runDetails) {
+                setRun(runDetails);
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: 'Run not found.' });
+                router.push('/dashboard');
+                return;
             }
-        });
 
-         const handleStorageChange = () => {
-            const storedStatusRaw = localStorage.getItem('paymentStatus');
-            if (storedStatusRaw) {
-                const status = JSON.parse(storedStatusRaw);
-                if (status.status === 'success') {
-                    fetchData();
-                    localStorage.removeItem('paymentStatus');
+            const customerDetails = await getCustomersForRun(runId as string);
+            setCustomers(customerDetails);
+
+            const orderDetails = await getOrdersForRun(runId as string);
+             setOrders(orderDetails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+
+            // Subscribe to the Firestore collection
+            const salesRunDoc = doc(db, "transfers", runId as string);
+            const unsubscribe = onSnapshot(salesRunDoc, (doc) => {
+                if (doc.exists()) {
+                    const updatedRun = { id: doc.id, ...doc.data() } as SalesRun;
+                    setRun(updatedRun);
                 }
-            }
-        };
-        window.addEventListener('storage', handleStorageChange);
-        
-        return () => {
-            unsub();
-            window.removeEventListener('storage', handleStorageChange);
-        }
-    }, [runId]);
-    
-    const remainingItems = useMemo(() => {
-        if (!runDetails) return [];
-        const soldItemsMap = new Map<string, number>();
-
-        runOrders.forEach(order => {
-            order.items.forEach(item => {
-                soldItemsMap.set(item.productId, (soldItemsMap.get(item.productId) || 0) + item.quantity);
             });
-        });
 
-        return runDetails.items.map(item => ({
-            ...item,
-            quantity: item.quantity - (soldItemsMap.get(item.productId) || 0)
-        })).filter(item => item.quantity > 0);
-    }, [runDetails, runOrders]);
+            // Subscribe to cash payment confirmation requests
+            const paymentConfirmationCollection = collection(db, 'payment_confirmations');
+            const unsubscribePaymentConfirmations = onSnapshot(paymentConfirmationCollection, (snapshot) => {
+                const payments = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                    .filter(payment => payment.runId === runId && payment.status === 'pending')
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                setPaymentConfirmations(payments);
+            });
+            
+            return () => {
+                unsubscribe();
+                unsubscribePaymentConfirmations();
+            };
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch run details.' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-    const totalInitialItems = useMemo(() => runDetails?.items.reduce((sum, item) => sum + item.quantity, 0) || 0, [runDetails]);
-    const totalRemainingItems = remainingItems.reduce((sum, item) => sum + item.quantity, 0);
-    const soldItems = totalInitialItems - totalRemainingItems;
-    const progress = totalInitialItems > 0 ? (soldItems / totalInitialItems) * 100 : 0;
+    useEffect(() => {
+        fetchRunDetails();
+    }, [runId, router, toast]);
     
-    if (isLoading) {
-        return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
-    }
-
-    if (!runDetails) {
-        return (
-            <div className="text-center">
-                <h2 className="text-2xl font-bold">Sales Run Not Found</h2>
-                <p>The requested sales run could not be found.</p>
-                <Link href="/dashboard/deliveries"><Button className="mt-4">Back to Deliveries</Button></Link>
-            </div>
-        );
-    }
+    const totalSold = useMemo(() => customers.reduce((sum, cust) => sum + cust.totalSold, 0), [customers]);
+    const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
+    const runStatus = useMemo(() => run?.status || 'inactive', [run]);
     
-    const outstandingDebtors = runCustomers.filter(c => (c.totalSold - c.totalPaid) > 0);
+    const handleRecordDebtPayment = async () => {
+        if (!user) return;
+        if (!newDebtPaymentAmount || isNaN(Number(newDebtPaymentAmount))) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Invalid amount.' });
+            return;
+        }
+
+        const amount = Number(newDebtPaymentAmount);
+        setIsSettling(true);
+        try {
+            const result = await handleRecordCashPaymentForRun({
+                runId: runId as string,
+                amount,
+                staffId: user.staff_id,
+            });
+
+            if (result.success) {
+                toast({ title: 'Success', description: 'Debt payment recorded successfully.' });
+                setNewDebtPaymentAmount('');
+                fetchRunDetails(); // Refresh the run details
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error });
+            }
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to record debt payment.' });
+        } finally {
+            setIsSettling(false);
+        }
+    };
+    
+     const handleSaleMade = (newOrder: CompletedOrder) => {
+         setOrders(prev => [newOrder, ...prev]);
+         fetchRunDetails();
+     }
+    
+     const getRemainingItems = () => {
+        if (!run || !run.items) return [];
+
+        // Aggregate the number of products already sold
+        const soldQuantities = orders.reduce((acc, order) => {
+            order.items.forEach(item => {
+                acc[item.productId] = (acc[item.productId] || 0) + item.quantity;
+            });
+            return acc;
+        }, {});
+
+        return run.items.map(item => {
+            const soldQuantity = soldQuantities[item.productId] || 0;
+            const remainingQuantity = item.quantity - soldQuantity;
+            return {
+                productId: item.productId,
+                productName: item.productName,
+                price: item.price,
+                quantity: remainingQuantity > 0 ? remainingQuantity : 0,
+            };
+        }).filter(item => item.quantity > 0);
+    };
+
+    const remainingItems = useMemo(() => getRemainingItems(), [run, orders]);
+
+    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
+    if (!run) return <div>Run not found.</div>;
+
+    const runComplete = runStatus === 'completed';
 
     return (
-        <div className="flex flex-col gap-6">
-            <OrderDetailsDialog order={viewingOrder} isOpen={!!viewingOrder} onOpenChange={() => setViewingOrder(null)} />
-
-            <div>
-                 <Button variant="outline" asChild>
-                    <Link href="/dashboard/deliveries">
-                        <ArrowLeft className="mr-2 h-4 w-4"/> Back to Sales Runs
-                    </Link>
+        <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+                <Link href="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to Dashboard</Link>
+                 <Button variant="ghost" size="sm" onClick={() => handlePrint(receiptRef.current)} disabled={!runComplete}>
+                    <Printer className={`mr-2 h-4 w-4`} /> Print
                 </Button>
             </div>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Manage Sales Run: {runDetails.id.substring(0, 6).toUpperCase()}</CardTitle>
-                    <CardDescription>From: {runDetails.from_staff_name} | To: {runDetails.to_staff_name}</CardDescription>
-                </CardHeader>
-                <CardContent className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                        <h3 className="font-semibold text-lg">Run Summary</h3>
-                        <div>
-                            <div className="flex justify-between text-sm mb-1">
-                                <span className="font-medium">Sales Progress</span>
-                                <span>{soldItems} / {totalInitialItems} items sold</span>
-                            </div>
-                            <Progress value={progress} />
-                        </div>
-                        <div className="text-sm space-y-1">
-                            <div className="flex justify-between"><span>Total Revenue:</span><span className="font-semibold">₦{runDetails.totalRevenue.toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span>Total Collected:</span><span className="font-semibold text-green-500">₦{runDetails.totalCollected.toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span>Total Outstanding:</span><span className="font-semibold text-destructive">₦{runDetails.totalOutstanding.toLocaleString()}</span></div>
+             <div ref={receiptRef} className="hidden">
+                 <div className="receipt-container">
+                    <div className="text-center">
+                        <div className="font-bold text-2xl">Your Bakery Name</div>
+                        <div className="text-sm text-muted-foreground">123 Main Street, City</div>
+                         <div className="text-xs text-muted-foreground">Date: {format(new Date(), 'Pp')}</div>
+                         <div className="my-4">
+                            <div className="font-bold text-lg">Sales Run Summary</div>
                         </div>
                     </div>
+                    <hr />
                      <div>
-                        <h3 className="font-semibold text-lg mb-2">Run Actions</h3>
-                         <div className="grid grid-cols-2 gap-4">
-                            <SellToCustomerDialog run={runDetails} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
-                            <RecordPaymentDialog run={runDetails} user={user} customers={runCustomers} onPaymentMade={handlePaymentMade}/>
-                         </div>
-                     </div>
-                </CardContent>
-            </Card>
-            
-            <div className="grid md:grid-cols-2 gap-6">
-                 <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2"><Package/> Remaining Items in Run</CardTitle></CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Product</TableHead>
-                                    <TableHead>Qty</TableHead>
-                                    <TableHead className="text-right">Price</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {remainingItems.length > 0 ? remainingItems.map(item => (
-                                    <TableRow key={item.productId}>
-                                        <TableCell>{item.productName}</TableCell>
-                                        <TableCell>{item.quantity}</TableCell>
-                                        <TableCell className="text-right">₦{item.price?.toLocaleString()}</TableCell>
-                                    </TableRow>
-                                )) : (
-                                    <TableRow><TableCell colSpan={3} className="text-center h-24">All items sold!</TableCell></TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                        <div className="flex justify-between text-sm">
+                            <span>Run ID:</span>
+                            <span>{runId}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span>Start Time:</span>
+                            <span>{format(new Date(run.date.seconds * 1000), 'Pp')}</span>
+                        </div>
+                         <div className="flex justify-between text-sm">
+                            <span>Driver:</span>
+                            <span>{run.to_staff_name}</span>
+                        </div>
+                    </div>
+                    <hr />
+                     <div>
+                        <div className="flex justify-between text-sm">
+                            <span>Total Sold:</span>
+                            <span className="font-bold">₦{totalSold.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span>Total Collected:</span>
+                            <span className="font-bold">₦{totalCollected.toLocaleString()}</span>
+                        </div>
+                    </div>
+                    <hr />
+                     <div className="text-xs text-muted-foreground text-center">Thank you for your business!</div>
+                </div>
+             </div>
+
+            <h1 className="text-2xl font-bold font-headline">Sales Run: {runId}</h1>
+             {runComplete && <Badge variant="outline">Completed</Badge>}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Run Summary</CardTitle>
+                        <CardDescription>Overview of this sales run.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        <div className="flex justify-between"><span>Status:</span> <span>{runStatus}</span></div>
+                        <div className="flex justify-between"><span>Start Time:</span> <span>{format(new Date(run.date.seconds * 1000), 'PPP')}</span></div>
+                         <div className="flex justify-between"><span>Driver:</span> <span>{run.to_staff_name}</span></div>
+                        <div><Progress value={(totalCollected / totalSold) * 100} /></div>
+                        <div className="text-sm text-muted-foreground">Collection Progress</div>
                     </CardContent>
                 </Card>
+
                 <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2"><User/> Sales Log & Debtors</CardTitle></CardHeader>
-                     <CardContent>
-                         <Tabs defaultValue="log">
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="log">Sales Log</TabsTrigger>
-                                <TabsTrigger value="debtors">Outstanding Balances</TabsTrigger>
-                            </TabsList>
-                             <TabsContent value="log" className="mt-4">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Customer</TableHead>
-                                            <TableHead>Date</TableHead>
-                                            <TableHead className="text-right">Amount</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {runOrders.length > 0 ? runOrders.map(order => (
-                                            <TableRow key={order.id} onClick={() => setViewingOrder(order)} className="cursor-pointer">
-                                                <TableCell>{order.customerName}</TableCell>
-                                                <TableCell>{format(new Date(order.date), "Pp")}</TableCell>
-                                                <TableCell className="text-right">₦{order.total.toLocaleString()}</TableCell>
-                                            </TableRow>
-                                        )) : (
-                                            <TableRow><TableCell colSpan={3} className="text-center h-24">No sales recorded for this run yet.</TableCell></TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                             </TabsContent>
-                             <TabsContent value="debtors" className="mt-4">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Customer</TableHead>
-                                            <TableHead className="text-right">Amount Owing</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                         {outstandingDebtors.length > 0 ? outstandingDebtors.map(cust => (
-                                            <TableRow key={cust.customerId}>
-                                                <TableCell>{cust.customerName}</TableCell>
-                                                <TableCell className="text-right text-destructive">₦{(cust.totalSold - cust.totalPaid).toLocaleString()}</TableCell>
-                                            </TableRow>
-                                        )) : (
-                                            <TableRow><TableCell colSpan={2} className="text-center h-24">No outstanding debtors for this run.</TableCell></TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                             </TabsContent>
-                         </Tabs>
+                    <CardHeader>
+                        <CardTitle>Sales Performance</CardTitle>
+                        <CardDescription>Key metrics from this run.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        <div className="flex justify-between"><span>Total Sold:</span> <span>₦{totalSold.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span>Total Collected:</span> <span>₦{totalCollected.toLocaleString()}</span></div>
+                         <div className="flex justify-between"><span>Outstanding Debt:</span> <span>₦{(totalSold - totalCollected).toLocaleString()}</span></div>
+                    </CardContent>
+                </Card>
+
+                <Card className="flex flex-col">
+                    <CardHeader>
+                        <CardTitle>Actions</CardTitle>
+                        <CardDescription>Manage this sales run.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-4">
+                        <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
+                         {runComplete ? <Button variant="secondary" disabled>Run Completed</Button> : (
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild><Button variant="destructive" disabled={remainingItems.length > 0}>Complete Run</Button></AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action cannot be undone. All remaining items will be marked as returned and this run will be closed.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => router.push(`/dashboard/complete-run/${runId}`)}>Complete</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        )}
                     </CardContent>
                 </Card>
             </div>
+
+            <Tabs defaultValue="customers" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="customers">Customers</TabsTrigger>
+                    <TabsTrigger value="sales">Sales</TabsTrigger>
+                    <TabsTrigger value="pending">Pending Confirmations</TabsTrigger>
+                </TabsList>
+                 <TabsContent value="customers">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Customers</CardTitle>
+                            <CardDescription>All customers in this run.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Name</TableHead>
+                                        <TableHead className="text-right">Total Sold</TableHead>
+                                        <TableHead className="text-right">Total Paid</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {customers.map(customer => (
+                                        <TableRow key={customer.customerId}>
+                                            <TableCell>{customer.customerName}</TableCell>
+                                            <TableCell className="text-right">₦{customer.totalSold.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right">₦{customer.totalPaid.toLocaleString()}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                        {!runComplete && (
+                            <CardFooter className="flex justify-end gap-2">
+                                <Input type="number" placeholder="Enter amount" value={newDebtPaymentAmount} onChange={(e) => setNewDebtPaymentAmount(e.target.value)} />
+                                <Button onClick={handleRecordDebtPayment} disabled={isSettling}>{isSettling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Payment</Button>
+                            </CardFooter>
+                        )}
+                    </Card>
+                </TabsContent>
+                 <TabsContent value="sales">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Sales</CardTitle>
+                            <CardDescription>All sales made in this run.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Customer</TableHead>
+                                        <TableHead className="text-right">Total</TableHead>
+                                        <TableHead>Payment Method</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {orders.map(order => (
+                                        <TableRow key={order.id}>
+                                            <TableCell>{format(new Date(order.date), 'PPP')}</TableCell>
+                                            <TableCell>{order.customerName}</TableCell>
+                                            <TableCell className="text-right">₦{order.total.toLocaleString()}</TableCell>
+                                            <TableCell>{order.paymentMethod}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="pending">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Pending Confirmations</CardTitle>
+                            <CardDescription>Pending payment confirmations</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Customer</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {paymentConfirmations.map(order => (
+                                        <TableRow key={order.id}>
+                                            <TableCell>{format(new Date(order.date), 'PPP')}</TableCell>
+                                            <TableCell>{order.customerName}</TableCell>
+                                            <TableCell className="text-right">₦{order.amount.toLocaleString()}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
+
+export default SalesRunDetails;
