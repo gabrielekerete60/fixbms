@@ -5,10 +5,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSales, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation } from '@/app/actions';
+import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSales, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
@@ -145,6 +145,59 @@ function AddIndirectCostDialog({ onCostAdded }: { onCostAdded: () => void }) {
     );
 }
 
+function LogPaymentDialog({ creditor, onPaymentLogged }: { creditor: Creditor, onPaymentLogged: () => void }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [amount, setAmount] = useState<number | string>('');
+
+    const handleSubmit = async () => {
+        if (!amount || Number(amount) <= 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please enter a valid amount.'});
+            return;
+        }
+        if (Number(amount) > creditor.balance) {
+             toast({ variant: 'destructive', title: 'Error', description: `Payment cannot be greater than the outstanding balance of ${formatCurrency(creditor.balance)}.`});
+            return;
+        }
+        setIsLoading(true);
+        const result = await handleLogPayment(creditor.id, Number(amount));
+        if (result.success) {
+            toast({ title: 'Success', description: `Payment of ${formatCurrency(Number(amount))} logged.`});
+            onPaymentLogged();
+            setIsOpen(false);
+            setAmount('');
+        } else {
+             toast({ variant: 'destructive', title: 'Error', description: result.error});
+        }
+        setIsLoading(false);
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm" variant="outline"><HandCoins className="h-4 w-4"/></Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Log Payment to {creditor.name}</DialogTitle>
+                    <DialogDescription>
+                        Outstanding Balance: <span className="font-bold text-destructive">{formatCurrency(creditor.balance)}</span>
+                    </DialogDescription>
+                </DialogHeader>
+                 <div className="py-4">
+                    <Label htmlFor="payment-amount">Amount Paid (₦)</Label>
+                    <Input id="payment-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={handleSubmit} disabled={isLoading}>{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Log Payment</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 // --- Tab Components ---
 
 function SummaryTab() {
@@ -182,32 +235,75 @@ function SummaryTab() {
     );
 }
 
-function DebtTab() {
-    const [records, setRecords] = useState<DebtRecord[]>([]);
+function DebtorsCreditorsTab() {
+    const [creditors, setCreditors] = useState<Creditor[]>([]);
+    const [debtors, setDebtors] = useState<Debtor[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        getDebtRecords().then(data => {
-            setRecords(data as DebtRecord[]);
+    const fetchData = useCallback(() => {
+        setIsLoading(true);
+        Promise.all([getCreditors(), getDebtors()]).then(([credData, debtData]) => {
+            setCreditors(credData);
+            setDebtors(debtData);
+        }).catch(err => {
+            console.error(err);
+        }).finally(() => {
             setIsLoading(false);
         });
     }, []);
 
-    const totals = useMemo(() => records.reduce((acc, rec) => { acc.debit += rec.debit; acc.credit += rec.credit; return acc; }, { debit: 0, credit: 0 }), [records]);
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
     return (
-        <Card><CardHeader><CardTitle>Debtors & Creditors</CardTitle><CardDescription>Manage all money owed to and by the bakery.</CardDescription></CardHeader>
-            <CardContent>
-                 <div className="overflow-x-auto">
-                    <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Debit (Owed to Us)</TableHead><TableHead className="text-right">Credit (We Owe)</TableHead></TableRow></TableHeader>
-                        <TableBody>{records.map(rec => (<TableRow key={rec.id}><TableCell>{format(new Date(rec.date), 'PPP')}</TableCell><TableCell>{rec.description}</TableCell><TableCell className="text-right">{formatCurrency(rec.debit)}</TableCell><TableCell className="text-right">{formatCurrency(rec.credit)}</TableCell></TableRow>))}</TableBody>
-                        <TableFooter><TableRow><TableCell colSpan={2} className="text-right font-bold">Totals</TableCell><TableCell className="text-right font-bold">{formatCurrency(totals.debit)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(totals.credit)}</TableCell></TableRow></TableFooter>
+        <div className="grid lg:grid-cols-2 gap-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Creditors (Money We Owe)</CardTitle>
+                    <CardDescription>Suppliers to whom the business has an outstanding balance.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Supplier</TableHead><TableHead>Contact</TableHead><TableHead className="text-right">Balance</TableHead><TableHead className="text-center">Action</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {creditors.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">No outstanding creditors.</TableCell></TableRow>}
+                            {creditors.map(c => (
+                                <TableRow key={c.id}>
+                                    <TableCell>{c.name}</TableCell>
+                                    <TableCell>{c.contactPerson}</TableCell>
+                                    <TableCell className="text-right font-medium">{formatCurrency(c.balance)}</TableCell>
+                                    <TableCell className="text-center"><LogPaymentDialog creditor={c} onPaymentLogged={fetchData} /></TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
                     </Table>
-                </div>
-            </CardContent>
-        </Card>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader>
+                    <CardTitle>Debtors (Money Owed to Us)</CardTitle>
+                    <CardDescription>Customers who have an outstanding credit balance with the business.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                         <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader>
+                         <TableBody>
+                            {debtors.length === 0 && <TableRow><TableCell colSpan={3} className="h-24 text-center">No outstanding debtors.</TableCell></TableRow>}
+                            {debtors.map(d => (
+                                <TableRow key={d.id}>
+                                    <TableCell>{d.name}</TableCell>
+                                    <TableCell>{d.phone}</TableCell>
+                                    <TableCell className="text-right font-medium">{formatCurrency(d.balance)}</TableCell>
+                                </TableRow>
+                            ))}
+                         </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        </div>
     );
 }
 
@@ -423,7 +519,7 @@ export default function AccountingPage() {
 
         <TabsContent value="summary"><SummaryTab /></TabsContent>
 
-        <TabsContent value="debt"><DebtTab /></TabsContent>
+        <TabsContent value="debt"><DebtorsCreditorsTab /></TabsContent>
         
         <TabsContent value="expenses">
             <Tabs defaultValue="direct" className="space-y-4">
