@@ -21,14 +21,19 @@ const seedData = {
       { id: "prod_10", name: "Freshyo", price: 700.00, stock: 60, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550 },
   ],
   staff: [
-    { staff_id: '100001', name: 'Chris Manager', email: 'chris.manager@example.com', password: 'ManagerPass1!', role: 'Manager', is_active: true, pay_type: 'Salary', pay_rate: 350000, bank_name: "GTBank", account_number: "0123456789", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '200002', name: 'Vic Supervisor', email: 'vic.supervisor@example.com', password: 'SupervisorPass1!', role: 'Supervisor', is_active: true, pay_type: 'Salary', pay_rate: 250000, bank_name: "First Bank", account_number: "1234567890", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '300003', name: 'Favour Accountant', email: 'favour.accountant@example.com', password: 'AccountantPass1!', role: 'Accountant', is_active: true, pay_type: 'Salary', pay_rate: 200000, bank_name: "UBA", account_number: "2345678901", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '400004', name: 'Mfon Showroom', email: 'mfon.staff@example.com', password: 'StaffPass1!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "Zenith Bank", account_number: "3456789012", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '400005', name: 'Akan Delivery', email: 'akan.staff@example.com', password: 'StaffPass1!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "Access Bank", account_number: "4567890123", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '500006', name: 'Blessing Baker', email: 'blessing.baker@example.com', password: 'BakerPass1!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 150000, bank_name: "Wema Bank", account_number: "5678901234", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '600007', name: 'John Cleaner', email: 'john.cleaner@example.com', password: 'CleanerPass1!', role: 'Cleaner', is_active: false, pay_type: 'Hourly', pay_rate: 500, bank_name: "FCMB", account_number: "6789012345", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '700008', name: 'David Storekeeper', email: 'david.storekeeper@example.com', password: 'StorekeeperPass1!', role: 'Storekeeper', is_active: true, pay_type: 'Salary', pay_rate: 100000, bank_name: "Stanbic IBTC", account_number: "7890123456", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '100001', name: 'Wisdom Effiong Edet', email: 'wisdom.edet@example.com', password: 'ManagerPass1!', role: 'Manager', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "MONIPOINT", account_number: "9031612444", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '200002', name: 'Mr Bassey Smith Daniel', email: 'bassey.daniel@example.com', password: 'AccountantPass1!', role: 'Accountant', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "Opay", account_number: "8136164826", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '300003', name: 'MR Bassey OFFIONG', email: 'bassey.offiong@example.com', password: 'BakerPass1!', role: 'Chief Baker', is_active: true, pay_type: 'Salary', pay_rate: 60000, bank_name: "Opay", account_number: "8066706293", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '400004', name: 'Mr Ukeme Akpan Thompson', email: 'ukeme.thompson@example.com', password: 'BakerPass2!', role: 'Ass.Chief', is_active: true, pay_type: 'Salary', pay_rate: 100000, bank_name: "First Bank", account_number: "3080708781", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '500005', name: 'Victory Peter Ekerete', email: 'victory.ekerete@example.com', password: 'StorekeeperPass1!', role: 'Store keeper', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "PALMPAY", account_number: "9126459437", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '600006', name: 'Mary Felix Ating', email: 'mary.ating@example.com', password: 'StaffPass1!', role: 'Sale rep', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "8071929362", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '700007', name: 'Ubom Robert Okon', email: 'ubom.okon@example.com', password: 'BakerPass3!', role: 'Bakery Assistant', is_active: true, pay_type: 'Salary', pay_rate: 35000, bank_name: "MONIPOINT", account_number: "7046450879", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '800008', name: 'Nnamso George Walter', email: 'nnamso.walter@example.com', password: 'CleanerPass1!', role: 'Cleaner', is_active: true, pay_type: 'Salary', pay_rate: 30000, bank_name: "Unity Bank", account_number: "0059218669", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '900009', name: 'Zion Ekerete', email: 'zion.ekerete@example.com', password: 'BakerPass4!', role: 'Bakery Assistant', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "7041091374", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '100010', name: 'Edet Edet Nyong', email: 'edet.nyong@example.com', password: 'DriverPass1!', role: 'Driver', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "Access Bank", account_number: "0736691040", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '110011', name: 'Benog Security Services', email: 'benog.security@example.com', password: 'SecurityPass1!', role: 'Chief Security', is_active: true, pay_type: 'Salary', pay_rate: 20000, bank_name: "U.B.A", account_number: "2288605641", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '120012', name: 'Nsikak Udo Essiet', email: 'nsikak.essiet@example.com', password: 'SecurityPass2!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "U.B.A", account_number: "2304484777", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '130013', name: 'Aniefon Udo Bassey', email: 'aniefon.bassey@example.com', password: 'SecurityPass3!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "First Bank", account_number: "3090572411", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '000000', name: 'Gabriel Developer', email: 'gabriel.dev@example.com', password: 'DevPassword1!', role: 'Developer', is_active: true, pay_type: 'Salary', pay_rate: 500000, bank_name: "Kuda Bank", account_number: "8901234567", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
   ],
   promotions: [
@@ -288,7 +293,7 @@ const seedData = {
     { id: "wage_10", name: "Edet Edet Nyong", department: "Transport", position: "Driver", salary: 25000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 25000 },
     { id: "wage_11", name: "Benog Security Services", department: "Security", position: "Chief Security", salary: 20000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 20000 },
     { id: "wage_12", name: "Nsikak Udo Essiet", department: "Security", position: "Security", salary: 25000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 25000 },
-    { id: "wage_13", name: "Aniefon Udo Bassey", department: "Security", position: "Security", salary: 25000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 25000 }
+    { id: "wage_13", name: "Aniefon Udo Bassey", department: "Security", position: "Security", salary: 25000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 25000 },
   ],
   closingStocks: [
     { item: "Flour", remainingStock: "100KG", amount: 108000 },
@@ -441,3 +446,6 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
+
+
+    
