@@ -228,14 +228,17 @@ export default function DashboardLayout({
                 return;
             }
             setUser(currentUser => {
+                if (!currentUser) return null;
                 const newTheme = userData.theme || 'default';
-                const hasChanged = currentUser && (currentUser.name !== userData.name || currentUser.theme !== newTheme || currentUser.role !== userData.role || currentUser.is_active !== userData.is_active);
+                // Only trigger a re-render and localStorage update if something meaningful has changed.
+                const hasChanged = currentUser.name !== userData.name || 
+                                   currentUser.role !== userData.role || 
+                                   currentUser.theme !== newTheme;
+
                 if (hasChanged) {
-                    const updatedUser = { ...currentUser, name: userData.name, role: userData.role, theme: newTheme, is_active: userData.is_active };
+                    const updatedUser = { ...currentUser, name: userData.name, role: userData.role, theme: newTheme };
                     localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-                    if (currentUser.theme !== newTheme) {
-                        applyTheme(newTheme);
-                    }
+                    applyTheme(newTheme);
                     return updatedUser;
                 }
                 return currentUser;
@@ -404,7 +407,7 @@ export default function DashboardLayout({
           </div>
         </div>
       </div>
-      <div className="flex flex-col">
+      <div className="flex flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
           <Sheet>
               <SheetTrigger asChild>
@@ -453,11 +456,9 @@ export default function DashboardLayout({
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
-        <main className="flex flex-1 flex-col overflow-auto bg-background">
-           <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
-           <div className="p-4 lg:p-6 overflow-auto">
-             {children}
-           </div>
+        <main className="flex-1 overflow-auto bg-background p-4 lg:p-6">
+          <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
+          {children}
         </main>
       </div>
     </div>
