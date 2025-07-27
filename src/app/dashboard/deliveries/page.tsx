@@ -231,7 +231,7 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
             
             <Card>
                 <CardHeader>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
                             <CardTitle>All Sales Runs</CardTitle>
                             <CardDescription>Monitor all active and completed sales runs across all drivers.</CardDescription>
@@ -257,6 +257,7 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                      {isLoading ? (
                         <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
                      ) : (
+                        <div className="overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -281,6 +282,7 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                                 ))}
                             </TableBody>
                         </Table>
+                        </div>
                      )}
                 </CardContent>
             </Card>

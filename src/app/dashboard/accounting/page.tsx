@@ -319,7 +319,7 @@ function DirectCostsTab() {
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     return (
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between"><div className="space-y-1.5"><CardTitle>Direct Costs</CardTitle><CardDescription>Costs directly tied to production, like ingredients.</CardDescription></div><AddDirectCostDialog onCostAdded={fetchCosts} /></CardHeader>
+            <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"><div className="space-y-1.5"><CardTitle>Direct Costs</CardTitle><CardDescription>Costs directly tied to production, like ingredients.</CardDescription></div><AddDirectCostDialog onCostAdded={fetchCosts} /></CardHeader>
             <CardContent>
                 <div className="overflow-x-auto">
                     <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Quantity</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{costs.map(c => <TableRow key={c.id}><TableCell>{format(new Date(c.date), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{c.quantity}</TableCell><TableCell className="text-right">{formatCurrency(c.total)}</TableCell></TableRow>)}</TableBody></Table>
@@ -337,7 +337,7 @@ function IndirectCostsTab() {
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     return (
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between"><div className="space-y-1.5"><CardTitle>Indirect Costs</CardTitle><CardDescription>Operational costs not tied to a single product.</CardDescription></div><AddIndirectCostDialog onCostAdded={fetchCosts} /></CardHeader>
+            <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"><div className="space-y-1.5"><CardTitle>Indirect Costs</CardTitle><CardDescription>Operational costs not tied to a single product.</CardDescription></div><AddIndirectCostDialog onCostAdded={fetchCosts} /></CardHeader>
             <CardContent>
                 <div className="overflow-x-auto">
                     <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader><TableBody>{costs.map(c => <TableRow key={c.id}><TableCell>{format(new Date(c.date), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{formatCurrency(c.amount)}</TableCell></TableRow>)}</TableBody></Table>
@@ -388,10 +388,10 @@ function PaymentsRequestsTab() {
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
                             <CardTitle>Pending Payment Confirmations</CardTitle>
-                            <CardDescription>Review and approve payments reported by delivery staff for credit sales.</CardDescription>
+                            <CardDescription>Review and approve cash payments reported by drivers.</CardDescription>
                         </div>
                         <Button variant="ghost" size="sm" onClick={fetchConfirmations} disabled={isLoading}>
                             <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
@@ -401,18 +401,19 @@ function PaymentsRequestsTab() {
                 <CardContent>
                    <div className="overflow-x-auto">
                     <Table>
-                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Run ID</TableHead><TableHead>Amount</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Run ID</TableHead><TableHead>Customer</TableHead><TableHead>Amount</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
                         {isLoading ? (
-                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
                         ) : pendingConfirmations.length === 0 ? (
-                            <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending confirmations.</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={6} className="h-24 text-center">No pending confirmations.</TableCell></TableRow>
                         ) : (
                             pendingConfirmations.map(c => (
                             <TableRow key={c.id}>
                                 <TableCell>{format(new Date(c.date), 'Pp')}</TableCell>
                                 <TableCell>{c.driverName}</TableCell>
                                 <TableCell>{c.runId.substring(0, 8)}...</TableCell>
+                                <TableCell>{c.customerName}</TableCell>
                                 <TableCell>{formatCurrency(c.amount)}</TableCell>
                                 <TableCell className="text-right">
                                      <div className="flex gap-2 justify-end">
