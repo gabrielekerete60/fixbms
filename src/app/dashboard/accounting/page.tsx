@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSales, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment } from '@/app/actions';
+import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
@@ -39,7 +39,8 @@ type IndirectCost = { id: string; date: string; description: string; category: s
 type ClosingStock = { id: string; item: string; remainingStock: string; amount: number; };
 type Wage = { id: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
 type Sale = { id: string; date: string; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; };
-type DrinkSale = { id: string; drinkType: string; amountPurchases: number; quantitySold: number; sellingPrice: number; amount: number; };
+type DrinkSaleSummary = { productId: string; productName: string; quantitySold: number; totalRevenue: number; };
+
 const chartConfig = {
   amount: {
     label: "Amount (₦)",
@@ -604,18 +605,18 @@ function SalesRecordsTab() {
 }
 
 function DrinkSalesTab() {
-    const [records, setRecords] = useState<DrinkSale[]>([]);
+    const [records, setRecords] = useState<DrinkSaleSummary[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    useEffect(() => { getDrinkSales().then(data => { setRecords(data as DrinkSale[]); setIsLoading(false); }); }, []);
+    useEffect(() => { getDrinkSalesSummary().then(data => { setRecords(data); setIsLoading(false); }); }, []);
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     return (
         <Card>
-            <CardHeader><CardTitle>Drink Sales</CardTitle><CardDescription>Sales records specifically for drinks.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Drink Sales Summary</CardTitle><CardDescription>Summary of sales for products in the 'Drinks' category.</CardDescription></CardHeader>
             <CardContent>
                  <div className="overflow-x-auto">
                     <Table>
-                        <TableHeader><TableRow><TableHead>Drink Type</TableHead><TableHead className="text-right">Purchase Amount</TableHead><TableHead className="text-right">Qty Sold</TableHead><TableHead className="text-right">Selling Price</TableHead><TableHead className="text-right">Total Amount</TableHead></TableRow></TableHeader>
-                        <TableBody>{records.map(r => <TableRow key={r.id}><TableCell>{r.drinkType}</TableCell><TableCell className="text-right">{formatCurrency(r.amountPurchases)}</TableCell><TableCell className="text-right">{r.quantitySold}</TableCell><TableCell className="text-right">{formatCurrency(r.sellingPrice)}</TableCell><TableCell className="text-right">{formatCurrency(r.amount)}</TableCell></TableRow>)}</TableBody>
+                        <TableHeader><TableRow><TableHead>Drink</TableHead><TableHead className="text-right">Quantity Sold</TableHead><TableHead className="text-right">Total Revenue</TableHead></TableRow></TableHeader>
+                        <TableBody>{records.map(r => <TableRow key={r.productId}><TableCell>{r.productName}</TableCell><TableCell className="text-right">{r.quantitySold}</TableCell><TableCell className="text-right">{formatCurrency(r.totalRevenue)}</TableCell></TableRow>)}</TableBody>
                     </Table>
                 </div>
             </CardContent>

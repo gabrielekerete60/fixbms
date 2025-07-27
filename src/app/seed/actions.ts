@@ -17,6 +17,8 @@ const seedData = {
       { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 45, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350 },
       { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 100, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200 },
       { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 150, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100 },
+      { id: "prod_9", name: "Fanta (50cl)", price: 300.00, stock: 80, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'fanta drink', costPrice: 200 },
+      { id: "prod_10", name: "Freshyo", price: 700.00, stock: 60, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550 },
   ],
   staff: [
     { staff_id: '100001', name: 'Chris Manager', email: 'chris.manager@example.com', password: 'ManagerPass1!', role: 'Manager', is_active: true, pay_type: 'Salary', pay_rate: 350000, bank_name: "GTBank", account_number: "0123456789", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
@@ -224,11 +226,6 @@ const seedData = {
     { date: "2025-06-01T00:00:00Z", description: "Sale", cash: 6850, transfer: 19300, pos: 5200, creditSales: 0, shortage: 0, total: 31350 },
     { date: "2025-06-02T00:00:00Z", description: "Sale", cash: 33600, transfer: 18400, pos: 4200, creditSales: 117900, shortage: 0, total: 174100 },
     { date: "2025-06-03T00:00:00Z", description: "Sale", cash: 65400, transfer: 31350, pos: 6900, creditSales: 202900, shortage: 0, total: 306550 }
-  ],
-  drinkSales: [
-    { drinkType: "Fanta", amountPurchases: 4600, quantitySold: 12, sellingPrice: 500, amount: 6000 },
-    { drinkType: "CoKe", amountPurchases: 4600, quantitySold: 12, sellingPrice: 500, amount: 6000 },
-    { drinkType: "Freshyo", amountPurchases: 6500, quantitySold: 12, sellingPrice: 700, amount: 8400 }
   ],
   debt: [
     { date: "2025-05-31T00:00:00Z", description: "Debtor/Creditor Bal bf", debit: 369500, credit: 300660 },

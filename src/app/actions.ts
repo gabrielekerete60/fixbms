@@ -765,10 +765,44 @@ export async function getSales() {
     });
 }
 
-export async function getDrinkSales() {
-    const snapshot = await getDocs(query(collection(db, "drinkSales")));
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+export async function getDrinkSalesSummary() {
+    try {
+        const productsSnapshot = await getDocs(query(collection(db, 'products'), where('category', '==', 'Drinks')));
+        const drinkProductIds = productsSnapshot.docs.map(doc => doc.id);
+
+        if (drinkProductIds.length === 0) {
+            return [];
+        }
+
+        const ordersSnapshot = await getDocs(collection(db, 'orders'));
+        const drinkSales: { [productId: string]: { productName: string, quantitySold: number, totalRevenue: number } } = {};
+
+        // Initialize with all drink products
+        productsSnapshot.docs.forEach(doc => {
+            drinkSales[doc.id] = { productName: doc.data().name, quantitySold: 0, totalRevenue: 0 };
+        });
+
+        ordersSnapshot.forEach(orderDoc => {
+            const order = orderDoc.data();
+            order.items.forEach((item: any) => {
+                if (drinkProductIds.includes(item.productId)) {
+                    drinkSales[item.productId].quantitySold += item.quantity;
+                    drinkSales[item.productId].totalRevenue += item.quantity * item.price;
+                }
+            });
+        });
+
+        return Object.entries(drinkSales).map(([productId, data]) => ({
+            productId,
+            ...data
+        }));
+
+    } catch (error) {
+        console.error("Error getting drink sales summary:", error);
+        return [];
+    }
 }
+
 
 export async function getDebtRecords() {
     const snapshot = await getDocs(query(collection(db, "debt"), orderBy("date", "desc")));
