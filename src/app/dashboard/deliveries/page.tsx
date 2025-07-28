@@ -77,7 +77,6 @@ function RunCard({ run }: { run: SalesRunType }) {
 function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], isLoading: boolean, user: User | null }) {
     const [filterDriver, setFilterDriver] = useState('all');
     const [sort, setSort] = useState('date_desc');
-    const [outstandingFilter, setOutstandingFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
     const [date, setDate] = useState<DateRange | undefined>({ from: subDays(new Date(), 6), to: new Date() });
 
     const drivers = useMemo(() => {
@@ -146,17 +145,6 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                          <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
-                         <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="h-4 w-4 text-muted-foreground"/></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <DropdownMenuItem onSelect={() => setOutstandingFilter('daily')}>Daily</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => setOutstandingFilter('weekly')}>Weekly</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => setOutstandingFilter('monthly')}>Monthly</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => setOutstandingFilter('yearly')}>Yearly</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">₦{totalOutstanding.toLocaleString()}</div>
@@ -172,35 +160,11 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                     </CardContent>
                 </Card>
                  <Card>
-                    <CardHeader>
-                        <CardTitle>Sales Chart</CardTitle>
-                         <CardDescription>Sales from runs in the selected date range.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                       <Popover>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Date Range</CardTitle>
+                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button
-                                    id="date"
-                                    variant={"outline"}
-                                    className={cn(
-                                    "w-full justify-start text-left font-normal",
-                                    !date && "text-muted-foreground"
-                                    )}
-                                >
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {date?.from ? (
-                                    date.to ? (
-                                        <>
-                                        {format(date.from, "LLL dd, y")} -{" "}
-                                        {format(date.to, "LLL dd, y")}
-                                        </>
-                                    ) : (
-                                        format(date.from, "LLL dd, y")
-                                    )
-                                    ) : (
-                                    <span>Pick a date range</span>
-                                    )}
-                                </Button>
+                                <Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="h-4 w-4 text-muted-foreground"/></Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="end">
                                 <Calendar
@@ -213,6 +177,21 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                                 />
                             </PopoverContent>
                         </Popover>
+                    </CardHeader>
+                    <CardContent>
+                       <div className="text-lg font-bold">
+                           {date?.from ? (
+                            date.to ? (
+                                <>
+                                {format(date.from, "LLL dd")} - {format(date.to, "LLL dd, y")}
+                                </>
+                            ) : (
+                                format(date.from, "LLL dd, y")
+                            )
+                            ) : (
+                            <span>All time</span>
+                            )}
+                       </div>
                     </CardContent>
                 </Card>
             </div>
