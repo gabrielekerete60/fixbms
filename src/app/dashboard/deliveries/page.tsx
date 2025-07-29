@@ -202,6 +202,21 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                   <CardTitle>Sales Run Performance</CardTitle>
                   <CardDescription>Revenue from sales runs in the selected period.</CardDescription>
                 </div>
+                 <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="ml-auto h-8 w-8"><MoreVertical className="h-4 w-4"/></Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar
+                            initialFocus
+                            mode="range"
+                            defaultMonth={date?.from}
+                            selected={date}
+                            onSelect={setDate}
+                            numberOfMonths={2}
+                        />
+                    </PopoverContent>
+                </Popover>
               </CardHeader>
               <CardContent>
                 <RevenueChart data={weeklySalesChartData} />

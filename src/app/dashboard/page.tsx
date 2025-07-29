@@ -21,6 +21,7 @@ import {
   Package,
   Carrot,
   Archive,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import {
   Card,
@@ -49,9 +50,13 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { collection, query, where, onSnapshot, Timestamp, getDocs } from "firebase/firestore";
 import { db } from '@/lib/firebase';
-import { startOfMonth } from 'date-fns';
+import { startOfMonth, format, eachDayOfInterval, subDays } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { DateRange } from 'react-day-picker';
+import { cn } from '@/lib/utils';
 
 
 type User = {
@@ -208,9 +213,20 @@ function ManagementDashboard() {
        <Card>
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
-              <CardTitle>This Week's Revenue</CardTitle>
-              <CardDescription>Your sales performance for the current week.</CardDescription>
+              <CardTitle>Revenue Chart</CardTitle>
+              <CardDescription>Revenue performance for the selected period.</CardDescription>
             </div>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="ml-auto h-8 w-8"><MoreHorizontal className="h-4 w-4"/></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => handleFilterChange('daily')}>Today</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleFilterChange('weekly')}>This Week</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleFilterChange('monthly')}>This Month</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleFilterChange('yearly')}>This Year</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
           </CardHeader>
           <CardContent>
             <RevenueChart data={stats.weeklyRevenue} />

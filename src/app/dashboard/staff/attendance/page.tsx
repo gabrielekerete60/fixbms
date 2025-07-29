@@ -188,6 +188,7 @@ export default function AttendancePage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
+                        <div className="overflow-x-auto">
                         <Table>
                         <TableHeader>
                             <TableRow>
@@ -220,6 +221,7 @@ export default function AttendancePage() {
                             )}
                         </TableBody>
                         </Table>
+                        </div>
                     </CardContent>
                     </Card>
 
@@ -318,6 +320,7 @@ export default function AttendancePage() {
                         </div>
                     </CardHeader>
                     <CardContent>
+                         <div className="overflow-x-auto">
                          <Table>
                             <TableHeader>
                                 <TableRow>
@@ -363,6 +366,7 @@ export default function AttendancePage() {
                                 )}
                             </TableBody>
                         </Table>
+                         </div>
                     </CardContent>
                 </Card>
             </TabsContent>
