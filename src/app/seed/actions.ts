@@ -217,6 +217,10 @@ const seedData = {
   ],
   waste_logs: [
     { id: 'waste_1', productId: 'prod_1', productName: 'Family Loaf', productCategory: 'Breads', quantity: 2, reason: 'Spoiled', staffId: '400004', staffName: 'Mfon Showroom', date: daysAgo(1) },
+    { id: 'waste_2', productId: 'prod_1', productName: 'Family Loaf', productCategory: 'Breads', quantity: 27, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
+    { id: 'waste_3', productId: 'prod_3', productName: 'Jumbo Loaf', productCategory: 'Breads', quantity: 8, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
+    { id: 'waste_4', productId: 'prod_2', productName: 'Burger Loaf', productCategory: 'Breads', quantity: 7, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
+    { id: 'waste_5', productId: 'prod_4', productName: 'Round Loaf', productCategory: 'Breads', quantity: 3, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
   ],
   attendance: [
       // Today
@@ -234,7 +238,9 @@ const seedData = {
   ],
   debt: [
     { date: "2025-05-31T00:00:00Z", description: "Debtor/Creditor Bal bf", debit: 369500, credit: 300660 },
-    { date: "2025-06-30T00:00:00Z", description: "Debtor/Creditor for June", debit: 3715250, credit: 659950 }
+    { date: "2025-06-30T00:00:00Z", description: "Debtor/Creditor for June", debit: 3715250, credit: 659950 },
+    { date: "2025-05-31T00:00:00Z", description: "Bal b/f Loan", debit: 100000, credit: null },
+    { date: "2025-06-27T00:00:00Z", description: "Loan for Raw Material", debit: 363000, credit: null },
   ],
   directCosts: [
     { date: "2025-06-02T00:00:00Z", description: "Bag of Flour", category: "Flour", quantity: 2, total: 108000 },
@@ -340,7 +346,7 @@ const seedData = {
     { id: 'cs_7', item: "Oil", remainingStock: "13.53CL", amount: 37030 },
     { id: 'cs_8', item: "Sagar", remainingStock: "2 Bags 9.85kg", amount: 174661 },
     { id: 'cs_9', item: "Preservative", remainingStock: "5 Pack 810g", amount: 23240 },
-    { id: 'cs_10', item: "Butter", remainingStock: "2 Carton, 10kg", amount: 104000 },
+    { id: 'cs_10', item: "Butter", remainingStock: "2 Carton ,10kg", amount: 104000 },
     { id: 'cs_11', item: "Tin milk", remainingStock: "6 Tin", amount: 6000 },
     { id: 'cs_12', item: "Butter Scotch", remainingStock: "440g", amount: 4400 },
   ]
@@ -489,3 +495,5 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
+
+    
