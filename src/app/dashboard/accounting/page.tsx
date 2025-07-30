@@ -269,13 +269,13 @@ function DebtorsCreditorsTab() {
         fetchData();
     }, [fetchData]);
 
-    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-
     const { debitTotal, creditTotal } = useMemo(() => {
         const debit = debtLedger.reduce((sum, item) => sum + (item.debit || 0), 0);
         const credit = debtLedger.reduce((sum, item) => sum + (item.credit || 0), 0);
         return { debitTotal: debit, creditTotal: credit };
     }, [debtLedger]);
+    
+    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
     return (
         <div className="space-y-6">
