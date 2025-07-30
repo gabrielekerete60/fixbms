@@ -1,3 +1,4 @@
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -346,8 +347,8 @@ export async function handleClockIn(staffId: string): Promise<ClockInResult> {
         const docRef = await addDoc(collection(db, "attendance"), {
             staff_id: staffId,
             clock_in_time: serverTimestamp(),
-            clock_out_time: null,
             date: new Date().toISOString().split('T')[0], // Store just the date for easier querying
+            clock_out_time: null,
         });
         return { success: true, attendanceId: docRef.id };
     } catch (error) {
@@ -871,6 +872,98 @@ export async function getFinancialSummary() {
         return { totalRevenue: 0, totalExpenditure: 0, grossProfit: 0, netProfit: 0 };
     }
 }
+
+export type ProfitAndLossStatement = {
+    sales: number;
+    openingStock: number;
+    purchases: number;
+    carriageInward: number;
+    costOfGoodsAvailable: number;
+    closingStock: number;
+    cogs: number;
+    grossProfit: number;
+    expenses: { [key: string]: number };
+    totalExpenses: number;
+    netProfit: number;
+};
+
+export async function getProfitAndLossStatement(): Promise<ProfitAndLossStatement> {
+    try {
+        // Fetch all necessary data in parallel
+        const [
+            salesSnapshot,
+            directCostsSnapshot,
+            closingStocksSnapshot,
+            indirectCostsSnapshot,
+            wagesSnapshot,
+            wasteLogsSnapshot,
+            discountsSnapshot
+        ] = await Promise.all([
+            getDocs(collection(db, "sales")),
+            getDocs(collection(db, "directCosts")),
+            getDocs(collection(db, "closingStocks")),
+            getDocs(collection(db, "indirectCosts")),
+            getDocs(collection(db, "wages")),
+            getDocs(collection(db, "waste_logs")),
+            getDocs(collection(db, "discount_records"))
+        ]);
+
+        // Trading Account Calculations
+        const sales = salesSnapshot.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
+        const purchases = directCostsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
+        
+        // Hardcoded for now, should be from a specific expense category if available
+        const openingStock = 848626; 
+        const carriageInward = 7500; 
+        
+        const closingStock = closingStocksSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+        const costOfGoodsAvailable = openingStock + purchases + carriageInward;
+        const cogs = costOfGoodsAvailable - closingStock;
+        const grossProfit = sales - cogs;
+
+        // P&L Expenses Calculations
+        const expenses: { [key: string]: number } = {};
+        indirectCostsSnapshot.forEach(doc => {
+            const data = doc.data();
+            expenses[data.category] = (expenses[data.category] || 0) + (data.amount || 0);
+        });
+
+        expenses['Salary'] = wagesSnapshot.docs.reduce((sum, doc) => sum + (doc.data().netPay || 0), 0);
+        
+        // This is a rough estimation of waste cost
+        const totalWasteCost = wasteLogsSnapshot.docs.length * 500; // Placeholder value
+        expenses['Bad and Damage'] = totalWasteCost;
+        
+        expenses['Discount Allowed'] = discountsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+
+        const totalExpenses = Object.values(expenses).reduce((sum, value) => sum + value, 0);
+        
+        // Net Profit
+        const netProfit = grossProfit - totalExpenses;
+
+        return {
+            sales,
+            openingStock,
+            purchases,
+            carriageInward,
+            costOfGoodsAvailable,
+            closingStock,
+            cogs,
+            grossProfit,
+            expenses,
+            totalExpenses,
+            netProfit
+        };
+
+    } catch (error) {
+        console.error("Error generating P&L statement:", error);
+        return {
+            sales: 0, openingStock: 0, purchases: 0, carriageInward: 0, costOfGoodsAvailable: 0,
+            closingStock: 0, cogs: 0, grossProfit: 0, expenses: {}, totalExpenses: 0, netProfit: 0
+        };
+    }
+}
+
 
 type DirectCostData = { description: string; category: string; quantity: number; total: number; };
 export async function addDirectCost(data: DirectCostData) {

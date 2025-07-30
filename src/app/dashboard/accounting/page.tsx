@@ -5,15 +5,15 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay } from 'date-fns';
-import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords } from '@/app/actions';
+import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +31,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
+import { Separator } from '@/components/ui/separator';
 
 
 // --- Helper Functions & Type Definitions ---
@@ -1000,6 +1001,104 @@ function WagesTab() {
     );
 }
 
+function PnLRow({ label, value, isSubtotal = false, isTotal = false, isFinal = false, isHeader = false }: { label: string, value?: number, isSubtotal?: boolean, isTotal?: boolean, isFinal?: boolean, isHeader?: boolean }) {
+    if (isHeader) {
+        return (
+             <TableRow>
+                <TableHead className="font-bold text-base text-foreground">{label}</TableHead>
+                <TableHead></TableHead>
+            </TableRow>
+        )
+    }
+    return (
+        <TableRow className={cn(
+            isSubtotal && "border-t",
+            (isTotal || isFinal) && "font-bold"
+        )}>
+            <TableCell className={cn(isSubtotal && "pl-4")}>{label}</TableCell>
+            <TableCell className="text-right">{value != null ? formatCurrency(value) : ''}</TableCell>
+        </TableRow>
+    )
+}
+
+function ProfitAndLossTab() {
+    const [statement, setStatement] = useState<ProfitAndLossStatement | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        getProfitAndLossStatement().then(data => {
+            setStatement(data);
+            setIsLoading(false);
+        });
+    }, []);
+
+    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    if (!statement) return <div>Could not load statement.</div>
+
+    return (
+         <Card>
+            <CardHeader>
+                <CardTitle>Trading Profit or Loss Account</CardTitle>
+                <CardDescription>For the month ending {format(new Date(), 'MMMM yyyy')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <div className="grid md:grid-cols-2 gap-8">
+                     {/* Left Column: Revenue & Gross Profit */}
+                     <div className="space-y-4">
+                        <Table>
+                             <TableHeader>
+                                 <TableRow>
+                                     <TableHead>Description</TableHead>
+                                     <TableHead className="text-right">Amount (₦)</TableHead>
+                                 </TableRow>
+                             </TableHeader>
+                             <TableBody>
+                                 <PnLRow label="Opening Stock" value={statement.openingStock} />
+                                 <PnLRow label="Purchases" value={statement.purchases} />
+                                 <PnLRow label="Carriage Inward" value={statement.carriageInward} isSubtotal />
+                                 <PnLRow label="Cost of Goods available for Sale" value={statement.costOfGoodsAvailable} />
+                                 <PnLRow label="Less: Closing Stock" value={-statement.closingStock} />
+                                 <PnLRow label="Cost of Goods Sold (COGS)" value={statement.cogs} isTotal />
+                             </TableBody>
+                         </Table>
+                         <Table>
+                             <TableBody>
+                                 <PnLRow label="Sales" value={statement.sales} />
+                                 <PnLRow label="Less: COGS" value={-statement.cogs} />
+                                 <PnLRow label="Gross Profit" value={statement.grossProfit} isTotal />
+                             </TableBody>
+                         </Table>
+                     </div>
+                     {/* Right Column: Expenses & Net Profit */}
+                      <div className="space-y-4">
+                        <Table>
+                             <TableHeader>
+                                 <TableRow>
+                                     <TableHead>Expenses</TableHead>
+                                     <TableHead className="text-right">Amount (₦)</TableHead>
+                                 </TableRow>
+                             </TableHeader>
+                            <TableBody>
+                                {Object.entries(statement.expenses).map(([key, value]) => (
+                                    <PnLRow key={key} label={key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} value={value} />
+                                ))}
+                                <PnLRow label="Total Expenses" value={statement.totalExpenses} isTotal/>
+                            </TableBody>
+                        </Table>
+                        <Table>
+                            <TableBody>
+                                <PnLRow label="Gross Profit b/d" value={statement.grossProfit} />
+                                <PnLRow label="Less: Total Expenses" value={-statement.totalExpenses} />
+                                <PnLRow label={statement.netProfit >= 0 ? "Net Profit" : "Net Loss"} value={statement.netProfit} isFinal />
+                            </TableBody>
+                        </Table>
+                     </div>
+                 </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function AccountingPage() {
   return (
     <div className="flex flex-col gap-4">
@@ -1008,6 +1107,7 @@ export default function AccountingPage() {
         <div className="overflow-x-auto pb-2">
             <TabsList>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
+                <TabsTrigger value="pnl">P&amp;L Statement</TabsTrigger>
                 <TabsTrigger value="debt">Debt</TabsTrigger>
                 <TabsTrigger value="expenses">Expenses</TabsTrigger>
                 <TabsTrigger value="payments">Payments &amp; Requests</TabsTrigger>
@@ -1019,6 +1119,7 @@ export default function AccountingPage() {
         </div>
 
         <TabsContent value="summary"><SummaryTab /></TabsContent>
+        <TabsContent value="pnl"><ProfitAndLossTab /></TabsContent>
         <TabsContent value="debt"><DebtorsCreditorsTab /></TabsContent>
         <TabsContent value="expenses">
             <Tabs defaultValue="indirect" className="space-y-4">
