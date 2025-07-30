@@ -336,13 +336,13 @@ const seedData = {
     { id: 'cs_3', item: "Zeast", remainingStock: "3 Bottle 890g", amount: 105030 },
     { id: 'cs_4', item: "Egg", remainingStock: "75 Pices", amount: 13230 },
     { id: 'cs_5', item: "Salt", remainingStock: "1 Bag 16,4kg", amount: 22576 },
-    { id: 'cs_6', item: "Strawbery", remainingStock: "1 Bottle", amount: 5000 },
+    { id: 'cs_6', item: "Strawberry", remainingStock: "1 Bottle", amount: 5000 },
     { id: 'cs_7', item: "Oil", remainingStock: "13.53CL", amount: 37030 },
     { id: 'cs_8', item: "Sagar", remainingStock: "2 Bags 9.85kg", amount: 174661 },
     { id: 'cs_9', item: "Preservative", remainingStock: "5 Pack 810g", amount: 23240 },
-    { id: 'cs_10', item: "Butter", remainingStock: "2 Carton, 10kg", amount: 104000 },
+    { id: 'cs_10', item: "Butter", remainingStock: "2 Carton ,10kg", amount: 104000 },
     { id: 'cs_11', item: "Tin milk", remainingStock: "6 Tin", amount: 6000 },
-    { id: 'cs_12', item: "Butter Scotch", remainingStock: "440g", amount: 4400 }
+    { id: 'cs_12', item: "Butter Scotch", remainingStock: "440g", amount: 4400 },
   ]
 };
 
