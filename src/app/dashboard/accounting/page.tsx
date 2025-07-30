@@ -249,13 +249,15 @@ function SummaryTab() {
 function DebtorsCreditorsTab() {
     const [creditors, setCreditors] = useState<Creditor[]>([]);
     const [debtors, setDebtors] = useState<Debtor[]>([]);
+    const [debtLedger, setDebtLedger] = useState<DebtRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchData = useCallback(() => {
         setIsLoading(true);
-        Promise.all([getCreditors(), getDebtors()]).then(([credData, debtData]) => {
+        Promise.all([getCreditors(), getDebtors(), getDebtRecords()]).then(([credData, debtData, ledgerData]) => {
             setCreditors(credData);
             setDebtors(debtData);
+            setDebtLedger(ledgerData as DebtRecord[]);
         }).catch(err => {
             console.error(err);
         }).finally(() => {
@@ -269,52 +271,102 @@ function DebtorsCreditorsTab() {
 
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
+    const { debitTotal, creditTotal } = useMemo(() => {
+        const debit = debtLedger.reduce((sum, item) => sum + (item.debit || 0), 0);
+        const credit = debtLedger.reduce((sum, item) => sum + (item.credit || 0), 0);
+        return { debitTotal: debit, creditTotal: credit };
+    }, [debtLedger]);
+
     return (
-        <div className="grid lg:grid-cols-2 gap-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Creditors (Money We Owe)</CardTitle>
-                    <CardDescription>Suppliers to whom the business has an outstanding balance.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                   <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader><TableRow><TableHead>Supplier</TableHead><TableHead>Contact</TableHead><TableHead className="text-right">Balance</TableHead><TableHead className="text-center">Action</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            {creditors.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">No outstanding creditors.</TableCell></TableRow>}
-                            {creditors.map(c => (
-                                <TableRow key={c.id}>
-                                    <TableCell>{c.name}</TableCell>
-                                    <TableCell>{c.contactPerson}</TableCell>
-                                    <TableCell className="text-right font-medium">{formatCurrency(c.balance)}</TableCell>
-                                    <TableCell className="text-center"><LogPaymentDialog creditor={c} onPaymentLogged={fetchData} /></TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                    </div>
-                </CardContent>
-            </Card>
+        <div className="space-y-6">
+            <div className="grid lg:grid-cols-2 gap-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Creditors (Money We Owe)</CardTitle>
+                        <CardDescription>Suppliers to whom the business has an outstanding balance.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Supplier</TableHead><TableHead>Contact</TableHead><TableHead className="text-right">Balance</TableHead><TableHead className="text-center">Action</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {creditors.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">No outstanding creditors.</TableCell></TableRow>}
+                                {creditors.map(c => (
+                                    <TableRow key={c.id}>
+                                        <TableCell>{c.name}</TableCell>
+                                        <TableCell>{c.contactPerson}</TableCell>
+                                        <TableCell className="text-right font-medium">{formatCurrency(c.balance)}</TableCell>
+                                        <TableCell className="text-center"><LogPaymentDialog creditor={c} onPaymentLogged={fetchData} /></TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Debtors (Money Owed to Us)</CardTitle>
+                        <CardDescription>Customers who have an outstanding credit balance with the business.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {debtors.length === 0 && <TableRow><TableCell colSpan={3} className="h-24 text-center">No outstanding debtors.</TableCell></TableRow>}
+                                {debtors.map(d => (
+                                    <TableRow key={d.id}>
+                                        <TableCell>{d.name}</TableCell>
+                                        <TableCell>{d.phone}</TableCell>
+                                        <TableCell className="text-right font-medium">{formatCurrency(d.balance)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
              <Card>
                 <CardHeader>
-                    <CardTitle>Debtors (Money Owed to Us)</CardTitle>
-                    <CardDescription>Customers who have an outstanding credit balance with the business.</CardDescription>
+                    <CardTitle>Debtor/Creditor Ledger</CardTitle>
+                    <CardDescription>A summary ledger of debits and credits from the accounting period.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto">
-                    <Table>
-                         <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader>
-                         <TableBody>
-                            {debtors.length === 0 && <TableRow><TableCell colSpan={3} className="h-24 text-center">No outstanding debtors.</TableCell></TableRow>}
-                            {debtors.map(d => (
-                                <TableRow key={d.id}>
-                                    <TableCell>{d.name}</TableCell>
-                                    <TableCell>{d.phone}</TableCell>
-                                    <TableCell className="text-right font-medium">{formatCurrency(d.balance)}</TableCell>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead className="text-right">Debit</TableHead>
+                                    <TableHead className="text-right">Credit</TableHead>
                                 </TableRow>
-                            ))}
-                         </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {debtLedger.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">No ledger entries.</TableCell></TableRow>}
+                                {debtLedger.map(item => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>{format(new Date(item.date), 'PPP')}</TableCell>
+                                        <TableCell>{item.description}</TableCell>
+                                        <TableCell className="text-right">{item.debit ? formatCurrency(item.debit) : '-'}</TableCell>
+                                        <TableCell className="text-right">{item.credit ? formatCurrency(item.credit) : '-'}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                             <TableFooter>
+                                <TableRow>
+                                    <TableCell colSpan={2} className="text-right font-bold">Ground Total</TableCell>
+                                    <TableCell className="text-right font-bold">{formatCurrency(debitTotal)}</TableCell>
+                                    <TableCell className="text-right font-bold">{formatCurrency(creditTotal)}</TableCell>
+                                </TableRow>
+                                 <TableRow>
+                                    <TableCell colSpan={3} className="text-right font-bold">Outstanding Balance</TableCell>
+                                    <TableCell className="text-right font-bold text-destructive">{formatCurrency(debitTotal - creditTotal)}</TableCell>
+                                </TableRow>
+                            </TableFooter>
+                        </Table>
                     </div>
                 </CardContent>
             </Card>

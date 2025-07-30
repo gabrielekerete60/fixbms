@@ -126,7 +126,7 @@ const seedData = {
       customerName: 'Chinedu Alabi',
       customerId: 'cust_3',
       status: 'Completed',
-      staffId: '400005',
+      staffId: '500005',
       salesRunId: 'tsr_1_active'
     },
   ],
@@ -303,8 +303,10 @@ const seedData = {
     { date: "2025-06-14T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 30000 },
     { date: "2025-06-14T00:00:00Z", description: "Distribution Van repair", category: "Repair", amount: 101000 },
     { date: "2025-06-16T00:00:00Z", description: "Police Van Petrol and Entry", category: "General Expenses", amount: 15000 },
+    { date: "2025-06-17T00:00:00Z", description: "Cell Phone", category: "Office Equipment", amount: 31000 },
     { date: "2025-06-17T00:00:00Z", description: "Cell Phone Memory card", category: "Office Equipment", amount: 31500 },
     { date: "2025-06-17T00:00:00Z", description: "Diesel", category: "Diesel", amount: 70500 },
+    { date: "2025-06-18T00:00:00Z", description: "Solar part pay", category: "Utilities", amount: 370000 },
     { date: "2025-06-18T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 35000 },
     { date: "2025-06-18T00:00:00Z", description: "Advance Salary", category: "Salary", amount: 20000 },
     { date: "2025-06-19T00:00:00Z", description: "Petrol For Distribution Van", category: "Petrol", amount: 20000 },
@@ -479,6 +481,3 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
-
-
-    
