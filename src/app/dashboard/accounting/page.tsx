@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -8,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment } from '@/app/actions';
+import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
@@ -36,6 +35,7 @@ type DebtRecord = { id: string; date: string; description: string; debit: number
 type DirectCost = { id: string; date: string; description: string; category: string; quantity: number; total: number; };
 type IndirectCost = { id: string; date: string; description: string; category: string; amount: number; };
 type ClosingStock = { id: string; item: string; remainingStock: string; amount: number; };
+type DiscountRecord = { id: string; bread_type: string; amount: number };
 type Wage = { id: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
 type Sale = { id: string; date: string; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; };
 type DrinkSaleSummary = { productId: string; productName: string; quantitySold: number; totalRevenue: number; };
@@ -789,57 +789,89 @@ function DrinkSalesTab() {
 }
 
 function ClosingStockTab() {
-    const [records, setRecords] = useState<ClosingStock[]>([]);
+    const [closingStock, setClosingStock] = useState<ClosingStock[]>([]);
+    const [badBread, setBadBread] = useState<WasteLog[]>([]);
+    const [discounts, setDiscounts] = useState<DiscountRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        getClosingStocks().then(data => {
-            setRecords(data as ClosingStock[]);
-            setIsLoading(false);
-        });
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const [csData, wasteData, discountData] = await Promise.all([
+                    getClosingStocks(),
+                    getWasteLogs(),
+                    getDiscountRecords()
+                ]);
+                setClosingStock(csData as ClosingStock[]);
+                // Filter waste logs for 'Damaged' to represent "Bad and Damage Bread"
+                setBadBread(wasteData.filter(log => log.reason === 'Damaged'));
+                setDiscounts(discountData as DiscountRecord[]);
+            } catch (error) {
+                console.error("Error fetching closing stock data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
     }, []);
 
-    const totalAmount = useMemo(() => {
-        return records.reduce((sum, item) => sum + (item.amount || 0), 0);
-    }, [records]);
-
+    const totalClosingStock = useMemo(() => closingStock.reduce((sum, item) => sum + (item.amount || 0), 0), [closingStock]);
+    const totalDiscounts = useMemo(() => discounts.reduce((sum, item) => sum + (item.amount || 0), 0), [discounts]);
+    
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Closing Stock</CardTitle>
-                <CardDescription>The value of inventory at the end of the accounting period.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="overflow-x-auto">
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Closing Stock</CardTitle>
+                    <CardDescription>The value of inventory at the end of the accounting period.</CardDescription>
+                </CardHeader>
+                <CardContent>
                     <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Item</TableHead>
-                                <TableHead>Remaining Stock</TableHead>
-                                <TableHead className="text-right">Amount (₦)</TableHead>
-                            </TableRow>
-                        </TableHeader>
+                        <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Remaining Stock</TableHead><TableHead className="text-right">Amount (₦)</TableHead></TableRow></TableHeader>
                         <TableBody>
-                            {records.map(r => (
-                                <TableRow key={r.id}>
-                                    <TableCell>{r.item}</TableCell>
-                                    <TableCell>{r.remainingStock}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(r.amount)}</TableCell>
-                                </TableRow>
-                            ))}
+                            {closingStock.map(r => <TableRow key={r.id}><TableCell>{r.item}</TableCell><TableCell>{r.remainingStock}</TableCell><TableCell className="text-right">{formatCurrency(r.amount)}</TableCell></TableRow>)}
                         </TableBody>
-                        <TableFooter>
-                            <TableRow>
-                                <TableCell colSpan={2} className="font-bold text-right">Total Closing Stock</TableCell>
-                                <TableCell className="font-bold text-right">{formatCurrency(totalAmount)}</TableCell>
-                            </TableRow>
-                        </TableFooter>
+                        <TableFooter><TableRow><TableCell colSpan={2} className="font-bold text-right">Total Closing Stock</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalClosingStock)}</TableCell></TableRow></TableFooter>
                     </Table>
-                </div>
-            </CardContent>
-        </Card>
+                </CardContent>
+            </Card>
+
+            <div className="grid md:grid-cols-2 gap-6">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Bad and Damage Bread</CardTitle>
+                        <CardDescription>A log of bread reported as damaged.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Bread Type</TableHead><TableHead className="text-right">Quantity</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {badBread.map(r => <TableRow key={r.id}><TableCell>{r.productName}</TableCell><TableCell className="text-right">{r.quantity}</TableCell></TableRow>)}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Discount Allowed</CardTitle>
+                        <CardDescription>A log of discounts given on bread types.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                         <Table>
+                            <TableHeader><TableRow><TableHead>Bread Type</TableHead><TableHead className="text-right">Amount (₦)</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {discounts.map(r => <TableRow key={r.id}><TableCell>{r.bread_type}</TableCell><TableCell className="text-right">{formatCurrency(r.amount)}</TableCell></TableRow>)}
+                            </TableBody>
+                            <TableFooter><TableRow><TableCell className="font-bold text-right">Total Discount</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalDiscounts)}</TableCell></TableRow></TableFooter>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
     );
 }
 

@@ -1,4 +1,3 @@
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -835,6 +834,12 @@ export async function getClosingStocks() {
     const snapshot = await getDocs(query(collection(db, "closingStocks")));
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+
+export async function getDiscountRecords() {
+    const snapshot = await getDocs(query(collection(db, "discount_records")));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
 
 export async function getWages() {
     const snapshot = await getDocs(query(collection(db, "wages")));
