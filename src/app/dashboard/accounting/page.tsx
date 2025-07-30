@@ -268,7 +268,7 @@ function DebtorsCreditorsTab() {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
-
+    
     const { debitTotal, creditTotal } = useMemo(() => {
         const debit = debtLedger.reduce((sum, item) => sum + (item.debit || 0), 0);
         const credit = debtLedger.reduce((sum, item) => sum + (item.credit || 0), 0);
@@ -788,6 +788,61 @@ function DrinkSalesTab() {
     );
 }
 
+function ClosingStockTab() {
+    const [records, setRecords] = useState<ClosingStock[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        getClosingStocks().then(data => {
+            setRecords(data as ClosingStock[]);
+            setIsLoading(false);
+        });
+    }, []);
+
+    const totalAmount = useMemo(() => {
+        return records.reduce((sum, item) => sum + (item.amount || 0), 0);
+    }, [records]);
+
+    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Closing Stock</CardTitle>
+                <CardDescription>The value of inventory at the end of the accounting period.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Item</TableHead>
+                                <TableHead>Remaining Stock</TableHead>
+                                <TableHead className="text-right">Amount (₦)</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {records.map(r => (
+                                <TableRow key={r.id}>
+                                    <TableCell>{r.item}</TableCell>
+                                    <TableCell>{r.remainingStock}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.amount)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                        <TableFooter>
+                            <TableRow>
+                                <TableCell colSpan={2} className="font-bold text-right">Total Closing Stock</TableCell>
+                                <TableCell className="font-bold text-right">{formatCurrency(totalAmount)}</TableCell>
+                            </TableRow>
+                        </TableFooter>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 function WagesTab() {
     const [records, setRecords] = useState<Wage[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -873,6 +928,7 @@ export default function AccountingPage() {
                 <TabsTrigger value="sales-records">Sales Records</TabsTrigger>
                 <TabsTrigger value="drink-sales">Drink Sales</TabsTrigger>
                 <TabsTrigger value="wages">Wages</TabsTrigger>
+                <TabsTrigger value="closing-stock">Closing Stock</TabsTrigger>
             </TabsList>
         </div>
 
@@ -894,6 +950,7 @@ export default function AccountingPage() {
         <TabsContent value="sales-records"><SalesRecordsTab /></TabsContent>
         <TabsContent value="drink-sales"><DrinkSalesTab /></TabsContent>
         <TabsContent value="wages"><WagesTab /></TabsContent>
+        <TabsContent value="closing-stock"><ClosingStockTab /></TabsContent>
 
       </Tabs>
     </div>
