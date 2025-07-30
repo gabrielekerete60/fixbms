@@ -216,11 +216,13 @@ const seedData = {
     { id: 'rep_1', subject: 'Faulty Mixer', reportType: 'Maintenance', message: 'The main mixer in the kitchen is making a loud noise.', staffId: '500006', staffName: 'Blessing Baker', timestamp: daysAgo(0), status: 'new' },
   ],
   waste_logs: [
-    { id: 'waste_1', productId: 'prod_1', productName: 'Family Loaf', productCategory: 'Breads', quantity: 2, reason: 'Spoiled', staffId: '400004', staffName: 'Mfon Showroom', date: daysAgo(1) },
-    { id: 'waste_2', productId: 'prod_1', productName: 'Family Loaf', productCategory: 'Breads', quantity: 27, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
-    { id: 'waste_3', productId: 'prod_3', productName: 'Jumbo Loaf', productCategory: 'Breads', quantity: 8, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
-    { id: 'waste_4', productId: 'prod_2', productName: 'Burger Loaf', productCategory: 'Breads', quantity: 7, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
-    { id: 'waste_5', productId: 'prod_4', productName: 'Round Loaf', productCategory: 'Breads', quantity: 3, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
+    { id: 'waste_1', productId: 'prod_1', productName: 'Family Loaf', productCategory: 'Breads', quantity: 27, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
+    { id: 'waste_2', productId: 'prod_3', productName: 'Jumbo Loaf', productCategory: 'Breads', quantity: 8, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
+    { id: 'waste_3', productId: 'prod_2', productName: 'Burger Loaf', productCategory: 'Breads', quantity: 7, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
+    { id: 'waste_4', productId: 'prod_4', productName: 'Round Loaf', productCategory: 'Breads', quantity: 3, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
+    { id: 'waste_5', productId: 'prod_5', productName: 'Mini Bite', productCategory: 'Pastries', quantity: 3, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
+    { id: 'waste_6', productId: 'prod_6', productName: 'Twin Bite', productCategory: 'Pastries', quantity: 4, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
+    { id: 'waste_7', productId: 'prod_7', productName: 'Short Loaf', productCategory: 'Breads', quantity: 16, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
   ],
   attendance: [
       // Today
@@ -237,10 +239,8 @@ const seedData = {
     { date: "2025-06-03T00:00:00Z", description: "Sale", cash: 65400, transfer: 31350, pos: 6900, creditSales: 202900, shortage: 0, total: 306550 }
   ],
   debt: [
-    { date: "2025-05-31T00:00:00Z", description: "Debtor/Creditor Bal bf", debit: 369500, credit: 300660 },
-    { date: "2025-06-30T00:00:00Z", description: "Debtor/Creditor for June", debit: 3715250, credit: 659950 },
-    { date: "2025-05-31T00:00:00Z", description: "Bal b/f Loan", debit: 100000, credit: null },
-    { date: "2025-06-27T00:00:00Z", description: "Loan for Raw Material", debit: 363000, credit: null },
+    { id: 'loan_1', date: "2025-05-31T00:00:00Z", description: "Bal b/f Loan", debit: 100000, credit: null },
+    { id: 'loan_2', date: "2025-06-27T00:00:00Z", description: "Loan for Raw Material", debit: 363000, credit: null },
   ],
   directCosts: [
     { date: "2025-06-02T00:00:00Z", description: "Bag of Flour", category: "Flour", quantity: 2, total: 108000 },
@@ -337,18 +337,27 @@ const seedData = {
     { id: "wage_13", name: "Aniefon Udo Bassey", department: "Security", position: "Security", salary: 25000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 25000 },
   ],
   closingStocks: [
-    { id: 'cs_1', item: "Flour", remainingStock: "100KG", amount: 108000 },
-    { id: 'cs_2', item: "Yeast", remainingStock: "9 Pack", amount: 27000 },
-    { id: 'cs_3', item: "Zeast", remainingStock: "3 Bottle 890g", amount: 105030 },
-    { id: 'cs_4', item: "Egg", remainingStock: "75 Pices", amount: 13230 },
-    { id: 'cs_5', item: "Salt", remainingStock: "1 Bag 16,4kg", amount: 22576 },
-    { id: 'cs_6', item: "Strawbery", remainingStock: "1 Bottle", amount: 5000 },
-    { id: 'cs_7', item: "Oil", remainingStock: "13.53CL", amount: 37030 },
-    { id: 'cs_8', item: "Sagar", remainingStock: "2 Bags 9.85kg", amount: 174661 },
-    { id: 'cs_9', item: "Preservative", remainingStock: "5 Pack 810g", amount: 23240 },
-    { id: 'cs_10', item: "Butter", remainingStock: "2 Carton ,10kg", amount: 104000 },
-    { id: 'cs_11', item: "Tin milk", remainingStock: "6 Tin", amount: 6000 },
-    { id: 'cs_12', item: "Butter Scotch", remainingStock: "440g", amount: 4400 },
+    { id: 'cs_1', item: 'Flour', remainingStock: '100KG', amount: 108000 },
+    { id: 'cs_2', item: 'Yeast', remainingStock: '9 Pack', amount: 27000 },
+    { id: 'cs_3', item: 'Zeast', remainingStock: '3 Bottle 890g', amount: 105030 },
+    { id: 'cs_4', item: 'Egg', remainingStock: '75 Pices', amount: 13230 },
+    { id: 'cs_5', item: 'Salt', remainingStock: '1 Bag 16,4kg', amount: 22576 },
+    { id: 'cs_6', item: 'Strawbery', remainingStock: '1 Bottle', amount: 5000 },
+    { id: 'cs_7', item: 'Oil', remainingStock: '13.53CL', amount: 37030 },
+    { id: 'cs_8', item: 'Sagar', remainingStock: '2 Bags 9.85kg', amount: 174661 },
+    { id: 'cs_9', item: 'Preservative', remainingStock: '5 Pack 810g', amount: 23240 },
+    { id: 'cs_10', item: 'Butter', remainingStock: '2 Carton ,10kg', amount: 104000 },
+    { id: 'cs_11', item: 'Tin milk', remainingStock: '6 Tin', amount: 6000 },
+    { id: 'cs_12', item: 'Butter Scotch', remainingStock: '440g', amount: 4400 },
+  ],
+  discount_records: [
+      { id: 'dr_1', bread_type: 'Round Loaf', amount: 58000 },
+      { id: 'dr_2', bread_type: 'Family Loaf', amount: 1200 },
+      { id: 'dr_3', bread_type: 'Short Loaf', amount: 4700 },
+      { id: 'dr_4', bread_type: 'Burger', amount: 1000 },
+      { id: 'dr_5', bread_type: 'Jumbo', amount: 300 },
+      { id: 'dr_6', bread_type: 'Mini Bite', amount: 550 },
+      { id: 'dr_7', bread_type: 'Big Bite', amount: 600 },
   ]
 };
 
@@ -495,5 +504,7 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
+
+    
 
     
