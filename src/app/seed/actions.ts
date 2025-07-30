@@ -56,20 +56,20 @@ const generateFinancialData = (numMonths: number) => {
 
 const twoYearsOfFinancials = generateFinancialData(24);
 
-const seedData = {
-  products: [
-      { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 500, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300 },
-      { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 300, category: 'Breads', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250 },
-      { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 250, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500 },
-      { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 400, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280 },
-      { id: "prod_5", name: "Croissant", price: 400.00, stock: 600, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'croissant pastry', costPrice: 220 },
-      { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 450, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350 },
-      { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 1000, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200 },
-      { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 1500, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100 },
-      { id: "prod_9", name: "Fanta (50cl)", price: 300.00, stock: 800, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'fanta drink', costPrice: 200 },
-      { id: "prod_10", name: "Freshyo", price: 700.00, stock: 600, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550 },
-  ],
-  staff: [
+const products = [
+    { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 500, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300 },
+    { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 300, category: 'Breads', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250 },
+    { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 250, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500 },
+    { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 400, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280 },
+    { id: "prod_5", name: "Croissant", price: 400.00, stock: 600, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'croissant pastry', costPrice: 220 },
+    { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 450, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350 },
+    { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 1000, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200 },
+    { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 1500, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100 },
+    { id: "prod_9", name: "Fanta (50cl)", price: 300.00, stock: 800, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'fanta drink', costPrice: 200 },
+    { id: "prod_10", name: "Freshyo", price: 700.00, stock: 600, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550 },
+];
+
+const staff = [
     { staff_id: '100001', name: 'Wisdom Effiong Edet', email: 'wisdom.edet@example.com', password: 'ManagerPass1!', role: 'Manager', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "MONIPOINT", account_number: "9031612444", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '200002', name: 'Mr Bassey Smith Daniel', email: 'bassey.daniel@example.com', password: 'AccountantPass1!', role: 'Accountant', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "Opay", account_number: "8136164826", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '300003', name: 'MR Bassey OFFIONG', email: 'bassey.offiong@example.com', password: 'BakerPass1!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 60000, bank_name: "Opay", account_number: "8066706293", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
@@ -84,7 +84,39 @@ const seedData = {
     { staff_id: '120012', name: 'Nsikak Udo Essiet', email: 'nsikak.essiet@example.com', password: 'SecurityPass2!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "U.B.A", account_number: "2304484777", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '130013', name: 'Aniefon Udo Bassey', email: 'aniefon.bassey@example.com', password: 'SecurityPass3!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "First Bank", account_number: "3090572411", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '000000', name: 'Gabriel Developer', email: 'gabriel.dev@example.com', password: 'DevPassword1!', role: 'Developer', is_active: true, pay_type: 'Salary', pay_rate: 500000, bank_name: "Kuda Bank", account_number: "8901234567", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-  ],
+];
+
+const recipes = [
+    {
+       id: "rec_1",
+       name: "Standard Family Loaf",
+       description: "The recipe for our signature family loaf.",
+       productId: "prod_1",
+       productName: "Family Loaf",
+       ingredients: [
+           { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 0.5, unit: "kg" },
+           { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.01, unit: "kg" },
+           { ingredientId: "ing_2", ingredientName: "Granulated Sugar", quantity: 0.02, unit: "kg" },
+           { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.005, unit: "kg" },
+       ]
+    },
+    {
+       id: "rec_2",
+       name: "Classic Croissant",
+       description: "A buttery, flaky croissant.",
+       productId: "prod_5",
+       productName: "Croissant",
+       ingredients: [
+           { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 0.25, unit: "kg" },
+           { ingredientId: "ing_3", ingredientName: "Unsalted Butter", quantity: 0.15, unit: "kg" },
+           { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.007, unit: "kg" },
+       ]
+    },
+];
+
+const seedData = {
+  products: products,
+  staff: staff,
   promotions: [
     { id: "promo_1", name: "Weekend Special", description: "10% off all bread items", type: "percentage", value: 10, code: "WEEKEND10", startDate: daysAgo(7).toDate().toISOString(), endDate: daysAgo(-7).toDate().toISOString(), applicableProducts: [], usageLimit: 100, timesUsed: 12 },
     { id: "promo_2", name: "Holiday Bonanza", description: "N500 off total purchase", type: "fixed_amount", value: 500, code: "HOLIDAY500", startDate: daysAgo(30).toDate().toISOString(), endDate: daysAgo(20).toDate().toISOString(), applicableProducts: [], usageLimit: 50, timesUsed: 45 },
@@ -95,33 +127,7 @@ const seedData = {
     { id: "sup_2", name: "Dangote Sugar", contactPerson: "Hajiya Bello", phone: "08087654321", email: "sugar@dangote.com", address: "Ikeja, Lagos", amountOwed: 250000, amountPaid: 250000 },
     { id: "sup_3", name: "Local Yeast Supplier", contactPerson: "Mama Chichi", phone: "07011223344", email: "chichisyeast@email.com", address: "Uyo Main Market", amountOwed: 50000, amountPaid: 20000 },
   ],
-  recipes: [
-     {
-        id: "rec_1",
-        name: "Standard Family Loaf",
-        description: "The recipe for our signature family loaf.",
-        productId: "prod_1",
-        productName: "Family Loaf",
-        ingredients: [
-            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 0.5, unit: "kg" },
-            { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.01, unit: "kg" },
-            { ingredientId: "ing_2", ingredientName: "Granulated Sugar", quantity: 0.02, unit: "kg" },
-            { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.005, unit: "kg" },
-        ]
-     },
-     {
-        id: "rec_2",
-        name: "Classic Croissant",
-        description: "A buttery, flaky croissant.",
-        productId: "prod_5",
-        productName: "Croissant",
-        ingredients: [
-            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 0.25, unit: "kg" },
-            { ingredientId: "ing_3", ingredientName: "Unsalted Butter", quantity: 0.15, unit: "kg" },
-            { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.007, unit: "kg" },
-        ]
-     },
-  ],
+  recipes: recipes,
   ingredients: [
     { id: "ing_1", name: "All-Purpose Flour", stock: 100.00, unit: 'kg', costPerUnit: 500.00, expiryDate: null },
     { id: "ing_2", name: "Granulated Sugar", stock: 50.00, unit: 'kg', costPerUnit: 800.00, expiryDate: null },
@@ -147,7 +153,7 @@ const seedData = {
     amountPaid: Math.floor(Math.random() * 50000),
   })),
   orders: Array.from({ length: 1500 }, (_, i) => {
-      const product = seedData.products[Math.floor(Math.random() * seedData.products.length)];
+      const product = products[Math.floor(Math.random() * products.length)];
       const quantity = Math.floor(Math.random() * 5) + 1;
       return {
         id: `ord_${i + 1}`,
@@ -167,7 +173,7 @@ const seedData = {
       from_staff_name: "Victory Peter Ekerete",
       to_staff_id: i % 2 === 0 ? "400004" : "100010", // Showroom or Delivery
       to_staff_name: i % 2 === 0 ? "Mr Ukeme Akpan Thompson" : "Edet Edet Nyong",
-      items: [{ productId: `prod_${(i % 10) + 1}`, productName: seedData.products[i % 10].name, quantity: Math.floor(Math.random() * 20) + 10 }],
+      items: [{ productId: `prod_${(i % 10) + 1}`, productName: products[i % 10].name, quantity: Math.floor(Math.random() * 20) + 10 }],
       date: generateRandomDate(0, 730),
       status: Math.random() > 0.1 ? 'completed' : 'pending',
       is_sales_run: i % 2 !== 0,
@@ -176,9 +182,9 @@ const seedData = {
   production_batches: Array.from({ length: 100 }, (_, i) => ({
       id: `batch_${i + 1}`,
       recipeId: `rec_${(i % 2) + 1}`,
-      recipeName: seedData.recipes[i % 2].name,
-      productId: seedData.recipes[i % 2].productId,
-      productName: seedData.recipes[i % 2].productName,
+      recipeName: recipes[i % 2].name,
+      productId: recipes[i % 2].productId,
+      productName: recipes[i % 2].productName,
       requestedById: '300003',
       requestedByName: 'MR Bassey OFFIONG',
       quantityToProduce: Math.floor(Math.random() * 50) + 20,
@@ -187,13 +193,13 @@ const seedData = {
       approvedAt: generateRandomDate(0, 730),
       successfullyProduced: Math.floor(Math.random() * 45) + 15,
       wasted: Math.floor(Math.random() * 5),
-      ingredients: seedData.recipes[i % 2].ingredients
+      ingredients: recipes[i % 2].ingredients
   })),
   waste_logs: Array.from({ length: 300 }, (_, i) => ({
     id: `waste_${i + 1}`,
     productId: `prod_${(i % 10) + 1}`,
-    productName: seedData.products[i % 10].name,
-    productCategory: seedData.products[i % 10].category,
+    productName: products[i % 10].name,
+    productCategory: products[i % 10].category,
     quantity: Math.floor(Math.random() * 5) + 1,
     reason: ['Spoiled', 'Damaged', 'Burnt', 'Error'][i % 4],
     notes: 'Generated seed data',
@@ -201,15 +207,15 @@ const seedData = {
     staffId: `400004`,
     staffName: `Mr Ukeme Akpan Thompson`
   })),
-  attendance: seedData.staff.flatMap(staff => 
+  attendance: staff.flatMap(s => 
       Array.from({ length: 450 }, (_, i) => {
           if (Math.random() < 0.2) return null; // 20% absenteeism
           const clockIn = daysAgo(i);
           clockIn.toDate().setHours(8 + Math.floor(Math.random()*2), Math.floor(Math.random()*60));
           const clockOut = Timestamp.fromMillis(clockIn.toMillis() + ( (8 + Math.random()) * 60 * 60 * 1000));
           return {
-              id: `att_${staff.staff_id}_${i}`,
-              staff_id: staff.staff_id,
+              id: `att_${s.staff_id}_${i}`,
+              staff_id: s.staff_id,
               clock_in_time: clockIn,
               clock_out_time: clockOut,
               date: clockIn.toDate().toISOString().split('T')[0]
@@ -224,19 +230,19 @@ const seedData = {
   ],
   directCosts: twoYearsOfFinancials.directCosts,
   indirectCosts: twoYearsOfFinancials.indirectCosts,
-  wages: seedData.staff.flatMap(staff => 
+  wages: staff.flatMap(s => 
       Array.from({length: 24}, (_, i) => {
           const monthDate = new Date();
           monthDate.setMonth(monthDate.getMonth() - i);
           const deductions = { shortages: 0, advanceSalary: Math.random() > 0.8 ? 5000 : 0, debt: 0, fine: 0 };
           return {
-              id: `wage_${staff.staff_id}_${i}`,
-              name: staff.name,
-              department: staff.role,
-              position: staff.role,
-              salary: staff.pay_rate,
+              id: `wage_${s.staff_id}_${i}`,
+              name: s.name,
+              department: s.role,
+              position: s.role,
+              salary: s.pay_rate,
               deductions,
-              netPay: staff.pay_rate - deductions.advanceSalary,
+              netPay: s.pay_rate - deductions.advanceSalary,
               date: Timestamp.fromDate(monthDate)
           }
       })
@@ -406,7 +412,3 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
-
-    
-
-    
