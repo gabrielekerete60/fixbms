@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
@@ -1024,13 +1024,19 @@ function PnLRow({ label, value, isSubtotal = false, isTotal = false, isFinal = f
 function ProfitAndLossTab() {
     const [statement, setStatement] = useState<ProfitAndLossStatement | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [date, setDate] = useState<DateRange | undefined>({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
+
+    const fetchStatement = useCallback(async (newDate: DateRange | undefined) => {
+        setIsLoading(true);
+        const range = newDate?.from ? { from: startOfDay(newDate.from), to: endOfDay(newDate.to || newDate.from) } : undefined;
+        const data = await getProfitAndLossStatement(range);
+        setStatement(data);
+        setIsLoading(false);
+    }, []);
 
     useEffect(() => {
-        getProfitAndLossStatement().then(data => {
-            setStatement(data);
-            setIsLoading(false);
-        });
-    }, []);
+        fetchStatement(date);
+    }, [date, fetchStatement]);
 
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     if (!statement) return <div>Could not load statement.</div>
@@ -1038,11 +1044,26 @@ function ProfitAndLossTab() {
     return (
          <Card>
             <CardHeader>
-                <CardTitle>Trading Profit or Loss Account</CardTitle>
-                <CardDescription>For the month ending {format(new Date(), 'MMMM yyyy')}</CardDescription>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <CardTitle>Trading Profit or Loss Account</CardTitle>
+                        <CardDescription>For the period ending {date?.to ? format(date.to, 'PPP') : format(new Date(), 'PPP')}</CardDescription>
+                    </div>
+                     <Popover>
+                        <PopoverTrigger asChild>
+                        <Button id="date" variant={"outline"} className={cn("w-full sm:w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                        </PopoverContent>
+                    </Popover>
+                </div>
             </CardHeader>
             <CardContent>
-                 <div className="grid md:grid-cols-2 gap-8">
+                 <div className="grid lg:grid-cols-2 gap-8">
                      {/* Left Column: Revenue & Gross Profit */}
                      <div className="space-y-4">
                         <Table>
@@ -1054,8 +1075,8 @@ function ProfitAndLossTab() {
                              </TableHeader>
                              <TableBody>
                                  <PnLRow label="Opening Stock" value={statement.openingStock} />
-                                 <PnLRow label="Purchases" value={statement.purchases} />
-                                 <PnLRow label="Carriage Inward" value={statement.carriageInward} isSubtotal />
+                                 <PnLRow label="Add: Purchases" value={statement.purchases} />
+                                 <PnLRow label="Add: Carriage Inward" value={statement.carriageInward} isSubtotal />
                                  <PnLRow label="Cost of Goods available for Sale" value={statement.costOfGoodsAvailable} />
                                  <PnLRow label="Less: Closing Stock" value={-statement.closingStock} />
                                  <PnLRow label="Cost of Goods Sold (COGS)" value={statement.cogs} isTotal />

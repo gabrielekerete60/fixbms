@@ -887,25 +887,29 @@ export type ProfitAndLossStatement = {
     netProfit: number;
 };
 
-export async function getProfitAndLossStatement(): Promise<ProfitAndLossStatement> {
+export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Date }): Promise<ProfitAndLossStatement> {
     try {
+        const dateFilters = dateRange 
+            ? [where("date", ">=", Timestamp.fromDate(dateRange.from)), where("date", "<=", Timestamp.fromDate(dateRange.to))]
+            : [];
+        
         // Fetch all necessary data in parallel
         const [
             salesSnapshot,
             directCostsSnapshot,
-            closingStocksSnapshot,
+            closingStocksSnapshot, // Note: Closing stock is typically point-in-time, not ranged.
             indirectCostsSnapshot,
             wagesSnapshot,
             wasteLogsSnapshot,
             discountsSnapshot
         ] = await Promise.all([
-            getDocs(collection(db, "sales")),
-            getDocs(collection(db, "directCosts")),
-            getDocs(collection(db, "closingStocks")),
-            getDocs(collection(db, "indirectCosts")),
-            getDocs(collection(db, "wages")),
-            getDocs(collection(db, "waste_logs")),
-            getDocs(collection(db, "discount_records"))
+            getDocs(query(collection(db, "sales"), ...dateFilters)),
+            getDocs(query(collection(db, "directCosts"), ...dateFilters)),
+            getDocs(collection(db, "closingStocks")), // Not filtered by date
+            getDocs(query(collection(db, "indirectCosts"), ...dateFilters)),
+            getDocs(query(collection(db, "wages"), ...dateFilters)),
+            getDocs(query(collection(db, "waste_logs"), ...dateFilters)),
+            getDocs(query(collection(db, "discount_records"), ...dateFilters))
         ]);
 
         // Trading Account Calculations
