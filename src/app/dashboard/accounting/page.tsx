@@ -1,12 +1,13 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
@@ -26,6 +27,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { DateRange } from "react-day-picker";
+import { cn } from "@/lib/utils";
+
 
 // --- Helper Functions & Type Definitions ---
 const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -792,52 +798,104 @@ function ClosingStockTab() {
     const [closingStock, setClosingStock] = useState<ClosingStock[]>([]);
     const [badBread, setBadBread] = useState<WasteLog[]>([]);
     const [discounts, setDiscounts] = useState<DiscountRecord[]>([]);
+    const [loanAccount, setLoanAccount] = useState<DebtRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [date, setDate] = useState<DateRange | undefined>();
+
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const [csData, wasteData, discountData, debtData] = await Promise.all([
+                getClosingStocks(),
+                getWasteLogs(),
+                getDiscountRecords(),
+                getDebtRecords()
+            ]);
+            setClosingStock(csData as ClosingStock[]);
+            setBadBread(wasteData.filter(log => log.reason === 'Damaged'));
+            setDiscounts(discountData as DiscountRecord[]);
+            setLoanAccount(debtData.filter(d => d.description.toLowerCase().includes('loan')) as DebtRecord[]);
+        } catch (error) {
+            console.error("Error fetching closing stock data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                const [csData, wasteData, discountData] = await Promise.all([
-                    getClosingStocks(),
-                    getWasteLogs(),
-                    getDiscountRecords()
-                ]);
-                setClosingStock(csData as ClosingStock[]);
-                // Filter waste logs for 'Damaged' to represent "Bad and Damage Bread"
-                setBadBread(wasteData.filter(log => log.reason === 'Damaged'));
-                setDiscounts(discountData as DiscountRecord[]);
-            } catch (error) {
-                console.error("Error fetching closing stock data:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
         fetchData();
-    }, []);
+    }, [fetchData]);
+
+    const filteredBadBread = useMemo(() => {
+        if (!date?.from) return badBread;
+        const from = startOfDay(date.from);
+        const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
+        return badBread.filter(log => {
+            const logDate = new Date(log.date);
+            return logDate >= from && logDate <= to;
+        });
+    }, [badBread, date]);
+    
+    const filteredLoanAccount = useMemo(() => {
+        if (!date?.from) return loanAccount;
+        const from = startOfDay(date.from);
+        const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
+        return loanAccount.filter(rec => {
+            const recDate = new Date(rec.date);
+            return recDate >= from && recDate <= to;
+        });
+    }, [loanAccount, date]);
+
 
     const totalClosingStock = useMemo(() => closingStock.reduce((sum, item) => sum + (item.amount || 0), 0), [closingStock]);
     const totalDiscounts = useMemo(() => discounts.reduce((sum, item) => sum + (item.amount || 0), 0), [discounts]);
+    const totalLoanDebit = useMemo(() => filteredLoanAccount.reduce((sum, item) => sum + (item.debit || 0), 0), [filteredLoanAccount]);
     
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
     return (
         <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Closing Stock</CardTitle>
-                    <CardDescription>The value of inventory at the end of the accounting period.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Remaining Stock</TableHead><TableHead className="text-right">Amount (₦)</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            {closingStock.map(r => <TableRow key={r.id}><TableCell>{r.item}</TableCell><TableCell>{r.remainingStock}</TableCell><TableCell className="text-right">{formatCurrency(r.amount)}</TableCell></TableRow>)}
-                        </TableBody>
-                        <TableFooter><TableRow><TableCell colSpan={2} className="font-bold text-right">Total Closing Stock</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalClosingStock)}</TableCell></TableRow></TableFooter>
-                    </Table>
-                </CardContent>
-            </Card>
+             <div className="flex justify-end">
+                <Popover>
+                    <PopoverTrigger asChild>
+                    <Button id="date" variant={"outline"} className={cn("w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
+                    </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                    </PopoverContent>
+                </Popover>
+            </div>
+            <div className="grid md:grid-cols-2 gap-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Closing Stock</CardTitle>
+                        <CardDescription>Value of inventory at the end of the accounting period.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Remaining Stock</TableHead><TableHead className="text-right">Amount (₦)</TableHead></TableRow></TableHeader>
+                            <TableBody>{closingStock.map(r => <TableRow key={r.id}><TableCell>{r.item}</TableCell><TableCell>{r.remainingStock}</TableCell><TableCell className="text-right">{formatCurrency(r.amount)}</TableCell></TableRow>)}</TableBody>
+                            <TableFooter><TableRow><TableCell colSpan={2} className="font-bold text-right">Total Closing Stock</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalClosingStock)}</TableCell></TableRow></TableFooter>
+                        </Table>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Loan Account</CardTitle>
+                        <CardDescription>A log of business loans.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Debit</TableHead></TableRow></TableHeader>
+                            <TableBody>{filteredLoanAccount.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell className="text-right">{formatCurrency(r.debit)}</TableCell></TableRow>)}</TableBody>
+                            <TableFooter><TableRow><TableCell colSpan={2} className="font-bold text-right">Total Loan</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalLoanDebit)}</TableCell></TableRow></TableFooter>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </div>
 
             <div className="grid md:grid-cols-2 gap-6">
                  <Card>
@@ -848,9 +906,7 @@ function ClosingStockTab() {
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>Bread Type</TableHead><TableHead className="text-right">Quantity</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {badBread.map(r => <TableRow key={r.id}><TableCell>{r.productName}</TableCell><TableCell className="text-right">{r.quantity}</TableCell></TableRow>)}
-                            </TableBody>
+                            <TableBody>{filteredBadBread.map(r => <TableRow key={r.id}><TableCell>{r.productName}</TableCell><TableCell className="text-right">{r.quantity}</TableCell></TableRow>)}</TableBody>
                         </Table>
                     </CardContent>
                 </Card>
@@ -863,9 +919,7 @@ function ClosingStockTab() {
                     <CardContent>
                          <Table>
                             <TableHeader><TableRow><TableHead>Bread Type</TableHead><TableHead className="text-right">Amount (₦)</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {discounts.map(r => <TableRow key={r.id}><TableCell>{r.bread_type}</TableCell><TableCell className="text-right">{formatCurrency(r.amount)}</TableCell></TableRow>)}
-                            </TableBody>
+                            <TableBody>{discounts.map(r => <TableRow key={r.id}><TableCell>{r.bread_type}</TableCell><TableCell className="text-right">{formatCurrency(r.amount)}</TableCell></TableRow>)}</TableBody>
                             <TableFooter><TableRow><TableCell className="font-bold text-right">Total Discount</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalDiscounts)}</TableCell></TableRow></TableFooter>
                         </Table>
                     </CardContent>
@@ -988,5 +1042,3 @@ export default function AccountingPage() {
     </div>
   );
 }
-
-    
