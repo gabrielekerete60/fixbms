@@ -107,7 +107,7 @@ function StaffDialog({
     const [isActive, setIsActive] = useState(true);
     
     const availableRoles = [
-        "Manager", "Supervisor", "Accountant", "Showroom Staff", "Delivery Staff", "Baker", "Cleaner", "Storekeeper"
+        "Manager", "Supervisor", "Accountant", "Showroom Staff", "Delivery Staff", "Baker", "Cleaner", "Storekeeper", "Security"
     ];
 
     useEffect(() => {
