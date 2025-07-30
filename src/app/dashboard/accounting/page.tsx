@@ -47,6 +47,10 @@ const chartConfig = {
     label: "Amount (₦)",
     color: "hsl(var(--primary))",
   },
+   total: {
+    label: "Total (₦)",
+    color: "hsl(var(--primary))",
+  },
 };
 // --- DIALOGS FOR ADDING DATA ---
 
@@ -323,18 +327,127 @@ function DebtorsCreditorsTab() {
 function DirectCostsTab() {
     const [costs, setCosts] = useState<DirectCost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const fetchCosts = () => { setIsLoading(true); getDirectCosts().then(data => { setCosts(data as DirectCost[]); setIsLoading(false); }); };
-    useEffect(() => { fetchCosts(); }, []);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const fetchCosts = useCallback(() => {
+        setIsLoading(true);
+        getDirectCosts().then(data => {
+            setCosts(data as DirectCost[]);
+            setIsLoading(false);
+        });
+    }, []);
+
+    useEffect(() => {
+        fetchCosts();
+    }, [fetchCosts]);
+
+    const { totalCost, categoryTotals, chartData } = useMemo(() => {
+        const filteredCosts = costs.filter(cost => cost.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        
+        const total = filteredCosts.reduce((sum, cost) => sum + cost.total, 0);
+
+        const totals: { [key: string]: number } = filteredCosts.reduce((acc, cost) => {
+            acc[cost.category] = (acc[cost.category] || 0) + cost.total;
+            return acc;
+        }, {});
+
+        const sortedCategories = Object.entries(totals)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5);
+
+        const chart = sortedCategories.map(([name, total]) => ({ name, total }));
+
+        return { totalCost: total, categoryTotals: sortedCategories, chartData: chart };
+    }, [costs, searchTerm]);
+
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
     return (
-        <Card>
-            <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"><div className="space-y-1.5"><CardTitle>Direct Costs</CardTitle><CardDescription>Costs directly tied to production, like ingredients.</CardDescription></div><AddDirectCostDialog onCostAdded={fetchCosts} /></CardHeader>
-            <CardContent>
-                <div className="overflow-x-auto">
-                    <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Quantity</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{costs.map(c => <TableRow key={c.id}><TableCell>{format(new Date(c.date), 'PPP')}</TableCell><TableCell>{c.description}</TableCell><TableCell>{c.category}</TableCell><TableCell className="text-right">{c.quantity}</TableCell><TableCell className="text-right">{formatCurrency(c.total)}</TableCell></TableRow>)}</TableBody></Table>
-                </div>
-            </CardContent>
-        </Card>
+        <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Direct Cost</CardTitle>
+                        <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{formatCurrency(totalCost)}</div>
+                        <p className="text-xs text-muted-foreground">For all fetched records</p>
+                    </CardContent>
+                </Card>
+                {categoryTotals.map(([name, total]) => (
+                    <Card key={name}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">{name}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{formatCurrency(total)}</div>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-5">
+                <Card className="md:col-span-3">
+                    <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="space-y-1.5">
+                            <CardTitle>Direct Costs Log</CardTitle>
+                            <CardDescription>All costs directly tied to production, like ingredients.</CardDescription>
+                        </div>
+                        <div className="flex w-full md:w-auto items-center gap-2">
+                             <div className="relative flex-1 md:flex-initial">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                            </div>
+                            <AddDirectCostDialog onCostAdded={fetchCosts} />
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead className="text-right">Quantity</TableHead>
+                                        <TableHead className="text-right">Total</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {costs.filter(c => c.description.toLowerCase().includes(searchTerm.toLowerCase())).map(c => (
+                                        <TableRow key={c.id}>
+                                            <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
+                                            <TableCell>{c.description}</TableCell>
+                                            <TableCell><Badge variant="outline">{c.category}</Badge></TableCell>
+                                            <TableCell className="text-right">{c.quantity}</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(c.total)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="md:col-span-2">
+                    <CardHeader>
+                        <CardTitle>Top 5 Expense Categories</CardTitle>
+                        <CardDescription>A visual breakdown of your top direct costs.</CardDescription>
+                    </CardHeader>
+                     <CardContent>
+                        <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                            <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 30 }}>
+                                <CartesianGrid horizontal={false} />
+                                <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={80} />
+                                <XAxis dataKey="total" type="number" hide />
+                                <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
+                                <Bar dataKey="total" fill="var(--color-total)" radius={4} />
+                            </BarChart>
+                        </ChartContainer>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
     );
 }
 
