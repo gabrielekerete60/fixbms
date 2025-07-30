@@ -815,7 +815,7 @@ export default function AccountingPage() {
         <div className="overflow-x-auto pb-2">
             <TabsList>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
-                <TabsTrigger value="debt">Debtors &amp; Creditors</TabsTrigger>
+                <TabsTrigger value="debt">Debt</TabsTrigger>
                 <TabsTrigger value="expenses">Expenses</TabsTrigger>
                 <TabsTrigger value="payments">Payments &amp; Requests</TabsTrigger>
                 <TabsTrigger value="sales-records">Sales Records</TabsTrigger>
