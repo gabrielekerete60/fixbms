@@ -16,47 +16,7 @@ const generateRandomDate = (startDaysAgo: number, endDaysAgo: number): Timestamp
     return daysAgo(randomDays);
 };
 
-const generateFinancialData = (numMonths: number) => {
-    const sales = [];
-    const directCosts = [];
-    const indirectCosts = [];
-
-    for (let i = 0; i < numMonths * 30; i++) { // Approx 1 entry per day
-        const date = daysAgo(i);
-        
-        // Sales
-        if (Math.random() > 0.1) { // 90% chance of sales on a day
-            const cash = Math.floor(Math.random() * 50000) + 5000;
-            const transfer = Math.floor(Math.random() * 30000) + 2000;
-            const pos = Math.floor(Math.random() * 10000) + 1000;
-            const creditSales = Math.random() > 0.8 ? Math.floor(Math.random() * 20000) : 0;
-            const total = cash + transfer + pos + creditSales;
-            sales.push({ date, description: "Daily Sale", cash, transfer, pos, creditSales, shortage: 0, total });
-        }
-
-        // Direct Costs
-        if (Math.random() > 0.5) {
-            const categories = ["Flour", "Sugar", "Butter", "Yeast", "Milk", "Egg", "Preservative"];
-            const category = categories[Math.floor(Math.random() * categories.length)];
-            const quantity = Math.floor(Math.random() * 10) + 1;
-            const total = (Math.floor(Math.random() * 5000) + 500) * quantity;
-            directCosts.push({ date, description: `Purchase of ${category}`, category, quantity, total });
-        }
-
-        // Indirect Costs
-        if (Math.random() > 0.3) {
-             const categories = ["Diesel", "Petrol", "Nylon", "Repair", "General Expenses", "Cleaning", "Transportation", "Utilities"];
-             const category = categories[Math.floor(Math.random() * categories.length)];
-             const amount = Math.floor(Math.random() * 40000) + 2000;
-             indirectCosts.push({ date, description: `Expense for ${category}`, category, amount });
-        }
-    }
-    return { sales, directCosts, indirectCosts };
-};
-
-const twoYearsOfFinancials = generateFinancialData(24);
-
-const products = [
+const productsData = [
     { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 500, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300 },
     { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 300, category: 'Breads', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250 },
     { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 250, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500 },
@@ -69,7 +29,7 @@ const products = [
     { id: "prod_10", name: "Freshyo", price: 700.00, stock: 600, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550 },
 ];
 
-const staff = [
+const staffData = [
     { staff_id: '100001', name: 'Wisdom Effiong Edet', email: 'wisdom.edet@example.com', password: 'ManagerPass1!', role: 'Manager', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "MONIPOINT", account_number: "9031612444", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '200002', name: 'Mr Bassey Smith Daniel', email: 'bassey.daniel@example.com', password: 'AccountantPass1!', role: 'Accountant', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "Opay", account_number: "8136164826", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '300003', name: 'MR Bassey OFFIONG', email: 'bassey.offiong@example.com', password: 'BakerPass1!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 60000, bank_name: "Opay", account_number: "8066706293", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
@@ -86,7 +46,7 @@ const staff = [
     { staff_id: '000000', name: 'Gabriel Developer', email: 'gabriel.dev@example.com', password: 'DevPassword1!', role: 'Developer', is_active: true, pay_type: 'Salary', pay_rate: 500000, bank_name: "Kuda Bank", account_number: "8901234567", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
 ];
 
-const recipes = [
+const recipesData = [
     {
        id: "rec_1",
        name: "Standard Family Loaf",
@@ -115,8 +75,9 @@ const recipes = [
 ];
 
 const seedData = {
-  products,
-  staff,
+  products: productsData,
+  staff: staffData,
+  recipes: recipesData,
   promotions: [
     { id: "promo_1", name: "Weekend Special", description: "10% off all bread items", type: "percentage", value: 10, code: "WEEKEND10", startDate: daysAgo(7).toDate().toISOString(), endDate: daysAgo(-7).toDate().toISOString(), applicableProducts: [], usageLimit: 100, timesUsed: 12 },
     { id: "promo_2", name: "Holiday Bonanza", description: "N500 off total purchase", type: "fixed_amount", value: 500, code: "HOLIDAY500", startDate: daysAgo(30).toDate().toISOString(), endDate: daysAgo(20).toDate().toISOString(), applicableProducts: [], usageLimit: 50, timesUsed: 45 },
@@ -127,7 +88,6 @@ const seedData = {
     { id: "sup_2", name: "Dangote Sugar", contactPerson: "Hajiya Bello", phone: "08087654321", email: "sugar@dangote.com", address: "Ikeja, Lagos", amountOwed: 250000, amountPaid: 250000 },
     { id: "sup_3", name: "Local Yeast Supplier", contactPerson: "Mama Chichi", phone: "07011223344", email: "chichisyeast@email.com", address: "Uyo Main Market", amountOwed: 50000, amountPaid: 20000 },
   ],
-  recipes,
   ingredients: [
     { id: "ing_1", name: "All-Purpose Flour", stock: 100.00, unit: 'kg', costPerUnit: 500.00, expiryDate: null },
     { id: "ing_2", name: "Granulated Sugar", stock: 50.00, unit: 'kg', costPerUnit: 800.00, expiryDate: null },
@@ -153,7 +113,7 @@ const seedData = {
     amountPaid: Math.floor(Math.random() * 50000),
   })),
   orders: Array.from({ length: 1500 }, (_, i) => {
-      const product = products[Math.floor(Math.random() * products.length)];
+      const product = productsData[Math.floor(Math.random() * productsData.length)];
       const quantity = Math.floor(Math.random() * 5) + 1;
       return {
         id: `ord_${i + 1}`,
@@ -173,18 +133,18 @@ const seedData = {
       from_staff_name: "Victory Peter Ekerete",
       to_staff_id: i % 2 === 0 ? "400004" : "100010", // Showroom or Delivery
       to_staff_name: i % 2 === 0 ? "Mr Ukeme Akpan Thompson" : "Edet Edet Nyong",
-      items: [{ productId: `prod_${(i % 10) + 1}`, productName: products[i % 10].name, quantity: Math.floor(Math.random() * 20) + 10 }],
+      items: [{ productId: `prod_${(i % 10) + 1}`, productName: productsData[i % 10].name, quantity: Math.floor(Math.random() * 20) + 10 }],
       date: generateRandomDate(0, 730),
-      status: Math.random() > 0.1 ? 'completed' : 'pending',
+      status: Math.random() > 0.1 ? 'pending' : 'completed',
       is_sales_run: i % 2 !== 0,
       totalCollected: 0
   })),
   production_batches: Array.from({ length: 100 }, (_, i) => ({
       id: `batch_${i + 1}`,
       recipeId: `rec_${(i % 2) + 1}`,
-      recipeName: recipes[i % 2].name,
-      productId: recipes[i % 2].productId,
-      productName: recipes[i % 2].productName,
+      recipeName: recipesData[i % 2].name,
+      productId: recipesData[i % 2].productId,
+      productName: recipesData[i % 2].productName,
       requestedById: '300003',
       requestedByName: 'MR Bassey OFFIONG',
       quantityToProduce: Math.floor(Math.random() * 50) + 20,
@@ -193,13 +153,13 @@ const seedData = {
       approvedAt: generateRandomDate(0, 730),
       successfullyProduced: Math.floor(Math.random() * 45) + 15,
       wasted: Math.floor(Math.random() * 5),
-      ingredients: recipes[i % 2].ingredients
+      ingredients: recipesData[i % 2].ingredients
   })),
   waste_logs: Array.from({ length: 300 }, (_, i) => ({
     id: `waste_${i + 1}`,
     productId: `prod_${(i % 10) + 1}`,
-    productName: products[i % 10].name,
-    productCategory: products[i % 10].category,
+    productName: productsData[i % 10].name,
+    productCategory: productsData[i % 10].category,
     quantity: Math.floor(Math.random() * 5) + 1,
     reason: ['Spoiled', 'Damaged', 'Burnt', 'Error'][i % 4],
     notes: 'Generated seed data',
@@ -207,7 +167,7 @@ const seedData = {
     staffId: `400004`,
     staffName: `Mr Ukeme Akpan Thompson`
   })),
-  attendance: staff.flatMap(s => 
+  attendance: staffData.flatMap(s => 
       Array.from({ length: 450 }, (_, i) => {
           if (Math.random() < 0.2) return null; // 20% absenteeism
           const clockIn = daysAgo(i);
@@ -222,15 +182,58 @@ const seedData = {
           }
       }).filter(Boolean)
   ),
-  sales: twoYearsOfFinancials.sales,
+  sales: [
+    { date: daysAgo(30), description: "Sale", cash: 6850, transfer: 19300, pos: 5200, creditSales: 0, shortage: 0, total: 31350 },
+    { date: daysAgo(29), description: "Sale", cash: 33600, transfer: 18400, pos: 4200, creditSales: 117900, shortage: 0, total: 174100 },
+    { date: daysAgo(28), description: "Sale", cash: 65400, transfer: 31350, pos: 6900, creditSales: 202900, shortage: 0, total: 306550 },
+    { date: daysAgo(27), description: "Sale", cash: 42300, transfer: 55600, pos: 7700, creditSales: 118300, shortage: 0, total: 223900 },
+    { date: daysAgo(26), description: "Sale", cash: 7200, transfer: 1800, pos: 5200, creditSales: 0, shortage: 0, total: 14200 },
+    { date: daysAgo(25), description: "Sale", cash: 72550, transfer: 24600, pos: 7700, creditSales: 78100, shortage: 0, total: 182950 },
+    { date: daysAgo(24), description: "Sale", cash: 47400, transfer: 26700, pos: 12600, creditSales: 145200, shortage: 0, total: 231900 },
+    { date: daysAgo(23), description: "Sale", cash: 23100, transfer: 3200, pos: 20000, creditSales: 0, shortage: 0, total: 46300 },
+    { date: daysAgo(22), description: "Sale", cash: 43800, transfer: 10600, pos: 8000, creditSales: 110000, shortage: 0, total: 172400 },
+    { date: daysAgo(21), description: "Sale", cash: 34000, transfer: 25500, pos: 0, creditSales: 61500, shortage: 0, total: 121000 },
+    { date: daysAgo(20), description: "Sale", cash: 55100, transfer: 14900, pos: 2900, creditSales: 97900, shortage: 0, total: 170800 },
+    { date: daysAgo(19), description: "Sale", cash: 25000, transfer: 89100, pos: 3600, creditSales: 100000, shortage: 24320, total: 242020 },
+    { date: daysAgo(18), description: "Sale", cash: 13700, transfer: 85000, pos: 3100, creditSales: 44350, shortage: 0, total: 146150 },
+    { date: daysAgo(17), description: "Sale", cash: 7500, transfer: 6300, pos: 1800, creditSales: 121800, shortage: 0, total: 137400 },
+    { date: daysAgo(16), description: "Sale", cash: 3150, transfer: 2900, pos: 1800, creditSales: 0, shortage: 0, total: 7850 },
+    { date: daysAgo(15), description: "Sale", cash: 800, transfer: 4800, pos: 0, creditSales: 0, shortage: 0, total: 5600 },
+    { date: daysAgo(14), description: "Sale", cash: 7600, transfer: 18500, pos: 5600, creditSales: 0, shortage: 0, total: 31700 },
+    { date: daysAgo(13), description: "Sale", cash: 34200, transfer: 19000, pos: 4200, creditSales: 112900, shortage: 0, total: 170300 },
+    { date: daysAgo(12), description: "Sale", cash: 55350, transfer: 40100, pos: 7100, creditSales: 113900, shortage: 0, total: 216450 },
+    { date: daysAgo(11), description: "Sale", cash: 69800, transfer: 57850, pos: 5900, creditSales: 131800, shortage: 0, total: 265350 },
+    { date: daysAgo(10), description: "Sale", cash: 73100, transfer: 13700, pos: 2000, creditSales: 177500, shortage: 0, total: 266300 },
+    { date: daysAgo(9), description: "Sale", cash: 57500, transfer: 78050, pos: 2800, creditSales: 0, shortage: 0, total: 138350 },
+    { date: daysAgo(8), description: "Sale", cash: 92850, transfer: 44900, pos: 600, creditSales: 123300, shortage: 0, total: 261650 },
+    { date: daysAgo(7), description: "Sale", cash: 20850, transfer: 59700, pos: 11300, creditSales: 105500, shortage: 0, total: 197350 },
+    { date: daysAgo(6), description: "Sale", cash: 37700, transfer: 22300, pos: 3400, creditSales: 175700, shortage: 0, total: 239100 },
+    { date: daysAgo(5), description: "Sale", cash: 64100, transfer: 50500, pos: 1600, creditSales: 7100, shortage: 0, total: 123300 },
+    { date: daysAgo(4), description: "Sale", cash: 37050, transfer: 19100, pos: 4100, creditSales: 201800, shortage: 0, total: 262050 },
+    { date: daysAgo(3), description: "Sale", cash: 87250, transfer: 13750, pos: 4000, creditSales: 119800, shortage: 0, total: 224800 },
+    { date: daysAgo(2), description: "Sale", cash: 15700, transfer: 9700, pos: 11200, creditSales: 0, shortage: 0, total: 36600 },
+    { date: daysAgo(1), description: "Sale", cash: 50700, transfer: 16800, pos: 9700, creditSales: 158000, shortage: 0, total: 235200 },
+  ],
   debt: [
     { id: 'loan_1', date: daysAgo(500), description: "Bal b/f Loan", debit: 100000, credit: null },
     { id: 'loan_2', date: daysAgo(200), description: "Loan for Raw Material", debit: 363000, credit: null },
     { id: 'loan_3', date: daysAgo(50), description: "Loan repayment", debit: null, credit: 50000 },
   ],
-  directCosts: twoYearsOfFinancials.directCosts,
-  indirectCosts: twoYearsOfFinancials.indirectCosts,
-  wages: staff.flatMap(s => 
+  directCosts: Array.from({ length: 730 }, (_, i) => {
+    const categories = ["Flour", "Sugar", "Butter", "Yeast", "Milk", "Egg", "Preservative"];
+    const category = categories[Math.floor(Math.random() * categories.length)];
+    const quantity = Math.floor(Math.random() * 10) + 1;
+    const total = (Math.floor(Math.random() * 5000) + 500) * quantity;
+    return { date: daysAgo(i), description: `Purchase of ${category}`, category, quantity, total };
+  }),
+  indirectCosts: Array.from({ length: 730 }, (_, i) => {
+    if (Math.random() < 0.7) return null; // Make it less frequent
+    const categories = ["Diesel", "Petrol", "Nylon", "Repair", "General Expenses", "Cleaning", "Transportation", "Utilities"];
+    const category = categories[Math.floor(Math.random() * categories.length)];
+    const amount = Math.floor(Math.random() * 40000) + 2000;
+    return { date: daysAgo(i), description: `Expense for ${category}`, category, amount };
+  }).filter(Boolean),
+  wages: staffData.flatMap(s => 
       Array.from({length: 24}, (_, i) => {
           const monthDate = new Date();
           monthDate.setMonth(monthDate.getMonth() - i);
