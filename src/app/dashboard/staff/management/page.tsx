@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -87,11 +87,13 @@ function StaffDialog({
   onOpenChange,
   onSave,
   staff,
+  availableRoles
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: Omit<Staff, 'staff_id'>, staffId?: string) => void;
   staff: Partial<Staff> | null;
+  availableRoles: string[];
 }) {
     const { toast } = useToast();
     const [name, setName] = useState("");
@@ -106,9 +108,6 @@ function StaffDialog({
     const [accountNumber, setAccountNumber] = useState("");
     const [isActive, setIsActive] = useState(true);
     
-    const availableRoles = [
-        "Manager", "Supervisor", "Accountant", "Showroom Staff", "Delivery Staff", "Baker", "Cleaner", "Storekeeper", "Security"
-    ];
 
     useEffect(() => {
         if (staff) {
@@ -313,6 +312,11 @@ export default function StaffManagementPage() {
     const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
     const [staffToDelete, setStaffToDelete] = useState<Staff | null>(null);
 
+    const availableRoles = useMemo(() => {
+        const roles = new Set(staffList.map(s => s.role));
+        return Array.from(roles).sort();
+    }, [staffList]);
+
     const fetchStaff = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -400,6 +404,7 @@ export default function StaffManagementPage() {
                 onOpenChange={setIsFormDialogOpen}
                 onSave={handleSaveStaff}
                 staff={editingStaff}
+                availableRoles={availableRoles}
             />
 
             <StaffDetailDialog
