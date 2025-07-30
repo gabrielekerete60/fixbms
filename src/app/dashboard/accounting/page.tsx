@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, MoreVertical } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment } from '@/app/actions';
@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
@@ -28,7 +27,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // --- Helper Functions & Type Definitions ---
 const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -768,7 +766,7 @@ function WagesTab() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Wages & Salaries</CardTitle>
+                <CardTitle>Wages &amp; Salaries</CardTitle>
                 <CardDescription>Monthly staff emolument records.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -817,9 +815,9 @@ export default function AccountingPage() {
         <div className="overflow-x-auto pb-2">
             <TabsList>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
-                <TabsTrigger value="debt">Debtors & Creditors</TabsTrigger>
+                <TabsTrigger value="debt">Debtors &amp; Creditors</TabsTrigger>
                 <TabsTrigger value="expenses">Expenses</TabsTrigger>
-                <TabsTrigger value="payments">Payments & Requests</TabsTrigger>
+                <TabsTrigger value="payments">Payments &amp; Requests</TabsTrigger>
                 <TabsTrigger value="sales-records">Sales Records</TabsTrigger>
                 <TabsTrigger value="drink-sales">Drink Sales</TabsTrigger>
                 <TabsTrigger value="wages">Wages</TabsTrigger>
