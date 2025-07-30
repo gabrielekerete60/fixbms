@@ -5,39 +5,90 @@ import { db } from "@/lib/firebase";
 import { collection, getDocs, writeBatch, doc, Timestamp } from "firebase/firestore";
 
 // Helper to create timestamps for recent days
-const daysAgo = (days: number) => Timestamp.fromDate(new Date(new Date().setDate(new Date().getDate() - days)));
+const daysAgo = (days: number): Timestamp => {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return Timestamp.fromDate(date);
+};
+
+const generateRandomDate = (startDaysAgo: number, endDaysAgo: number): Timestamp => {
+    const randomDays = Math.floor(Math.random() * (startDaysAgo - endDaysAgo + 1)) + endDaysAgo;
+    return daysAgo(randomDays);
+};
+
+const generateFinancialData = (numMonths: number) => {
+    const sales = [];
+    const directCosts = [];
+    const indirectCosts = [];
+
+    for (let i = 0; i < numMonths * 30; i++) { // Approx 1 entry per day
+        const date = daysAgo(i);
+        
+        // Sales
+        if (Math.random() > 0.1) { // 90% chance of sales on a day
+            const cash = Math.floor(Math.random() * 50000) + 5000;
+            const transfer = Math.floor(Math.random() * 30000) + 2000;
+            const pos = Math.floor(Math.random() * 10000) + 1000;
+            const creditSales = Math.random() > 0.8 ? Math.floor(Math.random() * 20000) : 0;
+            const total = cash + transfer + pos + creditSales;
+            sales.push({ date, description: "Daily Sale", cash, transfer, pos, creditSales, shortage: 0, total });
+        }
+
+        // Direct Costs
+        if (Math.random() > 0.5) {
+            const categories = ["Flour", "Sugar", "Butter", "Yeast", "Milk", "Egg", "Preservative"];
+            const category = categories[Math.floor(Math.random() * categories.length)];
+            const quantity = Math.floor(Math.random() * 10) + 1;
+            const total = (Math.floor(Math.random() * 5000) + 500) * quantity;
+            directCosts.push({ date, description: `Purchase of ${category}`, category, quantity, total });
+        }
+
+        // Indirect Costs
+        if (Math.random() > 0.3) {
+             const categories = ["Diesel", "Petrol", "Nylon", "Repair", "General Expenses", "Cleaning", "Transportation", "Utilities"];
+             const category = categories[Math.floor(Math.random() * categories.length)];
+             const amount = Math.floor(Math.random() * 40000) + 2000;
+             indirectCosts.push({ date, description: `Expense for ${category}`, category, amount });
+        }
+    }
+    return { sales, directCosts, indirectCosts };
+};
+
+const twoYearsOfFinancials = generateFinancialData(24);
 
 const seedData = {
   products: [
-      { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 50, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300 },
-      { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 30, category: 'Breads', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250 },
-      { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 25, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500 },
-      { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 40, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280 },
-      { id: "prod_5", name: "Croissant", price: 400.00, stock: 60, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'croissant pastry', costPrice: 220 },
-      { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 45, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350 },
-      { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 100, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200 },
-      { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 150, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100 },
-      { id: "prod_9", name: "Fanta (50cl)", price: 300.00, stock: 80, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'fanta drink', costPrice: 200 },
-      { id: "prod_10", name: "Freshyo", price: 700.00, stock: 60, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550 },
+      { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 500, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300 },
+      { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 300, category: 'Breads', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250 },
+      { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 250, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500 },
+      { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 400, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280 },
+      { id: "prod_5", name: "Croissant", price: 400.00, stock: 600, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'croissant pastry', costPrice: 220 },
+      { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 450, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350 },
+      { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 1000, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200 },
+      { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 1500, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100 },
+      { id: "prod_9", name: "Fanta (50cl)", price: 300.00, stock: 800, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'fanta drink', costPrice: 200 },
+      { id: "prod_10", name: "Freshyo", price: 700.00, stock: 600, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550 },
   ],
   staff: [
     { staff_id: '100001', name: 'Wisdom Effiong Edet', email: 'wisdom.edet@example.com', password: 'ManagerPass1!', role: 'Manager', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "MONIPOINT", account_number: "9031612444", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '200002', name: 'Mr Bassey Smith Daniel', email: 'bassey.daniel@example.com', password: 'AccountantPass1!', role: 'Accountant', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "Opay", account_number: "8136164826", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '300003', name: 'MR Bassey OFFIONG', email: 'bassey.offiong@example.com', password: 'BakerPass1!', role: 'Chief Baker', is_active: true, pay_type: 'Salary', pay_rate: 60000, bank_name: "Opay", account_number: "8066706293", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '400004', name: 'Mr Ukeme Akpan Thompson', email: 'ukeme.thompson@example.com', password: 'BakerPass2!', role: 'Ass.Chief', is_active: true, pay_type: 'Salary', pay_rate: 100000, bank_name: "First Bank", account_number: "3080708781", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '500005', name: 'Victory Peter Ekerete', email: 'victory.ekerete@example.com', password: 'StorekeeperPass1!', role: 'Store keeper', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "PALMPAY", account_number: "9126459437", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '600006', name: 'Mary Felix Ating', email: 'mary.ating@example.com', password: 'StaffPass1!', role: 'Sale rep', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "8071929362", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '700007', name: 'Ubom Robert Okon', email: 'ubom.okon@example.com', password: 'BakerPass3!', role: 'Bakery Assistant', is_active: true, pay_type: 'Salary', pay_rate: 35000, bank_name: "MONIPOINT", account_number: "7046450879", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '800008', name: 'Nnamso George Walter', email: 'nnamso.walter@example.com', password: 'CleanerPass1!', role: 'Cleaner', is_active: true, pay_type: 'Salary', pay_rate: 30000, bank_name: "Unity Bank", account_number: "0059218669", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '900009', name: 'Zion Ekerete', email: 'zion.ekerete@example.com', password: 'BakerPass4!', role: 'Bakery Assistant', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "7041091374", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '100010', name: 'Edet Edet Nyong', email: 'edet.nyong@example.com', password: 'DriverPass1!', role: 'Driver', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "Access Bank", account_number: "0736691040", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '300003', name: 'MR Bassey OFFIONG', email: 'bassey.offiong@example.com', password: 'BakerPass1!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 60000, bank_name: "Opay", account_number: "8066706293", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '400004', name: 'Mr Ukeme Akpan Thompson', email: 'ukeme.thompson@example.com', password: 'StaffPass1!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 100000, bank_name: "First Bank", account_number: "3080708781", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '500005', name: 'Victory Peter Ekerete', email: 'victory.ekerete@example.com', password: 'StorekeeperPass1!', role: 'Storekeeper', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "PALMPAY", account_number: "9126459437", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '600006', name: 'Mary Felix Ating', email: 'mary.ating@example.com', password: 'StaffPass2!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "8071929362", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '700007', name: 'Ubom Robert Okon', email: 'ubom.okon@example.com', password: 'BakerPass3!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 35000, bank_name: "MONIPOINT", account_number: "7046450879", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '800008', name: 'Nnamso George Walter', email: 'nnamso.walter@example.com', password: 'CleanerPass1!', role: 'Cleaner', is_active: false, pay_type: 'Salary', pay_rate: 30000, bank_name: "Unity Bank", account_number: "0059218669", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '900009', name: 'Zion Ekerete', email: 'zion.ekerete@example.com', password: 'BakerPass4!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "7041091374", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '100010', name: 'Edet Edet Nyong', email: 'edet.nyong@example.com', password: 'DriverPass1!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "Access Bank", account_number: "0736691040", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '110011', name: 'Benog Security Services', email: 'benog.security@example.com', password: 'SecurityPass1!', role: 'Chief Security', is_active: true, pay_type: 'Salary', pay_rate: 20000, bank_name: "U.B.A", account_number: "2288605641", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '120012', name: 'Nsikak Udo Essiet', email: 'nsikak.essiet@example.com', password: 'SecurityPass2!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "U.B.A", account_number: "2304484777", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '130013', name: 'Aniefon Udo Bassey', email: 'aniefon.bassey@example.com', password: 'SecurityPass3!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "First Bank", account_number: "3090572411", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '000000', name: 'Gabriel Developer', email: 'gabriel.dev@example.com', password: 'DevPassword1!', role: 'Developer', is_active: true, pay_type: 'Salary', pay_rate: 500000, bank_name: "Kuda Bank", account_number: "8901234567", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
   ],
   promotions: [
-    { id: "promo_1", name: "Weekend Special", description: "10% off all bread items", type: "percentage", value: 10, code: "WEEKEND10", startDate: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString(), endDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString(), applicableProducts: [], usageLimit: 100, timesUsed: 12 },
+    { id: "promo_1", name: "Weekend Special", description: "10% off all bread items", type: "percentage", value: 10, code: "WEEKEND10", startDate: daysAgo(7).toDate().toISOString(), endDate: daysAgo(-7).toDate().toISOString(), applicableProducts: [], usageLimit: 100, timesUsed: 12 },
+    { id: "promo_2", name: "Holiday Bonanza", description: "N500 off total purchase", type: "fixed_amount", value: 500, code: "HOLIDAY500", startDate: daysAgo(30).toDate().toISOString(), endDate: daysAgo(20).toDate().toISOString(), applicableProducts: [], usageLimit: 50, timesUsed: 45 },
+    { id: "promo_3", name: "Expired Promo", description: "Old promo", type: "percentage", value: 15, code: "OLDPROMO", startDate: daysAgo(90).toDate().toISOString(), endDate: daysAgo(80).toDate().toISOString(), applicableProducts: [], usageLimit: 200, timesUsed: 150 },
   ],
   suppliers: [
     { id: "sup_1", name: "Flour Mills of Nigeria", contactPerson: "Mr. Adebayo", phone: "08012345678", email: "sales@fmnplc.com", address: "Apapa, Lagos", amountOwed: 500000, amountPaid: 450000 },
@@ -84,258 +135,112 @@ const seedData = {
     { id: "sup_os_1", name: "Bread Wrappers", stock: 1000, unit: 'pcs', costPerUnit: 10.00, category: "Packaging" },
     { id: "sup_os_2", name: "Shopping Bags", stock: 500, unit: 'pcs', costPerUnit: 20.00, category: "Packaging" },
   ],
-  customers: [
-      { id: 'cust_1', name: 'Adebisi Onyeka', phone: '08012345678', email: 'a.onyeka@example.com', address: '123, Allen Avenue, Ikeja', joinedDate: Timestamp.fromDate(new Date('2023-01-15T10:00:00Z')), totalSpent: 150000, amountOwed: 5000, amountPaid: 0 },
-      { id: 'cust_2', name: 'Ngozi Okoro', phone: '09087654321', email: 'n.okoro@example.com', address: '45, Lekki Phase 1', joinedDate: Timestamp.fromDate(new Date('2023-02-20T11:30:00Z')), totalSpent: 75000, amountOwed: 0, amountPaid: 75000 },
-      { id: 'cust_3', name: 'Chinedu Alabi', phone: '08022334455', email: 'c.alabi@example.com', address: '78, Airport Road, Uyo', joinedDate: daysAgo(30), totalSpent: 25000, amountOwed: 10000, amountPaid: 5000 },
-  ],
-   orders: [
-    {
-      id: "ord_1",
-      items: [{ productId: "prod_1", name: "Family Loaf", price: 550, quantity: 2, costPrice: 300 }],
-      total: 1100,
-      date: daysAgo(2), 
-      paymentMethod: 'Card',
-      customerName: 'Adebisi Onyeka',
-      customerId: 'cust_1',
-      status: 'Completed',
-      staffId: '400004'
-    },
-    {
-      id: "ord_2",
-      items: [
-        { productId: "prod_3", name: "Jumbo Loaf", price: 900, quantity: 1, costPrice: 500 },
-        { productId: "prod_7", name: "Coca-Cola (50cl)", price: 300, quantity: 2, costPrice: 200 },
-      ],
-      total: 1500,
-      date: daysAgo(1),
-      paymentMethod: 'Cash',
-      customerName: 'Ngozi Okoro',
-      customerId: 'cust_2',
-      status: 'Completed',
-      staffId: '400004'
-    },
-     {
-      id: "ord_3",
-      items: [
-        { productId: "prod_6", name: "Meat Pie", price: 600, quantity: 5, costPrice: 350 },
-      ],
-      total: 3000,
-      date: daysAgo(3),
-      paymentMethod: 'Credit',
-      customerName: 'Chinedu Alabi',
-      customerId: 'cust_3',
-      status: 'Completed',
-      staffId: '500005',
-      salesRunId: 'tsr_1_active'
-    },
-  ],
-  transfers: [
-      { id: "tsr_1_active", from_staff_id: "700008", from_staff_name: "David Storekeeper", to_staff_id: "400005", to_staff_name: "Akan Delivery", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 20 }, { productId: "prod_6", productName: "Meat Pie", quantity: 15 }], date: daysAgo(1), status: 'active', is_sales_run: true, totalCollected: 0 },
-      { id: "trans_1_pending", from_staff_id: "700008", from_staff_name: "David Storekeeper", to_staff_id: "400004", to_staff_name: "Mfon Showroom", items: [{ productId: "prod_2", productName: "Burger Loaf", quantity: 10 }], date: Timestamp.now(), status: 'pending', is_sales_run: false },
-       { id: "tsr_2_prod_return", from_staff_id: "500006", from_staff_name: "Blessing Baker", to_staff_id: "700008", to_staff_name: "David Storekeeper", items: [{ productId: "prod_1", productName: "Family Loaf", quantity: 50 }], date: daysAgo(0), status: 'pending', is_sales_run: false, notes: 'Return from production batch batch_3_completed_9999' },
-  ],
-  production_batches: [
-    {
-        id: 'batch_1_pending_1234',
-        recipeId: 'rec_1',
-        recipeName: 'Standard Family Loaf',
-        productId: 'prod_1',
-        productName: 'Family Loaf',
-        requestedById: '500006',
-        requestedByName: 'Blessing Baker',
-        quantityToProduce: 20,
-        status: 'pending_approval',
-        createdAt: daysAgo(1),
-        approvedAt: null,
-        ingredients: [
-            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 10, unit: "kg" },
-            { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.2, unit: "kg" },
-        ]
-    },
-    {
-        id: 'batch_2_in_prod_5678',
-        recipeId: 'rec_2',
-        recipeName: 'Classic Croissant',
-        productId: 'prod_5',
-        productName: 'Croissant',
-        requestedById: '500006',
-        requestedByName: 'Blessing Baker',
-        quantityToProduce: 100,
-        status: 'in_production',
-        createdAt: daysAgo(2),
-        approvedAt: daysAgo(1),
-        ingredients: [
-            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 25, unit: "kg", openingStock: 100, closingStock: 75 },
-            { ingredientId: "ing_3", ingredientName: "Unsalted Butter", quantity: 15, unit: "kg", openingStock: 20, closingStock: 5 },
-            { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.7, unit: "kg", openingStock: 10, closingStock: 9.3 },
-        ]
-    },
-    {
-        id: 'batch_3_completed_9999',
-        recipeId: 'rec_1',
-        recipeName: 'Standard Family Loaf',
-        productId: 'prod_1',
-        productName: 'Family Loaf',
-        requestedById: '500006',
-        requestedByName: 'Blessing Baker',
-        quantityToProduce: 55,
-        status: 'completed',
-        createdAt: daysAgo(2),
-        approvedAt: daysAgo(2),
-        successfullyProduced: 50,
-        wasted: 5,
-        ingredients: [
-            { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 27.5, unit: "kg", openingStock: 75, closingStock: 47.5 },
-        ]
-    }
-  ],
-  production_logs: [
-      { action: 'Recipe Created', details: 'Created new recipe: Standard Family Loaf', staffId: '100001', staffName: 'Chris Manager', timestamp: daysAgo(3) },
-      { action: 'Batch Requested', details: 'Requested 20 of Family Loaf for batch batch_1_pending_1234', staffId: '500006', staffName: 'Blessing Baker', timestamp: daysAgo(1) },
-      { action: 'Batch Approved', details: 'Approved batch for 100 of Croissant: batch_2_in_prod_5678', staffId: '700008', staffName: 'David Storekeeper', timestamp: daysAgo(1) },
-      { action: 'Batch Completed', details: 'Completed batch of Family Loaf with 50 produced and 5 wasted: batch_3_completed_9999', staffId: '500006', staffName: 'Blessing Baker', timestamp: daysAgo(0) },
-  ],
-  ingredient_stock_logs: [
-      { id: "supply_log_1", ingredientId: "ing_1", ingredientName: "All-Purpose Flour", change: 50, reason: "Purchase from Flour Mills of Nigeria", date: daysAgo(5), staffName: "David Storekeeper", logRefId: "sup_1" },
-      { id: "prod_log_1", ingredientId: "", ingredientName: "Production Batch: Classic Croissant", change: -40.7, reason: "Production: Classic Croissant", date: daysAgo(1), staffName: "David Storekeeper", logRefId: "batch_2_in_prod_5678" },
-  ],
-   payment_confirmations: [
-    { id: 'pay_conf_1', date: daysAgo(0), driverId: '400005', driverName: 'Akan Delivery', runId: 'tsr_1_active', amount: 2000, status: 'pending', customerName: 'New Customer', items: [], isDebtPayment: true, customerId: 'cust_1' },
-    { id: 'pay_conf_2', date: daysAgo(1), driverId: '400005', driverName: 'Akan Delivery', runId: 'tsr_1_active', amount: 1500, status: 'approved', customerName: 'Old Customer', items: [], isDebtPayment: true, customerId: 'cust_2' },
-  ],
-  expenses: [
-    { id: 'exp_1', category: 'Utilities', description: 'NEPA Bill', amount: 25000, date: daysAgo(5).toDate().toISOString() },
-    { id: 'exp_2', category: 'Logistics', description: 'Fuel for delivery van', amount: 15000, date: daysAgo(2).toDate().toISOString() },
-  ],
-  announcements: [
-    { id: 'anno_1', staffId: '100001', staffName: 'Chris Manager', message: 'Team meeting tomorrow at 9 AM sharp.', timestamp: daysAgo(0) },
-    { id: 'anno_2', staffId: '200002', staffName: 'Vic Supervisor', message: 'Please remember to clean your stations before closing.', timestamp: daysAgo(1) },
-  ],
-  reports: [
-    { id: 'rep_1', subject: 'Faulty Mixer', reportType: 'Maintenance', message: 'The main mixer in the kitchen is making a loud noise.', staffId: '500006', staffName: 'Blessing Baker', timestamp: daysAgo(0), status: 'new' },
-  ],
-  waste_logs: [
-    { id: 'waste_1', productId: 'prod_1', productName: 'Family Loaf', productCategory: 'Breads', quantity: 27, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
-    { id: 'waste_2', productId: 'prod_3', productName: 'Jumbo Loaf', productCategory: 'Breads', quantity: 8, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
-    { id: 'waste_3', productId: 'prod_2', productName: 'Burger Loaf', productCategory: 'Breads', quantity: 7, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
-    { id: 'waste_4', productId: 'prod_4', productName: 'Round Loaf', productCategory: 'Breads', quantity: 3, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
-    { id: 'waste_5', productId: 'prod_5', productName: 'Mini Bite', productCategory: 'Pastries', quantity: 3, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
-    { id: 'waste_6', productId: 'prod_6', productName: 'Twin Bite', productCategory: 'Pastries', quantity: 4, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
-    { id: 'waste_7', productId: 'prod_7', productName: 'Short Loaf', productCategory: 'Breads', quantity: 16, reason: 'Damaged', notes: 'From spreadsheet', date: daysAgo(10)},
-  ],
-  attendance: [
-      // Today
-      { id: 'att_1', staff_id: '100001', clock_in_time: daysAgo(0), clock_out_time: null, date: new Date().toISOString().split('T')[0] },
-      { id: 'att_2', staff_id: '400004', clock_in_time: daysAgo(0), clock_out_time: null, date: new Date().toISOString().split('T')[0] },
-      // Yesterday
-      { id: 'att_3', staff_id: '100001', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
-      { id: 'att_4', staff_id: '200002', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
-      { id: 'att_5', staff_id: '500006', clock_in_time: daysAgo(1), clock_out_time: daysAgo(1), date: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
-  ],
-  sales: [
-    { date: "2025-06-01T00:00:00Z", description: "Sale", cash: 6850, transfer: 19300, pos: 5200, creditSales: 0, shortage: 0, total: 31350 },
-    { date: "2025-06-02T00:00:00Z", description: "Sale", cash: 33600, transfer: 18400, pos: 4200, creditSales: 117900, shortage: 0, total: 174100 },
-    { date: "2025-06-03T00:00:00Z", description: "Sale", cash: 65400, transfer: 31350, pos: 6900, creditSales: 202900, shortage: 0, total: 306550 }
-  ],
+  customers: Array.from({ length: 50 }, (_, i) => ({
+    id: `cust_${i + 1}`,
+    name: `Customer ${i + 1}`,
+    phone: `080${10000000 + i}`,
+    email: `customer${i + 1}@example.com`,
+    address: `${i + 1} Main St, City`,
+    joinedDate: daysAgo(Math.floor(Math.random() * 730)),
+    totalSpent: Math.floor(Math.random() * 200000),
+    amountOwed: Math.random() > 0.7 ? Math.floor(Math.random() * 10000) : 0,
+    amountPaid: Math.floor(Math.random() * 50000),
+  })),
+  orders: Array.from({ length: 1500 }, (_, i) => {
+      const product = seedData.products[Math.floor(Math.random() * seedData.products.length)];
+      const quantity = Math.floor(Math.random() * 5) + 1;
+      return {
+        id: `ord_${i + 1}`,
+        items: [{ productId: product.id, name: product.name, price: product.price, quantity, costPrice: product.costPrice }],
+        total: product.price * quantity,
+        date: generateRandomDate(0, 730),
+        paymentMethod: Math.random() > 0.5 ? 'Card' : 'Cash',
+        customerName: `Customer ${Math.floor(Math.random() * 50) + 1}`,
+        customerId: `cust_${Math.floor(Math.random() * 50) + 1}`,
+        status: 'Completed',
+        staffId: '400004'
+      }
+  }),
+  transfers: Array.from({ length: 200 }, (_, i) => ({
+      id: `trans_${i + 1}`,
+      from_staff_id: "500005", // Storekeeper
+      from_staff_name: "Victory Peter Ekerete",
+      to_staff_id: i % 2 === 0 ? "400004" : "100010", // Showroom or Delivery
+      to_staff_name: i % 2 === 0 ? "Mr Ukeme Akpan Thompson" : "Edet Edet Nyong",
+      items: [{ productId: `prod_${(i % 10) + 1}`, productName: seedData.products[i % 10].name, quantity: Math.floor(Math.random() * 20) + 10 }],
+      date: generateRandomDate(0, 730),
+      status: Math.random() > 0.1 ? 'completed' : 'pending',
+      is_sales_run: i % 2 !== 0,
+      totalCollected: 0
+  })),
+  production_batches: Array.from({ length: 100 }, (_, i) => ({
+      id: `batch_${i + 1}`,
+      recipeId: `rec_${(i % 2) + 1}`,
+      recipeName: seedData.recipes[i % 2].name,
+      productId: seedData.recipes[i % 2].productId,
+      productName: seedData.recipes[i % 2].productName,
+      requestedById: '300003',
+      requestedByName: 'MR Bassey OFFIONG',
+      quantityToProduce: Math.floor(Math.random() * 50) + 20,
+      status: i < 5 ? 'pending_approval' : (i < 15 ? 'in_production' : 'completed'),
+      createdAt: generateRandomDate(0, 730),
+      approvedAt: generateRandomDate(0, 730),
+      successfullyProduced: Math.floor(Math.random() * 45) + 15,
+      wasted: Math.floor(Math.random() * 5),
+      ingredients: seedData.recipes[i % 2].ingredients
+  })),
+  waste_logs: Array.from({ length: 300 }, (_, i) => ({
+    id: `waste_${i + 1}`,
+    productId: `prod_${(i % 10) + 1}`,
+    productName: seedData.products[i % 10].name,
+    productCategory: seedData.products[i % 10].category,
+    quantity: Math.floor(Math.random() * 5) + 1,
+    reason: ['Spoiled', 'Damaged', 'Burnt', 'Error'][i % 4],
+    notes: 'Generated seed data',
+    date: generateRandomDate(0, 730),
+    staffId: `400004`,
+    staffName: `Mr Ukeme Akpan Thompson`
+  })),
+  attendance: seedData.staff.flatMap(staff => 
+      Array.from({ length: 450 }, (_, i) => {
+          if (Math.random() < 0.2) return null; // 20% absenteeism
+          const clockIn = daysAgo(i);
+          clockIn.toDate().setHours(8 + Math.floor(Math.random()*2), Math.floor(Math.random()*60));
+          const clockOut = Timestamp.fromMillis(clockIn.toMillis() + ( (8 + Math.random()) * 60 * 60 * 1000));
+          return {
+              id: `att_${staff.staff_id}_${i}`,
+              staff_id: staff.staff_id,
+              clock_in_time: clockIn,
+              clock_out_time: clockOut,
+              date: clockIn.toDate().toISOString().split('T')[0]
+          }
+      }).filter(Boolean)
+  ),
+  sales: twoYearsOfFinancials.sales,
   debt: [
-    { id: 'loan_1', date: "2025-05-31T00:00:00Z", description: "Bal b/f Loan", debit: 100000, credit: null },
-    { id: 'loan_2', date: "2025-06-27T00:00:00Z", description: "Loan for Raw Material", debit: 363000, credit: null },
+    { id: 'loan_1', date: daysAgo(500), description: "Bal b/f Loan", debit: 100000, credit: null },
+    { id: 'loan_2', date: daysAgo(200), description: "Loan for Raw Material", debit: 363000, credit: null },
+    { id: 'loan_3', date: daysAgo(50), description: "Loan repayment", debit: null, credit: 50000 },
   ],
-  directCosts: [
-    { date: "2025-06-02T00:00:00Z", description: "Bag of Flour", category: "Flour", quantity: 2, total: 108000 },
-    { date: "2025-06-02T00:00:00Z", description: "Half Bag of Sugar", category: "Sugar", quantity: 1, total: 39500 },
-    { date: "2025-06-03T00:00:00Z", description: "Oven Glove", category: "Equipment", quantity: 2, total: 12000 },
-    { date: "2025-06-03T00:00:00Z", description: "Packet of Yeast", category: "Yeast", quantity: 1, total: 3200 },
-    { date: "2025-06-04T00:00:00Z", description: "Bag of Flour", category: "Flour", quantity: 4, total: 218000 },
-    { date: "2025-06-04T00:00:00Z", description: "Carton of Butter", category: "Butter", quantity: 1, total: 39000 },
-    { date: "2025-06-04T00:00:00Z", description: "Packet of Yeast", category: "Yeast", quantity: 4, total: 12400 },
-    { date: "2025-06-04T00:00:00Z", description: "Packet of Preservative", category: "Preservative", quantity: 2, total: 8000 },
-    { date: "2025-06-04T00:00:00Z", description: "Carton of Peak Full Cream", category: "Milk", quantity: 1, total: 24000 },
-    { date: "2025-06-04T00:00:00Z", description: "Crate of Egg", category: "Egg", quantity: 4, total: 21200 },
-    { date: "2025-06-06T00:00:00Z", description: "Bag of Flour", category: "Flour", quantity: 20, total: 1090000 },
-    { date: "2025-06-06T00:00:00Z", description: "Carton of Butter", category: "Butter", quantity: 10, total: 390000 },
-    { date: "2025-06-06T00:00:00Z", description: "Carton of Yeast", category: "Yeast", quantity: 2, total: 54000 },
-    { date: "2025-06-06T00:00:00Z", description: "Bag of Sugar", category: "Sugar", quantity: 5, total: 397500 },
-    { date: "2025-06-04T00:00:00Z", description: "Packet of Preservative", category: "Preservative", quantity: 10, total: 40800 },
-    { date: "2025-06-06T00:00:00Z", description: "Rubbers of Luxessense", category: "Essence", quantity: 5, total: 87500 },
-    { date: "2025-06-06T00:00:00Z", description: "Rubbers of Zeast Oil", category: "Oil", quantity: 5, total: 13500 },
-    { date: "2025-06-06T00:00:00Z", description: "Bag of Salt", category: "Salt", quantity: 1, total: 17000 },
-    { date: "2025-06-06T00:00:00Z", description: "Bottles of Butter Scotch", category: "Butter", quantity: 3, total: 15000 },
-    { date: "2025-06-06T00:00:00Z", description: "Gallon of Veg Oil", category: "Oil", quantity: 1, total: 70000 },
-    { date: "2025-06-06T00:00:00Z", description: "Tin Pick Milk", category: "Milk", quantity: 12, total: 12000 },
-    { date: "2025-06-07T00:00:00Z", description: "Peak Gold Milk", category: "Milk", quantity: 2, total: 66000 },
-    { date: "2025-06-07T00:00:00Z", description: "Laotorich Milk", category: "Milk", quantity: 1, total: 22500 },
-    { date: "2025-06-12T00:00:00Z", description: "Crate of Egg", category: "Egg", quantity: 4, total: 21200 },
-    { date: "2025-06-18T00:00:00Z", description: "Butter Scotch", category: "Butter", quantity: 5, total: 25000 },
-    { date: "2025-06-19T00:00:00Z", description: "Crate of Egg", category: "Egg", quantity: 4, total: 21000 },
-    { date: "2025-06-23T00:00:00Z", description: "Tin Pick Milk", category: "Milk", quantity: 12, total: 12000 },
-    { date: "2025-06-24T00:00:00Z", description: "Bag of Flour", category: "Flour", quantity: 6, total: 324000 },
-    { date: "2025-06-24T00:00:00Z", description: "Carton of Butter", category: "Butter", quantity: 1, total: 39000 },
-    { date: "2025-06-24T00:00:00Z", description: "Peak Gold Milk Carton", category: "Milk", quantity: 1, total: 44100 },
-    { date: "2025-06-26T00:00:00Z", description: "Crate of Egg", category: "Egg", quantity: 4, total: 21200 },
-    { date: "2025-06-27T00:00:00Z", description: "Flour", category: "Flour", quantity: 4, total: 216000 },
-    { date: "2025-06-28T00:00:00Z", description: "Butter", category: "Butter", quantity: 1, total: 39000 },
-    { date: "2025-06-30T00:00:00Z", description: "Flour", category: "Flour", quantity: 3, total: 16200 },
-    { date: "2025-06-30T00:00:00Z", description: "Butter", category: "Butter", quantity: 2, total: 78000 },
-    { date: "2025-06-30T00:00:00Z", description: "Dry Milk", category: "Milk", quantity: 1, total: 7000 },
-    { date: "2025-06-30T00:00:00Z", description: "Tin Pick Milk", category: "Milk", quantity: 6, total: 6000 }
-  ],
-  indirectCosts: [
-    { date: "2025-06-02T00:00:00Z", description: "Diesel Generator", category: "Diesel", amount: 73000 },
-    { date: "2025-06-02T00:00:00Z", description: "Part payment for Bread Nylon", category: "Nylon", amount: 180000 },
-    { date: "2025-06-02T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 30000 },
-    { date: "2025-06-03T00:00:00Z", description: "Diesel For production", category: "Diesel", amount: 64800 },
-    { date: "2025-06-03T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 30000 },
-    { date: "2025-06-04T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 30000 },
-    { date: "2025-06-05T00:00:00Z", description: "Sticker Printing", category: "General Expenses", amount: 2500 },
-    { date: "2025-06-05T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 35000 },
-    { date: "2025-06-06T00:00:00Z", description: "Nylon Completion payment", category: "Nylon", amount: 40000 },
-    { date: "2025-06-06T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 25000 },
-    { date: "2025-06-06T00:00:00Z", description: "Diesel For production", category: "Diesel", amount: 64800 },
-    { date: "2025-06-06T00:00:00Z", description: "Carraige inward", category: "Transportation", amount: 4500 },
-    { date: "2025-06-07T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 40000 },
-    { date: "2025-06-09T00:00:00Z", description: "Petrol For Generator", category: "Petrol", amount: 9500 },
-    { date: "2025-06-09T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 35000 },
-    { date: "2025-06-09T00:00:00Z", description: "Car Plug", category: "Repair", amount: 15000 },
-    { date: "2025-06-09T00:00:00Z", description: "Advance Salary", category: "Salary", amount: 10000 },
-    { date: "2025-06-10T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 20000 },
-    { date: "2025-06-11T00:00:00Z", description: "Cleaning Material", category: "Cleaning", amount: 14200 },
-    { date: "2025-06-11T00:00:00Z", description: "Market Ticket", category: "General Expenses", amount: 200 },
-    { date: "2025-06-11T00:00:00Z", description: "Thank You Bag", category: "General Expenses", amount: 4500 },
-    { date: "2025-06-11T00:00:00Z", description: "Petrol For Van and Oil", category: "Petrol", amount: 21000 },
-    { date: "2025-06-12T00:00:00Z", description: "Diesel Generator", category: "Diesel", amount: 64800 },
-    { date: "2025-06-13T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 30000 },
-    { date: "2025-06-14T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 30000 },
-    { date: "2025-06-14T00:00:00Z", description: "Distribution Van repair", category: "Repair", amount: 101000 },
-    { date: "2025-06-16T00:00:00Z", description: "Police Van Petrol and Entry", category: "General Expenses", amount: 15000 },
-    { date: "2025-06-17T00:00:00Z", description: "Cell Phone", category: "Office Equipment", amount: 31000 },
-    { date: "2025-06-17T00:00:00Z", description: "Cell Phone Memory card", category: "Office Equipment", amount: 31500 },
-    { date: "2025-06-17T00:00:00Z", description: "Diesel", category: "Diesel", amount: 70500 },
-    { date: "2025-06-18T00:00:00Z", description: "Solar part pay", category: "Utilities", amount: 370000 },
-    { date: "2025-06-18T00:00:00Z", description: "Petrol For Van", category: "Petrol", amount: 35000 },
-    { date: "2025-06-18T00:00:00Z", description: "Advance Salary", category: "Salary", amount: 20000 },
-    { date: "2025-06-19T00:00:00Z", description: "Petrol For Distribution Van", category: "Petrol", amount: 20000 },
-    { date: "2025-06-20T00:00:00Z", description: "Petrol For Distribution Van", category: "Petrol", amount: 20000 },
-    { date: "2025-06-20T00:00:00Z", description: "Milk For Baker", category: "General Expenses", amount: 15000 },
-    { date: "2025-06-21T00:00:00Z", description: "Face Book Promotion", category: "General Expenses", amount: 11000 },
-    { date: "2025-06-21T00:00:00Z", description: "Petrol For Distribution Van", category: "Petrol", amount: 30000 }
-  ],
-  wages: [
-    { id: "wage_1", name: "Wisdom Effiong Edet", department: "Managerial", position: "Manager", salary: 80000, deductions: { shortages: 0, advanceSalary: 20000, debt: 0, fine: 0 }, netPay: 60000 },
-    { id: "wage_2", name: "Mr Bassey Smith Daniel", department: "Account", position: "Accountant", salary: 80000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 80000 },
-    { id: "wage_3", name: "MR Bassey OFFIONG", department: "Production", position: "Chief Baker", salary: 60000, deductions: { shortages: 2400, advanceSalary: 10000, debt: 0, fine: 0 }, netPay: 47600 },
-    { id: "wage_4", name: "Mr Ukeme Akpan Thompson", department: "Production", position: "Ass.Chief", salary: 100000, deductions: { shortages: 0, advanceSalary: 10000, debt: 0, fine: 0 }, netPay: 90000 },
-    { id: "wage_5", name: "Victory Peter Ekerete", department: "Store", position: "Store keeper", salary: 40000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 500 }, netPay: 39500 },
-    { id: "wage_6", name: "Mary Felix Ating", department: "Sale", position: "Sale rep", salary: 40000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 500 }, netPay: 39500 },
-    { id: "wage_7", name: "Ubom Robert Okon", department: "Production", position: "Bakery Assistant", salary: 35000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 35000 },
-    { id: "wage_8", name: "Nnamso George Walter", department: "Cleaning", position: "Cleaner", salary: 30000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 30000 },
-    { id: "wage_9", name: "Zion Ekerete", department: "Production", position: "Bakery Assistant", salary: 40000, deductions: { shortages: 0, advanceSalary: 20000, debt: 0, fine: 0 }, netPay: 20000 },
-    { id: "wage_10", name: "Edet Edet Nyong", department: "Transport", position: "Driver", salary: 25000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 25000 },
-    { id: "wage_11", name: "Benog Security Services", department: "Security", position: "Chief Security", salary: 20000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 20000 },
-    { id: "wage_12", name: "Nsikak Udo Essiet", department: "Security", position: "Security", salary: 25000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 25000 },
-    { id: "wage_13", name: "Aniefon Udo Bassey", department: "Security", position: "Security", salary: 25000, deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 }, netPay: 25000 },
-  ],
+  directCosts: twoYearsOfFinancials.directCosts,
+  indirectCosts: twoYearsOfFinancials.indirectCosts,
+  wages: seedData.staff.flatMap(staff => 
+      Array.from({length: 24}, (_, i) => {
+          const monthDate = new Date();
+          monthDate.setMonth(monthDate.getMonth() - i);
+          const deductions = { shortages: 0, advanceSalary: Math.random() > 0.8 ? 5000 : 0, debt: 0, fine: 0 };
+          return {
+              id: `wage_${staff.staff_id}_${i}`,
+              name: staff.name,
+              department: staff.role,
+              position: staff.role,
+              salary: staff.pay_rate,
+              deductions,
+              netPay: staff.pay_rate - deductions.advanceSalary,
+              date: Timestamp.fromDate(monthDate)
+          }
+      })
+  ),
   closingStocks: [
     { id: 'cs_1', item: 'Flour', remainingStock: '100KG', amount: 108000 },
     { id: 'cs_2', item: 'Yeast', remainingStock: '9 Pack', amount: 27000 },
@@ -395,11 +300,8 @@ export async function seedDatabase(): Promise<ActionResult> {
                 
                 const itemWithTimestamps = { ...item };
                 for (const key of Object.keys(itemWithTimestamps)) {
-                    if ( (key.toLowerCase().includes('date') || key.toLowerCase().includes('timestamp') || key.toLowerCase().includes('at')) && (typeof itemWithTimestamps[key] === 'string' || itemWithTimestamps[key] instanceof Date) && itemWithTimestamps[key]) {
-                        const date = new Date(itemWithTimestamps[key]);
-                        if (!isNaN(date.getTime())) { 
-                           itemWithTimestamps[key] = Timestamp.fromDate(date);
-                        }
+                    if ( (key.toLowerCase().includes('date') || key.toLowerCase().includes('timestamp') || key.toLowerCase().includes('at')) && (itemWithTimestamps[key] instanceof Date) && itemWithTimestamps[key]) {
+                        itemWithTimestamps[key] = Timestamp.fromDate(itemWithTimestamps[key]);
                     } else if (itemWithTimestamps[key] instanceof Timestamp) {
                         // It's already a timestamp, do nothing.
                     }
