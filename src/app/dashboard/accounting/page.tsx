@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -8,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from 'date-fns';
-import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement } from '@/app/actions';
+import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement, getAccountSummary } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
@@ -37,7 +38,7 @@ import { Separator } from '@/components/ui/separator';
 // --- Helper Functions & Type Definitions ---
 const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-type FinancialSummary = { totalRevenue: number; totalExpenditure: number; grossProfit: number; netProfit: number; };
+type AccountSummary = Record<string, number>;
 type DebtRecord = { id: string; date: string; description: string; debit: number; credit: number; };
 type DirectCost = { id: string; date: string; description: string; category: string; quantity: number; total: number; };
 type IndirectCost = { id: string; date: string; description: string; category: string; amount: number; };
@@ -260,11 +261,11 @@ function LogPaymentDialog({ creditor, onPaymentLogged }: { creditor: Creditor, o
 // --- Tab Components ---
 
 function SummaryTab() {
-    const [summary, setSummary] = useState<FinancialSummary | null>(null);
+    const [summary, setSummary] = useState<AccountSummary | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        getFinancialSummary().then(data => {
+        getAccountSummary().then(data => {
             setSummary(data);
             setIsLoading(false);
         });
@@ -272,25 +273,36 @@ function SummaryTab() {
 
     if (isLoading || !summary) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
+    const summaryOrder: (keyof AccountSummary)[] = [
+        'Sale', 'Purchases (Confectioneries)', 'Closing Stock', 'Expenses', 'Discount Allowed', 
+        'Bad or Damages', 'Loan', 'Indirect Exp', 'Assets', 'Debtor', 'Equipment'
+    ];
+
     return (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Revenue</CardTitle><DollarSign className="h-4 w-4 text-muted-foreground" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold">{formatCurrency(summary.totalRevenue)}</div></CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Expenditure</CardTitle><TrendingDown className="h-4 w-4 text-muted-foreground" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold">{formatCurrency(summary.totalExpenditure)}</div></CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Gross Profit</CardTitle><TrendingUp className="h-4 w-4 text-muted-foreground" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold">{formatCurrency(summary.grossProfit)}</div></CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Net Profit</CardTitle><Receipt className="h-4 w-4 text-muted-foreground" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-green-500">{formatCurrency(summary.netProfit)}</div></CardContent>
-            </Card>
-        </div>
+        <Card>
+            <CardHeader>
+                <CardTitle>Summary of Account</CardTitle>
+                <CardDescription>A top-level overview of key financial accounts.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="font-bold">Account</TableHead>
+                            <TableHead className="text-right font-bold">Amount (₦)</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {summaryOrder.map(key => (
+                            <TableRow key={key}>
+                                <TableCell>{key}</TableCell>
+                                <TableCell className="text-right font-medium">{formatCurrency(summary[key])}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
     );
 }
 

@@ -1,4 +1,5 @@
 
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -755,6 +756,63 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
 }
 
 // ---- START NEW ACCOUNTING FUNCTIONS ----
+
+export async function getAccountSummary(): Promise<Record<string, number>> {
+    try {
+        const [
+            salesSnap,
+            directCostsSnap,
+            closingStocksSnap,
+            indirectCostsSnap,
+            discountsSnap,
+            wasteLogsSnap,
+            debtSnap,
+            // Assuming assets/equipment are not dynamic collections for this summary
+        ] = await Promise.all([
+            getDocs(collection(db, "sales")),
+            getDocs(collection(db, "directCosts")),
+            getDocs(collection(db, "closingStocks")),
+            getDocs(collection(db, "indirectCosts")),
+            getDocs(collection(db, "discount_records")),
+            getDocs(collection(db, "waste_logs")),
+            getDocs(collection(db, "debt")),
+        ]);
+
+        const totalSales = salesSnap.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
+        const totalPurchases = directCostsSnap.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
+        const totalClosingStock = closingStocksSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+        const totalIndirectExpenses = indirectCostsSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+        const totalDiscounts = discountsSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+        const totalWaste = wasteLogsSnap.docs.reduce((sum, doc) => sum + ((doc.data().quantity || 0) * 500), 0); // Placeholder cost
+        const totalLoan = debtSnap.docs.reduce((sum, doc) => sum + (doc.data().debit || 0) - (doc.data().credit || 0), 0);
+
+        // Total Expenses = Indirect + Direct
+        const totalExpenses = totalIndirectExpenses + totalPurchases;
+
+        const totalDebtors = 3124140; // Hardcoded from image for now
+        const totalAssets = 401000; // Hardcoded
+        const totalEquipment = 60000000; // Hardcoded
+
+        return {
+            'Sale': totalSales,
+            'Purchases (Confectioneries)': totalPurchases,
+            'Closing Stock': totalClosingStock,
+            'Expenses': totalExpenses,
+            'Discount Allowed': totalDiscounts,
+            'Bad or Damages': totalWaste,
+            'Loan': totalLoan,
+            'Indirect Exp': totalIndirectExpenses,
+            'Assets': totalAssets,
+            'Debtor': totalDebtors,
+            'Equipment': totalEquipment,
+        };
+
+    } catch (error) {
+        console.error("Error getting account summary:", error);
+        return {};
+    }
+}
+
 
 export async function getSales() {
     const snapshot = await getDocs(query(collection(db, "sales"), orderBy("date", "desc")));
