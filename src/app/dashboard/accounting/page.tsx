@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle, MessageSquareQuote } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement, getAccountSummary } from '@/app/actions';
@@ -1551,30 +1551,24 @@ function BusinessHealthTab() {
                     <CardDescription>Operating expenses for the selected period.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                     <div>
-                        <h4 className="font-semibold">COGS (Cost of Goods Sold)</h4>
-                        <div className="flex justify-between text-sm pl-4"><span>Confectionaries</span><span>{formatCurrency(statement.purchases)}</span></div>
-                        <div className="flex justify-between text-sm pl-4"><span>Less: Closing Stocks</span><span>({formatCurrency(statement.closingStock)})</span></div>
-                        <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>Total COGS</span><span>{formatCurrency(cogs)}</span></div>
-                    </div>
-                     <div>
-                        <h4 className="font-semibold">Utilities</h4>
-                        <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>Total Utilities</span><span>{formatCurrency(expenseDetails.Utilities)}</span></div>
-                    </div>
-                     <div>
-                        <h4 className="font-semibold">Operations</h4>
-                         {Object.entries(statement.expenses).filter(([key]) => ['Repairs', 'Production', 'Promotion', 'Transport', 'Purchases'].includes(key)).map(([key, val]) => (
-                             <div key={key} className="flex justify-between text-sm pl-4"><span>{key}</span><span>{formatCurrency(val)}</span></div>
-                         ))}
-                        <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>Total Operations</span><span>{formatCurrency(expenseDetails.Operations)}</span></div>
-                    </div>
-                    <div>
-                        <h4 className="font-semibold">Wages</h4>
-                        <div className="flex justify-between text-sm pl-4"><span>Staff Salary</span><span>{formatCurrency(expenseDetails.Wages)}</span></div>
-                        <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>Total Wages</span><span>{formatCurrency(expenseDetails.Wages)}</span></div>
-                    </div>
-                     <Separator />
-                    <div className="flex justify-between font-extrabold text-lg"><span>GRAND TOTAL OPEX:</span><span>{formatCurrency(totalOpex)}</span></div>
+                     <Table>
+                        <TableHeader><TableRow><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            <TableRow><TableCell className="font-semibold">COGS (Cost of Goods Sold)</TableCell><TableCell className="text-right font-semibold">{formatCurrency(cogs)}</TableCell></TableRow>
+                            <TableRow><TableCell className="pl-6">Confectionaries</TableCell><TableCell className="text-right">{formatCurrency(statement.purchases)}</TableCell></TableRow>
+                            <TableRow><TableCell className="pl-6">Less: Closing Stocks</TableCell><TableCell className="text-right">({formatCurrency(statement.closingStock)})</TableCell></TableRow>
+                            
+                            <TableRow><TableCell className="font-semibold">Utilities</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Utilities)}</TableCell></TableRow>
+
+                            <TableRow><TableCell className="font-semibold">Operations</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Operations)}</TableCell></TableRow>
+                            {Object.entries(statement.expenses).filter(([key]) => ['Repairs', 'Production', 'Promotion', 'Transport', 'Purchases'].includes(key)).map(([key, val]) => (
+                               <TableRow key={key}><TableCell className="pl-6">{key}</TableCell><TableCell className="text-right">{formatCurrency(val)}</TableCell></TableRow>
+                            ))}
+                            
+                             <TableRow><TableCell className="font-semibold">Wages</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Wages)}</TableCell></TableRow>
+                        </TableBody>
+                         <TableFooter><TableRow><TableCell className="font-bold text-lg">GRAND TOTAL OPEX:</TableCell><TableCell className="text-right font-bold text-lg">{formatCurrency(totalOpex)}</TableCell></TableRow></TableFooter>
+                    </Table>
                 </CardContent>
             </Card>
             <div className="lg:col-span-2 space-y-6">
@@ -1626,10 +1620,10 @@ function BusinessHealthTab() {
                 </Card>
                  <Card>
                     <CardHeader>
-                        <CardTitle>Commentary</CardTitle>
+                        <CardTitle className="flex items-center gap-2"><MessageSquareQuote /> Commentary</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-2">
-                        {commentary().map((line, index) => <p key={index} className="text-sm">{line}</p>)}
+                    <CardContent className="space-y-2 text-sm">
+                        {commentary().map((line, index) => <p key={index}>{line}</p>)}
                     </CardContent>
                 </Card>
             </div>
@@ -1696,7 +1690,7 @@ export default function AccountingPage() {
                     <TabsTrigger value="debtors-creditors">Debtors &amp; Creditors</TabsTrigger>
                     <TabsTrigger value="payments" className="relative">
                         Payments &amp; Requests
-                        {notificationCounts.payments > 0 && <Badge variant="destructive">{notificationCounts.payments}</Badge>}
+                        {notificationCounts.payments > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.payments}</Badge>}
                     </TabsTrigger>
                 </TabsList>
                 <TabsContent value="debtors-creditors"><DebtorsCreditorsTab /></TabsContent>
@@ -1717,4 +1711,3 @@ export default function AccountingPage() {
     </div>
   );
 }
-
