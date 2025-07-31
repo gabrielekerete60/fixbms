@@ -757,8 +757,12 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
 
 // ---- START NEW ACCOUNTING FUNCTIONS ----
 
-export async function getAccountSummary(): Promise<Record<string, number>> {
+export async function getAccountSummary(dateRange?: { from: Date, to: Date }): Promise<Record<string, number>> {
     try {
+        const dateFilters = dateRange 
+            ? [where("date", ">=", Timestamp.fromDate(dateRange.from)), where("date", "<=", Timestamp.fromDate(dateRange.to))]
+            : [];
+            
         const [
             salesSnap,
             directCostsSnap,
@@ -769,13 +773,13 @@ export async function getAccountSummary(): Promise<Record<string, number>> {
             debtSnap,
             // Assuming assets/equipment are not dynamic collections for this summary
         ] = await Promise.all([
-            getDocs(collection(db, "sales")),
-            getDocs(collection(db, "directCosts")),
-            getDocs(collection(db, "closingStocks")),
-            getDocs(collection(db, "indirectCosts")),
-            getDocs(collection(db, "discount_records")),
-            getDocs(collection(db, "waste_logs")),
-            getDocs(collection(db, "debt")),
+            getDocs(query(collection(db, "sales"), ...dateFilters)),
+            getDocs(query(collection(db, "directCosts"), ...dateFilters)),
+            getDocs(collection(db, "closingStocks")), // Not date-filtered
+            getDocs(query(collection(db, "indirectCosts"), ...dateFilters)),
+            getDocs(collection(db, "discount_records")), // Not date-filtered
+            getDocs(query(collection(db, "waste_logs"), ...dateFilters)),
+            getDocs(query(collection(db, "debt"), ...dateFilters)),
         ]);
 
         const totalSales = salesSnap.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
@@ -972,7 +976,7 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
             getDocs(query(collection(db, "indirectCosts"), ...dateFilters)),
             getDocs(query(collection(db, "wages"), ...dateFilters)),
             getDocs(query(collection(db, "waste_logs"), ...dateFilters)),
-            getDocs(query(collection(db, "discount_records"), ...dateFilters))
+            getDocs(collection(db, "discount_records"))
         ]);
 
         // Trading Account Calculations
@@ -998,7 +1002,7 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
         expenses['Salary'] = wagesSnapshot.docs.reduce((sum, doc) => sum + (doc.data().netPay || 0), 0);
         
         // This is a rough estimation of waste cost
-        const totalWasteCost = wasteLogsSnapshot.docs.length * 500; // Placeholder value
+        const totalWasteCost = wasteLogsSnapshot.length * 500; // Placeholder value
         expenses['Bad and Damage'] = totalWasteCost;
         
         expenses['Discount Allowed'] = discountsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);

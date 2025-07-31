@@ -263,13 +263,19 @@ function LogPaymentDialog({ creditor, onPaymentLogged }: { creditor: Creditor, o
 function SummaryTab() {
     const [summary, setSummary] = useState<AccountSummary | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [date, setDate] = useState<DateRange | undefined>();
+
+    const fetchSummary = useCallback(async (newDate: DateRange | undefined) => {
+        setIsLoading(true);
+        const range = newDate?.from ? { from: startOfDay(newDate.from), to: endOfDay(newDate.to || newDate.from) } : undefined;
+        const data = await getAccountSummary(range);
+        setSummary(data);
+        setIsLoading(false);
+    }, []);
 
     useEffect(() => {
-        getAccountSummary().then(data => {
-            setSummary(data);
-            setIsLoading(false);
-        });
-    }, []);
+        fetchSummary(date);
+    }, [date, fetchSummary]);
 
     if (isLoading || !summary) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -281,8 +287,23 @@ function SummaryTab() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Summary of Account</CardTitle>
-                <CardDescription>A top-level overview of key financial accounts.</CardDescription>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <CardTitle>Summary of Account</CardTitle>
+                        <CardDescription>A top-level overview of key financial accounts.</CardDescription>
+                    </div>
+                     <Popover>
+                        <PopoverTrigger asChild>
+                            <Button id="date" variant={"outline"} className={cn("w-full sm:w-auto min-w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Filter by date range</span>)}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                            <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                        </PopoverContent>
+                    </Popover>
+                </div>
             </CardHeader>
             <CardContent>
                 <Table>
