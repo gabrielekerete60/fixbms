@@ -11,9 +11,9 @@ import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from 
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,7 +45,7 @@ type ClosingStock = { id: string; item: string; remainingStock: string; amount: 
 type DiscountRecord = { id: string; bread_type: string; amount: number };
 type Wage = { id: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
 type Sale = { id: string; date: string; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; };
-type DrinkSaleSummary = { productId: string; productName: string; quantitySold: number; totalRevenue: number; };
+type DrinkSaleSummary = { productId: string; productName: string; quantitySold: number; totalRevenue: number; costPrice: number, stock: number };
 
 const chartConfig = {
   amount: {
@@ -817,16 +817,93 @@ function SalesRecordsTab() {
 function DrinkSalesTab() {
     const [records, setRecords] = useState<DrinkSaleSummary[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [salesMargin, setSalesMargin] = useState(5);
     useEffect(() => { getDrinkSalesSummary().then(data => { setRecords(data); setIsLoading(false); }); }, []);
+
+    const reportData = useMemo(() => {
+        return records.map(r => {
+            const amountPurchases = r.costPrice * r.quantitySold;
+            const amount = r.totalRevenue;
+            const salesMarginTotal = amount * (1 + salesMargin / 100);
+            const quantityRemaining = r.stock;
+
+            return {
+                ...r,
+                amountPurchases,
+                amount,
+                salesMarginTotal,
+                quantityRemaining: quantityRemaining > 0 ? quantityRemaining : 'NILL'
+            };
+        });
+    }, [records, salesMargin]);
+
+    const totals = useMemo(() => {
+        return reportData.reduce((acc, curr) => {
+            acc.purchases += curr.amountPurchases;
+            acc.amount += curr.amount;
+            acc.marginTotal += curr.salesMarginTotal;
+            return acc;
+        }, { purchases: 0, amount: 0, marginTotal: 0 });
+    }, [reportData]);
+
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
     return (
         <Card>
-            <CardHeader><CardTitle>Drink Sales Summary</CardTitle><CardDescription>Summary of sales for products in the 'Drinks' category.</CardDescription></CardHeader>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>Drink Sales Record</CardTitle>
+                        <CardDescription>A detailed record of drink sales for June 2025.</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Label htmlFor="sales-margin">Sales Margin %</Label>
+                        <Input 
+                            id="sales-margin"
+                            type="number"
+                            value={salesMargin}
+                            onChange={e => setSalesMargin(Number(e.target.value))}
+                            className="w-20"
+                        />
+                    </div>
+                </div>
+            </CardHeader>
             <CardContent>
                  <div className="overflow-x-auto">
                     <Table>
-                        <TableHeader><TableRow><TableHead>Drink</TableHead><TableHead className="text-right">Quantity Sold</TableHead><TableHead className="text-right">Total Revenue</TableHead></TableRow></TableHeader>
-                        <TableBody>{records.map(r => <TableRow key={r.productId}><TableCell>{r.productName}</TableCell><TableCell className="text-right">{r.quantitySold}</TableCell><TableCell className="text-right">{formatCurrency(r.totalRevenue)}</TableCell></TableRow>)}</TableBody>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Type of Drink</TableHead>
+                                <TableHead className="text-right">Amount Purchases</TableHead>
+                                <TableHead className="text-right">Quantity Sold</TableHead>
+                                <TableHead className="text-right">Quantity Remaining</TableHead>
+                                <TableHead className="text-right">Selling Price</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right">Sales Margin Total</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {reportData.map(r => (
+                                <TableRow key={r.productId}>
+                                    <TableCell>{r.productName}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.amountPurchases)}</TableCell>
+                                    <TableCell className="text-right">{r.quantitySold}</TableCell>
+                                    <TableCell className="text-right">{r.quantityRemaining}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.totalRevenue / r.quantitySold)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.amount)}</TableCell>
+                                    <TableCell className="text-right font-bold">{formatCurrency(r.salesMarginTotal)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                        <TableFooter>
+                            <TableRow>
+                                <TableCell className="font-bold">Grand Total</TableCell>
+                                <TableCell className="text-right font-bold">{formatCurrency(totals.purchases)}</TableCell>
+                                <TableCell colSpan={3}></TableCell>
+                                <TableCell className="text-right font-bold">{formatCurrency(totals.amount)}</TableCell>
+                                <TableCell className="text-right font-bold">{formatCurrency(totals.marginTotal)}</TableCell>
+                            </TableRow>
+                        </TableFooter>
                     </Table>
                 </div>
             </CardContent>

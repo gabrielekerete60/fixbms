@@ -775,11 +775,12 @@ export async function getDrinkSalesSummary() {
         }
 
         const ordersSnapshot = await getDocs(collection(db, 'orders'));
-        const drinkSales: { [productId: string]: { productName: string, quantitySold: number, totalRevenue: number } } = {};
+        const drinkSales: { [productId: string]: { productName: string, quantitySold: number, totalRevenue: number, costPrice: number, stock: number } } = {};
 
         // Initialize with all drink products
         productsSnapshot.docs.forEach(doc => {
-            drinkSales[doc.id] = { productName: doc.data().name, quantitySold: 0, totalRevenue: 0 };
+            const data = doc.data();
+            drinkSales[doc.id] = { productName: data.name, quantitySold: 0, totalRevenue: 0, costPrice: data.costPrice || 0, stock: data.stock || 0 };
         });
 
         ordersSnapshot.forEach(orderDoc => {
