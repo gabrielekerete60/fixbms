@@ -277,6 +277,11 @@ function SummaryTab() {
         fetchSummary(date);
     }, [date, fetchSummary]);
 
+    const totalSummary = useMemo(() => {
+        if (!summary) return 0;
+        return Object.values(summary).reduce((acc, value) => acc + (value || 0), 0);
+    }, [summary]);
+
     if (isLoading || !summary) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
     const summaryOrder: (keyof AccountSummary)[] = [
@@ -321,6 +326,12 @@ function SummaryTab() {
                             </TableRow>
                         ))}
                     </TableBody>
+                    <TableFooter>
+                        <TableRow>
+                            <TableCell className="text-right font-bold">Grand Total</TableCell>
+                            <TableCell className="text-right font-bold">{formatCurrency(totalSummary)}</TableCell>
+                        </TableRow>
+                    </TableFooter>
                 </Table>
             </CardContent>
         </Card>
@@ -433,9 +444,7 @@ function DebtorsCreditorsTab() {
                             <CardDescription>A summary ledger of debits and credits from the accounting period.</CardDescription>
                         </div>
                          <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button>
-                            </PopoverTrigger>
+                            <PopoverTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button></PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="end">
                                 <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
                             </PopoverContent>
