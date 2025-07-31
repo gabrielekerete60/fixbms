@@ -1,3 +1,4 @@
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -954,7 +955,14 @@ export type ProfitAndLossStatement = {
     closingStock: number;
     cogs: number;
     grossProfit: number;
-    expenses: { [key: string]: number };
+    expenses: { 
+        [key: string]: number 
+    };
+    expenseDetails: {
+        Utilities: number;
+        Operations: number;
+        Wages: number;
+    };
     totalExpenses: number;
     netProfit: number;
 };
@@ -969,7 +977,7 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
         const [
             salesSnapshot,
             directCostsSnapshot,
-            closingStocksSnapshot, // Note: Closing stock is typically point-in-time, not ranged.
+            closingStocksSnapshot,
             indirectCostsSnapshot,
             wagesSnapshot,
             wasteLogsSnapshot,
@@ -988,7 +996,6 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
         const sales = salesSnapshot.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
         const purchases = directCostsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
         
-        // Hardcoded for now, should be from a specific expense category if available
         const openingStock = 848626; 
         const carriageInward = 7500; 
         
@@ -999,22 +1006,39 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
 
         // P&L Expenses Calculations
         const expenses: { [key: string]: number } = {};
+        const expenseDetails = {
+            Utilities: 0,
+            Operations: 0,
+            Wages: 0,
+        };
+
         indirectCostsSnapshot.forEach(doc => {
             const data = doc.data();
-            expenses[data.category] = (expenses[data.category] || 0) + (data.amount || 0);
+            const amount = data.amount || 0;
+            const category = data.category || 'Other';
+
+            expenses[category] = (expenses[category] || 0) + amount;
+
+            const opExMapping: { [key: string]: keyof typeof expenseDetails } = {
+                'Diesel': 'Utilities', 'Petrol': 'Utilities', 'Gas': 'Utilities', 'Electricity': 'Utilities', 'Water': 'Utilities',
+                'Repairs': 'Operations', 'Production': 'Operations', 'Promotion': 'Operations', 'Transport': 'Operations', 'Purchases': 'Operations',
+            };
+            const mappedCategory = opExMapping[category];
+            if (mappedCategory) {
+                expenseDetails[mappedCategory] += amount;
+            }
         });
 
-        expenses['Salary'] = wagesSnapshot.docs.reduce((sum, doc) => sum + (doc.data().netPay || 0), 0);
+        expenseDetails.Wages = wagesSnapshot.docs.reduce((sum, doc) => sum + (doc.data().netPay || 0), 0);
+        expenses['Salary'] = expenseDetails.Wages;
         
-        // This is a rough estimation of waste cost
-        const totalWasteCost = wasteLogsSnapshot.length * 500; // Placeholder value
+        const totalWasteCost = wasteLogsSnapshot.length * 500; 
         expenses['Bad and Damage'] = totalWasteCost;
         
         expenses['Discount Allowed'] = discountsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
 
         const totalExpenses = Object.values(expenses).reduce((sum, value) => sum + value, 0);
         
-        // Net Profit
         const netProfit = grossProfit - totalExpenses;
 
         return {
@@ -1027,6 +1051,7 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
             cogs,
             grossProfit,
             expenses,
+            expenseDetails,
             totalExpenses,
             netProfit
         };
@@ -1035,7 +1060,7 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
         console.error("Error generating P&L statement:", error);
         return {
             sales: 0, openingStock: 0, purchases: 0, carriageInward: 0, costOfGoodsAvailable: 0,
-            closingStock: 0, cogs: 0, grossProfit: 0, expenses: {}, totalExpenses: 0, netProfit: 0
+            closingStock: 0, cogs: 0, grossProfit: 0, expenses: {}, expenseDetails: { Utilities: 0, Operations: 0, Wages: 0 }, totalExpenses: 0, netProfit: 0
         };
     }
 }

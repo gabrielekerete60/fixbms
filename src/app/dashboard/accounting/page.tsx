@@ -1,10 +1,11 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement, getAccountSummary } from '@/app/actions';
@@ -33,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { Separator } from '@/components/ui/separator';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { Progress } from '@/components/ui/progress';
 
 
 // --- Helper Functions & Type Definitions ---
@@ -1483,6 +1485,150 @@ function WagesTab() {
     );
 }
 
+function BusinessHealthTab() {
+    const [statement, setStatement] = useState<ProfitAndLossStatement | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [date, setDate] = useState<DateRange | undefined>({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
+
+    const fetchStatement = useCallback(async (newDate: DateRange | undefined) => {
+        setIsLoading(true);
+        const range = newDate?.from ? { from: startOfDay(newDate.from), to: endOfDay(newDate.to || newDate.from) } : undefined;
+        const data = await getProfitAndLossStatement(range);
+        setStatement(data);
+        setIsLoading(false);
+    }, []);
+
+    useEffect(() => {
+        fetchStatement(date);
+    }, [date, fetchStatement]);
+    
+    if (isLoading || !statement) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
+    const { sales, cogs, expenseDetails } = statement;
+    const totalOpex = cogs + expenseDetails.Utilities + expenseDetails.Operations + expenseDetails.Wages;
+    const opexRatios = {
+        COGS: sales > 0 ? (cogs / sales) * 100 : 0,
+        Utilities: sales > 0 ? (expenseDetails.Utilities / sales) * 100 : 0,
+        Operations: sales > 0 ? (expenseDetails.Operations / sales) * 100 : 0,
+        Wages: sales > 0 ? (expenseDetails.Wages / sales) * 100 : 0,
+    };
+    const totalOpexRatio = Object.values(opexRatios).reduce((a,b) => a + b, 0);
+
+    const commentary = () => {
+        const issues = [];
+        if (totalOpex > sales) {
+            issues.push(`The Business overhead cost exceeds the revenue by ${Math.round((totalOpex/sales -1) * 100)}% which makes it very unprofitable.`);
+        }
+        if (opexRatios.Wages > 70) {
+            issues.push("Reduce the Direct labour cost.");
+        }
+        if (opexRatios.Utilities / totalOpexRatio > 0.43) {
+             issues.push("Provide alternate Power supplies, as these alone takes over 43% of sales revenue.");
+        }
+        if (issues.length === 0) return ["Business appears to be in a healthy state for the selected period."];
+        return ["To improve sales. We should;", ...issues];
+    };
+
+    const getRatioColor = (ratio: number, benchmark: number, type: 'above' | 'below') => {
+        if (type === 'below' && ratio < benchmark) return "text-orange-500";
+        if (type === 'above' && ratio > benchmark) return "text-orange-500";
+        return "text-green-500";
+    }
+
+    return (
+         <div className="grid lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-1">
+                <CardHeader>
+                    <CardTitle>OPEX Breakdown</CardTitle>
+                    <CardDescription>Operating expenses for the selected period.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div>
+                        <h4 className="font-semibold">COGS (Cost of Goods Sold)</h4>
+                        <div className="flex justify-between text-sm pl-4"><span>Confectionaries</span><span>{formatCurrency(statement.purchases)}</span></div>
+                        <div className="flex justify-between text-sm pl-4"><span>Less: Closing Stocks</span><span>({formatCurrency(statement.closingStock)})</span></div>
+                        <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>Total COGS</span><span>{formatCurrency(cogs)}</span></div>
+                    </div>
+                     <div>
+                        <h4 className="font-semibold">Utilities</h4>
+                        <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>Total Utilities</span><span>{formatCurrency(expenseDetails.Utilities)}</span></div>
+                    </div>
+                     <div>
+                        <h4 className="font-semibold">Operations</h4>
+                         {Object.entries(statement.expenses).filter(([key]) => ['Repairs', 'Production', 'Promotion', 'Transport', 'Purchases'].includes(key)).map(([key, val]) => (
+                             <div key={key} className="flex justify-between text-sm pl-4"><span>{key}</span><span>{formatCurrency(val)}</span></div>
+                         ))}
+                        <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>Total Operations</span><span>{formatCurrency(expenseDetails.Operations)}</span></div>
+                    </div>
+                    <div>
+                        <h4 className="font-semibold">Wages</h4>
+                        <div className="flex justify-between text-sm pl-4"><span>Staff Salary</span><span>{formatCurrency(expenseDetails.Wages)}</span></div>
+                        <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>Total Wages</span><span>{formatCurrency(expenseDetails.Wages)}</span></div>
+                    </div>
+                     <Separator />
+                    <div className="flex justify-between font-extrabold text-lg"><span>GRAND TOTAL OPEX:</span><span>{formatCurrency(totalOpex)}</span></div>
+                </CardContent>
+            </Card>
+            <div className="lg:col-span-2 space-y-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Ratio Profiling with Revenue</CardTitle>
+                        <CardDescription>Comparison of expense ratios to industry benchmarks.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>OPEX Category</TableHead>
+                                    <TableHead className="text-right">Ratio</TableHead>
+                                    <TableHead className="text-right">Benchmark</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                 <TableRow>
+                                    <TableCell>COGS</TableCell>
+                                    <TableCell className={cn("text-right", getRatioColor(opexRatios.COGS, 35, 'below'))}>{opexRatios.COGS.toFixed(0)}%</TableCell>
+                                    <TableCell className="text-right">41% (Shouldn't fall below 35%)</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell>Utilities</TableCell>
+                                    <TableCell className="text-right">{opexRatios.Utilities.toFixed(0)}%</TableCell>
+                                    <TableCell className="text-right">75%</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell>Operations</TableCell>
+                                    <TableCell className="text-right">{opexRatios.Operations.toFixed(0)}%</TableCell>
+                                    <TableCell className="text-right">89%</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell>Wages</TableCell>
+                                    <TableCell className="text-right">{opexRatios.Wages.toFixed(0)}%</TableCell>
+                                    <TableCell className="text-right">88%</TableCell>
+                                </TableRow>
+                            </TableBody>
+                             <TableFooter>
+                                <TableRow>
+                                    <TableCell className="font-bold">Total OPEX Ratio</TableCell>
+                                    <TableCell colSpan={2} className={cn("text-right font-bold", getRatioColor(totalOpexRatio, 70, 'above'))}>{totalOpexRatio.toFixed(0)}% (shouldn't exceed 70%)</TableCell>
+                                </TableRow>
+                             </TableFooter>
+                        </Table>
+                         <Progress value={totalOpexRatio > 100 ? 100 : totalOpexRatio} className={cn("mt-2", totalOpexRatio > 70 ? "[&>div]:bg-orange-500" : "[&>div]:bg-green-500")} />
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Commentary</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        {commentary().map((line, index) => <p key={index} className="text-sm">{line}</p>)}
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+}
+
 export default function AccountingPage() {
   const [notificationCounts, setNotificationCounts] = useState({ payments: 0 });
 
@@ -1501,7 +1647,8 @@ export default function AccountingPage() {
         <div className="overflow-x-auto pb-2">
             <TabsList>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
-                <TabsTrigger value="financials">P&amp;L Statement</TabsTrigger>
+                <TabsTrigger value="pnl-statement">P&amp;L Statement</TabsTrigger>
+                <TabsTrigger value="business-health">Business Health</TabsTrigger>
                 <TabsTrigger value="expenses">Expenses</TabsTrigger>
                 <TabsTrigger value="sales">Sales</TabsTrigger>
                 <TabsTrigger value="debt-payments" className="relative">
@@ -1513,7 +1660,8 @@ export default function AccountingPage() {
         </div>
 
         <TabsContent value="summary"><SummaryTab /></TabsContent>
-        <TabsContent value="financials"><FinancialsTab /></TabsContent>
+        <TabsContent value="pnl-statement"><FinancialsTab /></TabsContent>
+        <TabsContent value="business-health"><BusinessHealthTab /></TabsContent>
         <TabsContent value="expenses">
             <Tabs defaultValue="indirect" className="space-y-4">
                 <TabsList>
