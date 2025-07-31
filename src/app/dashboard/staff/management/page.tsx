@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -55,7 +56,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -210,7 +211,7 @@ function StaffDialog({
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="timezone">Timezone</Label>
-                        <Select value={timezone} onValueChange={timezone}>
+                        <Select value={timezone} onValueChange={setTimezone}>
                             <SelectTrigger><SelectValue placeholder="Select timezone" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="Africa/Lagos">Africa/Lagos</SelectItem>
@@ -322,10 +323,10 @@ export default function StaffManagementPage() {
         setIsLoading(true);
         try {
             const staffCollection = collection(db, "staff");
-            const snapshot = await getDocs(staffCollection);
+            const q = query(staffCollection, where("role", "!=", "Developer"));
+            const snapshot = await getDocs(q);
             const list = snapshot.docs
-                .map(doc => ({ staff_id: doc.id, ...doc.data() }))
-                .filter(staff => staff.role !== 'Developer') as Staff[];
+                .map(doc => ({ staff_id: doc.id, ...doc.data() })) as Staff[];
             setStaffList(list);
         } catch (error) {
             console.error("Error fetching staff:", error);
