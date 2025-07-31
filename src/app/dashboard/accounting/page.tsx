@@ -258,6 +258,7 @@ function DebtorsCreditorsTab() {
     const [debtors, setDebtors] = useState<Debtor[]>([]);
     const [debtLedger, setDebtLedger] = useState<DebtRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [date, setDate] = useState<DateRange | undefined>();
 
     const fetchData = useCallback(() => {
         setIsLoading(true);
@@ -276,11 +277,21 @@ function DebtorsCreditorsTab() {
         fetchData();
     }, [fetchData]);
     
+    const filteredLedger = useMemo(() => {
+        if (!date?.from) return debtLedger;
+        const from = startOfDay(date.from);
+        const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
+        return debtLedger.filter(rec => {
+            const recDate = new Date(rec.date);
+            return recDate >= from && recDate <= to;
+        });
+    }, [debtLedger, date]);
+    
     const { debitTotal, creditTotal } = useMemo(() => {
-        const debit = debtLedger.reduce((sum, item) => sum + (item.debit || 0), 0);
-        const credit = debtLedger.reduce((sum, item) => sum + (item.credit || 0), 0);
+        const debit = filteredLedger.reduce((sum, item) => sum + (item.debit || 0), 0);
+        const credit = filteredLedger.reduce((sum, item) => sum + (item.credit || 0), 0);
         return { debitTotal: debit, creditTotal: credit };
-    }, [debtLedger]);
+    }, [filteredLedger]);
     
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -337,8 +348,20 @@ function DebtorsCreditorsTab() {
             </div>
              <Card>
                 <CardHeader>
-                    <CardTitle>Debtor/Creditor Ledger</CardTitle>
-                    <CardDescription>A summary ledger of debits and credits from the accounting period.</CardDescription>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle>Debtor/Creditor Ledger</CardTitle>
+                            <CardDescription>A summary ledger of debits and credits from the accounting period.</CardDescription>
+                        </div>
+                         <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="end">
+                                <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto">
@@ -352,8 +375,8 @@ function DebtorsCreditorsTab() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {debtLedger.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">No ledger entries.</TableCell></TableRow>}
-                                {debtLedger.map(item => (
+                                {filteredLedger.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">No ledger entries for this period.</TableCell></TableRow>}
+                                {filteredLedger.map(item => (
                                     <TableRow key={item.id}>
                                         <TableCell>{format(new Date(item.date), 'PPP')}</TableCell>
                                         <TableCell>{item.description}</TableCell>
@@ -385,6 +408,7 @@ function DirectCostsTab() {
     const [costs, setCosts] = useState<DirectCost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [date, setDate] = useState<DateRange | undefined>();
 
     const fetchCosts = useCallback(() => {
         setIsLoading(true);
@@ -398,12 +422,22 @@ function DirectCostsTab() {
         fetchCosts();
     }, [fetchCosts]);
 
-    const { totalCost, categoryTotals, chartData } = useMemo(() => {
-        const filteredCosts = costs.filter(cost => cost.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    const { totalCost, categoryTotals, chartData, filteredCosts } = useMemo(() => {
+        let dateFilteredCosts = costs;
+        if (date?.from) {
+            const from = startOfDay(date.from);
+            const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
+            dateFilteredCosts = costs.filter(cost => {
+                const costDate = new Date(cost.date);
+                return costDate >= from && costDate <= to;
+            });
+        }
         
-        const total = filteredCosts.reduce((sum, cost) => sum + cost.total, 0);
+        const filtered = dateFilteredCosts.filter(cost => cost.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        
+        const total = filtered.reduce((sum, cost) => sum + cost.total, 0);
 
-        const totals: { [key: string]: number } = filteredCosts.reduce((acc, cost) => {
+        const totals: { [key: string]: number } = filtered.reduce((acc, cost) => {
             acc[cost.category] = (acc[cost.category] || 0) + cost.total;
             return acc;
         }, {});
@@ -414,8 +448,8 @@ function DirectCostsTab() {
 
         const chart = sortedCategories.map(([name, total]) => ({ name, total }));
 
-        return { totalCost: total, categoryTotals: sortedCategories, chartData: chart };
-    }, [costs, searchTerm]);
+        return { totalCost: total, categoryTotals: sortedCategories, chartData: chart, filteredCosts: filtered };
+    }, [costs, searchTerm, date]);
 
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -429,7 +463,7 @@ function DirectCostsTab() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{formatCurrency(totalCost)}</div>
-                        <p className="text-xs text-muted-foreground">For all fetched records</p>
+                        <p className="text-xs text-muted-foreground">For selected period</p>
                     </CardContent>
                 </Card>
                 {categoryTotals.map(([name, total]) => (
@@ -457,6 +491,10 @@ function DirectCostsTab() {
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
                             <AddDirectCostDialog onCostAdded={fetchCosts} />
+                            <Popover>
+                                <PopoverTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button></PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="end"><Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/></PopoverContent>
+                            </Popover>
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -472,7 +510,7 @@ function DirectCostsTab() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {costs.filter(c => c.description.toLowerCase().includes(searchTerm.toLowerCase())).map(c => (
+                                    {filteredCosts.map(c => (
                                         <TableRow key={c.id}>
                                             <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
                                             <TableCell>{c.description}</TableCell>
@@ -512,6 +550,7 @@ function IndirectCostsTab() {
     const [costs, setCosts] = useState<IndirectCost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [date, setDate] = useState<DateRange | undefined>();
 
     const fetchCosts = useCallback(() => {
         setIsLoading(true);
@@ -525,12 +564,22 @@ function IndirectCostsTab() {
         fetchCosts();
     }, [fetchCosts]);
 
-    const { totalCost, categoryTotals, chartData } = useMemo(() => {
-        const filteredCosts = costs.filter(cost => cost.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    const { totalCost, categoryTotals, chartData, filteredCosts } = useMemo(() => {
+        let dateFilteredCosts = costs;
+        if (date?.from) {
+            const from = startOfDay(date.from);
+            const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
+            dateFilteredCosts = costs.filter(cost => {
+                const costDate = new Date(cost.date);
+                return costDate >= from && costDate <= to;
+            });
+        }
         
-        const total = filteredCosts.reduce((sum, cost) => sum + cost.amount, 0);
+        const filtered = dateFilteredCosts.filter(cost => cost.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        
+        const total = filtered.reduce((sum, cost) => sum + cost.amount, 0);
 
-        const totals: { [key: string]: number } = filteredCosts.reduce((acc, cost) => {
+        const totals: { [key: string]: number } = filtered.reduce((acc, cost) => {
             acc[cost.category] = (acc[cost.category] || 0) + cost.amount;
             return acc;
         }, {});
@@ -541,8 +590,8 @@ function IndirectCostsTab() {
 
         const chart = sortedCategories.map(([name, amount]) => ({ name, amount }));
 
-        return { totalCost: total, categoryTotals: sortedCategories, chartData: chart };
-    }, [costs, searchTerm]);
+        return { totalCost: total, categoryTotals: sortedCategories, chartData: chart, filteredCosts: filtered };
+    }, [costs, searchTerm, date]);
 
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -556,7 +605,7 @@ function IndirectCostsTab() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{formatCurrency(totalCost)}</div>
-                        <p className="text-xs text-muted-foreground">For all fetched records</p>
+                        <p className="text-xs text-muted-foreground">For selected period</p>
                     </CardContent>
                 </Card>
                 {categoryTotals.map(([name, amount]) => (
@@ -584,6 +633,10 @@ function IndirectCostsTab() {
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
                             <AddIndirectCostDialog onCostAdded={fetchCosts} />
+                             <Popover>
+                                <PopoverTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button></PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="end"><Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/></PopoverContent>
+                            </Popover>
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -598,7 +651,7 @@ function IndirectCostsTab() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {costs.filter(c => c.description.toLowerCase().includes(searchTerm.toLowerCase())).map(c => (
+                                    {filteredCosts.map(c => (
                                         <TableRow key={c.id}>
                                             <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
                                             <TableCell>{c.description}</TableCell>
