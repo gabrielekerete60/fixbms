@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, handlePaymentConfirmation, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement } from '@/app/actions';
@@ -818,7 +818,19 @@ function DrinkSalesTab() {
     const [records, setRecords] = useState<DrinkSaleSummary[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [salesMargin, setSalesMargin] = useState(5);
-    useEffect(() => { getDrinkSalesSummary().then(data => { setRecords(data); setIsLoading(false); }); }, []);
+    const [date, setDate] = useState<DateRange | undefined>();
+
+    const fetchDrinkSales = useCallback(async (newDate: DateRange | undefined) => {
+        setIsLoading(true);
+        const range = newDate?.from ? { from: startOfDay(newDate.from), to: endOfDay(newDate.to || newDate.from) } : undefined;
+        const data = await getDrinkSalesSummary(range);
+        setRecords(data);
+        setIsLoading(false);
+    }, []);
+
+    useEffect(() => {
+        fetchDrinkSales(date);
+    }, [date, fetchDrinkSales]);
 
     const reportData = useMemo(() => {
         return records.map(r => {
@@ -854,7 +866,7 @@ function DrinkSalesTab() {
                 <div className="flex justify-between items-center">
                     <div>
                         <CardTitle>Drink Sales Record</CardTitle>
-                        <CardDescription>A detailed record of drink sales for June 2025.</CardDescription>
+                        <CardDescription>A detailed record of drink sales for the selected period.</CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
                         <Label htmlFor="sales-margin">Sales Margin %</Label>
@@ -865,6 +877,14 @@ function DrinkSalesTab() {
                             onChange={e => setSalesMargin(Number(e.target.value))}
                             className="w-20"
                         />
+                         <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="end">
+                                <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                            </PopoverContent>
+                        </Popover>
                     </div>
                 </div>
             </CardHeader>

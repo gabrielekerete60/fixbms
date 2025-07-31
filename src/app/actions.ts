@@ -765,7 +765,7 @@ export async function getSales() {
     });
 }
 
-export async function getDrinkSalesSummary() {
+export async function getDrinkSalesSummary(dateRange?: { from: Date, to: Date }) {
     try {
         const productsSnapshot = await getDocs(query(collection(db, 'products'), where('category', '==', 'Drinks')));
         const drinkProductIds = productsSnapshot.docs.map(doc => doc.id);
@@ -774,7 +774,11 @@ export async function getDrinkSalesSummary() {
             return [];
         }
 
-        const ordersSnapshot = await getDocs(collection(db, 'orders'));
+        const dateFilters = dateRange 
+            ? [where("date", ">=", Timestamp.fromDate(dateRange.from)), where("date", "<=", Timestamp.fromDate(dateRange.to))]
+            : [];
+        const ordersSnapshot = await getDocs(query(collection(db, 'orders'), ...dateFilters));
+
         const drinkSales: { [productId: string]: { productName: string, quantitySold: number, totalRevenue: number, costPrice: number, stock: number } } = {};
 
         // Initialize with all drink products
