@@ -1538,38 +1538,57 @@ export default function AccountingPage() {
             <TabsList>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
                 <TabsTrigger value="pnl">P&amp;L Statement</TabsTrigger>
-                <TabsTrigger value="debt">Debt</TabsTrigger>
-                <TabsTrigger value="expenses">Expenses</TabsTrigger>
-                <TabsTrigger value="payments">Payments &amp; Requests</TabsTrigger>
-                <TabsTrigger value="sales-records">Sales Records</TabsTrigger>
-                <TabsTrigger value="drink-sales">Drink Sales</TabsTrigger>
-                <TabsTrigger value="wages">Wages</TabsTrigger>
-                <TabsTrigger value="closing-stock">Closing Stock</TabsTrigger>
                 <TabsTrigger value="financials">Financials</TabsTrigger>
+                <TabsTrigger value="expenses">Expenses</TabsTrigger>
+                <TabsTrigger value="sales">Sales</TabsTrigger>
+                <TabsTrigger value="debt">Debt &amp; Payments</TabsTrigger>
+                <TabsTrigger value="assets">Assets &amp; Wages</TabsTrigger>
             </TabsList>
         </div>
 
         <TabsContent value="summary"><SummaryTab /></TabsContent>
         <TabsContent value="pnl"><ProfitAndLossTab /></TabsContent>
-        <TabsContent value="debt"><DebtorsCreditorsTab /></TabsContent>
+        <TabsContent value="financials"><FinancialsTab /></TabsContent>
         <TabsContent value="expenses">
             <Tabs defaultValue="indirect" className="space-y-4">
-                 <div className="overflow-x-auto pb-2">
-                    <TabsList>
-                        <TabsTrigger value="indirect">Indirect Costs</TabsTrigger>
-                        <TabsTrigger value="direct">Direct Costs</TabsTrigger>
-                    </TabsList>
-                </div>
+                <TabsList>
+                    <TabsTrigger value="indirect">Indirect Costs</TabsTrigger>
+                    <TabsTrigger value="direct">Direct Costs</TabsTrigger>
+                </TabsList>
                 <TabsContent value="indirect"><IndirectCostsTab /></TabsContent>
                 <TabsContent value="direct"><DirectCostsTab /></TabsContent>
             </Tabs>
         </TabsContent>
-        <TabsContent value="payments"><PaymentsRequestsTab /></TabsContent>
-        <TabsContent value="sales-records"><SalesRecordsTab /></TabsContent>
-        <TabsContent value="drink-sales"><DrinkSalesTab /></TabsContent>
-        <TabsContent value="wages"><WagesTab /></TabsContent>
-        <TabsContent value="closing-stock"><ClosingStockTab /></TabsContent>
-        <TabsContent value="financials"><FinancialsTab /></TabsContent>
+        <TabsContent value="sales">
+             <Tabs defaultValue="sales-records" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="sales-records">Sales Records</TabsTrigger>
+                    <TabsTrigger value="drink-sales">Drink Sales</TabsTrigger>
+                </TabsList>
+                <TabsContent value="sales-records"><SalesRecordsTab /></TabsContent>
+                <TabsContent value="drink-sales"><DrinkSalesTab /></TabsContent>
+            </Tabs>
+        </TabsContent>
+        <TabsContent value="debt">
+            <Tabs defaultValue="debtors-creditors" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="debtors-creditors">Debtors &amp; Creditors</TabsTrigger>
+                    <TabsTrigger value="payments">Payments &amp; Requests</TabsTrigger>
+                </TabsList>
+                <TabsContent value="debtors-creditors"><DebtorsCreditorsTab /></TabsContent>
+                <TabsContent value="payments"><PaymentsRequestsTab /></TabsContent>
+            </Tabs>
+        </TabsContent>
+         <TabsContent value="assets">
+            <Tabs defaultValue="closing-stock" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="closing-stock">Closing Stock</TabsTrigger>
+                    <TabsTrigger value="wages">Wages</TabsTrigger>
+                </TabsList>
+                <TabsContent value="closing-stock"><ClosingStockTab /></TabsContent>
+                <TabsContent value="wages"><WagesTab /></TabsContent>
+            </Tabs>
+        </TabsContent>
       </Tabs>
     </div>
   );
