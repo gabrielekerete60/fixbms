@@ -338,6 +338,63 @@ function SummaryTab() {
     );
 }
 
+function FinancialsTab() {
+    const [summary, setSummary] = useState({ totalRevenue: 0, totalExpenditure: 0, grossProfit: 0, netProfit: 0 });
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        getFinancialSummary().then(data => {
+            setSummary(data);
+            setIsLoading(false);
+        });
+    }, []);
+
+    if (isLoading) {
+        return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    }
+
+    return (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(summary.totalRevenue)}</div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Expenditure</CardTitle>
+                    <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(summary.totalExpenditure)}</div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Gross Profit</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(summary.grossProfit)}</div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
+                    <Receipt className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className={`text-2xl font-bold ${summary.netProfit < 0 ? 'text-destructive' : ''}`}>{formatCurrency(summary.netProfit)}</div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
 function DebtorsCreditorsTab() {
     const [creditors, setCreditors] = useState<Creditor[]>([]);
     const [debtors, setDebtors] = useState<Debtor[]>([]);
@@ -1488,6 +1545,7 @@ export default function AccountingPage() {
                 <TabsTrigger value="drink-sales">Drink Sales</TabsTrigger>
                 <TabsTrigger value="wages">Wages</TabsTrigger>
                 <TabsTrigger value="closing-stock">Closing Stock</TabsTrigger>
+                <TabsTrigger value="financials">Financials</TabsTrigger>
             </TabsList>
         </div>
 
@@ -1511,7 +1569,7 @@ export default function AccountingPage() {
         <TabsContent value="drink-sales"><DrinkSalesTab /></TabsContent>
         <TabsContent value="wages"><WagesTab /></TabsContent>
         <TabsContent value="closing-stock"><ClosingStockTab /></TabsContent>
-
+        <TabsContent value="financials"><FinancialsTab /></TabsContent>
       </Tabs>
     </div>
   );
