@@ -381,7 +381,7 @@ export default function DashboardLayout({
               <span className="font-headline">BMS</span>
             </Link>
           </div>
-          <div className="flex-1 overflow-auto py-2">
+          <div className="flex-1 overflow-y-auto py-2">
             <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
           </div>
           <div className="mt-auto p-4 border-t">
@@ -407,7 +407,7 @@ export default function DashboardLayout({
           </div>
         </div>
       </div>
-      <div className="flex flex-col overflow-hidden">
+      <div className="flex flex-col">
         <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
           <Sheet>
               <SheetTrigger asChild>
@@ -420,7 +420,7 @@ export default function DashboardLayout({
                   <span className="sr-only">Toggle navigation menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="flex flex-col p-0 w-full max-w-xs sm:max-w-sm">
+              <SheetContent side="left" className="flex h-full flex-col p-0 w-full max-w-xs sm:max-w-sm">
                   <SheetHeader className="h-14 shrink-0 items-center border-b px-4 lg:h-[60px]">
                     <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                     <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
@@ -428,7 +428,7 @@ export default function DashboardLayout({
                       <span className="font-headline">BMS</span>
                     </Link>
                   </SheetHeader>
-                <div className="overflow-auto flex-1">
+                <div className="overflow-y-auto flex-1">
                     <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
                 </div>
               </SheetContent>
