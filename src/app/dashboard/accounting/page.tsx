@@ -1544,88 +1544,103 @@ function BusinessHealthTab() {
     }
 
     return (
-         <div className="grid lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-1">
-                <CardHeader>
-                    <CardTitle>OPEX Breakdown</CardTitle>
-                    <CardDescription>Operating expenses for the selected period.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                     <Table>
-                        <TableHeader><TableRow><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            <TableRow><TableCell className="font-semibold">COGS (Cost of Goods Sold)</TableCell><TableCell className="text-right font-semibold">{formatCurrency(cogs)}</TableCell></TableRow>
-                            <TableRow><TableCell className="pl-6">Confectionaries</TableCell><TableCell className="text-right">{formatCurrency(statement.purchases)}</TableCell></TableRow>
-                            <TableRow><TableCell className="pl-6">Less: Closing Stocks</TableCell><TableCell className="text-right">({formatCurrency(statement.closingStock)})</TableCell></TableRow>
-                            
-                            <TableRow><TableCell className="font-semibold">Utilities</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Utilities)}</TableCell></TableRow>
-
-                            <TableRow><TableCell className="font-semibold">Operations</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Operations)}</TableCell></TableRow>
-                            {Object.entries(statement.expenses).filter(([key]) => ['Repairs', 'Production', 'Promotion', 'Transport', 'Purchases'].includes(key)).map(([key, val]) => (
-                               <TableRow key={key}><TableCell className="pl-6">{key}</TableCell><TableCell className="text-right">{formatCurrency(val)}</TableCell></TableRow>
-                            ))}
-                            
-                             <TableRow><TableCell className="font-semibold">Wages</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Wages)}</TableCell></TableRow>
-                        </TableBody>
-                         <TableFooter><TableRow><TableCell className="font-bold text-lg">GRAND TOTAL OPEX:</TableCell><TableCell className="text-right font-bold text-lg">{formatCurrency(totalOpex)}</TableCell></TableRow></TableFooter>
-                    </Table>
-                </CardContent>
-            </Card>
-            <div className="lg:col-span-2 space-y-6">
-                <Card>
+        <div className="space-y-6">
+            <div className="flex justify-end">
+                <Popover>
+                    <PopoverTrigger asChild>
+                    <Button id="date" variant={"outline"} className={cn("w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
+                    </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                    </PopoverContent>
+                </Popover>
+            </div>
+             <div className="grid lg:grid-cols-3 gap-6">
+                <Card className="lg:col-span-1">
                     <CardHeader>
-                        <CardTitle>Ratio Profiling with Revenue</CardTitle>
-                        <CardDescription>Comparison of expense ratios to industry benchmarks.</CardDescription>
+                        <CardTitle>OPEX Breakdown</CardTitle>
+                        <CardDescription>Operating expenses for the selected period.</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>OPEX Category</TableHead>
-                                    <TableHead className="text-right">Ratio</TableHead>
-                                    <TableHead className="text-right">Benchmark</TableHead>
-                                </TableRow>
-                            </TableHeader>
+                    <CardContent className="space-y-4">
+                         <Table>
+                            <TableHeader><TableRow><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
                             <TableBody>
-                                 <TableRow>
-                                    <TableCell>COGS</TableCell>
-                                    <TableCell className={cn("text-right", getRatioColor(opexRatios.COGS, 35, 'below'))}>{opexRatios.COGS.toFixed(0)}%</TableCell>
-                                    <TableCell className="text-right">41% (Shouldn't fall below 35%)</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                    <TableCell>Utilities</TableCell>
-                                    <TableCell className="text-right">{opexRatios.Utilities.toFixed(0)}%</TableCell>
-                                    <TableCell className="text-right">75%</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                    <TableCell>Operations</TableCell>
-                                    <TableCell className="text-right">{opexRatios.Operations.toFixed(0)}%</TableCell>
-                                    <TableCell className="text-right">89%</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                    <TableCell>Wages</TableCell>
-                                    <TableCell className="text-right">{opexRatios.Wages.toFixed(0)}%</TableCell>
-                                    <TableCell className="text-right">88%</TableCell>
-                                </TableRow>
+                                <TableRow><TableCell className="font-semibold">COGS (Cost of Goods Sold)</TableCell><TableCell className="text-right font-semibold">{formatCurrency(cogs)}</TableCell></TableRow>
+                                <TableRow><TableCell className="pl-6">Confectionaries</TableCell><TableCell className="text-right">{formatCurrency(statement.purchases)}</TableCell></TableRow>
+                                <TableRow><TableCell className="pl-6">Less: Closing Stocks</TableCell><TableCell className="text-right">({formatCurrency(statement.closingStock)})</TableCell></TableRow>
+                                
+                                <TableRow><TableCell className="font-semibold">Utilities</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Utilities)}</TableCell></TableRow>
+
+                                <TableRow><TableCell className="font-semibold">Operations</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Operations)}</TableCell></TableRow>
+                                {Object.entries(statement.expenses).filter(([key]) => ['Repairs', 'Production', 'Promotion', 'Transport', 'Purchases'].includes(key)).map(([key, val]) => (
+                                   <TableRow key={key}><TableCell className="pl-6">{key}</TableCell><TableCell className="text-right">{formatCurrency(val)}</TableCell></TableRow>
+                                ))}
+                                
+                                 <TableRow><TableCell className="font-semibold">Wages</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Wages)}</TableCell></TableRow>
                             </TableBody>
-                             <TableFooter>
-                                <TableRow>
-                                    <TableCell className="font-bold">Total OPEX Ratio</TableCell>
-                                    <TableCell colSpan={2} className={cn("text-right font-bold", getRatioColor(totalOpexRatio, 70, 'above'))}>{totalOpexRatio.toFixed(0)}% (shouldn't exceed 70%)</TableCell>
-                                </TableRow>
-                             </TableFooter>
+                             <TableFooter><TableRow><TableCell className="font-bold text-lg">GRAND TOTAL OPEX:</TableCell><TableCell className="text-right font-bold text-lg">{formatCurrency(totalOpex)}</TableCell></TableRow></TableFooter>
                         </Table>
-                         <Progress value={totalOpexRatio > 100 ? 100 : totalOpexRatio} className={cn("mt-2", totalOpexRatio > 70 ? "[&>div]:bg-orange-500" : "[&>div]:bg-green-500")} />
                     </CardContent>
                 </Card>
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><MessageSquareQuote /> Commentary</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                        {commentary().map((line, index) => <p key={index}>{line}</p>)}
-                    </CardContent>
-                </Card>
+                <div className="lg:col-span-2 space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Ratio Profiling with Revenue</CardTitle>
+                            <CardDescription>Comparison of expense ratios to industry benchmarks.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>OPEX Category</TableHead>
+                                        <TableHead className="text-right">Ratio</TableHead>
+                                        <TableHead className="text-right">Benchmark</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                     <TableRow>
+                                        <TableCell>COGS</TableCell>
+                                        <TableCell className={cn("text-right", getRatioColor(opexRatios.COGS, 35, 'below'))}>{opexRatios.COGS.toFixed(0)}%</TableCell>
+                                        <TableCell className="text-right">41% (Shouldn't fall below 35%)</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableCell>Utilities</TableCell>
+                                        <TableCell className="text-right">{opexRatios.Utilities.toFixed(0)}%</TableCell>
+                                        <TableCell className="text-right">75%</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableCell>Operations</TableCell>
+                                        <TableCell className="text-right">{opexRatios.Operations.toFixed(0)}%</TableCell>
+                                        <TableCell className="text-right">89%</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableCell>Wages</TableCell>
+                                        <TableCell className="text-right">{opexRatios.Wages.toFixed(0)}%</TableCell>
+                                        <TableCell className="text-right">88%</TableCell>
+                                    </TableRow>
+                                </TableBody>
+                                 <TableFooter>
+                                    <TableRow>
+                                        <TableCell className="font-bold">Total OPEX Ratio</TableCell>
+                                        <TableCell colSpan={2} className={cn("text-right font-bold", getRatioColor(totalOpexRatio, 70, 'above'))}>{totalOpexRatio.toFixed(0)}% (shouldn't exceed 70%)</TableCell>
+                                    </TableRow>
+                                 </TableFooter>
+                            </Table>
+                             <Progress value={totalOpexRatio > 100 ? 100 : totalOpexRatio} className={cn("mt-2", totalOpexRatio > 70 ? "[&>div]:bg-orange-500" : "[&>div]:bg-green-500")} />
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><MessageSquareQuote /> Commentary</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm">
+                            {commentary().map((line, index) => <p key={index}>{line}</p>)}
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </div>
     );
