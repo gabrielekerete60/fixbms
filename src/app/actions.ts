@@ -911,7 +911,11 @@ export async function getDiscountRecords() {
 
 export async function getWages() {
     const snapshot = await getDocs(query(collection(db, "wages")));
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp)?.toDate().toISOString();
+        return { id: doc.id, ...data, date };
+    });
 }
 
 export async function getFinancialSummary() {
@@ -2306,3 +2310,5 @@ export async function getStaffByRole(role: string): Promise<any[]> {
         return { id: doc.id, ...plainData };
     });
 }
+
+    
