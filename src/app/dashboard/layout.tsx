@@ -372,39 +372,37 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-      <div className="hidden border-r bg-muted/40 md:block">
-        <div className="flex h-full max-h-screen flex-col gap-2">
-          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-            <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-              <Pizza className="h-6 w-6 text-primary" />
-              <span className="font-headline">BMS</span>
-            </Link>
+    <div className="grid h-screen w-full overflow-hidden md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
+      <div className="hidden border-r bg-muted/40 md:flex md:flex-col">
+        <div className="flex h-14 shrink-0 items-center border-b px-4 lg:h-[60px] lg:px-6">
+          <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+            <Pizza className="h-6 w-6 text-primary" />
+            <span className="font-headline">BMS</span>
+          </Link>
+        </div>
+        <div className="flex-1 overflow-y-auto py-2">
+          <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
+        </div>
+        <div className="mt-auto p-4 border-t shrink-0">
+          <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
+              <span><Clock className="inline h-4 w-4 mr-1" />{time}</span>
+              <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut} disabled={isClocking}>
+                  {isClocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>)}
+                  {isClocking ? 'Loading...' : (isClockedIn ? 'Clock Out' : 'Clock In')}
+              </Button>
           </div>
-          <div className="flex-1 overflow-y-auto py-2">
-            <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
-          </div>
-          <div className="mt-auto p-4 border-t">
-            <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
-                <span><Clock className="inline h-4 w-4 mr-1" />{time}</span>
-                <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut} disabled={isClocking}>
-                    {isClocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>)}
-                    {isClocking ? 'Loading...' : (isClockedIn ? 'Clock Out' : 'Clock In')}
-                </Button>
-            </div>
-            <Card>
-              <CardContent className="p-2 flex items-center gap-2">
-                 <Avatar>
-                  <AvatarImage src="https://placehold.co/40x40.png" alt={user.name} data-ai-hint="profile person" />
-                  <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                </Avatar>
-                <div>
-                    <p className='font-semibold text-sm'>{user.name}</p>
-                    <p className='text-xs text-muted-foreground'>Role: {user.role}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardContent className="p-2 flex items-center gap-2">
+               <Avatar>
+                <AvatarImage src="https://placehold.co/40x40.png" alt={user.name} data-ai-hint="profile person" />
+                <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+              </Avatar>
+              <div>
+                  <p className='font-semibold text-sm'>{user.name}</p>
+                  <p className='text-xs text-muted-foreground'>Role: {user.role}</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
       <div className="flex flex-col">
