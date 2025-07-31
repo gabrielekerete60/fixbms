@@ -77,7 +77,7 @@ type CompletedOrder = {
   subtotal: number;
   total: number;
   date: Timestamp;
-  paymentMethod: 'Card' | 'Cash';
+  paymentMethod: 'POS' | 'Cash';
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
@@ -359,7 +359,7 @@ function POSPageContent() {
     setCustomerEmail(user?.email || '');
   }
 
-  const completeOrder = async (paymentMethod: 'Card' | 'Cash') => {
+  const completeOrder = async (paymentMethod: 'POS' | 'Cash') => {
     if (!user || !selectedStaffId) {
         toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
         return null;
@@ -409,7 +409,7 @@ function POSPageContent() {
     }
   }
 
-  const handleCardPayment = async () => {
+  const handlePOSPayment = async () => {
     setIsCheckoutOpen(false);
     
     if (!user || !selectedStaffId) {
@@ -419,42 +419,13 @@ function POSPageContent() {
     
     setPaymentStatus({ status: 'processing' });
     
-    const orderPayload = {
-      items: cart,
-      subtotal: total,
-      total: total,
-      email: customerEmail,
-      staff_id: selectedStaffId,
-      staff_name: allStaff.find(s => s.staff_id === selectedStaffId)?.name || user.name,
-      customerName: customerName || 'Walk-in',
-    };
-
-    const result = await initializePaystackTransaction(orderPayload);
-    
-    if (result.success && result.reference) {
-      const PaystackPop = (await import('@paystack/inline-js')).default;
-      const paystack = new PaystackPop();
-      paystack.newTransaction({
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-        email: customerEmail || 'guest@example.com',
-        amount: Math.round(total * 100), // amount in kobo
-        ref: result.reference,
-        onSuccess: async (transaction) => {
-          const finalOrder = await completeOrder('Card');
-          if (finalOrder) {
-            setIsReceiptOpen(true);
-            toast({ title: 'Payment Successful', description: 'Order has been completed.' });
-            setPaymentStatus({ status: 'success', orderId: finalOrder?.id });
-          }
-        },
-        onCancel: () => {
-          toast({ variant: 'destructive', title: 'Payment Cancelled' });
-          setPaymentStatus({ status: 'cancelled' });
-        }
-      });
+    const finalOrder = await completeOrder('POS');
+    if (finalOrder) {
+        setIsReceiptOpen(true);
+        toast({ title: 'Payment Successful', description: 'Order has been completed.' });
+        setPaymentStatus({ status: 'success', orderId: finalOrder?.id });
     } else {
-        toast({ variant: "destructive", title: "Payment Initialization Failed", description: result.error || "Could not connect to Paystack." });
-        setPaymentStatus({ status: 'failed', message: result.error });
+        setPaymentStatus({ status: 'failed', message: 'Order completion failed.' });
     }
   };
 
@@ -844,9 +815,9 @@ function POSPageContent() {
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
-                    <Button className="h-24 text-lg" onClick={handleCardPayment}>
+                    <Button className="h-24 text-lg" onClick={handlePOSPayment}>
                         <CreditCard className="mr-2 h-6 w-6" />
-                        Pay with Card
+                        Pay with POS
                     </Button>
                 </div>
             </DialogContent>
