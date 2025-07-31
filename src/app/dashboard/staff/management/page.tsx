@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -212,7 +210,7 @@ function StaffDialog({
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="timezone">Timezone</Label>
-                        <Select value={timezone} onValueChange={setTimezone}>
+                        <Select value={timezone} onValueChange={timezone}>
                             <SelectTrigger><SelectValue placeholder="Select timezone" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="Africa/Lagos">Africa/Lagos</SelectItem>
@@ -314,7 +312,10 @@ export default function StaffManagementPage() {
 
     const availableRoles = useMemo(() => {
         const roles = new Set(staffList.map(s => s.role));
-        return Array.from(roles).sort();
+        // Add default roles in case there are no staff yet
+        const defaultRoles = ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Cleaner', 'Security'];
+        defaultRoles.forEach(r => roles.add(r));
+        return Array.from(roles).filter(r => r !== 'Developer').sort();
     }, [staffList]);
 
     const fetchStaff = useCallback(async () => {

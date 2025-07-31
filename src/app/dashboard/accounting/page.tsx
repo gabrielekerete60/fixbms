@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -33,6 +31,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Separator } from '@/components/ui/separator';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 
 // --- Helper Functions & Type Definitions ---
@@ -44,7 +44,7 @@ type DirectCost = { id: string; date: string; description: string; category: str
 type IndirectCost = { id: string; date: string; description: string; category: string; amount: number; };
 type ClosingStock = { id: string; item: string; remainingStock: string; amount: number; };
 type DiscountRecord = { id: string; bread_type: string; amount: number };
-type Wage = { id: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
+type Wage = { id: string; date: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
 type Sale = { id: string; date: string; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; };
 type DrinkSaleSummary = { productId: string; productName: string; quantitySold: number; totalRevenue: number; costPrice: number, stock: number };
 
@@ -851,7 +851,7 @@ function IndirectCostsTab() {
 }
 
 // --- New Payments & Requests Tab ---
-function PaymentsRequestsTab() {
+function PaymentsRequestsTab({ notificationBadge }: { notificationBadge?: React.ReactNode }) {
     const { toast } = useToast();
     const [confirmations, setConfirmations] = useState<PaymentConfirmation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -902,14 +902,15 @@ function PaymentsRequestsTab() {
             <Card>
                 <CardHeader>
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div>
+                        <div className="flex items-center gap-2">
                             <CardTitle>Pending Payment Confirmations</CardTitle>
-                            <CardDescription>Review and approve cash payments reported by drivers.</CardDescription>
+                            {notificationBadge}
                         </div>
                         <Button variant="ghost" size="sm" onClick={fetchConfirmations} disabled={isLoading}>
                             <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
                         </Button>
                     </div>
+                     <CardDescription>Review and approve cash payments reported by drivers.</CardDescription>
                 </CardHeader>
                 <CardContent>
                    <div className="overflow-x-auto">
@@ -1335,13 +1336,19 @@ function WagesTab() {
     const [records, setRecords] = useState<Wage[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
+    const [date, setDate] = useState<DateRange | undefined>();
+
+    const fetchWages = useCallback(async (newDate: DateRange | undefined) => {
+        setIsLoading(true);
+        const range = newDate?.from ? { from: startOfDay(newDate.from), to: endOfDay(newDate.to || newDate.from) } : undefined;
+        const data = await getWages(range);
+        setRecords(data as Wage[]);
+        setIsLoading(false);
+    }, []);
 
     useEffect(() => {
-        getWages().then(data => {
-            setRecords(data as Wage[]);
-            setIsLoading(false);
-        });
-    }, []);
+        fetchWages(date);
+    }, [date, fetchWages]);
 
     const totals = useMemo(() => {
         return records.reduce((acc, curr) => {
@@ -1366,8 +1373,23 @@ function WagesTab() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Wages &amp; Salaries</CardTitle>
-                <CardDescription>Monthly staff emolument records.</CardDescription>
+                 <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>Wages &amp; Salaries</CardTitle>
+                        <CardDescription>Monthly staff emolument records.</CardDescription>
+                    </div>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <Button id="date" variant={"outline"} className={cn("w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                        </PopoverContent>
+                    </Popover>
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto">
@@ -1410,7 +1432,7 @@ function WagesTab() {
     );
 }
 
-function PnLRow({ label, value, isSubtotal = false, isTotal = false, isFinal = false, isHeader = false }: { label: string, value?: number, isSubtotal?: boolean, isTotal?: boolean, isFinal?: boolean, isHeader?: boolean }) {
+function PnLRow({ label, value, isSubtotal = false, isTotal = false, isFinal = false, isHeader = false, isExpense = false }: { label: string, value?: number, isSubtotal?: boolean, isTotal?: boolean, isFinal?: boolean, isHeader?: boolean, isExpense?: boolean }) {
     if (isHeader) {
         return (
              <TableRow>
@@ -1421,10 +1443,11 @@ function PnLRow({ label, value, isSubtotal = false, isTotal = false, isFinal = f
     }
     return (
         <TableRow className={cn(
-            isSubtotal && "border-t",
-            (isTotal || isFinal) && "font-bold"
+            isTotal && "border-t",
+            (isTotal || isFinal) && "font-bold",
+            isSubtotal && "text-muted-foreground",
         )}>
-            <TableCell className={cn(isSubtotal && "pl-4")}>{label}</TableCell>
+            <TableCell className={cn(isSubtotal && "pl-4", isExpense && "pl-8")}>{label}</TableCell>
             <TableCell className="text-right">{value != null ? formatCurrency(value) : ''}</TableCell>
         </TableRow>
     )
@@ -1455,7 +1478,7 @@ function ProfitAndLossTab() {
             <CardHeader>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <CardTitle>Trading Profit or Loss Account</CardTitle>
+                        <CardTitle>Trading, Profit &amp; Loss Account</CardTitle>
                         <CardDescription>For the period ending {date?.to ? format(date.to, 'PPP') : format(new Date(), 'PPP')}</CardDescription>
                     </div>
                      <Popover>
@@ -1472,57 +1495,46 @@ function ProfitAndLossTab() {
                 </div>
             </CardHeader>
             <CardContent>
-                 <div className="grid md:grid-cols-2 gap-8">
+                 <div className="grid md:grid-cols-2 gap-x-8 gap-y-4">
                      {/* Left Column: Revenue & Gross Profit */}
-                     <div className="space-y-4">
-                        <Table>
-                             <TableHeader>
-                                 <TableRow>
-                                     <TableHead>Description</TableHead>
-                                     <TableHead className="text-right">Amount (₦)</TableHead>
-                                 </TableRow>
-                             </TableHeader>
-                             <TableBody>
-                                 <PnLRow label="Opening Stock" value={statement.openingStock} />
-                                 <PnLRow label="Add: Purchases" value={statement.purchases} />
-                                 <PnLRow label="Add: Carriage Inward" value={statement.carriageInward} isSubtotal />
-                                 <PnLRow label="Cost of Goods available for Sale" value={statement.costOfGoodsAvailable} />
-                                 <PnLRow label="Less: Closing Stock" value={-statement.closingStock} />
-                                 <PnLRow label="Cost of Goods Sold (COGS)" value={statement.cogs} isTotal />
-                             </TableBody>
-                         </Table>
-                         <Table>
-                             <TableBody>
-                                 <PnLRow label="Sales" value={statement.sales} />
-                                 <PnLRow label="Less: COGS" value={-statement.cogs} />
-                                 <PnLRow label="Gross Profit" value={statement.grossProfit} isTotal />
-                             </TableBody>
-                         </Table>
-                     </div>
+                     <Table>
+                         <TableHeader>
+                             <TableRow>
+                                 <TableHead>Description</TableHead>
+                                 <TableHead className="text-right">Amount (₦)</TableHead>
+                             </TableRow>
+                         </TableHeader>
+                         <TableBody>
+                             <PnLRow label="Sales" value={statement.sales} isHeader />
+                             <PnLRow label="Sales" value={statement.sales} isSubtotal/>
+
+                             <PnLRow label="Less: Cost of Sales" value={undefined} isHeader/>
+                             <PnLRow label="Opening Stock" value={statement.openingStock} isSubtotal/>
+                             <PnLRow label="Add: Purchases" value={statement.purchases} isSubtotal/>
+                             <PnLRow label="Add: Carriage Inward" value={statement.carriageInward} isSubtotal/>
+                             <PnLRow label="Cost of Goods available for Sale" value={statement.costOfGoodsAvailable} />
+                             <PnLRow label="Less: Closing Stock" value={-statement.closingStock} />
+                             <PnLRow label="Cost of Goods Sold (COGS)" value={statement.cogs} isTotal />
+                             <PnLRow label="Gross Profit" value={statement.grossProfit} isTotal />
+                         </TableBody>
+                     </Table>
                      {/* Right Column: Expenses & Net Profit */}
-                      <div className="space-y-4">
-                        <Table>
-                             <TableHeader>
-                                 <TableRow>
-                                     <TableHead>Expenses</TableHead>
-                                     <TableHead className="text-right">Amount (₦)</TableHead>
-                                 </TableRow>
-                             </TableHeader>
-                            <TableBody>
-                                {Object.entries(statement.expenses).map(([key, value]) => (
-                                    <PnLRow key={key} label={key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} value={value} />
-                                ))}
-                                <PnLRow label="Total Expenses" value={statement.totalExpenses} isTotal/>
-                            </TableBody>
-                        </Table>
-                        <Table>
-                            <TableBody>
-                                <PnLRow label="Gross Profit b/d" value={statement.grossProfit} />
-                                <PnLRow label="Less: Total Expenses" value={-statement.totalExpenses} />
-                                <PnLRow label={statement.netProfit >= 0 ? "Net Profit" : "Net Loss"} value={statement.netProfit} isFinal />
-                            </TableBody>
-                        </Table>
-                     </div>
+                      <Table>
+                           <TableHeader>
+                             <TableRow>
+                                 <TableHead>Description</TableHead>
+                                 <TableHead className="text-right">Amount (₦)</TableHead>
+                             </TableRow>
+                         </TableHeader>
+                        <TableBody>
+                            <PnLRow label="Less: Expenses" value={undefined} isHeader/>
+                            {Object.entries(statement.expenses).map(([key, value]) => (
+                                <PnLRow key={key} label={key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} value={value} isExpense />
+                            ))}
+                            <PnLRow label="Total Expenses" value={statement.totalExpenses} isTotal/>
+                            <PnLRow label="Net Profit c/d" value={statement.netProfit} isFinal />
+                        </TableBody>
+                    </Table>
                  </div>
             </CardContent>
         </Card>
@@ -1530,6 +1542,16 @@ function ProfitAndLossTab() {
 }
 
 export default function AccountingPage() {
+  const [notificationCounts, setNotificationCounts] = useState({ payments: 0 });
+
+  useEffect(() => {
+    const q = query(collection(db, "payment_confirmations"), where('status', '==', 'pending'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        setNotificationCounts({ payments: snapshot.size });
+    });
+    return () => unsubscribe();
+  }, [])
+
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-bold font-headline">Accounting</h1>
@@ -1573,10 +1595,13 @@ export default function AccountingPage() {
             <Tabs defaultValue="debtors-creditors" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="debtors-creditors">Debtors &amp; Creditors</TabsTrigger>
-                    <TabsTrigger value="payments">Payments &amp; Requests</TabsTrigger>
+                    <TabsTrigger value="payments" className="relative">
+                        Payments &amp; Requests
+                        {notificationCounts.payments > 0 && <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0">{notificationCounts.payments}</Badge>}
+                    </TabsTrigger>
                 </TabsList>
                 <TabsContent value="debtors-creditors"><DebtorsCreditorsTab /></TabsContent>
-                <TabsContent value="payments"><PaymentsRequestsTab /></TabsContent>
+                <TabsContent value="payments"><PaymentsRequestsTab notificationBadge={notificationCounts.payments > 0 ? <Badge variant="destructive">{notificationCounts.payments}</Badge> : null} /></TabsContent>
             </Tabs>
         </TabsContent>
          <TabsContent value="assets">

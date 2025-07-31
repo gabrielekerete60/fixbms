@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -113,6 +112,9 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
                         sublink.disabled && "cursor-not-allowed opacity-50"
                         )}>
                     {sublink.label}
+                     {sublink.notificationKey && notificationCounts[sublink.notificationKey] > 0 && (
+                        <Badge variant="destructive" className="absolute right-2 h-5 w-5 flex items-center justify-center p-0">{notificationCounts[sublink.notificationKey]}</Badge>
+                    )}
                 </Link>
               ))}
             </CollapsibleContent>
@@ -134,6 +136,11 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
           >
             <link.icon className="h-4 w-4" />
             {link.label}
+             {link.notificationKey && notificationCounts[link.notificationKey] > 0 && (
+                <Badge variant="destructive" className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
+                    {notificationCounts[link.notificationKey]}
+                </Badge>
+            )}
           </Link>
         )
       )}
@@ -158,6 +165,7 @@ export default function DashboardLayout({
   const [notificationCounts, setNotificationCounts] = useState({
       pendingTransfers: 0,
       pendingBatches: 0,
+      pendingPayments: 0,
   });
   
   const applyTheme = useCallback((theme: string | undefined) => {
@@ -230,7 +238,6 @@ export default function DashboardLayout({
             setUser(currentUser => {
                 if (!currentUser) return null;
                 const newTheme = userData.theme || 'default';
-                // Only trigger a re-render and localStorage update if something meaningful has changed.
                 const hasChanged = currentUser.name !== userData.name || 
                                    currentUser.role !== userData.role || 
                                    currentUser.theme !== newTheme;
@@ -253,12 +260,16 @@ export default function DashboardLayout({
     
     const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
     const unsubBatches = onSnapshot(pendingBatchesQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingBatches: snap.size })));
+
+    const pendingPaymentsQuery = query(collection(db, 'payment_confirmations'), where('status', '==', 'pending'));
+    const unsubPayments = onSnapshot(pendingPaymentsQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingPayments: snap.size })));
     
     return () => {
         clearInterval(timer);
         unsubUser();
         unsubPending();
         unsubBatches();
+        unsubPayments();
     };
   }, [user?.staff_id, handleLogout, applyTheme]);
   
@@ -301,7 +312,7 @@ export default function DashboardLayout({
         ]
       },
       {
-        icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Developer'], sublinks: [
+        icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Developer'], notificationKey: "inventory", sublinks: [
           { href: "/dashboard/inventory/products", label: "Products", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/recipes", label: "Recipes & Production", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'] },
           { href: "/dashboard/inventory/ingredients", label: "Ingredients", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
@@ -326,7 +337,7 @@ export default function DashboardLayout({
         ]
       },
       { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", roles: ['Manager', 'Supervisor', 'Delivery Staff', 'Developer'] },
-      { href: "/dashboard/accounting", icon: Wallet, label: "Accounting", roles: ['Manager', 'Accountant', 'Developer'] },
+      { href: "/dashboard/accounting", icon: Wallet, label: "Accounting", notificationKey: "accounting", roles: ['Manager', 'Accountant', 'Developer'] },
       { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor', 'Developer'], disabled: true },
       { href: "/dashboard/communication", icon: HelpingHand, label: "Communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/documentation", icon: BookOpen, label: "Documentation", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
@@ -365,6 +376,8 @@ export default function DashboardLayout({
 
   const combinedNotificationCounts = useMemo(() => ({
     stockControl: notificationCounts.pendingTransfers + notificationCounts.pendingBatches,
+    inventory: notificationCounts.pendingTransfers + notificationCounts.pendingBatches,
+    accounting: notificationCounts.pendingPayments,
   }), [notificationCounts]);
 
   if (!user) {

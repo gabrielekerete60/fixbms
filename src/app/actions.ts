@@ -1,5 +1,3 @@
-
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -909,8 +907,11 @@ export async function getDiscountRecords() {
 }
 
 
-export async function getWages() {
-    const snapshot = await getDocs(query(collection(db, "wages")));
+export async function getWages(dateRange?: { from: Date, to: Date }) {
+    const dateFilters = dateRange 
+        ? [where("date", ">=", Timestamp.fromDate(dateRange.from)), where("date", "<=", Timestamp.fromDate(dateRange.to))]
+        : [];
+    const snapshot = await getDocs(query(collection(db, "wages"), ...dateFilters));
     return snapshot.docs.map(doc => {
         const data = doc.data();
         const date = (data.date as Timestamp)?.toDate().toISOString();
