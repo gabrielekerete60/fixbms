@@ -454,7 +454,9 @@ function DebtorsCreditorsTab() {
     const [debtLedger, setDebtLedger] = useState<DebtRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [date, setDate] = useState<DateRange | undefined>();
-    const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
+    const [visibleLedgerRows, setVisibleLedgerRows] = useState<number | 'all'>(10);
+    const [visibleCreditorRows, setVisibleCreditorRows] = useState<number | 'all'>(10);
+    const [visibleDebtorRows, setVisibleDebtorRows] = useState<number | 'all'>(10);
 
     const fetchData = useCallback(() => {
         setIsLoading(true);
@@ -482,6 +484,10 @@ function DebtorsCreditorsTab() {
             return recDate >= from && recDate <= to;
         });
     }, [debtLedger, date]);
+
+    const paginatedCreditors = useMemo(() => visibleCreditorRows === 'all' ? creditors : creditors.slice(0, visibleCreditorRows), [creditors, visibleCreditorRows]);
+    const paginatedDebtors = useMemo(() => visibleDebtorRows === 'all' ? debtors : debtors.slice(0, visibleDebtorRows), [debtors, visibleDebtorRows]);
+    const paginatedLedger = useMemo(() => visibleLedgerRows === 'all' ? filteredLedger : filteredLedger.slice(0, visibleLedgerRows), [filteredLedger, visibleLedgerRows]);
     
     const { debitTotal, creditTotal } = useMemo(() => {
         const debit = filteredLedger.reduce((sum, item) => sum + (item.debit || 0), 0);
@@ -489,10 +495,6 @@ function DebtorsCreditorsTab() {
         return { debitTotal: debit, creditTotal: credit };
     }, [filteredLedger]);
 
-    const paginatedLedger = useMemo(() => {
-        return visibleRows === 'all' ? filteredLedger : filteredLedger.slice(0, visibleRows);
-    }, [filteredLedger, visibleRows]);
-    
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
     return (
@@ -508,8 +510,8 @@ function DebtorsCreditorsTab() {
                         <Table>
                             <TableHeader><TableRow><TableHead>Supplier</TableHead><TableHead>Contact</TableHead><TableHead className="text-right">Balance</TableHead><TableHead className="text-center">Action</TableHead></TableRow></TableHeader>
                             <TableBody>
-                                {creditors.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">No outstanding creditors.</TableCell></TableRow>}
-                                {creditors.map(c => (
+                                {paginatedCreditors.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">No outstanding creditors.</TableCell></TableRow>}
+                                {paginatedCreditors.map(c => (
                                     <TableRow key={c.id}>
                                         <TableCell>{c.name}</TableCell>
                                         <TableCell>{c.contactPerson}</TableCell>
@@ -521,6 +523,9 @@ function DebtorsCreditorsTab() {
                         </Table>
                         </div>
                     </CardContent>
+                    <CardFooter>
+                        <PaginationControls visibleRows={visibleCreditorRows} setVisibleRows={setVisibleCreditorRows} totalRows={creditors.length} />
+                    </CardFooter>
                 </Card>
                 <Card>
                     <CardHeader>
@@ -532,8 +537,8 @@ function DebtorsCreditorsTab() {
                         <Table>
                             <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader>
                             <TableBody>
-                                {debtors.length === 0 && <TableRow><TableCell colSpan={3} className="h-24 text-center">No outstanding debtors.</TableCell></TableRow>}
-                                {debtors.map(d => (
+                                {paginatedDebtors.length === 0 && <TableRow><TableCell colSpan={3} className="h-24 text-center">No outstanding debtors.</TableCell></TableRow>}
+                                {paginatedDebtors.map(d => (
                                     <TableRow key={d.id}>
                                         <TableCell>{d.name}</TableCell>
                                         <TableCell>{d.phone}</TableCell>
@@ -544,6 +549,9 @@ function DebtorsCreditorsTab() {
                         </Table>
                         </div>
                     </CardContent>
+                    <CardFooter>
+                        <PaginationControls visibleRows={visibleDebtorRows} setVisibleRows={setVisibleDebtorRows} totalRows={debtors.length} />
+                    </CardFooter>
                 </Card>
             </div>
              <Card>
@@ -598,7 +606,7 @@ function DebtorsCreditorsTab() {
                     </div>
                 </CardContent>
                 <CardFooter>
-                    <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredLedger.length} />
+                    <PaginationControls visibleRows={visibleLedgerRows} setVisibleRows={setVisibleLedgerRows} totalRows={filteredLedger.length} />
                 </CardFooter>
             </Card>
         </div>
@@ -1709,3 +1717,4 @@ export default function AccountingPage() {
     </div>
   );
 }
+
