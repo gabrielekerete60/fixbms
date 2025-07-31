@@ -57,6 +57,47 @@ const chartConfig = {
     color: "hsl(var(--primary))",
   },
 };
+
+function PaginationControls({
+    visibleRows,
+    setVisibleRows,
+    totalRows
+}: {
+    visibleRows: number | 'all',
+    setVisibleRows: (val: number | 'all') => void,
+    totalRows: number
+}) {
+    const [inputValue, setInputValue] = useState<string | number>('');
+
+    const handleApplyInput = () => {
+        const num = Number(inputValue);
+        if (!isNaN(num) && num > 0) {
+            setVisibleRows(num);
+        }
+    };
+
+    return (
+        <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+            <span>Show:</span>
+            <Button variant={visibleRows === 10 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(10)}>10</Button>
+            <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
+            <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
+            <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
+            <div className="flex items-center gap-2">
+                <Input 
+                    type="number" 
+                    className="h-9 w-20"
+                    placeholder="Custom"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleApplyInput()}
+                />
+                 <Button size="sm" onClick={handleApplyInput}>Apply</Button>
+            </div>
+        </div>
+    )
+}
+
 // --- DIALOGS FOR ADDING DATA ---
 
 function AddDirectCostDialog({ onCostAdded }: { onCostAdded: () => void }) {
@@ -259,6 +300,7 @@ function DebtorsCreditorsTab() {
     const [debtLedger, setDebtLedger] = useState<DebtRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [date, setDate] = useState<DateRange | undefined>();
+    const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
     const fetchData = useCallback(() => {
         setIsLoading(true);
@@ -292,6 +334,10 @@ function DebtorsCreditorsTab() {
         const credit = filteredLedger.reduce((sum, item) => sum + (item.credit || 0), 0);
         return { debitTotal: debit, creditTotal: credit };
     }, [filteredLedger]);
+
+    const paginatedLedger = useMemo(() => {
+        return visibleRows === 'all' ? filteredLedger : filteredLedger.slice(0, visibleRows);
+    }, [filteredLedger, visibleRows]);
     
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -375,8 +421,8 @@ function DebtorsCreditorsTab() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredLedger.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">No ledger entries for this period.</TableCell></TableRow>}
-                                {filteredLedger.map(item => (
+                                {paginatedLedger.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">No ledger entries for this period.</TableCell></TableRow>}
+                                {paginatedLedger.map(item => (
                                     <TableRow key={item.id}>
                                         <TableCell>{format(new Date(item.date), 'PPP')}</TableCell>
                                         <TableCell>{item.description}</TableCell>
@@ -399,6 +445,9 @@ function DebtorsCreditorsTab() {
                         </Table>
                     </div>
                 </CardContent>
+                <CardFooter>
+                    <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredLedger.length} />
+                </CardFooter>
             </Card>
         </div>
     );
@@ -409,6 +458,7 @@ function DirectCostsTab() {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [date, setDate] = useState<DateRange | undefined>();
+    const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
     const fetchCosts = useCallback(() => {
         setIsLoading(true);
@@ -450,6 +500,10 @@ function DirectCostsTab() {
 
         return { totalCost: total, categoryTotals: sortedCategories, chartData: chart, filteredCosts: filtered };
     }, [costs, searchTerm, date]);
+    
+    const paginatedCosts = useMemo(() => {
+        return visibleRows === 'all' ? filteredCosts : filteredCosts.slice(0, visibleRows);
+    }, [filteredCosts, visibleRows]);
 
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -510,7 +564,7 @@ function DirectCostsTab() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredCosts.map(c => (
+                                    {paginatedCosts.map(c => (
                                         <TableRow key={c.id}>
                                             <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
                                             <TableCell>{c.description}</TableCell>
@@ -523,6 +577,9 @@ function DirectCostsTab() {
                             </Table>
                         </div>
                     </CardContent>
+                    <CardFooter>
+                        <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
+                    </CardFooter>
                 </Card>
                 <Card className="md:col-span-2">
                     <CardHeader>
@@ -551,6 +608,7 @@ function IndirectCostsTab() {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [date, setDate] = useState<DateRange | undefined>();
+    const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
     const fetchCosts = useCallback(() => {
         setIsLoading(true);
@@ -592,6 +650,10 @@ function IndirectCostsTab() {
 
         return { totalCost: total, categoryTotals: sortedCategories, chartData: chart, filteredCosts: filtered };
     }, [costs, searchTerm, date]);
+    
+    const paginatedCosts = useMemo(() => {
+        return visibleRows === 'all' ? filteredCosts : filteredCosts.slice(0, visibleRows);
+    }, [filteredCosts, visibleRows]);
 
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -651,7 +713,7 @@ function IndirectCostsTab() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredCosts.map(c => (
+                                    {paginatedCosts.map(c => (
                                         <TableRow key={c.id}>
                                             <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
                                             <TableCell>{c.description}</TableCell>
@@ -663,6 +725,9 @@ function IndirectCostsTab() {
                             </Table>
                         </div>
                     </CardContent>
+                    <CardFooter>
+                        <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
+                    </CardFooter>
                 </Card>
                 <Card className="md:col-span-2">
                     <CardHeader>
@@ -692,6 +757,8 @@ function PaymentsRequestsTab() {
     const [confirmations, setConfirmations] = useState<PaymentConfirmation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [actioningId, setActioningId] = useState<string | null>(null);
+    const [visiblePendingRows, setVisiblePendingRows] = useState<number | 'all'>(10);
+    const [visibleResolvedRows, setVisibleResolvedRows] = useState<number | 'all'>(10);
 
     const fetchConfirmations = useCallback(() => {
         setIsLoading(true);
@@ -722,6 +789,14 @@ function PaymentsRequestsTab() {
     
     const pendingConfirmations = confirmations.filter(c => c.status === 'pending');
     const resolvedConfirmations = confirmations.filter(c => c.status !== 'pending');
+
+    const paginatedPending = useMemo(() => {
+        return visiblePendingRows === 'all' ? pendingConfirmations : pendingConfirmations.slice(0, visiblePendingRows);
+    }, [pendingConfirmations, visiblePendingRows]);
+
+    const paginatedResolved = useMemo(() => {
+        return visibleResolvedRows === 'all' ? resolvedConfirmations : resolvedConfirmations.slice(0, visibleResolvedRows);
+    }, [resolvedConfirmations, visibleResolvedRows]);
     
     return (
         <div className="space-y-6">
@@ -744,10 +819,10 @@ function PaymentsRequestsTab() {
                         <TableBody>
                         {isLoading ? (
                             <TableRow><TableCell colSpan={7} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                        ) : pendingConfirmations.length === 0 ? (
+                        ) : paginatedPending.length === 0 ? (
                             <TableRow><TableCell colSpan={7} className="h-24 text-center">No pending confirmations.</TableCell></TableRow>
                         ) : (
-                            pendingConfirmations.map(c => (
+                            paginatedPending.map(c => (
                             <TableRow key={c.id}>
                                 <TableCell>{format(new Date(c.date), 'Pp')}</TableCell>
                                 <TableCell>{c.driverName}</TableCell>
@@ -774,6 +849,9 @@ function PaymentsRequestsTab() {
                     </Table>
                     </div>
                 </CardContent>
+                 <CardFooter>
+                    <PaginationControls visibleRows={visiblePendingRows} setVisibleRows={setVisiblePendingRows} totalRows={pendingConfirmations.length} />
+                </CardFooter>
             </Card>
              <Card>
                 <CardHeader>
@@ -787,10 +865,10 @@ function PaymentsRequestsTab() {
                          <TableBody>
                              {isLoading ? (
                                 <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                            ) : resolvedConfirmations.length === 0 ? (
+                            ) : paginatedResolved.length === 0 ? (
                                 <TableRow><TableCell colSpan={5} className="h-24 text-center">No resolved requests.</TableCell></TableRow>
                             ) : (
-                                resolvedConfirmations.map(c => (
+                                paginatedResolved.map(c => (
                                 <TableRow key={c.id}>
                                     <TableCell>{format(new Date(c.date), 'Pp')}</TableCell>
                                     <TableCell>{c.driverName}</TableCell>
@@ -804,6 +882,9 @@ function PaymentsRequestsTab() {
                     </Table>
                     </div>
                 </CardContent>
+                 <CardFooter>
+                    <PaginationControls visibleRows={visibleResolvedRows} setVisibleRows={setVisibleResolvedRows} totalRows={resolvedConfirmations.length} />
+                </CardFooter>
             </Card>
         </div>
     )
@@ -814,6 +895,7 @@ function SalesRecordsTab() {
     const [records, setRecords] = useState<Sale[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [date, setDate] = useState<DateRange | undefined>();
+    const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
     useEffect(() => { 
         getSales().then(data => { 
@@ -831,6 +913,10 @@ function SalesRecordsTab() {
             return recDate >= from && recDate <= to;
         });
     }, [records, date]);
+    
+    const paginatedRecords = useMemo(() => {
+        return visibleRows === 'all' ? filteredRecords : filteredRecords.slice(0, visibleRows);
+    }, [filteredRecords, visibleRows]);
 
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -859,10 +945,13 @@ function SalesRecordsTab() {
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Cash</TableHead><TableHead className="text-right">Transfer</TableHead><TableHead className="text-right">POS</TableHead><TableHead className="text-right">Credit Sales</TableHead><TableHead className="text-right">Shortage</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
-                        <TableBody>{filteredRecords.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell className="text-right">{formatCurrency(r.cash)}</TableCell><TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell><TableCell className="text-right">{formatCurrency(r.pos)}</TableCell><TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell><TableCell className="text-right">{formatCurrency(r.shortage)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell></TableRow>)}</TableBody>
+                        <TableBody>{paginatedRecords.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell className="text-right">{formatCurrency(r.cash)}</TableCell><TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell><TableCell className="text-right">{formatCurrency(r.pos)}</TableCell><TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell><TableCell className="text-right">{formatCurrency(r.shortage)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell></TableRow>)}</TableBody>
                     </Table>
                 </div>
             </CardContent>
+            <CardFooter>
+                 <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredRecords.length} />
+            </CardFooter>
         </Card>
     );
 }
@@ -872,6 +961,7 @@ function DrinkSalesTab() {
     const [isLoading, setIsLoading] = useState(true);
     const [salesMargin, setSalesMargin] = useState(5);
     const [date, setDate] = useState<DateRange | undefined>();
+    const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
     const fetchDrinkSales = useCallback(async (newDate: DateRange | undefined) => {
         setIsLoading(true);
@@ -902,14 +992,23 @@ function DrinkSalesTab() {
         });
     }, [records, salesMargin]);
 
-    const totals = useMemo(() => {
-        return reportData.reduce((acc, curr) => {
+    const { totals, totalQuantitySold } = useMemo(() => {
+        const initialTotals = { purchases: 0, amount: 0, marginTotal: 0 };
+        const totals = reportData.reduce((acc, curr) => {
             acc.purchases += curr.amountPurchases;
             acc.amount += curr.amount;
             acc.marginTotal += curr.salesMarginTotal;
             return acc;
-        }, { purchases: 0, amount: 0, marginTotal: 0 });
+        }, initialTotals);
+        
+        const totalQuantitySold = reportData.reduce((sum, item) => sum + item.quantitySold, 0);
+
+        return { totals, totalQuantitySold };
     }, [reportData]);
+    
+    const paginatedReport = useMemo(() => {
+        return visibleRows === 'all' ? reportData : reportData.slice(0, visibleRows);
+    }, [reportData, visibleRows]);
 
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -956,7 +1055,7 @@ function DrinkSalesTab() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {reportData.map(r => (
+                            {paginatedReport.map(r => (
                                 <TableRow key={r.productId}>
                                     <TableCell>{r.productName}</TableCell>
                                     <TableCell className="text-right">{formatCurrency(r.amountPurchases)}</TableCell>
@@ -972,7 +1071,8 @@ function DrinkSalesTab() {
                             <TableRow>
                                 <TableCell className="font-bold">Grand Total</TableCell>
                                 <TableCell className="text-right font-bold">{formatCurrency(totals.purchases)}</TableCell>
-                                <TableCell colSpan={3}></TableCell>
+                                <TableCell className="text-right font-bold">{totalQuantitySold}</TableCell>
+                                <TableCell colSpan={2}></TableCell>
                                 <TableCell className="text-right font-bold">{formatCurrency(totals.amount)}</TableCell>
                                 <TableCell className="text-right font-bold">{formatCurrency(totals.marginTotal)}</TableCell>
                             </TableRow>
@@ -980,6 +1080,9 @@ function DrinkSalesTab() {
                     </Table>
                 </div>
             </CardContent>
+            <CardFooter>
+                <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={reportData.length} />
+            </CardFooter>
         </Card>
     );
 }
@@ -991,6 +1094,7 @@ function ClosingStockTab() {
     const [loanAccount, setLoanAccount] = useState<DebtRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [date, setDate] = useState<DateRange | undefined>();
+    const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -1036,16 +1140,25 @@ function ClosingStockTab() {
         });
     }, [loanAccount, date]);
 
+    const paginatedBadBread = useMemo(() => {
+        return visibleRows === 'all' ? filteredBadBread : filteredBadBread.slice(0, visibleRows);
+    }, [filteredBadBread, visibleRows]);
+
+    const paginatedLoanAccount = useMemo(() => {
+        return visibleRows === 'all' ? filteredLoanAccount : filteredLoanAccount.slice(0, visibleRows);
+    }, [filteredLoanAccount, visibleRows]);
+
 
     const totalClosingStock = useMemo(() => closingStock.reduce((sum, item) => sum + (item.amount || 0), 0), [closingStock]);
     const totalDiscounts = useMemo(() => discounts.reduce((sum, item) => sum + (item.amount || 0), 0), [discounts]);
-    const totalLoanDebit = useMemo(() => filteredLoanAccount.reduce((sum, item) => sum + (item.debit || 0), 0), [filteredLoanAccount]);
+    const totalLoanDebit = useMemo(() => paginatedLoanAccount.reduce((sum, item) => sum + (item.debit || 0), 0), [paginatedLoanAccount]);
     
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
     return (
         <div className="space-y-6">
-             <div className="flex justify-end">
+             <div className="flex justify-between items-center">
+                 <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={Math.max(filteredBadBread.length, filteredLoanAccount.length)} />
                 <Popover>
                     <PopoverTrigger asChild>
                     <Button id="date" variant={"outline"} className={cn("w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
@@ -1080,7 +1193,7 @@ function ClosingStockTab() {
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Debit</TableHead></TableRow></TableHeader>
-                            <TableBody>{filteredLoanAccount.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell className="text-right">{formatCurrency(r.debit)}</TableCell></TableRow>)}</TableBody>
+                            <TableBody>{paginatedLoanAccount.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell className="text-right">{formatCurrency(r.debit)}</TableCell></TableRow>)}</TableBody>
                             <TableFooter><TableRow><TableCell colSpan={2} className="font-bold text-right">Total Loan</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalLoanDebit)}</TableCell></TableRow></TableFooter>
                         </Table>
                     </CardContent>
@@ -1096,7 +1209,7 @@ function ClosingStockTab() {
                     <CardContent>
                         <Table>
                             <TableHeader><TableRow><TableHead>Bread Type</TableHead><TableHead className="text-right">Quantity</TableHead></TableRow></TableHeader>
-                            <TableBody>{filteredBadBread.map(r => <TableRow key={r.id}><TableCell>{r.productName}</TableCell><TableCell className="text-right">{r.quantity}</TableCell></TableRow>)}</TableBody>
+                            <TableBody>{paginatedBadBread.map(r => <TableRow key={r.id}><TableCell>{r.productName}</TableCell><TableCell className="text-right">{r.quantity}</TableCell></TableRow>)}</TableBody>
                         </Table>
                     </CardContent>
                 </Card>
@@ -1122,6 +1235,7 @@ function ClosingStockTab() {
 function WagesTab() {
     const [records, setRecords] = useState<Wage[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
     useEffect(() => {
         getWages().then(data => {
@@ -1141,6 +1255,10 @@ function WagesTab() {
             return acc;
         }, { salary: 0, shortages: 0, advanceSalary: 0, debt: 0, fine: 0, netPay: 0 });
     }, [records]);
+    
+    const paginatedRecords = useMemo(() => {
+        return visibleRows === 'all' ? records : records.slice(0, visibleRows);
+    }, [records, visibleRows]);
 
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -1165,7 +1283,7 @@ function WagesTab() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {records.map(r => (
+                            {paginatedRecords.map(r => (
                                 <TableRow key={r.id}>
                                     <TableCell>{r.name}</TableCell>
                                     <TableCell>{r.position}</TableCell>
@@ -1186,6 +1304,9 @@ function WagesTab() {
                     </Table>
                 </div>
             </CardContent>
+            <CardFooter>
+                <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={records.length} />
+            </CardFooter>
         </Card>
     );
 }
