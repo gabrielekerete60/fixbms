@@ -1145,6 +1145,7 @@ export type PaymentConfirmation = {
   items: { productId: string; quantity: number, price: number, name: string }[];
   isDebtPayment?: boolean;
   customerId?: string;
+  paymentMethod: 'Cash' | 'POS';
 };
 
 
@@ -1208,7 +1209,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         customerId: confirmationData.customerId || 'walk-in',
                         customerName: confirmationData.customerName,
                         total: confirmationData.amount,
-                        paymentMethod: 'Cash',
+                        paymentMethod: confirmationData.paymentMethod,
                         date: Timestamp.now(),
                         staffId: confirmationData.driverId,
                         status: 'Completed',
@@ -1995,7 +1996,7 @@ type SaleData = {
     items: { productId: string; quantity: number; price: number, name: string }[];
     customerId: string;
     customerName: string;
-    paymentMethod: 'Cash' | 'Credit' | 'Card';
+    paymentMethod: 'Cash' | 'Credit' | 'POS' | 'Paystack';
     staffId: string;
     total: number;
 }
@@ -2035,7 +2036,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       }
 
       // Logic for different payment methods
-      if (data.paymentMethod === 'Cash') {
+      if (data.paymentMethod === 'Cash' || data.paymentMethod === 'POS') {
         const confirmationRef = doc(collection(db, 'payment_confirmations'));
         transaction.set(confirmationRef, {
           runId: data.runId,
@@ -2046,10 +2047,11 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
           driverId: data.staffId,
           driverName: driverName,
           date: serverTimestamp(),
-          status: 'pending'
+          status: 'pending',
+          paymentMethod: data.paymentMethod
         });
 
-      } else { 
+      } else { // This handles 'Credit' and 'Paystack'
         const newOrderRef = doc(collection(db, 'orders'));
         const orderData = {
           salesRunId: data.runId,
@@ -2065,7 +2067,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
         transaction.set(newOrderRef, orderData);
 
         const runRef = doc(db, 'transfers', data.runId);
-        if (data.paymentMethod === 'Card') {
+        if (data.paymentMethod === 'Paystack') { // Assumes Paystack payments are collected
           transaction.update(runRef, { totalCollected: increment(data.total) });
         }
         
@@ -2104,6 +2106,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
             status: 'pending',
             items: [], // Not a new sale, so no items
             isDebtPayment: true,
+            paymentMethod: 'Cash' // Assuming debt payments are cash
         });
         return { success: true };
     } catch (error) {

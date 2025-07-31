@@ -685,35 +685,37 @@ export default function StockControlPage() {
         <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
       </div>
       <Tabs defaultValue="initiate-transfer">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="initiate-transfer">
-              <Send className="mr-2 h-4 w-4" /> Initiate Transfer
-          </TabsTrigger>
-          <TabsTrigger value="prod-requests" className="relative">
-            <Wrench className="mr-2 h-4 w-4" /> Batch Approvals
-             {pendingBatches.length > 0 && (
-                <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
-                    {pendingBatches.length}
-                </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="production-transfers" className="relative">
-            <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
-             {productionTransfers.length > 0 && (
-                <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
-                    {productionTransfers.length}
-                </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="pending-transfers" className="relative">
-            <Hourglass className="mr-2 h-4 w-4" /> All Pending
-             {initiatedTransfers.filter(t => t.status === 'pending').length > 0 && (
-                <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
-                    {initiatedTransfers.filter(t => t.status === 'pending').length}
-                </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-2">
+            <TabsList>
+                <TabsTrigger value="initiate-transfer">
+                    <Send className="mr-2 h-4 w-4" /> Initiate Transfer
+                </TabsTrigger>
+                <TabsTrigger value="prod-requests" className="relative">
+                    <Wrench className="mr-2 h-4 w-4" /> Batch Approvals
+                    {pendingBatches.length > 0 && (
+                        <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                            {pendingBatches.length}
+                        </Badge>
+                    )}
+                </TabsTrigger>
+                <TabsTrigger value="production-transfers" className="relative">
+                    <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
+                    {productionTransfers.length > 0 && (
+                        <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                            {productionTransfers.length}
+                        </Badge>
+                    )}
+                </TabsTrigger>
+                <TabsTrigger value="pending-transfers" className="relative">
+                    <Hourglass className="mr-2 h-4 w-4" /> All Pending
+                    {initiatedTransfers.filter(t => t.status === 'pending').length > 0 && (
+                        <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                            {initiatedTransfers.filter(t => t.status === 'pending').length}
+                        </Badge>
+                    )}
+                </TabsTrigger>
+            </TabsList>
+        </div>
         <TabsContent value="initiate-transfer">
         <Card>
             <CardHeader>

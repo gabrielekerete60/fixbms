@@ -687,12 +687,12 @@ function PaymentsRequestsTab() {
                 <CardContent>
                    <div className="overflow-x-auto">
                     <Table>
-                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Run ID</TableHead><TableHead>Customer</TableHead><TableHead>Amount</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Run ID</TableHead><TableHead>Customer</TableHead><TableHead>Amount</TableHead><TableHead>Method</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
                         {isLoading ? (
-                            <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            <TableRow><TableCell colSpan={7} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
                         ) : pendingConfirmations.length === 0 ? (
-                            <TableRow><TableCell colSpan={6} className="h-24 text-center">No pending confirmations.</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={7} className="h-24 text-center">No pending confirmations.</TableCell></TableRow>
                         ) : (
                             pendingConfirmations.map(c => (
                             <TableRow key={c.id}>
@@ -701,6 +701,7 @@ function PaymentsRequestsTab() {
                                 <TableCell>{c.runId.substring(0, 8)}...</TableCell>
                                 <TableCell>{c.customerName}</TableCell>
                                 <TableCell>{formatCurrency(c.amount)}</TableCell>
+                                <TableCell><Badge variant="outline">{c.paymentMethod}</Badge></TableCell>
                                 <TableCell className="text-right">
                                      <div className="flex gap-2 justify-end">
                                         <AlertDialog>
@@ -729,18 +730,19 @@ function PaymentsRequestsTab() {
                 <CardContent>
                     <div className="overflow-x-auto">
                     <Table>
-                         <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                         <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Amount</TableHead><TableHead>Method</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                          <TableBody>
                              {isLoading ? (
-                                <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
                             ) : resolvedConfirmations.length === 0 ? (
-                                <TableRow><TableCell colSpan={4} className="h-24 text-center">No resolved requests.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No resolved requests.</TableCell></TableRow>
                             ) : (
                                 resolvedConfirmations.map(c => (
                                 <TableRow key={c.id}>
                                     <TableCell>{format(new Date(c.date), 'Pp')}</TableCell>
                                     <TableCell>{c.driverName}</TableCell>
                                     <TableCell>{formatCurrency(c.amount)}</TableCell>
+                                    <TableCell><Badge variant="outline">{c.paymentMethod}</Badge></TableCell>
                                     <TableCell><Badge variant={c.status === 'approved' ? 'default' : 'destructive'}>{c.status}</Badge></TableCell>
                                 </TableRow>
                                 ))
@@ -758,16 +760,53 @@ function PaymentsRequestsTab() {
 function SalesRecordsTab() {
     const [records, setRecords] = useState<Sale[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    useEffect(() => { getSales().then(data => { setRecords(data as Sale[]); setIsLoading(false); }); }, []);
+    const [date, setDate] = useState<DateRange | undefined>();
+
+    useEffect(() => { 
+        getSales().then(data => { 
+            setRecords(data as Sale[]); 
+            setIsLoading(false); 
+        }); 
+    }, []);
+
+    const filteredRecords = useMemo(() => {
+        if (!date?.from) return records;
+        const from = startOfDay(date.from);
+        const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
+        return records.filter(rec => {
+            const recDate = new Date(rec.date);
+            return recDate >= from && recDate <= to;
+        });
+    }, [records, date]);
+
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
     return (
         <Card>
-            <CardHeader><CardTitle>Daily Sales Records</CardTitle><CardDescription>A log of all daily sales transactions.</CardDescription></CardHeader>
+            <CardHeader>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <CardTitle>Daily Sales Records</CardTitle>
+                        <CardDescription>A log of all daily sales transactions.</CardDescription>
+                    </div>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <Button id="date" variant={"outline"} className={cn("w-full md:w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+            </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Cash</TableHead><TableHead className="text-right">Transfer</TableHead><TableHead className="text-right">POS</TableHead><TableHead className="text-right">Credit Sales</TableHead><TableHead className="text-right">Shortage</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
-                        <TableBody>{records.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell className="text-right">{formatCurrency(r.cash)}</TableCell><TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell><TableCell className="text-right">{formatCurrency(r.pos)}</TableCell><TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell><TableCell className="text-right">{formatCurrency(r.shortage)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell></TableRow>)}</TableBody>
+                        <TableBody>{filteredRecords.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell className="text-right">{formatCurrency(r.cash)}</TableCell><TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell><TableCell className="text-right">{formatCurrency(r.pos)}</TableCell><TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell><TableCell className="text-right">{formatCurrency(r.shortage)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell></TableRow>)}</TableBody>
                     </Table>
                 </div>
             </CardContent>
