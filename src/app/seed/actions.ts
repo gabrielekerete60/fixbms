@@ -236,9 +236,22 @@ const seedData = {
     { date: daysAgo(3), description: 'Misc purchases', category: 'Purchases', amount: 31500 },
     { date: daysAgo(1), description: 'PHCN Bill', category: 'Electricity', amount: 45000 },
   ],
-  wages: [
-    { id: `wage_1`, name: "All Staff", department: "Operations", position: "All", salary: 600000, deductions: { shortages: 0, advanceSalary: 114000, debt: 0, fine: 0 }, netPay: 486000, date: daysAgo(5) },
-  ],
+  wages: staffData.filter(s => s.role !== 'Developer').map((s, i) => ({
+      id: `wage_${i+1}`,
+      staffId: s.staff_id,
+      staffName: s.name,
+      basePay: s.pay_rate,
+      additions: Math.random() > 0.8 ? s.pay_rate * 0.1 : 0, // 10% bonus for some
+      deductions: {
+          shortages: 0,
+          advanceSalary: Math.random() > 0.9 ? 10000 : 0, // Advance for some
+          debt: 0,
+          fine: Math.random() > 0.95 ? 5000 : 0, // Fine for few
+      },
+      netPay: 0, // Will be calculated
+      month: format(daysAgo(35), 'MMMM yyyy'),
+      date: daysAgo(35)
+  })),
   closingStocks: [
     { id: 'cs_1', item: 'Flour', remainingStock: '100KG', amount: 108000 },
     { id: 'cs_2', item: 'Yeast', remainingStock: '9 Pack', amount: 27000 },
@@ -263,6 +276,13 @@ const seedData = {
       { id: 'dr_7', bread_type: 'Big Bite', amount: 600 },
   ]
 };
+
+// Calculate net pay for seeded wages
+seedData.wages = seedData.wages.map(w => {
+    const totalDeductions = w.deductions.shortages + w.deductions.advanceSalary + w.deductions.debt + w.deductions.fine;
+    w.netPay = w.basePay + w.additions - totalDeductions;
+    return w;
+});
 
 export async function verifySeedPassword(password: string): Promise<ActionResult> {
   const seedPassword = process.env.SEED_PASSWORD;
