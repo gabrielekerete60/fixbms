@@ -283,7 +283,7 @@ export default function PayrollPage() {
                                                     entry={payroll[s.id] || {}} 
                                                     onSave={(deductions) => handleDeductionsSave(s.id, deductions)}
                                                 >
-                                                    <Button variant="link" className="p-0 h-auto">
+                                                    <Button variant="link" className="p-0 h-auto text-destructive hover:underline">
                                                         {totalDeductions.toLocaleString()}
                                                     </Button>
                                                 </ManageDeductionsDialog>
@@ -305,7 +305,7 @@ export default function PayrollPage() {
                                     <TableCell className="text-right">{grandTotals.basePay.toLocaleString()}</TableCell>
                                     <TableCell className="text-right">{grandTotals.additions.toLocaleString()}</TableCell>
                                     <TableCell className="text-right">{grandTotals.grossPay.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right">{grandTotals.totalDeductions.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-destructive">{grandTotals.totalDeductions.toLocaleString()}</TableCell>
                                     <TableCell className="text-right">{grandTotals.netPay.toLocaleString()}</TableCell>
                                 </TableRow>
                             </TableFooter>
@@ -321,4 +321,5 @@ export default function PayrollPage() {
             </Card>
         </div>
     );
-}
+
+    
