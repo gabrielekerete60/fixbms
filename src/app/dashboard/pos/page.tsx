@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
@@ -840,13 +841,17 @@ function POSPageContent() {
         </AlertDialog>
 
         {/* Receipt Dialog */}
-        <div className="hidden">
-            {lastCompletedOrder && (
+        <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
+            <DialogContent className="sm:max-w-md print:max-w-full print:border-none print:shadow-none">
                 <div ref={receiptRef}>
-                    <Receipt order={lastCompletedOrder} storeAddress={storeAddress} />
+                    <Receipt order={lastCompletedOrder!} storeAddress={storeAddress} />
                 </div>
-            )}
-        </div>
+                <DialogFooter className="flex justify-end gap-2 print:hidden">
+                    <Button variant="outline" onClick={() => handlePrint(receiptRef.current)}><Printer className="mr-2 h-4 w-4"/> Print</Button>
+                    <Button onClick={() => setIsReceiptOpen(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
      </>
   );
 }

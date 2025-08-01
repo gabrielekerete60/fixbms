@@ -389,8 +389,8 @@ export default function StockControlPage() {
         setUser(currentUser);
 
         try {
-            // Fetch all staff for the transfer dropdown
-            const staffQuery = query(collection(db, "staff"), where("role", "in", ["Showroom Staff", "Delivery Staff"]));
+            // Fetch all staff for the transfer dropdown, excluding the developer
+            const staffQuery = query(collection(db, "staff"), where("role", "!=", "Developer"));
             const staffSnapshot = await getDocs(staffQuery);
             setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
 

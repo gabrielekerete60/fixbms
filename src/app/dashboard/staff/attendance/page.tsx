@@ -90,7 +90,7 @@ export default function AttendancePage() {
                 ...data,
                 staff_name: staffMap.get(data.staff_id) || 'Unknown Staff'
             } as AttendanceRecord
-        });
+        }).filter(record => staffMap.has(record.staff_id)); // Ensure developer records are filtered out
         setTodaysActivity(todayRecords);
         
         // Fetch all attendance for logs
@@ -103,7 +103,7 @@ export default function AttendancePage() {
                 ...data,
                 staff_name: staffMap.get(data.staff_id) || 'Unknown Staff'
             } as AttendanceRecord
-        });
+        }).filter(record => staffMap.has(record.staff_id)); // Ensure developer records are filtered out
         setAllAttendance(allRecords);
 
 
@@ -119,6 +119,7 @@ export default function AttendancePage() {
 
         weekAttendanceSnapshot.docs.forEach(doc => {
             const record = doc.data();
+             if (!staffMap.has(record.staff_id)) return; // Skip developer records
             const dateStr = record.clock_in_time.toDate().toISOString().split('T')[0];
             if (!attendanceByStaff[record.staff_id]) {
                 attendanceByStaff[record.staff_id] = new Set();
