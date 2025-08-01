@@ -278,36 +278,47 @@ export async function verifySeedPassword(password: string): Promise<ActionResult
   }
 }
 
+async function batchCommit(data: any[], collectionName: string) {
+    let batch = writeBatch(db);
+    let count = 0;
+    for (const item of data) {
+        let docRef;
+        const id = item.id || item.staff_id;
+        if (id) {
+            docRef = doc(db, collectionName, id);
+        } else {
+            docRef = doc(collection(db, collectionName));
+        }
+        
+        const itemWithTimestamps = { ...item };
+        for (const key of Object.keys(itemWithTimestamps)) {
+             if (itemWithTimestamps[key] instanceof Date) {
+                itemWithTimestamps[key] = Timestamp.fromDate(itemWithTimestamps[key]);
+            }
+        }
+
+        batch.set(docRef, itemWithTimestamps);
+        count++;
+        if (count % 400 === 0) {
+            console.log(`Committing batch of ${count} for ${collectionName}...`);
+            await batch.commit();
+            batch = writeBatch(db);
+        }
+    }
+    if (count % 400 !== 0) {
+        console.log(`Committing final batch of ${count % 400} for ${collectionName}...`);
+        await batch.commit();
+    }
+}
+
 export async function seedDatabase(): Promise<ActionResult> {
   console.log("Attempting to seed database...");
   try {
-    const batch = writeBatch(db);
-
     for (const [collectionName, data] of Object.entries(seedData)) {
-        if (Array.isArray(data)) {
-            data.forEach((item: any) => {
-                let docRef;
-                const id = item.id || item.staff_id;
-                if (id) {
-                    docRef = doc(db, collectionName, id);
-                } else {
-                    docRef = doc(collection(db, collectionName));
-                }
-                
-                const itemWithTimestamps = { ...item };
-                // Convert JS Dates to Firestore Timestamps
-                for (const key of Object.keys(itemWithTimestamps)) {
-                     if (itemWithTimestamps[key] instanceof Date) {
-                        itemWithTimestamps[key] = Timestamp.fromDate(itemWithTimestamps[key]);
-                    }
-                }
-
-                batch.set(docRef, itemWithTimestamps);
-            });
-        }
+      if (Array.isArray(data)) {
+        await batchCommit(data, collectionName);
+      }
     }
-
-    await batch.commit();
 
     console.log("Database seeded successfully.");
     return { success: true };
@@ -318,36 +329,53 @@ export async function seedDatabase(): Promise<ActionResult> {
   }
 }
 
-async function clearSubcollections(collectionPath: string, batch: writeBatch) {
+
+async function clearSubcollections(collectionPath: string) {
     const mainCollectionSnapshot = await getDocs(collection(db, collectionPath));
     for (const mainDoc of mainCollectionSnapshot.docs) {
+        let batch = writeBatch(db);
+        let count = 0;
         if (collectionPath === 'staff') {
             const subCollectionRef = collection(db, mainDoc.ref.path, 'personal_stock');
             const subCollectionSnapshot = await getDocs(subCollectionRef);
-            subCollectionSnapshot.forEach(subDoc => {
+            for (const subDoc of subCollectionSnapshot.docs) {
                 batch.delete(subDoc.ref);
-            });
+                count++;
+                if (count % 400 === 0) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                }
+            }
+        }
+        if (count % 400 !== 0 && count > 0) {
+            await batch.commit();
         }
     }
 }
+
 
 export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
     const collectionsToClear = Object.keys(seedData);
 
+    await clearSubcollections('staff');
+
     for (const collectionName of collectionsToClear) {
-      const batch = writeBatch(db);
-
-      if (collectionName === 'staff') {
-        await clearSubcollections('staff', batch);
-      }
-
       const querySnapshot = await getDocs(collection(db, collectionName));
-      querySnapshot.forEach((doc) => {
+      let batch = writeBatch(db);
+      let count = 0;
+      for (const doc of querySnapshot.docs) {
         batch.delete(doc.ref);
-      });
-      await batch.commit();
+        count++;
+        if (count % 400 === 0) {
+            await batch.commit();
+            batch = writeBatch(db);
+        }
+      }
+      if (count % 400 !== 0) {
+         await batch.commit();
+      }
       console.log(`Cleared collection: ${collectionName}`);
     }
 
@@ -361,16 +389,14 @@ export async function clearDatabase(): Promise<ActionResult> {
   }
 }
 
+
 export async function seedEmptyData(): Promise<ActionResult> {
   console.log("Attempting to seed empty data with users...");
   try {
-    // First, clear the entire database to ensure a fresh start
     await clearDatabase();
     
-    // Then, create a batch to seed only the staff
     const batch = writeBatch(db);
     
-    // Create all collections by adding and deleting a placeholder, except for staff
     const allCollections = Object.keys(seedData);
     for (const collectionName of allCollections) {
         if (collectionName !== 'staff') {
@@ -380,7 +406,6 @@ export async function seedEmptyData(): Promise<ActionResult> {
         }
     }
 
-    // Now, seed the staff data
     seedData.staff.forEach((staffMember) => {
       const docRef = doc(db, "staff", staffMember.staff_id);
       batch.set(docRef, staffMember);
