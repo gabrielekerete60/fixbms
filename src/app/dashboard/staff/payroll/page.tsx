@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -295,14 +295,16 @@ export default function PayrollPage() {
                                     )
                                 })}
                             </TableBody>
-                             <TableRow className="bg-muted/50 font-bold">
-                                <TableCell>Grand Totals</TableCell>
-                                <TableCell className="text-right">{grandTotals.basePay.toLocaleString()}</TableCell>
-                                <TableCell className="text-right">{grandTotals.additions.toLocaleString()}</TableCell>
-                                <TableCell className="text-right">{grandTotals.grossPay.toLocaleString()}</TableCell>
-                                <TableCell className="text-right">{grandTotals.totalDeductions.toLocaleString()}</TableCell>
-                                <TableCell className="text-right">{grandTotals.netPay.toLocaleString()}</TableCell>
-                            </TableRow>
+                            <TableFooter>
+                                <TableRow className="bg-muted/50 font-bold">
+                                    <TableCell>Grand Totals</TableCell>
+                                    <TableCell className="text-right">{grandTotals.basePay.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right">{grandTotals.additions.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right">{grandTotals.grossPay.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right">{grandTotals.totalDeductions.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right">{grandTotals.netPay.toLocaleString()}</TableCell>
+                                </TableRow>
+                            </TableFooter>
                         </Table>
                     </div>
                 </CardContent>
