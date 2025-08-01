@@ -250,7 +250,7 @@ const seedData = {
           fine: Math.random() > 0.95 ? 5000 : 0, // Fine for few
       },
       netPay: 0, // Will be calculated
-      month: format(daysAgo(35), 'MMMM yyyy'),
+      month: format(daysAgo(35).toDate(), 'MMMM yyyy'),
       date: daysAgo(35)
   })),
   closingStocks: [
@@ -449,4 +449,3 @@ type ActionResult = {
   error?: string;
 };
 
-    
