@@ -183,73 +183,61 @@ const seedData = {
       }).filter(Boolean)
   ),
   sales: [
-    { date: daysAgo(30), description: "Sale", cash: 6850, transfer: 19300, pos: 5200, creditSales: 0, shortage: 0, total: 31350 },
-    { date: daysAgo(29), description: "Sale", cash: 33600, transfer: 18400, pos: 4200, creditSales: 117900, shortage: 0, total: 174100 },
-    { date: daysAgo(28), description: "Sale", cash: 65400, transfer: 31350, pos: 6900, creditSales: 202900, shortage: 0, total: 306550 },
-    { date: daysAgo(27), description: "Sale", cash: 42300, transfer: 55600, pos: 7700, creditSales: 118300, shortage: 0, total: 223900 },
-    { date: daysAgo(26), description: "Sale", cash: 7200, transfer: 1800, pos: 5200, creditSales: 0, shortage: 0, total: 14200 },
-    { date: daysAgo(25), description: "Sale", cash: 72550, transfer: 24600, pos: 7700, creditSales: 78100, shortage: 0, total: 182950 },
-    { date: daysAgo(24), description: "Sale", cash: 47400, transfer: 26700, pos: 12600, creditSales: 145200, shortage: 0, total: 231900 },
-    { date: daysAgo(23), description: "Sale", cash: 23100, transfer: 3200, pos: 20000, creditSales: 0, shortage: 0, total: 46300 },
-    { date: daysAgo(22), description: "Sale", cash: 43800, transfer: 10600, pos: 8000, creditSales: 110000, shortage: 0, total: 172400 },
-    { date: daysAgo(21), description: "Sale", cash: 34000, transfer: 25500, pos: 0, creditSales: 61500, shortage: 0, total: 121000 },
-    { date: daysAgo(20), description: "Sale", cash: 55100, transfer: 14900, pos: 2900, creditSales: 97900, shortage: 0, total: 170800 },
-    { date: daysAgo(19), description: "Sale", cash: 25000, transfer: 89100, pos: 3600, creditSales: 100000, shortage: 24320, total: 242020 },
-    { date: daysAgo(18), description: "Sale", cash: 13700, transfer: 85000, pos: 3100, creditSales: 44350, shortage: 0, total: 146150 },
-    { date: daysAgo(17), description: "Sale", cash: 7500, transfer: 6300, pos: 1800, creditSales: 121800, shortage: 0, total: 137400 },
-    { date: daysAgo(16), description: "Sale", cash: 3150, transfer: 2900, pos: 1800, creditSales: 0, shortage: 0, total: 7850 },
-    { date: daysAgo(15), description: "Sale", cash: 800, transfer: 4800, pos: 0, creditSales: 0, shortage: 0, total: 5600 },
-    { date: daysAgo(14), description: "Sale", cash: 7600, transfer: 18500, pos: 5600, creditSales: 0, shortage: 0, total: 31700 },
-    { date: daysAgo(13), description: "Sale", cash: 34200, transfer: 19000, pos: 4200, creditSales: 112900, shortage: 0, total: 170300 },
-    { date: daysAgo(12), description: "Sale", cash: 55350, transfer: 40100, pos: 7100, creditSales: 113900, shortage: 0, total: 216450 },
-    { date: daysAgo(11), description: "Sale", cash: 69800, transfer: 57850, pos: 5900, creditSales: 131800, shortage: 0, total: 265350 },
-    { date: daysAgo(10), description: "Sale", cash: 73100, transfer: 13700, pos: 2000, creditSales: 177500, shortage: 0, total: 266300 },
-    { date: daysAgo(9), description: "Sale", cash: 57500, transfer: 78050, pos: 2800, creditSales: 0, shortage: 0, total: 138350 },
-    { date: daysAgo(8), description: "Sale", cash: 92850, transfer: 44900, pos: 600, creditSales: 123300, shortage: 0, total: 261650 },
-    { date: daysAgo(7), description: "Sale", cash: 20850, transfer: 59700, pos: 11300, creditSales: 105500, shortage: 0, total: 197350 },
-    { date: daysAgo(6), description: "Sale", cash: 37700, transfer: 22300, pos: 3400, creditSales: 175700, shortage: 0, total: 239100 },
-    { date: daysAgo(5), description: "Sale", cash: 64100, transfer: 50500, pos: 1600, creditSales: 7100, shortage: 0, total: 123300 },
-    { date: daysAgo(4), description: "Sale", cash: 37050, transfer: 19100, pos: 4100, creditSales: 201800, shortage: 0, total: 262050 },
-    { date: daysAgo(3), description: "Sale", cash: 87250, transfer: 13750, pos: 4000, creditSales: 119800, shortage: 0, total: 224800 },
-    { date: daysAgo(2), description: "Sale", cash: 15700, transfer: 9700, pos: 11200, creditSales: 0, shortage: 0, total: 36600 },
-    { date: daysAgo(1), description: "Sale", cash: 50700, transfer: 16800, pos: 9700, creditSales: 158000, shortage: 0, total: 235200 },
+    { date: daysAgo(30), description: "Daily Sales", cash: 104433, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 104433 },
+    { date: daysAgo(29), description: "Daily Sales", cash: 174100, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 174100 },
+    { date: daysAgo(28), description: "Daily Sales", cash: 306550, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 306550 },
+    { date: daysAgo(27), description: "Daily Sales", cash: 223900, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 223900 },
+    { date: daysAgo(26), description: "Daily Sales", cash: 14200, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 14200 },
+    { date: daysAgo(25), description: "Daily Sales", cash: 182950, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 182950 },
+    { date: daysAgo(24), description: "Daily Sales", cash: 231900, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 231900 },
+    { date: daysAgo(23), description: "Daily Sales", cash: 46300, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 46300 },
+    { date: daysAgo(22), description: "Daily Sales", cash: 172400, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 172400 },
+    { date: daysAgo(21), description: "Daily Sales", cash: 121000, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 121000 },
+    { date: daysAgo(20), description: "Daily Sales", cash: 170800, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 170800 },
+    { date: daysAgo(19), description: "Daily Sales", cash: 242020, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 242020 },
+    { date: daysAgo(18), description: "Daily Sales", cash: 146150, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 146150 },
+    { date: daysAgo(17), description: "Daily Sales", cash: 137400, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 137400 },
+    { date: daysAgo(16), description: "Daily Sales", cash: 7850, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 7850 },
+    { date: daysAgo(15), description: "Daily Sales", cash: 5600, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 5600 },
+    { date: daysAgo(14), description: "Daily Sales", cash: 31700, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 31700 },
+    { date: daysAgo(13), description: "Daily Sales", cash: 170300, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 170300 },
+    { date: daysAgo(12), description: "Daily Sales", cash: 216450, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 216450 },
+    { date: daysAgo(11), description: "Daily Sales", cash: 265350, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 265350 },
+    { date: daysAgo(10), description: "Daily Sales", cash: 266300, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 266300 },
+    { date: daysAgo(9), description: "Daily Sales", cash: 138350, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 138350 },
+    { date: daysAgo(8), description: "Daily Sales", cash: 261650, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 261650 },
+    { date: daysAgo(7), description: "Daily Sales", cash: 197350, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 197350 },
+    { date: daysAgo(6), description: "Daily Sales", cash: 239100, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 239100 },
+    { date: daysAgo(5), description: "Daily Sales", cash: 123300, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 123300 },
+    { date: daysAgo(4), description: "Daily Sales", cash: 262050, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 262050 },
+    { date: daysAgo(3), description: "Daily Sales", cash: 224800, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 224800 },
+    { date: daysAgo(2), description: "Daily Sales", cash: 36600, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 36600 },
+    { date: daysAgo(1), description: "Daily Sales", cash: 235200, transfer: 0, pos: 0, creditSales: 0, shortage: 0, total: 235200 },
   ],
   debt: [
     { id: 'loan_1', date: daysAgo(500), description: "Bal b/f Loan", debit: 100000, credit: null },
     { id: 'loan_2', date: daysAgo(200), description: "Loan for Raw Material", debit: 363000, credit: null },
     { id: 'loan_3', date: daysAgo(50), description: "Loan repayment", debit: null, credit: 50000 },
   ],
-  directCosts: Array.from({ length: 730 }, (_, i) => {
-    const categories = ["Flour", "Sugar", "Butter", "Yeast", "Milk", "Egg", "Preservative"];
-    const category = categories[Math.floor(Math.random() * categories.length)];
-    const quantity = Math.floor(Math.random() * 10) + 1;
-    const total = (Math.floor(Math.random() * 5000) + 500) * quantity;
-    return { date: daysAgo(i), description: `Purchase of ${category}`, category, quantity, total };
-  }),
-  indirectCosts: Array.from({ length: 730 }, (_, i) => {
-    if (Math.random() < 0.7) return null; // Make it less frequent
-    const categories = ["Diesel", "Petrol", "Nylon", "Repair", "General Expenses", "Cleaning", "Transportation", "Utilities"];
-    const category = categories[Math.floor(Math.random() * categories.length)];
-    const amount = Math.floor(Math.random() * 40000) + 2000;
-    return { date: daysAgo(i), description: `Expense for ${category}`, category, amount };
-  }).filter(Boolean),
-  wages: staffData.flatMap(s => 
-      Array.from({length: 24}, (_, i) => {
-          const monthDate = new Date();
-          monthDate.setMonth(monthDate.getMonth() - i);
-          const deductions = { shortages: 0, advanceSalary: Math.random() > 0.8 ? 5000 : 0, debt: 0, fine: 0 };
-          return {
-              id: `wage_${s.staff_id}_${i}`,
-              name: s.name,
-              department: s.role,
-              position: s.role,
-              salary: s.pay_rate,
-              deductions,
-              netPay: s.pay_rate - deductions.advanceSalary,
-              date: Timestamp.fromDate(monthDate)
-          }
-      })
-  ),
+  directCosts: [
+      { date: daysAgo(25), description: 'Bulk Flour Purchase', category: 'Flour', quantity: 1, total: 2000000 },
+      { date: daysAgo(20), description: 'Sugar Supply', category: 'Sugar', quantity: 1, total: 1000000 },
+      { date: daysAgo(15), description: 'Butter & Yeast', category: 'Yeast', quantity: 1, total: 665800 },
+  ],
+  indirectCosts: [
+    { date: daysAgo(28), description: 'Generator Fuel', category: 'Diesel', amount: 150000 },
+    { date: daysAgo(20), description: 'Oven Repair', category: 'Repairs', amount: 258500 },
+    { date: daysAgo(15), description: 'Baking gas refill', category: 'Gas', amount: 80000 },
+    { date: daysAgo(12), description: 'Packaging Promo', category: 'Promotion', amount: 11000 },
+    { date: daysAgo(10), description: 'Van Fuel', category: 'Transport', amount: 21900 },
+    { date: daysAgo(8), description: 'Factory Production materials', category: 'Production', amount: 253230 },
+    { date: daysAgo(5), description: 'Water Bill', category: 'Water', amount: 15000 },
+    { date: daysAgo(3), description: 'Misc purchases', category: 'Purchases', amount: 31500 },
+    { date: daysAgo(1), description: 'PHCN Bill', category: 'Electricity', amount: 45000 },
+  ],
+  wages: [
+    { id: `wage_1`, name: "All Staff", department: "Operations", position: "All", salary: 600000, deductions: { shortages: 0, advanceSalary: 114000, debt: 0, fine: 0 }, netPay: 486000, date: daysAgo(5) },
+  ],
   closingStocks: [
     { id: 'cs_1', item: 'Flour', remainingStock: '100KG', amount: 108000 },
     { id: 'cs_2', item: 'Yeast', remainingStock: '9 Pack', amount: 27000 },
@@ -297,22 +285,20 @@ export async function seedDatabase(): Promise<ActionResult> {
 
     for (const [collectionName, data] of Object.entries(seedData)) {
         if (Array.isArray(data)) {
-            data.forEach((item) => {
+            data.forEach((item: any) => {
                 let docRef;
-                if(item.id) {
-                    docRef = doc(db, collectionName, item.id);
-                } else if (item.staff_id) {
-                     docRef = doc(db, collectionName, item.staff_id);
+                const id = item.id || item.staff_id;
+                if (id) {
+                    docRef = doc(db, collectionName, id);
                 } else {
                     docRef = doc(collection(db, collectionName));
                 }
                 
                 const itemWithTimestamps = { ...item };
+                // Convert JS Dates to Firestore Timestamps
                 for (const key of Object.keys(itemWithTimestamps)) {
-                    if ( (key.toLowerCase().includes('date') || key.toLowerCase().includes('timestamp') || key.toLowerCase().includes('at')) && (itemWithTimestamps[key] instanceof Date) && itemWithTimestamps[key]) {
+                     if (itemWithTimestamps[key] instanceof Date) {
                         itemWithTimestamps[key] = Timestamp.fromDate(itemWithTimestamps[key]);
-                    } else if (itemWithTimestamps[key] instanceof Timestamp) {
-                        // It's already a timestamp, do nothing.
                     }
                 }
 
