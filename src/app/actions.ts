@@ -2273,7 +2273,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
         return { success: true };
     } catch (error) {
         console.error("Error recording cash payment:", error);
-        return { success: false, error: "Failed to submit cash payment for approval." };
+        return { success: false, error: "Failed to record cash payment for approval." };
     }
 }
 
