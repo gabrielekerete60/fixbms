@@ -313,7 +313,7 @@ export default function StaffManagementPage() {
     const availableRoles = useMemo(() => {
         const roles = new Set(staffList.map(s => s.role));
         // Add default roles in case there are no staff yet
-        const defaultRoles = ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Cleaner', 'Security'];
+        const defaultRoles = ['Manager', 'Supervisor', 'Accountant', 'Chief Baker', 'Baker', 'Bakery Assistant', 'Storekeeper', 'Sale rep', 'Showroom Staff', 'Driver', 'Cleaner', 'Chief Security', 'Security'];
         defaultRoles.forEach(r => roles.add(r));
         return Array.from(roles).filter(r => r !== 'Developer').sort();
     }, [staffList]);

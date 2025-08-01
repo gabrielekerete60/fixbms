@@ -30,19 +30,21 @@ const productsData = [
 ];
 
 const staffData = [
-    { staff_id: '100001', name: 'Wisdom Effiong Edet', email: 'wisdom.edet@example.com', password: 'ManagerPass1!', role: 'Manager', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "MONIPOINT", account_number: "9031612444", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '200002', name: 'Mr Bassey Smith Daniel', email: 'bassey.daniel@example.com', password: 'AccountantPass1!', role: 'Accountant', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "Opay", account_number: "8136164826", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '300003', name: 'MR Bassey OFFIONG', email: 'bassey.offiong@example.com', password: 'BakerPass1!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 60000, bank_name: "Opay", account_number: "8066706293", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '400004', name: 'Mr Ukeme Akpan Thompson', email: 'ukeme.thompson@example.com', password: 'StaffPass1!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 100000, bank_name: "First Bank", account_number: "3080708781", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '500005', name: 'Victory Peter Ekerete', email: 'victory.ekerete@example.com', password: 'StorekeeperPass1!', role: 'Storekeeper', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "PALMPAY", account_number: "9126459437", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '600006', name: 'Mary Felix Ating', email: 'mary.ating@example.com', password: 'StaffPass2!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "8071929362", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '700007', name: 'Ubom Robert Okon', email: 'ubom.okon@example.com', password: 'BakerPass3!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 35000, bank_name: "MONIPOINT", account_number: "7046450879", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '800008', name: 'Nnamso George Walter', email: 'nnamso.walter@example.com', password: 'CleanerPass1!', role: 'Cleaner', is_active: false, pay_type: 'Salary', pay_rate: 30000, bank_name: "Unity Bank", account_number: "0059218669", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '900009', name: 'Zion Ekerete', email: 'zion.ekerete@example.com', password: 'BakerPass4!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "7041091374", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '100010', name: 'Edet Edet Nyong', email: 'edet.nyong@example.com', password: 'DriverPass1!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "Access Bank", account_number: "0736691040", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '110011', name: 'Benog Security Services', email: 'benog.security@example.com', password: 'SecurityPass1!', role: 'Chief Security', is_active: true, pay_type: 'Salary', pay_rate: 20000, bank_name: "U.B.A", account_number: "2288605641", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '120012', name: 'Nsikak Udo Essiet', email: 'nsikak.essiet@example.com', password: 'SecurityPass2!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "U.B.A", account_number: "2304484777", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '130013', name: 'Aniefon Udo Bassey', email: 'aniefon.bassey@example.com', password: 'SecurityPass3!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "First Bank", account_number: "3090572411", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '100001', name: 'Wisdom Effiong Edet', email: 'wisdom.edet@example.com', password: 'ManagerPass1!', role: 'Manager', is_active: true, pay_type: 'Salary', pay_rate: 150000, bank_name: "MONIPOINT", account_number: "9031612444", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '100002', name: 'Angela Uwem', email: 'angela.uwem@example.com', password: 'SupervisorPass1!', role: 'Supervisor', is_active: true, pay_type: 'Salary', pay_rate: 100000, bank_name: "Access Bank", account_number: "0012345678", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '200001', name: 'Mr Bassey Smith Daniel', email: 'bassey.daniel@example.com', password: 'AccountantPass1!', role: 'Accountant', is_active: true, pay_type: 'Salary', pay_rate: 80000, bank_name: "Opay", account_number: "8136164826", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '300001', name: 'MR Bassey OFFIONG', email: 'bassey.offiong@example.com', password: 'BakerPass1!', role: 'Chief Baker', is_active: true, pay_type: 'Salary', pay_rate: 75000, bank_name: "Opay", account_number: "8066706293", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '300002', name: 'Ubom Robert Okon', email: 'ubom.okon@example.com', password: 'BakerPass3!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 35000, bank_name: "MONIPOINT", account_number: "7046450879", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '300003', name: 'Zion Ekerete', email: 'zion.ekerete@example.com', password: 'BakerPass4!', role: 'Bakery Assistant', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "7041091374", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '300004', name: 'Grace Effiong', email: 'grace.effiong@example.com', password: 'AssistantPass1!', role: 'Bakery Assistant', is_active: true, pay_type: 'Salary', pay_rate: 38000, bank_name: "GTB", account_number: "0123456789", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '400001', name: 'Victory Peter Ekerete', email: 'victory.ekerete@example.com', password: 'StorekeeperPass1!', role: 'Storekeeper', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "PALMPAY", account_number: "9126459437", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '500001', name: 'Mr Ukeme Akpan Thompson', email: 'ukeme.thompson@example.com', password: 'StaffPass1!', role: 'Sale rep', is_active: true, pay_type: 'Salary', pay_rate: 100000, bank_name: "First Bank", account_number: "3080708781", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '500002', name: 'Mary Felix Ating', email: 'mary.ating@example.com', password: 'StaffPass2!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "8071929362", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '600001', name: 'Edet Edet Nyong', email: 'edet.nyong@example.com', password: 'DriverPass1!', role: 'Driver', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "Access Bank", account_number: "0736691040", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '700001', name: 'Nnamso George Walter', email: 'nnamso.walter@example.com', password: 'CleanerPass1!', role: 'Cleaner', is_active: false, pay_type: 'Salary', pay_rate: 30000, bank_name: "Unity Bank", account_number: "0059218669", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '800001', name: 'Benog Security Services', email: 'benog.security@example.com', password: 'SecurityPass1!', role: 'Chief Security', is_active: true, pay_type: 'Salary', pay_rate: 20000, bank_name: "U.B.A", account_number: "2288605641", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '800002', name: 'Nsikak Udo Essiet', email: 'nsikak.essiet@example.com', password: 'SecurityPass2!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "U.B.A", account_number: "2304484777", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '800003', name: 'Aniefon Udo Bassey', email: 'aniefon.bassey@example.com', password: 'SecurityPass3!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "First Bank", account_number: "3090572411", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '000000', name: 'Gabriel Developer', email: 'gabriel.dev@example.com', password: 'DevPassword1!', role: 'Developer', is_active: true, pay_type: 'Salary', pay_rate: 500000, bank_name: "Kuda Bank", account_number: "8901234567", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
 ];
 
@@ -124,14 +126,14 @@ const seedData = {
         customerName: `Customer ${Math.floor(Math.random() * 50) + 1}`,
         customerId: `cust_${Math.floor(Math.random() * 50) + 1}`,
         status: 'Completed',
-        staffId: '400004'
+        staffId: '500001'
       }
   }),
   transfers: Array.from({ length: 200 }, (_, i) => ({
       id: `trans_${i + 1}`,
-      from_staff_id: "500005", // Storekeeper
+      from_staff_id: "400001", // Storekeeper
       from_staff_name: "Victory Peter Ekerete",
-      to_staff_id: i % 2 === 0 ? "400004" : "100010", // Showroom or Delivery
+      to_staff_id: i % 2 === 0 ? "500001" : "600001", // Showroom or Delivery
       to_staff_name: i % 2 === 0 ? "Mr Ukeme Akpan Thompson" : "Edet Edet Nyong",
       items: [{ productId: `prod_${(i % 10) + 1}`, productName: productsData[i % 10].name, quantity: Math.floor(Math.random() * 20) + 10 }],
       date: generateRandomDate(0, 730),
@@ -145,7 +147,7 @@ const seedData = {
       recipeName: recipesData[i % 2].name,
       productId: recipesData[i % 2].productId,
       productName: recipesData[i % 2].productName,
-      requestedById: '300003',
+      requestedById: '300001',
       requestedByName: 'MR Bassey OFFIONG',
       quantityToProduce: Math.floor(Math.random() * 50) + 20,
       status: i < 5 ? 'pending_approval' : (i < 15 ? 'in_production' : 'completed'),
@@ -164,7 +166,7 @@ const seedData = {
     reason: ['Spoiled', 'Damaged', 'Burnt', 'Error'][i % 4],
     notes: 'Generated seed data',
     date: generateRandomDate(0, 730),
-    staffId: `400004`,
+    staffId: `500001`,
     staffName: `Mr Ukeme Akpan Thompson`
   })),
   attendance: staffData.flatMap(s => 
