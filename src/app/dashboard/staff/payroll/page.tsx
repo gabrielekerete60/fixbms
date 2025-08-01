@@ -117,32 +117,34 @@ export default function PayrollPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [payrollPeriod, setPayrollPeriod] = useState(format(new Date(), 'yyyy-MM'));
 
-    const fetchStaff = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const staffList = await getStaffList();
-            setStaff(staffList);
-            const initialPayroll: Record<string, Partial<PayrollEntry>> = {};
-            staffList.forEach(s => {
-                initialPayroll[s.id] = {
-                    staffId: s.id,
-                    staffName: s.name,
-                    basePay: s.pay_rate || 0,
-                    additions: 0,
-                    deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
-                };
-            });
-            setPayroll(initialPayroll);
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch staff list.' });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [toast]);
-
     useEffect(() => {
-        fetchStaff();
-    }, [fetchStaff]);
+        const fetchStaffAndInitPayroll = async () => {
+            setIsLoading(true);
+            try {
+                const staffList = await getStaffList();
+                setStaff(staffList);
+                
+                const initialPayroll: Record<string, Partial<PayrollEntry>> = {};
+                staffList.forEach(s => {
+                    initialPayroll[s.id] = {
+                        staffId: s.id,
+                        staffName: s.name,
+                        basePay: s.pay_rate || 0,
+                        additions: 0,
+                        deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
+                    };
+                });
+                setPayroll(initialPayroll);
+
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch staff list.' });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchStaffAndInitPayroll();
+    }, [toast]);
 
     const handlePayrollChange = (staffId: string, field: 'additions', value: string) => {
         const numValue = Number(value);
@@ -203,7 +205,6 @@ export default function PayrollPage() {
         const result = await processPayroll(payrollDataToProcess, format(new Date(payrollPeriod), 'MMMM yyyy'));
         if (result.success) {
             toast({ title: 'Success!', description: 'Payroll has been processed and expenses logged.'});
-            fetchStaff(); // Refresh data after processing
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -298,7 +299,7 @@ export default function PayrollPage() {
                                     </TableRow>
                                 )}
                             </TableBody>
-                            <TableFooter>
+                             <TableFooter>
                                 <TableRow className="bg-muted/50 font-bold">
                                     <TableCell>Grand Totals</TableCell>
                                     <TableCell className="text-right">{grandTotals.basePay.toLocaleString()}</TableCell>
@@ -322,4 +323,3 @@ export default function PayrollPage() {
     );
 }
 
-    
