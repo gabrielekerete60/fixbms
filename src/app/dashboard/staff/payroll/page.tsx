@@ -117,34 +117,35 @@ export default function PayrollPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [payrollPeriod, setPayrollPeriod] = useState(format(new Date(), 'yyyy-MM'));
 
-    useEffect(() => {
-        const fetchStaffAndInitPayroll = async () => {
-            setIsLoading(true);
-            try {
-                const staffList = await getStaffList();
-                setStaff(staffList);
-                
-                const initialPayroll: Record<string, Partial<PayrollEntry>> = {};
-                staffList.forEach(s => {
-                    initialPayroll[s.id] = {
-                        staffId: s.id,
-                        staffName: s.name,
-                        basePay: s.pay_rate || 0,
-                        additions: 0,
-                        deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
-                    };
-                });
-                setPayroll(initialPayroll);
+    const fetchStaffAndInitPayroll = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const staffList = await getStaffList();
+            setStaff(staffList);
+            
+            const initialPayroll: Record<string, Partial<PayrollEntry>> = {};
+            staffList.forEach(s => {
+                initialPayroll[s.id] = {
+                    staffId: s.id,
+                    staffName: s.name,
+                    basePay: s.pay_rate || 0,
+                    additions: 0,
+                    deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
+                };
+            });
+            setPayroll(initialPayroll);
 
-            } catch (error) {
-                toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch staff list.' });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchStaffAndInitPayroll();
+        } catch (error) {
+            console.error("Error fetching staff list:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch staff list.' });
+        } finally {
+            setIsLoading(false);
+        }
     }, [toast]);
+    
+    useEffect(() => {
+        fetchStaffAndInitPayroll();
+    }, [fetchStaffAndInitPayroll]);
 
     const handlePayrollChange = (staffId: string, field: 'additions', value: string) => {
         const numValue = Number(value);
@@ -174,7 +175,7 @@ export default function PayrollPage() {
         if (!entry) return { grossPay: 0, netPay: 0, totalDeductions: 0 };
         const basePay = entry.basePay || 0;
         const additions = entry.additions || 0;
-        const totalDeductions = Object.values(entry.deductions || {}).reduce((sum, val) => sum + val, 0);
+        const totalDeductions = Object.values(entry.deductions || {}).reduce((sum, val) => sum + Number(val), 0);
         const grossPay = basePay + additions;
         const netPay = grossPay - totalDeductions;
         return { grossPay, netPay, totalDeductions };
@@ -184,9 +185,10 @@ export default function PayrollPage() {
         setIsProcessing(true);
         const payrollDataToProcess = Object.values(payroll)
             .map(p => {
-                const { netPay } = calculateTotals(p.staffId!);
+                if (!p.staffId) return null;
+                const { netPay } = calculateTotals(p.staffId);
                 return {
-                    staffId: p.staffId!,
+                    staffId: p.staffId,
                     staffName: p.staffName!,
                     basePay: p.basePay || 0,
                     additions: p.additions || 0,
@@ -194,7 +196,7 @@ export default function PayrollPage() {
                     netPay,
                     month: format(new Date(payrollPeriod), 'MMMM yyyy'),
                 };
-            });
+            }).filter((p): p is NonNullable<typeof p> => p !== null);
             
         if (payrollDataToProcess.length === 0) {
             toast({ variant: 'destructive', title: 'Error', description: 'No staff data loaded to process payroll.'});
@@ -315,11 +317,10 @@ export default function PayrollPage() {
                 <CardFooter>
                      <Button onClick={handleProcessPayroll} disabled={isProcessing || isLoading || staff.length === 0}>
                         {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Process Payroll for {format(new Date(payrollPeriod), 'MMMM yyyy')}
+                        Process Payroll for {format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')}
                     </Button>
                 </CardFooter>
             </Card>
         </div>
     );
-
-    
+}
