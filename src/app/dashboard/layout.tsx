@@ -380,6 +380,30 @@ export default function DashboardLayout({
   if (!user) {
     return <div className="flex justify-center items-center h-screen w-screen"><Loader2 className="h-16 w-16 animate-spin"/></div>;
   }
+  
+  const SidebarFooter = () => (
+    <div className="mt-auto p-4 border-t shrink-0">
+        <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
+            <span><Clock className="inline h-4 w-4 mr-1" />{time}</span>
+            <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut} disabled={isClocking}>
+                {isClocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>)}
+                {isClocking ? 'Loading...' : (isClockedIn ? 'Clock Out' : 'Clock In')}
+            </Button>
+        </div>
+        <Card>
+        <CardContent className="p-2 flex items-center gap-2">
+            <Avatar>
+            <AvatarImage src="https://placehold.co/40x40.png" alt={user.name} data-ai-hint="profile person" />
+            <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+            </Avatar>
+            <div>
+                <p className='font-semibold text-sm'>{user.name}</p>
+                <p className='text-xs text-muted-foreground'>Role: {user.role}</p>
+            </div>
+        </CardContent>
+        </Card>
+    </div>
+  );
 
   return (
     <div className="grid h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -393,27 +417,7 @@ export default function DashboardLayout({
         <div className="flex-1 overflow-y-auto py-2">
           <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
         </div>
-        <div className="mt-auto p-4 border-t shrink-0">
-          <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
-              <span><Clock className="inline h-4 w-4 mr-1" />{time}</span>
-              <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut} disabled={isClocking}>
-                  {isClocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>)}
-                  {isClocking ? 'Loading...' : (isClockedIn ? 'Clock Out' : 'Clock In')}
-              </Button>
-          </div>
-          <Card>
-            <CardContent className="p-2 flex items-center gap-2">
-               <Avatar>
-                <AvatarImage src="https://placehold.co/40x40.png" alt={user.name} data-ai-hint="profile person" />
-                <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-              </Avatar>
-              <div>
-                  <p className='font-semibold text-sm'>{user.name}</p>
-                  <p className='text-xs text-muted-foreground'>Role: {user.role}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <SidebarFooter />
       </div>
       <div className="flex flex-col h-screen">
         <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
@@ -429,16 +433,16 @@ export default function DashboardLayout({
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="flex h-full flex-col p-0 w-full max-w-xs sm:max-w-sm">
-                  <SheetHeader className="h-14 shrink-0 items-center border-b px-4 lg:h-[60px]">
-                    <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-                    <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+                  <SheetHeader className="h-14 shrink-0 border-b px-4 lg:h-[60px]">
+                     <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
                       <Pizza className="h-6 w-6 text-primary" />
                       <span className="font-headline">BMS</span>
                     </Link>
                   </SheetHeader>
-                <div className="overflow-y-auto flex-1">
+                <div className="overflow-y-auto flex-1 py-2">
                     <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
                 </div>
+                 <SidebarFooter />
               </SheetContent>
             </Sheet>
           <div className="w-full flex-1">
