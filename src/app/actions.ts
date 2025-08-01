@@ -1096,6 +1096,66 @@ export async function addIndirectCost(data: IndirectCostData) {
 
 // ---- END NEW ACCOUNTING FUNCTIONS ----
 
+// --- START PAYROLL FUNCTIONS ---
+
+export async function getStaffList() {
+    try {
+        const q = query(collection(db, "staff"), where("role", "!=", "Developer"), where("is_active", "==", true));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(docSnap => ({
+            id: docSnap.id,
+            name: docSnap.data().name,
+            role: docSnap.data().role,
+            pay_rate: docSnap.data().pay_rate || 0,
+            pay_type: docSnap.data().pay_type || 'Salary',
+        }));
+    } catch (error) {
+        console.error("Error fetching staff list:", error);
+        return [];
+    }
+}
+
+type PayrollData = {
+    staffId: string;
+    staffName: string;
+    basePay: number;
+    additions: number;
+    deductions: number;
+    netPay: number;
+    month: string;
+};
+
+export async function processPayroll(payrollData: PayrollData[], period: string) {
+    try {
+        const batch = writeBatch(db);
+
+        let totalPayrollCost = 0;
+
+        payrollData.forEach(data => {
+            const wageRef = doc(collection(db, 'wages'));
+            batch.set(wageRef, { ...data, date: serverTimestamp() });
+            totalPayrollCost += data.netPay;
+        });
+        
+        // Create a single expense entry for the entire payroll run
+        const expenseRef = doc(collection(db, 'indirectCosts'));
+        batch.set(expenseRef, {
+            description: `Payroll for ${period}`,
+            category: 'Salary',
+            amount: totalPayrollCost,
+            date: serverTimestamp()
+        });
+
+        await batch.commit();
+        return { success: true };
+    } catch (error) {
+        console.error("Error processing payroll:", error);
+        return { success: false, error: "Failed to process payroll." };
+    }
+}
+
+// --- END PAYROLL FUNCTIONS ---
+
 export type Creditor = {
     id: string;
     name: string;
@@ -2093,7 +2153,7 @@ type SaleData = {
     items: { productId: string; quantity: number; price: number, name: string }[];
     customerId: string;
     customerName: string;
-    paymentMethod: 'Cash' | 'Credit' | 'POS' | 'Paystack';
+    paymentMethod: 'Cash' | 'Credit' | 'Card' | 'Paystack';
     staffId: string;
     total: number;
 }
@@ -2133,7 +2193,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       }
 
       // Logic for different payment methods
-      if (data.paymentMethod === 'Cash' || data.paymentMethod === 'POS') {
+      if (data.paymentMethod === 'Cash' || data.paymentMethod === 'Card') {
         const confirmationRef = doc(collection(db, 'payment_confirmations'));
         transaction.set(confirmationRef, {
           runId: data.runId,
