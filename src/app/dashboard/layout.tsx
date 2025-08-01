@@ -17,24 +17,13 @@ import {
   Users2,
   Car,
   Wallet,
-  GanttChartSquare,
-  HelpingHand,
   BookOpen,
   Clock,
   PanelLeft,
-  Cookie,
-  ClipboardList,
-  Carrot,
-  Archive,
-  ListChecks,
   LogOut,
   LogIn,
   Loader2,
-  Trash2,
-  Wrench,
-  Hourglass,
-  Send,
-  ArrowRightLeft,
+  HelpingHand,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -66,7 +55,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { getAttendanceStatus, handleClockIn, handleClockOut, ProductionBatch } from '../actions';
+import { getAttendanceStatus, handleClockIn, handleClockOut } from '../actions';
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
@@ -90,11 +79,13 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
               <div className="flex items-center gap-3">
                 <link.icon className="h-4 w-4" />
                 {link.label}
-                 {link.notificationKey && notificationCounts[link.notificationKey] > 0 && (
-                    <Badge variant="destructive" className="h-5 w-5 flex items-center justify-center p-0">{notificationCounts[link.notificationKey]}</Badge>
-                )}
               </div>
-              <ChevronRight className="h-4 w-4 transition-transform" />
+              <div className="flex items-center gap-2">
+                {link.notificationKey && notificationCounts[link.notificationKey] > 0 && (
+                    <Badge variant="destructive" className="h-5 w-5 flex items-center justify-center rounded-full p-0">{notificationCounts[link.notificationKey]}</Badge>
+                )}
+                <ChevronRight className="h-4 w-4 transition-transform" />
+              </div>
             </CollapsibleTrigger>
             <CollapsibleContent className="ml-7 flex flex-col gap-1 border-l pl-3">
               {link.sublinks.map((sublink: any) => (
@@ -114,7 +105,7 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
                         )}>
                     {sublink.label}
                      {sublink.notificationKey && notificationCounts[sublink.notificationKey] > 0 && (
-                        <Badge variant="destructive" className="absolute right-2 h-5 w-5 flex items-center justify-center p-0">{notificationCounts[sublink.notificationKey]}</Badge>
+                        <Badge variant="destructive" className="ml-auto h-5 w-5 flex items-center justify-center rounded-full p-0">{notificationCounts[sublink.notificationKey]}</Badge>
                     )}
                 </Link>
               ))}
@@ -315,7 +306,7 @@ export default function DashboardLayout({
       {
         icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Developer'], notificationKey: "inventory", sublinks: [
           { href: "/dashboard/inventory/products", label: "Products", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'] },
+          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'], notificationKey: "pendingBatches" },
           { href: "/dashboard/inventory/ingredients", label: "Ingredients", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
@@ -375,11 +366,16 @@ export default function DashboardLayout({
 
   }, [user]);
 
-  const combinedNotificationCounts = useMemo(() => ({
-    stockControl: notificationCounts.pendingTransfers + notificationCounts.pendingBatches,
-    inventory: notificationCounts.pendingTransfers + notificationCounts.pendingBatches,
-    accounting: notificationCounts.pendingPayments,
-  }), [notificationCounts]);
+  const combinedNotificationCounts = useMemo(() => {
+      const stockControlCount = notificationCounts.pendingTransfers + notificationCounts.pendingBatches;
+      return {
+          stockControl: stockControlCount,
+          pendingBatches: notificationCounts.pendingBatches,
+          inventory: stockControlCount, // The parent inventory link shows the sum
+          accounting: notificationCounts.pendingPayments,
+          payments: notificationCounts.pendingPayments,
+      }
+  }, [notificationCounts]);
 
   if (!user) {
     return <div className="flex justify-center items-center h-screen w-screen"><Loader2 className="h-16 w-16 animate-spin"/></div>;
@@ -468,7 +464,7 @@ export default function DashboardLayout({
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
-        <main className="flex-1 overflow-auto bg-background p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto bg-background p-4 lg:p-6">
           <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
           {children}
         </main>

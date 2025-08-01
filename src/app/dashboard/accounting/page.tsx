@@ -1576,7 +1576,7 @@ function BusinessHealthTab() {
 
                                 <TableRow><TableCell className="font-semibold">Operations</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Operations)}</TableCell></TableRow>
                                 {Object.entries(statement.expenses).filter(([key]) => ['Repairs', 'Production', 'Promotion', 'Transport', 'Purchases'].includes(key)).map(([key, val]) => (
-                                   <TableRow key={key}><TableCell className="pl-6">{key}</TableCell><TableCell className="text-right">{formatCurrency(val)}</TableCell></TableRow>
+                                   <TableRow key={key}><TableCell className="pl-6">{key}</TableCell><TableCell className="text-right">{formatCurrency(val as number)}</TableCell></TableRow>
                                 ))}
                                 
                                  <TableRow><TableCell className="font-semibold">Wages</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Wages)}</TableCell></TableRow>
@@ -1670,7 +1670,7 @@ export default function AccountingPage() {
                 <TabsTrigger value="sales">Sales</TabsTrigger>
                 <TabsTrigger value="debt-payments" className="relative">
                     Debt &amp; Payments
-                    {notificationCounts.payments > 0 && <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0">{notificationCounts.payments}</Badge>}
+                    {notificationCounts.payments > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.payments}</Badge>}
                 </TabsTrigger>
                 <TabsTrigger value="assets-wages">Assets &amp; Wages</TabsTrigger>
             </TabsList>
