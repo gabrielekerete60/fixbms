@@ -313,7 +313,6 @@ export default function StaffManagementPage() {
 
     const availableRoles = useMemo(() => {
         const roles = new Set(staffList.map(s => s.role));
-        // Add default roles in case there are no staff yet
         const defaultRoles = [
             'Manager', 'Supervisor', 'Accountant', 'Chief Baker', 'Baker', 'Bakery Assistant', 
             'Storekeeper', 'Showroom Staff', 'Driver', 'Cleaner', 'Chief Security', 'Security'
@@ -349,11 +348,11 @@ export default function StaffManagementPage() {
 
     const handleSaveStaff = async (staffData: Omit<Staff, 'staff_id'>, staffId?: string) => {
         try {
-            if (staffId) { // Editing existing staff
+            if (staffId) {
                 const ref = doc(db, "staff", staffId);
                 await updateDoc(ref, staffData);
                 toast({ title: "Success", description: "Staff member updated successfully." });
-            } else { // Creating new staff
+            } else {
                 const newId = (Math.floor(Math.random() * 900000) + 100000).toString();
                 const newStaffRef = doc(db, "staff", newId);
                 await setDoc(newStaffRef, staffData);
