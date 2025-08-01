@@ -912,7 +912,7 @@ export async function getWages(dateRange?: { from: Date, to: Date }) {
     const dateFilters = dateRange 
         ? [where("date", ">=", Timestamp.fromDate(dateRange.from)), where("date", "<=", Timestamp.fromDate(dateRange.to))]
         : [];
-    const snapshot = await getDocs(query(collection(db, "wages"), ...dateFilters));
+    const snapshot = await getDocs(query(collection(db, "wages"), ...dateFilters, orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
         const data = doc.data();
         const date = (data.date as Timestamp)?.toDate().toISOString();
@@ -987,7 +987,7 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
             getDocs(query(collection(db, "directCosts"), ...dateFilters)),
             getDocs(collection(db, "closingStocks")), // Not filtered by date
             getDocs(query(collection(db, "indirectCosts"), ...dateFilters)),
-            getDocs(query(collection(db, "wages"), ...dateFilters)),
+            getDocs(query(collection(db, "wages"), ...dateFilters, orderBy("date", "desc"))),
             getDocs(query(collection(db, "waste_logs"), ...dateFilters)),
             getDocs(collection(db, "discount_records"))
         ]);
@@ -1120,7 +1120,12 @@ type PayrollData = {
     staffName: string;
     basePay: number;
     additions: number;
-    deductions: number;
+    deductions: {
+        shortages: number;
+        advanceSalary: number;
+        debt: number;
+        fine: number;
+    };
     netPay: number;
     month: string;
 };
