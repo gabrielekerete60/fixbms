@@ -193,11 +193,10 @@ export default function PayrollPage() {
                     netPay,
                     month: payrollPeriod,
                 };
-            })
-            .filter(p => p.netPay > 0);
+            });
             
         if (payrollDataToProcess.length === 0) {
-            toast({ variant: 'destructive', title: 'Error', description: 'No payroll data to process.'});
+            toast({ variant: 'destructive', title: 'Error', description: 'No staff data loaded to process payroll.'});
             setIsProcessing(false);
             return;
         }
@@ -264,7 +263,7 @@ export default function PayrollPage() {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                ) : staff.map(s => {
+                                ) : staff.length > 0 ? staff.map(s => {
                                     const { grossPay, netPay, totalDeductions } = calculateTotals(s.id);
                                     return (
                                         <TableRow key={s.id}>
@@ -293,7 +292,13 @@ export default function PayrollPage() {
                                             <TableCell className="text-right font-bold">{netPay.toLocaleString()}</TableCell>
                                         </TableRow>
                                     )
-                                })}
+                                }) : (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">
+                                            No staff members found. Please add staff in the "Staff Management" section.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
                             </TableBody>
                             <TableFooter>
                                 <TableRow className="bg-muted/50 font-bold">
@@ -309,7 +314,7 @@ export default function PayrollPage() {
                     </div>
                 </CardContent>
                 <CardFooter>
-                     <Button onClick={handleProcessPayroll} disabled={isProcessing}>
+                     <Button onClick={handleProcessPayroll} disabled={isProcessing || isLoading || staff.length === 0}>
                         {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Process Payroll for {payrollPeriod}
                     </Button>
