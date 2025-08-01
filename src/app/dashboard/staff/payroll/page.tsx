@@ -115,14 +115,13 @@ export default function PayrollPage() {
     const [payroll, setPayroll] = useState<Record<string, Partial<PayrollEntry>>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [payrollPeriod, setPayrollPeriod] = useState(format(new Date(), 'MMMM yyyy'));
+    const [payrollPeriod, setPayrollPeriod] = useState(format(new Date(), 'yyyy-MM'));
 
     const fetchStaff = useCallback(async () => {
         setIsLoading(true);
         try {
             const staffList = await getStaffList();
             setStaff(staffList);
-            // Initialize payroll state
             const initialPayroll: Record<string, Partial<PayrollEntry>> = {};
             staffList.forEach(s => {
                 initialPayroll[s.id] = {
@@ -191,7 +190,7 @@ export default function PayrollPage() {
                     additions: p.additions || 0,
                     deductions: p.deductions || { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
                     netPay,
-                    month: payrollPeriod,
+                    month: format(new Date(payrollPeriod), 'MMMM yyyy'),
                 };
             });
             
@@ -201,11 +200,10 @@ export default function PayrollPage() {
             return;
         }
 
-        const result = await processPayroll(payrollDataToProcess, payrollPeriod);
+        const result = await processPayroll(payrollDataToProcess, format(new Date(payrollPeriod), 'MMMM yyyy'));
         if (result.success) {
             toast({ title: 'Success!', description: 'Payroll has been processed and expenses logged.'});
-            // Optionally clear the form
-            fetchStaff();
+            fetchStaff(); // Refresh data after processing
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -240,8 +238,8 @@ export default function PayrollPage() {
                              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                              <Input 
                                 type="month"
-                                value={format(new Date(payrollPeriod), 'yyyy-MM')}
-                                onChange={(e) => setPayrollPeriod(format(new Date(e.target.value), 'MMMM yyyy'))}
+                                value={payrollPeriod}
+                                onChange={(e) => setPayrollPeriod(e.target.value)}
                                 className="w-[200px]"
                              />
                         </div>
@@ -316,10 +314,12 @@ export default function PayrollPage() {
                 <CardFooter>
                      <Button onClick={handleProcessPayroll} disabled={isProcessing || isLoading || staff.length === 0}>
                         {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Process Payroll for {payrollPeriod}
+                        Process Payroll for {format(new Date(payrollPeriod), 'MMMM yyyy')}
                     </Button>
                 </CardFooter>
             </Card>
         </div>
     );
 }
+
+    
