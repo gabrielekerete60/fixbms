@@ -211,6 +211,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Order Details</DialogTitle>
+                    <DialogDescription>A summary of the selected order.</DialogDescription>
                 </DialogHeader>
                 {viewingOrder && <Receipt order={viewingOrder} storeAddress={storeAddress} />}
                 <DialogFooter>

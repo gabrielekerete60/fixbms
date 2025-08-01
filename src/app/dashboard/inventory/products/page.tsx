@@ -146,7 +146,6 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
                     <DialogDescription>
                         {product?.id ? "Update the details of this product." : "Fill in the details for the new product."}
                     </DialogDescription>
-                    <DialogClose />
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
@@ -206,7 +205,6 @@ function ExportDialog({ children, onExport }: { children: React.ReactNode, onExp
           <DialogDescription>
             All current products will be included in the CSV file.
           </DialogDescription>
-          <DialogClose />
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
