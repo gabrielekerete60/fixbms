@@ -160,7 +160,7 @@ function ManagementDashboard() {
   }
 
   return (
-    <>
+    <div className="space-y-6">
       <IndexWarning indexes={missingIndexes} />
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <Card>
@@ -214,25 +214,14 @@ function ManagementDashboard() {
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
               <CardTitle>Revenue Chart</CardTitle>
-              <CardDescription>Revenue performance for the selected period.</CardDescription>
+              <CardDescription>Revenue performance for this week.</CardDescription>
             </div>
-             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="ml-auto h-8 w-8"><MoreHorizontal className="h-4 w-4"/></Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                    <DropdownMenuItem onSelect={() => handleFilterChange('daily')}>Today</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => handleFilterChange('weekly')}>This Week</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => handleFilterChange('monthly')}>This Month</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => handleFilterChange('yearly')}>This Year</DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
           </CardHeader>
           <CardContent>
             <RevenueChart data={stats.weeklyRevenue} />
           </CardContent>
         </Card>
-    </>
+    </div>
   );
 }
 
