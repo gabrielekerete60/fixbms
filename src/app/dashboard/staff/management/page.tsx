@@ -99,7 +99,7 @@ function StaffDialog({
     const [email, setEmail] = useState("");
     const [role, setRole] = useState("");
     const [payType, setPayType] = useState<Staff['pay_type']>('Salary');
-    const [payRate, setPayRate] = useState(0);
+    const [payRate, setPayRate] = useState<number | string>('');
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [timezone, setTimezone] = useState("Africa/Lagos");
@@ -122,6 +122,16 @@ function StaffDialog({
             setIsActive(staff.is_active === undefined ? true : staff.is_active);
         }
     }, [staff]);
+    
+    const handlePayRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        if (value === '') {
+            setPayRate('');
+        } else {
+            const numValue = parseFloat(value);
+            setPayRate(isNaN(numValue) ? '' : numValue);
+        }
+    }
 
     const handleSubmit = () => {
         if (!name || !role || !email) {
@@ -138,7 +148,7 @@ function StaffDialog({
             email,
             role,
             pay_type: payType,
-            pay_rate: Number(payRate),
+            pay_rate: Number(payRate) || 0,
             timezone,
             bank_name: bankName,
             account_number: accountNumber,
@@ -191,7 +201,7 @@ function StaffDialog({
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="pay_rate">Pay Rate (NGN)</Label>
-                        <Input id="pay_rate" type="number" value={payRate} onChange={(e) => setPayRate(parseFloat(e.target.value))} />
+                        <Input id="pay_rate" type="number" value={payRate} onChange={handlePayRateChange} />
                         <p className="text-xs text-muted-foreground px-1">Enter hourly rate or monthly salary based on pay type.</p>
                     </div>
                     <div className="grid gap-2">
