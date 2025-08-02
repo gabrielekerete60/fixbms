@@ -50,7 +50,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { collection, query, where, onSnapshot, Timestamp, getDocs } from "firebase/firestore";
+import { collection, query, where, onSnapshot, Timestamp, getDocs, startOfDay, endOfDay } from "firebase/firestore";
 import { db } from '@/lib/firebase';
 import { startOfMonth, format, eachDayOfInterval, subDays } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
@@ -568,25 +568,60 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
   const [stats, setStats] = useState<ShowroomDashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchStats = useCallback(async () => {
-    if (!user.staff_id) return;
-    setIsLoading(true);
-    const data = await getShowroomDashboardStats(user.staff_id);
-    setStats(data);
-    setIsLoading(false);
-  }, [user.staff_id]);
-  
   useEffect(() => {
-    fetchStats();
-    
-    // Add event listener to refetch data on window focus
-    window.addEventListener('focus', fetchStats);
-    
-    // Cleanup listener on component unmount
-    return () => {
-      window.removeEventListener('focus', fetchStats);
-    };
-  }, [fetchStats]);
+    if (!user || !user.staff_id) return;
+
+    setIsLoading(true);
+
+    const todayStart = startOfDay(new Date());
+    const todayEnd = endOfDay(new Date());
+
+    const q = query(
+        collection(db, 'orders'),
+        where('staffId', '==', user.staff_id),
+        where('date', '>=', Timestamp.fromDate(todayStart)),
+        where('date', '<=', Timestamp.fromDate(todayEnd))
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const productCounts: { [productId: string]: { name: string; quantity: number } } = {};
+        
+        snapshot.forEach(doc => {
+            const order = doc.data();
+            order.items.forEach((item: any) => {
+                if (!productCounts[item.productId]) {
+                    productCounts[item.productId] = { name: item.name, quantity: 0 };
+                }
+                productCounts[item.productId].quantity += item.quantity;
+            });
+        });
+
+        let topProduct: { name: string; quantity: number } | null = null;
+        if (Object.keys(productCounts).length > 0) {
+            topProduct = Object.values(productCounts).reduce((max, product) => max.quantity > product.quantity ? max : product);
+        }
+
+        const topProductsChart = Object.values(productCounts)
+            .sort((a, b) => b.quantity - a.quantity)
+            .slice(0, 5);
+
+        // This calculation now happens inside the listener
+        const totalSales = snapshot.docs.reduce((sum, doc) => sum + doc.data().total, 0);
+        
+        setStats({
+            dailySales: [{ hour: 'Today', sales: totalSales }], // Simplified for total sales card
+            topProduct,
+            topProductsChart,
+        });
+
+        if (isLoading) {
+            setIsLoading(false);
+        }
+    });
+
+    return () => unsubscribe(); // Cleanup the listener
+
+  }, [user, isLoading]);
   
   if (isLoading || !stats) {
     return (
@@ -705,3 +740,4 @@ export default function Dashboard() {
 
   return <StaffDashboard user={user} />;
 }
+
