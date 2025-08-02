@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -111,7 +111,7 @@ function ManageDeductionsDialog({ entry, onSave, children }: { entry: PayrollEnt
 
 export default function PayrollPage() {
     const { toast } = useToast();
-    const [payroll, setPayroll] = useState<PayrollEntry[]>([]);
+    const [payroll, setPayroll] = useState<PayrollEntry[] | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [payrollPeriod, setPayrollPeriod] = useState(format(new Date(), 'yyyy-MM'));
@@ -120,17 +120,22 @@ export default function PayrollPage() {
         setIsLoading(true);
         try {
             const staffList = await getStaffList();
-            const initialPayroll = staffList.map(s => ({
-                staffId: s.id,
-                staffName: s.name,
-                basePay: s.pay_rate || 0,
-                additions: 0,
-                deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
-            }));
-            setPayroll(initialPayroll);
+            if (staffList) {
+                const initialPayroll = staffList.map(s => ({
+                    staffId: s.id,
+                    staffName: s.name,
+                    basePay: s.pay_rate || 0,
+                    additions: 0,
+                    deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
+                }));
+                setPayroll(initialPayroll);
+            } else {
+                 setPayroll([]);
+            }
         } catch (error) {
             console.error("Error fetching staff list:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch staff list.' });
+            setPayroll([]);
         } finally {
             setIsLoading(false);
         }
@@ -143,11 +148,11 @@ export default function PayrollPage() {
     const handlePayrollChange = (staffId: string, field: 'additions', value: string) => {
         const numValue = Number(value);
         if (isNaN(numValue)) return;
-        setPayroll(prev => prev.map(p => p.staffId === staffId ? { ...p, [field]: numValue } : p));
+        setPayroll(prev => prev ? prev.map(p => p.staffId === staffId ? { ...p, [field]: numValue } : p) : null);
     };
     
     const handleDeductionsSave = (staffId: string, deductions: DeductionDetails) => {
-        setPayroll(prev => prev.map(p => p.staffId === staffId ? { ...p, deductions } : p));
+        setPayroll(prev => prev ? prev.map(p => p.staffId === staffId ? { ...p, deductions } : p) : null);
     };
 
     const calculateTotals = (entry: PayrollEntry) => {
@@ -160,7 +165,7 @@ export default function PayrollPage() {
     };
     
     const handleProcessPayroll = async () => {
-        if (payroll.length === 0) {
+        if (!payroll || payroll.length === 0) {
             toast({ variant: 'destructive', title: 'Error', description: 'No payroll data to process.'});
             return;
         }
@@ -184,15 +189,27 @@ export default function PayrollPage() {
         setIsProcessing(false);
     }
     
-    const grandTotals = payroll.reduce((acc, entry) => {
-        const { grossPay, netPay, totalDeductions } = calculateTotals(entry);
-        acc.basePay += entry.basePay || 0;
-        acc.additions += entry.additions || 0;
-        acc.totalDeductions += totalDeductions;
-        acc.grossPay += grossPay;
-        acc.netPay += netPay;
-        return acc;
-    }, { basePay: 0, additions: 0, totalDeductions: 0, grossPay: 0, netPay: 0 });
+    const grandTotals = useMemo(() => {
+        if (!payroll) return { basePay: 0, additions: 0, totalDeductions: 0, grossPay: 0, netPay: 0 };
+        return payroll.reduce((acc, entry) => {
+            const { grossPay, netPay, totalDeductions } = calculateTotals(entry);
+            acc.basePay += entry.basePay || 0;
+            acc.additions += entry.additions || 0;
+            acc.totalDeductions += totalDeductions;
+            acc.grossPay += grossPay;
+            acc.netPay += netPay;
+            return acc;
+        }, { basePay: 0, additions: 0, totalDeductions: 0, grossPay: 0, netPay: 0 });
+    }, [payroll]);
+
+
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center h-full">
+                <Loader2 className="h-16 w-16 animate-spin" />
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col gap-4">
@@ -231,11 +248,14 @@ export default function PayrollPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {isLoading ? (
-                                    <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                ) : payroll.length > 0 ? payroll.map(entry => {
+                                {!payroll || payroll.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">
+                                            No staff members found. Please add staff in the "Staff Management" section.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : payroll.map(entry => {
                                     const { grossPay, netPay, totalDeductions } = calculateTotals(entry);
-                                    const staffMember = { id: entry.staffId, name: entry.staffName, role: '', pay_rate: 0, pay_type: 'Salary' as const}; // Needed for type match
                                     return (
                                         <TableRow key={entry.staffId}>
                                             <TableCell>{entry.staffName}</TableCell>
@@ -263,13 +283,7 @@ export default function PayrollPage() {
                                             <TableCell className="text-right font-bold">{netPay.toLocaleString()}</TableCell>
                                         </TableRow>
                                     )
-                                }) : (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">
-                                            No staff members found. Please add staff in the "Staff Management" section.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
+                                })}
                             </TableBody>
                              <TableFooter>
                                 <TableRow className="bg-muted/50 font-bold">
@@ -285,7 +299,7 @@ export default function PayrollPage() {
                     </div>
                 </CardContent>
                 <CardFooter>
-                     <Button onClick={handleProcessPayroll} disabled={isProcessing || isLoading || payroll.length === 0}>
+                     <Button onClick={handleProcessPayroll} disabled={isProcessing || isLoading || !payroll || payroll.length === 0}>
                         {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Process Payroll for {format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')}
                     </Button>
