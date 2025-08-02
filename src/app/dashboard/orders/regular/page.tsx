@@ -77,7 +77,7 @@ type CompletedOrder = {
   tax: number;
   total: number;
   date: Timestamp;
-  paymentMethod: 'Card' | 'Cash';
+  paymentMethod: 'POS' | 'Cash' | 'Paystack' | 'Credit';
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
@@ -636,7 +636,9 @@ export default function RegularOrdersPage() {
                             <SelectContent>
                                 <SelectItem value="all">All Payments</SelectItem>
                                 <SelectItem value="Cash">Cash</SelectItem>
-                                <SelectItem value="Card">Card</SelectItem>
+                                <SelectItem value="POS">POS</SelectItem>
+                                <SelectItem value="Paystack">Transfer</SelectItem>
+                                <SelectItem value="Credit">Credit</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

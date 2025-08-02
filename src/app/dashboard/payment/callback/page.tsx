@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useEffect, useState, Suspense } from 'react';
@@ -111,7 +110,7 @@ function PaymentCallback() {
                         ...orderData,
                         id: orderId,
                         date: Timestamp.now(), // Use Timestamp here
-                        paymentMethod: 'Card',
+                        paymentMethod: 'Paystack',
                         status: 'Completed',
                     };
                     delete finalOrderData.createdAt;

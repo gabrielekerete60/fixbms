@@ -1,10 +1,9 @@
 
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import Image from "next/image";
-import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet } from "lucide-react";
+import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -50,8 +49,8 @@ import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, runTransaction, increment, getDoc, query, where, setDoc, Timestamp, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useRouter, useSearchParams } from "next/navigation";
-import { initializePaystackTransaction } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { initializePaystackTransaction, handleSellToCustomer } from "@/app/actions";
 import type PaystackPop from '@paystack/inline-js';
 
 
@@ -63,6 +62,7 @@ type Product = {
   category: string;
   image: string;
   'data-ai-hint': string;
+  costPrice?: number;
 };
 
 type CartItem = {
@@ -75,10 +75,9 @@ type CartItem = {
 type CompletedOrder = {
   id: string;
   items: CartItem[];
-  subtotal: number;
   total: number;
-  date: Timestamp;
-  paymentMethod: 'POS' | 'Cash';
+  date: string;
+  paymentMethod: 'POS' | 'Cash' | 'Credit' | 'Paystack';
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
@@ -111,7 +110,7 @@ const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeA
             <div className="py-4 space-y-4">
                 <div className="text-sm text-muted-foreground">
                     <p><strong>Order ID:</strong> {order.id}</p>
-                    <p><strong>Date:</strong> {order.date.toDate().toLocaleString()}</p>
+                    <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
                     <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
                     <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
                 </div>
@@ -199,8 +198,6 @@ const handlePrint = (node: HTMLElement | null) => {
 
 function POSPageContent() {
   const { toast } = useToast();
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [user, setUser] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
@@ -213,7 +210,8 @@ function POSPageContent() {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<CompletedOrder | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmMethod, setConfirmMethod] = useState<'Cash' | 'POS' | null>(null);
   const [storeAddress, setStoreAddress] = useState<string | undefined>();
   
   const [paymentStatus, setPaymentStatus] = useLocalStorage<PaymentStatus>('paymentStatus', { status: 'idle' });
@@ -257,6 +255,7 @@ function POSPageContent() {
                     category: productDetails.category,
                     image: productDetails.image,
                     'data-ai-hint': productDetails['data-ai-hint'],
+                    costPrice: productDetails.costPrice || 0,
                 } as Product;
             }
             return null;
@@ -315,7 +314,6 @@ function POSPageContent() {
     };
   }, [selectedStaffId])
   
-  // Handle payment status changes from local storage
   useEffect(() => {
     const handleStorageChange = async () => {
         const storedStatusRaw = localStorage.getItem('paymentStatus');
@@ -327,7 +325,12 @@ function POSPageContent() {
                     toast({ title: "Payment Successful", description: "Order completed." });
                     const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
                     if (orderDoc.exists()) {
-                        setLastCompletedOrder(orderDoc.data() as CompletedOrder);
+                        const orderData = orderDoc.data();
+                        setLastCompletedOrder({
+                            ...orderData,
+                            id: orderDoc.id,
+                            date: (orderData.date as Timestamp).toDate().toISOString()
+                        } as CompletedOrder);
                         setIsReceiptOpen(true);
                     }
                 } else if (newStatus.status === 'cancelled') {
@@ -360,57 +363,69 @@ function POSPageContent() {
     setCustomerEmail(user?.email || '');
   }
 
-  const completeOrder = async (paymentMethod: 'POS' | 'Cash') => {
+  const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
+    setIsConfirmOpen(false);
+    setPaymentStatus({ status: 'processing' });
+
     if (!user || !selectedStaffId) {
         toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
-        return null;
+        setPaymentStatus({ status: 'idle' });
+        return;
     }
+    
+    const itemsWithCost = cart.map(item => {
+        const productDetails = products.find(p => p.id === item.id);
+        return {
+            ...item,
+            costPrice: productDetails?.costPrice || 0
+        };
+    });
 
-    const orderRef = doc(collection(db, "orders"));
     const newOrderData = {
-      id: orderRef.id,
-      items: cart,
-      subtotal: total,
-      total: total,
-      date: Timestamp.now(),
-      paymentMethod,
-      customerName: customerName || 'Walk-in',
-      status: 'Completed' as const,
-      staffId: selectedStaffId,
-      staffName: allStaff.find(s => s.staff_id === selectedStaffId)?.name || user.name
+        items: itemsWithCost,
+        total,
+        paymentMethod: method,
+        customerName: customerName || 'Walk-in',
+        staffId: selectedStaffId,
     };
-  
+    
+    // We call handleSellToCustomer from actions.ts which is a server action
+    // This is not correct logic for a POS page, it should create a payment confirmation
+    // Re-evaluating this based on the existing `handleSellToCustomer`
+    // It seems the logic is already there to create payment_confirmations
+    // Let's call a simplified client-side order creation that just submits for confirmation
     try {
-      await runTransaction(db, async (transaction) => {
-          for (const item of cart) {
-              const personalStockRef = doc(db, 'staff', selectedStaffId, 'personal_stock', item.id);
-              const personalStockDoc = await transaction.get(personalStockRef);
-              if (!personalStockDoc.exists() || personalStockDoc.data().stock < item.quantity) {
-                  throw new Error(`Not enough stock for ${item.name}.`);
-              }
-              transaction.update(personalStockRef, { stock: increment(-item.quantity) });
-          }
-          
-          transaction.set(orderRef, newOrderData);
-      });
-      
-      setLastCompletedOrder({ ...newOrderData });
-      clearCartAndStorage();
+        const staffDoc = await getDoc(doc(db, 'staff', selectedStaffId));
+        const driverName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
 
-      return { ...newOrderData };
+        const confirmationRef = doc(collection(db, 'payment_confirmations'));
+        await setDoc(confirmationRef, {
+            runId: `pos-sale-${Date.now()}`, // POS doesn't have a "run" but we can create a unique ID
+            customerId: '', // Walk-in doesn't have an ID
+            customerName: customerName || 'Walk-in',
+            items: cart,
+            amount: total,
+            driverId: selectedStaffId,
+            driverName: driverName,
+            date: serverTimestamp(),
+            status: 'pending',
+            paymentMethod: method
+        });
+        
+        toast({ title: 'Pending Approval', description: 'Sale has been submitted for accountant approval.' });
+        clearCartAndStorage();
     } catch (error) {
-      console.error("Error saving order:", error);
-      const errorMessage = error instanceof Error ? error.message : "There was a problem saving the order to the database.";
-      toast({
-        variant: "destructive",
-        title: "Order Failed",
-        description: errorMessage,
-      });
-      return null;
+         toast({
+            variant: "destructive",
+            title: "Order Failed",
+            description: "Could not submit sale for approval.",
+        });
     }
+
+    setPaymentStatus({ status: 'idle' });
   }
 
-  const handlePOSPayment = async () => {
+  const handleTransferPayment = async () => {
     setIsCheckoutOpen(false);
     
     if (!user || !selectedStaffId) {
@@ -420,27 +435,38 @@ function POSPageContent() {
     
     setPaymentStatus({ status: 'processing' });
     
-    const finalOrder = await completeOrder('POS');
-    if (finalOrder) {
-        setIsReceiptOpen(true);
-        toast({ title: 'Payment Successful', description: 'Order has been completed.' });
-        setPaymentStatus({ status: 'success', orderId: finalOrder?.id });
+    const orderPayload = {
+        email: customerEmail || user.email,
+        total: total,
+        runId: `pos-sale-${Date.now()}`,
+        items: cart,
+    };
+    
+    const paystackResult = await initializePaystackTransaction(orderPayload);
+
+    if (paystackResult.success && paystackResult.reference && paystackResult.authorization_url) {
+        const PaystackPop = (await import('@paystack/inline-js')).default;
+        const paystack = new PaystackPop();
+        paystack.newTransaction({
+            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+            email: customerEmail || user.email,
+            amount: Math.round(total * 100),
+            ref: paystackResult.reference,
+            onClose: () => {
+                toast({ variant: "destructive", title: "Payment Cancelled" });
+                setPaymentStatus({ status: 'idle' });
+            },
+            callback: (response) => {
+                // Paystack's callback, we will rely on the server-side verification on the callback page
+                console.log(response);
+            }
+        });
     } else {
-        setPaymentStatus({ status: 'failed', message: 'Order completion failed.' });
+        toast({ variant: 'destructive', title: 'Initialization Error', description: paystackResult.error });
+        setPaymentStatus({ status: 'idle' });
     }
   };
 
-
-  const handleCashPayment = async () => {
-    setIsCashConfirmOpen(false);
-    setPaymentStatus({ status: 'processing' });
-    const completed = await completeOrder('Cash');
-    if (completed) {
-        toast({ title: 'Order Successful', description: 'The order has been completed.' });
-        setIsReceiptOpen(true);
-    }
-    setPaymentStatus({ status: 'idle' });
-  }
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
   
@@ -811,31 +837,35 @@ function POSPageContent() {
                         Total Amount: <span className="font-bold text-foreground">₦{total.toFixed(2)}</span>
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid grid-cols-2 gap-4 py-4">
-                     <Button variant="outline" className="h-24 text-lg" onClick={() => { setIsCheckoutOpen(false); setIsCashConfirmOpen(true); } }>
+                <div className="grid grid-cols-1 gap-4 py-4">
+                     <Button variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
-                    <Button className="h-24 text-lg" onClick={handlePOSPayment}>
+                    <Button variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('POS'); setIsConfirmOpen(true); } }>
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
+                    </Button>
+                    <Button className="h-20 text-lg" onClick={handleTransferPayment}>
+                        <ArrowRightLeft className="mr-2 h-6 w-6" />
+                        Pay with Transfer
                     </Button>
                 </div>
             </DialogContent>
         </Dialog>
         
-        {/* Cash Confirmation Dialog */}
-        <AlertDialog open={isCashConfirmOpen} onOpenChange={setIsCashConfirmOpen}>
+        {/* Cash/POS Confirmation Dialog */}
+        <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>Confirm Cash Payment</AlertDialogTitle>
+                    <AlertDialogTitle>Confirm {confirmMethod} Payment</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Have you received <strong>₦{total.toFixed(2)}</strong> in cash from the customer?
+                        Have you received <strong>₦{total.toFixed(2)}</strong> via {confirmMethod}? This will submit the sale for accountant approval.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel>No, Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleCashPayment}>Yes, I've received it</AlertDialogAction>
+                    <AlertDialogCancel onClick={() => setConfirmMethod(null)}>No, Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleOfflinePayment(confirmMethod!)}>Yes, I've received it</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
@@ -844,7 +874,7 @@ function POSPageContent() {
         <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
             <DialogContent className="sm:max-w-md print:max-w-full print:border-none print:shadow-none">
                 <div ref={receiptRef}>
-                    <Receipt order={lastCompletedOrder!} storeAddress={storeAddress} />
+                    {lastCompletedOrder && <Receipt order={lastCompletedOrder} storeAddress={storeAddress} />}
                 </div>
                 <DialogFooter className="flex justify-end gap-2 print:hidden">
                     <Button variant="outline" onClick={() => handlePrint(receiptRef.current)}><Printer className="mr-2 h-4 w-4"/> Print</Button>
@@ -856,7 +886,7 @@ function POSPageContent() {
   );
 }
 
-export default function POSPage() {
+export default function POSPageWithSuspense() {
     return (
         <Suspense fallback={<div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>}>
             <POSPageContent />
