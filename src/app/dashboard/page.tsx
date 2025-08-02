@@ -568,18 +568,25 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
   const [stats, setStats] = useState<ShowroomDashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchStats = useCallback(async () => {
     if (!user.staff_id) return;
-    
-    const fetchStats = async () => {
-        setIsLoading(true);
-        const data = await getShowroomDashboardStats(user.staff_id);
-        setStats(data);
-        setIsLoading(false);
-    }
-    fetchStats();
-
+    setIsLoading(true);
+    const data = await getShowroomDashboardStats(user.staff_id);
+    setStats(data);
+    setIsLoading(false);
   }, [user.staff_id]);
+  
+  useEffect(() => {
+    fetchStats();
+    
+    // Add event listener to refetch data on window focus
+    window.addEventListener('focus', fetchStats);
+    
+    // Cleanup listener on component unmount
+    return () => {
+      window.removeEventListener('focus', fetchStats);
+    };
+  }, [fetchStats]);
   
   if (isLoading || !stats) {
     return (
