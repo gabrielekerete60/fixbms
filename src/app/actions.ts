@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour } from "date-fns";
 import { db } from "@/lib/firebase";
 import fetch from 'node-fetch';
 import { randomUUID } from 'crypto';
@@ -608,7 +608,7 @@ export async function getShowroomDashboardStats(staffId: string): Promise<Showro
         );
         const snapshot = await getDocs(q);
 
-        // For hourly sales
+        // For hourly sales - initialize all hours to 0
         const hourlySales = Array.from({ length: 24 }, (_, i) => ({
             hour: `${i}:00`,
             sales: 0
@@ -637,14 +637,14 @@ export async function getShowroomDashboardStats(staffId: string): Promise<Showro
         }
 
         return {
-            dailySales: hourlySales.filter(h => h.sales > 0),
+            dailySales: hourlySales,
             topProduct,
         };
 
     } catch (error) {
         console.error("Error fetching showroom dashboard stats:", error);
         return {
-            dailySales: [],
+            dailySales: Array.from({ length: 24 }, (_, i) => ({ hour: `${i}:00`, sales: 0 })),
             topProduct: null,
         };
     }
