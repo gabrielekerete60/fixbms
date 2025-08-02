@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getStaffList, processPayroll } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Coins, Calendar as CalendarIcon } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 type StaffMember = {
     id: string;
@@ -36,7 +36,7 @@ type PayrollEntry = {
     deductions: DeductionDetails;
 };
 
-function ManageDeductionsDialog({ entry, onSave, children }: { entry: Partial<PayrollEntry>, onSave: (deductions: DeductionDetails) => void, children: React.ReactNode }) {
+function ManageDeductionsDialog({ entry, onSave, children }: { entry: PayrollEntry, onSave: (deductions: DeductionDetails) => void, children: React.ReactNode }) {
     const [isOpen, setIsOpen] = useState(false);
     const [deductions, setDeductions] = useState<DeductionDetails>({
         shortages: 0,
@@ -47,7 +47,7 @@ function ManageDeductionsDialog({ entry, onSave, children }: { entry: Partial<Pa
 
     useEffect(() => {
         if (isOpen) {
-            setDeductions(entry.deductions || { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 });
+            setDeductions(entry.deductions);
         }
     }, [isOpen, entry.deductions]);
 
@@ -111,8 +111,7 @@ function ManageDeductionsDialog({ entry, onSave, children }: { entry: Partial<Pa
 
 export default function PayrollPage() {
     const { toast } = useToast();
-    const [staff, setStaff] = useState<StaffMember[]>([]);
-    const [payroll, setPayroll] = useState<Record<string, Partial<PayrollEntry>>>({});
+    const [payroll, setPayroll] = useState<PayrollEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [payrollPeriod, setPayrollPeriod] = useState(format(new Date(), 'yyyy-MM'));
@@ -121,20 +120,14 @@ export default function PayrollPage() {
         setIsLoading(true);
         try {
             const staffList = await getStaffList();
-            setStaff(staffList);
-            
-            const initialPayroll: Record<string, Partial<PayrollEntry>> = {};
-            staffList.forEach(s => {
-                initialPayroll[s.id] = {
-                    staffId: s.id,
-                    staffName: s.name,
-                    basePay: s.pay_rate || 0,
-                    additions: 0,
-                    deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
-                };
-            });
+            const initialPayroll = staffList.map(s => ({
+                staffId: s.id,
+                staffName: s.name,
+                basePay: s.pay_rate || 0,
+                additions: 0,
+                deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
+            }));
             setPayroll(initialPayroll);
-
         } catch (error) {
             console.error("Error fetching staff list:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch staff list.' });
@@ -150,75 +143,51 @@ export default function PayrollPage() {
     const handlePayrollChange = (staffId: string, field: 'additions', value: string) => {
         const numValue = Number(value);
         if (isNaN(numValue)) return;
-
-        setPayroll(prev => ({
-            ...prev,
-            [staffId]: {
-                ...prev[staffId],
-                [field]: numValue
-            }
-        }));
+        setPayroll(prev => prev.map(p => p.staffId === staffId ? { ...p, [field]: numValue } : p));
     };
     
     const handleDeductionsSave = (staffId: string, deductions: DeductionDetails) => {
-        setPayroll(prev => ({
-            ...prev,
-            [staffId]: {
-                ...prev[staffId],
-                deductions
-            }
-        }));
+        setPayroll(prev => prev.map(p => p.staffId === staffId ? { ...p, deductions } : p));
     };
 
-    const calculateTotals = (staffId: string) => {
-        const entry = payroll[staffId];
-        if (!entry) return { grossPay: 0, netPay: 0, totalDeductions: 0 };
+    const calculateTotals = (entry: PayrollEntry) => {
         const basePay = entry.basePay || 0;
         const additions = entry.additions || 0;
-        const totalDeductions = Object.values(entry.deductions || {}).reduce((sum, val) => sum + Number(val), 0);
+        const totalDeductions = Object.values(entry.deductions).reduce((sum, val) => sum + Number(val), 0);
         const grossPay = basePay + additions;
         const netPay = grossPay - totalDeductions;
         return { grossPay, netPay, totalDeductions };
     };
     
     const handleProcessPayroll = async () => {
-        setIsProcessing(true);
-        const payrollDataToProcess = Object.values(payroll)
-            .map(p => {
-                if (!p.staffId) return null;
-                const { netPay } = calculateTotals(p.staffId);
-                return {
-                    staffId: p.staffId,
-                    staffName: p.staffName!,
-                    basePay: p.basePay || 0,
-                    additions: p.additions || 0,
-                    deductions: p.deductions || { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
-                    netPay,
-                    month: format(new Date(payrollPeriod), 'MMMM yyyy'),
-                };
-            }).filter((p): p is NonNullable<typeof p> => p !== null);
-            
-        if (payrollDataToProcess.length === 0) {
-            toast({ variant: 'destructive', title: 'Error', description: 'No staff data loaded to process payroll.'});
-            setIsProcessing(false);
+        if (payroll.length === 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'No payroll data to process.'});
             return;
         }
 
+        setIsProcessing(true);
+        const payrollDataToProcess = payroll.map(p => {
+            const { netPay } = calculateTotals(p);
+            return {
+                ...p,
+                netPay,
+                month: format(new Date(payrollPeriod), 'MMMM yyyy'),
+            };
+        });
+            
         const result = await processPayroll(payrollDataToProcess, format(new Date(payrollPeriod), 'MMMM yyyy'));
         if (result.success) {
             toast({ title: 'Success!', description: 'Payroll has been processed and expenses logged.'});
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-
         setIsProcessing(false);
     }
     
-    const grandTotals = Object.keys(payroll).reduce((acc, staffId) => {
-        const { grossPay, netPay, totalDeductions } = calculateTotals(staffId);
-        const entry = payroll[staffId];
-        acc.basePay += entry?.basePay || 0;
-        acc.additions += entry?.additions || 0;
+    const grandTotals = payroll.reduce((acc, entry) => {
+        const { grossPay, netPay, totalDeductions } = calculateTotals(entry);
+        acc.basePay += entry.basePay || 0;
+        acc.additions += entry.additions || 0;
         acc.totalDeductions += totalDeductions;
         acc.grossPay += grossPay;
         acc.netPay += netPay;
@@ -264,26 +233,27 @@ export default function PayrollPage() {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                ) : staff.length > 0 ? staff.map(s => {
-                                    const { grossPay, netPay, totalDeductions } = calculateTotals(s.id);
+                                ) : payroll.length > 0 ? payroll.map(entry => {
+                                    const { grossPay, netPay, totalDeductions } = calculateTotals(entry);
+                                    const staffMember = { id: entry.staffId, name: entry.staffName, role: '', pay_rate: 0, pay_type: 'Salary' as const}; // Needed for type match
                                     return (
-                                        <TableRow key={s.id}>
-                                            <TableCell>{s.name}<br/><span className="text-xs text-muted-foreground">{s.role}</span></TableCell>
-                                            <TableCell className="text-right">{(payroll[s.id]?.basePay || 0).toLocaleString()}</TableCell>
+                                        <TableRow key={entry.staffId}>
+                                            <TableCell>{entry.staffName}</TableCell>
+                                            <TableCell className="text-right">{entry.basePay.toLocaleString()}</TableCell>
                                             <TableCell className="text-right">
                                                 <Input 
                                                     type="number"
                                                     className="min-w-24 text-right"
-                                                    value={payroll[s.id]?.additions || ''}
-                                                    onChange={(e) => handlePayrollChange(s.id, 'additions', e.target.value)}
+                                                    value={entry.additions}
+                                                    onChange={(e) => handlePayrollChange(entry.staffId, 'additions', e.target.value)}
                                                     placeholder="0"
                                                 />
                                             </TableCell>
                                             <TableCell className="text-right">{grossPay.toLocaleString()}</TableCell>
                                             <TableCell className="text-right">
                                                 <ManageDeductionsDialog 
-                                                    entry={payroll[s.id] || {}} 
-                                                    onSave={(deductions) => handleDeductionsSave(s.id, deductions)}
+                                                    entry={entry} 
+                                                    onSave={(deductions) => handleDeductionsSave(entry.staffId, deductions)}
                                                 >
                                                     <Button variant="link" className="p-0 h-auto text-destructive hover:underline">
                                                         {totalDeductions.toLocaleString()}
@@ -315,7 +285,7 @@ export default function PayrollPage() {
                     </div>
                 </CardContent>
                 <CardFooter>
-                     <Button onClick={handleProcessPayroll} disabled={isProcessing || isLoading || staff.length === 0}>
+                     <Button onClick={handleProcessPayroll} disabled={isProcessing || isLoading || payroll.length === 0}>
                         {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Process Payroll for {format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')}
                     </Button>
