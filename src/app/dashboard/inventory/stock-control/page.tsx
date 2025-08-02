@@ -9,6 +9,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,7 +49,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableFooter
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -1081,3 +1081,5 @@ export default function StockControlPage() {
     </div>
   );
 }
+
+    
