@@ -129,18 +129,23 @@ const seedData = {
         staffId: '500001'
       }
   }),
-  transfers: Array.from({ length: 200 }, (_, i) => ({
-      id: `trans_${i + 1}`,
-      from_staff_id: "400001", // Storekeeper
-      from_staff_name: "Victory Peter Ekerete",
-      to_staff_id: i % 2 === 0 ? "500002" : "600001", // Showroom or Delivery
-      to_staff_name: i % 2 === 0 ? "Mary Felix Ating" : "Edet Edet Nyong",
-      items: [{ productId: `prod_${(i % 10) + 1}`, productName: productsData[i % 10].name, quantity: Math.floor(Math.random() * 20) + 10 }],
-      date: generateRandomDate(0, 730),
-      status: Math.random() > 0.1 ? 'pending' : 'completed',
-      is_sales_run: i % 2 !== 0,
-      totalCollected: 0
-  })),
+  transfers: Array.from({ length: 200 }, (_, i) => {
+      const isForMary = i % 4 === 0; // Reduce Mary's transfers to 1/4 of the previous rate
+      const toStaffId = isForMary ? "500002" : "600001";
+      const toStaffName = isForMary ? "Mary Felix Ating" : "Edet Edet Nyong";
+      return {
+        id: `trans_${i + 1}`,
+        from_staff_id: "400001", // Storekeeper
+        from_staff_name: "Victory Peter Ekerete",
+        to_staff_id: toStaffId, 
+        to_staff_name: toStaffName,
+        items: [{ productId: `prod_${(i % 10) + 1}`, productName: productsData[i % 10].name, quantity: Math.floor(Math.random() * 20) + 10 }],
+        date: generateRandomDate(0, 730),
+        status: Math.random() > 0.1 ? 'pending' : 'completed',
+        is_sales_run: !isForMary,
+        totalCollected: 0
+    }
+  }),
   production_batches: Array.from({ length: 100 }, (_, i) => ({
       id: `batch_${i + 1}`,
       recipeId: `rec_${(i % 2) + 1}`,
@@ -448,4 +453,3 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
-

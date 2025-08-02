@@ -22,6 +22,8 @@ import {
   Carrot,
   Archive,
   Calendar as CalendarIcon,
+  ShoppingBag,
+  TrendingUp,
 } from 'lucide-react';
 import {
   Card,
@@ -39,7 +41,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RevenueChart } from '@/components/revenue-chart';
-import { checkForMissingIndexes, getDashboardStats, getStaffDashboardStats, getBakerDashboardStats } from '../actions';
+import { checkForMissingIndexes, getDashboardStats, getStaffDashboardStats, getBakerDashboardStats, getShowroomDashboardStats } from '../actions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,6 +94,11 @@ type StorekeeperDashboardStats = {
     lowStockIngredients: number;
     productCategories: number;
     inventoryValueByCategory: { name: string, value: number }[];
+};
+
+type ShowroomDashboardStats = {
+    dailySales: { hour: string; sales: number }[];
+    topProduct: { name: string; quantity: number } | null;
 };
 
 function IndexWarning({ indexes }: { indexes: string[] }) {
@@ -332,6 +339,10 @@ const chartConfig = {
   value: {
     label: "Value",
     color: "hsl(var(--chart-1))",
+  },
+  sales: {
+    label: "Sales",
+    color: "hsl(var(--chart-1))",
   }
 };
 
@@ -551,6 +562,95 @@ function StorekeeperDashboard({ user }: { user: User }) {
   );
 }
 
+
+function ShowroomStaffDashboard({ user }: { user: User }) {
+  const [stats, setStats] = useState<ShowroomDashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user.staff_id) return;
+    
+    const fetchStats = async () => {
+        setIsLoading(true);
+        const data = await getShowroomDashboardStats(user.staff_id);
+        setStats(data);
+        setIsLoading(false);
+    }
+    fetchStats();
+
+  }, [user.staff_id]);
+  
+  if (isLoading || !stats) {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <Loader2 className="h-16 w-16 animate-spin" />
+      </div>
+    );
+  }
+
+  const totalSalesToday = stats.dailySales.reduce((sum, hour) => sum + hour.sales, 0);
+
+  return (
+    <>
+      <h1 className="text-3xl font-bold font-headline">Welcome back, {user.name.split(' ')[0]}!</h1>
+      <p className="text-muted-foreground">Here is your sales summary for today.</p>
+      
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Sales Today</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₦{totalSalesToday.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">From all completed orders today.</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Top Selling Product</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.topProduct?.name || 'N/A'}</div>
+            <p className="text-xs text-muted-foreground">
+                {stats.topProduct ? `${stats.topProduct.quantity} units sold today` : 'No sales recorded yet.'}
+            </p>
+          </CardContent>
+        </Card>
+        <Link href="/dashboard/pos" className="flex items-center justify-center">
+            <Button className="w-full h-full text-lg">
+                <ShoppingBag className="mr-2 h-6 w-6"/>
+                Go to POS
+            </Button>
+        </Link>
+      </div>
+
+       <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Today's Sales by Hour</CardTitle>
+            <CardDescription>A breakdown of sales throughout the day.</CardDescription>
+          </CardHeader>
+          <CardContent>
+             <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                <BarChart data={stats.dailySales}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="hour" tickLine={false} axisLine={false} tickMargin={8} />
+                    <YAxis tickFormatter={(value) => `₦${value/1000}k`} tickLine={false} axisLine={false} />
+                    <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent indicator="dot" formatter={(value) => `₦${value.toLocaleString()}`} />}
+                    />
+                    <Bar dataKey="sales" fill="var(--color-sales)" radius={4} />
+                </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+    </>
+  );
+}
+
+
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -583,6 +683,10 @@ export default function Dashboard() {
 
   if (managementRoles.includes(user.role)) {
       return <ManagementDashboard />;
+  }
+
+  if (user.role === 'Showroom Staff') {
+      return <ShowroomStaffDashboard user={user} />;
   }
 
   return <StaffDashboard user={user} />;

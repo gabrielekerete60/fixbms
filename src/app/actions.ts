@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear, eachDayOfInterval, format, subDays } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour } from "date-fns";
 import { db } from "@/lib/firebase";
 import fetch from 'node-fetch';
 import { randomUUID } from 'crypto';
@@ -585,6 +585,67 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
             activeBatches: 0,
             producedThisWeek: 0,
             weeklyProduction: eachDayOfInterval({ start: weekStart, end: endOfWeek(now) }).map(day => ({ day: format(day, 'E'), quantity: 0 })),
+        };
+    }
+}
+
+export type ShowroomDashboardStats = {
+    dailySales: { hour: string; sales: number }[];
+    topProduct: { name: string; quantity: number } | null;
+};
+
+export async function getShowroomDashboardStats(staffId: string): Promise<ShowroomDashboardStats> {
+    const now = new Date();
+    const start = startOfDay(now);
+    const end = endOfDay(now);
+
+    try {
+        const q = query(
+            collection(db, 'orders'),
+            where('staffId', '==', staffId),
+            where('date', '>=', Timestamp.fromDate(start)),
+            where('date', '<=', Timestamp.fromDate(end))
+        );
+        const snapshot = await getDocs(q);
+
+        // For hourly sales
+        const hourlySales = Array.from({ length: 24 }, (_, i) => ({
+            hour: `${i}:00`,
+            sales: 0
+        }));
+
+        // For top product
+        const productCounts: { [productId: string]: { name: string; quantity: number } } = {};
+
+        snapshot.forEach(doc => {
+            const order = doc.data();
+            const orderDate = (order.date as Timestamp).toDate();
+            const hour = orderDate.getHours();
+            hourlySales[hour].sales += order.total;
+
+            order.items.forEach((item: any) => {
+                if (!productCounts[item.productId]) {
+                    productCounts[item.productId] = { name: item.name, quantity: 0 };
+                }
+                productCounts[item.productId].quantity += item.quantity;
+            });
+        });
+        
+        let topProduct: { name: string; quantity: number } | null = null;
+        if (Object.keys(productCounts).length > 0) {
+            topProduct = Object.values(productCounts).reduce((max, product) => max.quantity > product.quantity ? max : product);
+        }
+
+        return {
+            dailySales: hourlySales.filter(h => h.sales > 0),
+            topProduct,
+        };
+
+    } catch (error) {
+        console.error("Error fetching showroom dashboard stats:", error);
+        return {
+            dailySales: [],
+            topProduct: null,
         };
     }
 }
