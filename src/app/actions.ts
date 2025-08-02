@@ -592,6 +592,7 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
 export type ShowroomDashboardStats = {
     dailySales: { hour: string; sales: number }[];
     topProduct: { name: string; quantity: number } | null;
+    topProductsChart: { name: string; quantity: number }[];
 };
 
 export async function getShowroomDashboardStats(staffId: string): Promise<ShowroomDashboardStats> {
@@ -608,13 +609,11 @@ export async function getShowroomDashboardStats(staffId: string): Promise<Showro
         );
         const snapshot = await getDocs(q);
 
-        // For hourly sales - initialize all hours to 0
         const hourlySales = Array.from({ length: 24 }, (_, i) => ({
             hour: `${i}:00`,
             sales: 0
         }));
 
-        // For top product
         const productCounts: { [productId: string]: { name: string; quantity: number } } = {};
 
         snapshot.forEach(doc => {
@@ -636,9 +635,14 @@ export async function getShowroomDashboardStats(staffId: string): Promise<Showro
             topProduct = Object.values(productCounts).reduce((max, product) => max.quantity > product.quantity ? max : product);
         }
 
+        const topProductsChart = Object.values(productCounts)
+            .sort((a, b) => b.quantity - a.quantity)
+            .slice(0, 5);
+
         return {
             dailySales: hourlySales,
             topProduct,
+            topProductsChart
         };
 
     } catch (error) {
@@ -646,6 +650,7 @@ export async function getShowroomDashboardStats(staffId: string): Promise<Showro
         return {
             dailySales: Array.from({ length: 24 }, (_, i) => ({ hour: `${i}:00`, sales: 0 })),
             topProduct: null,
+            topProductsChart: []
         };
     }
 }
@@ -1161,7 +1166,7 @@ export async function addIndirectCost(data: IndirectCostData) {
 
 export async function getStaffList() {
     try {
-        const q = query(collection(db, "staff"), where("role", "!=", "Developer"), where("is_active", "==", true));
+        const q = query(collection(db, "staff"), where("is_active", "==", true));
         const snapshot = await getDocs(q);
         return snapshot.docs.map(docSnap => ({
             id: docSnap.id,
@@ -2525,5 +2530,3 @@ export async function getStaffByRole(role: string): Promise<any[]> {
         return { id: doc.id, ...plainData };
     });
 }
-
-    

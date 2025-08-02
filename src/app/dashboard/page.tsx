@@ -99,6 +99,7 @@ type StorekeeperDashboardStats = {
 type ShowroomDashboardStats = {
     dailySales: { hour: string; sales: number }[];
     topProduct: { name: string; quantity: number } | null;
+    topProductsChart: { name: string; quantity: number }[];
 };
 
 function IndexWarning({ indexes }: { indexes: string[] }) {
@@ -628,20 +629,20 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
 
        <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Today's Sales by Hour</CardTitle>
-            <CardDescription>A breakdown of sales throughout the day.</CardDescription>
+            <CardTitle>Today's Top 5 Products</CardTitle>
+            <CardDescription>A breakdown of the best-selling products today.</CardDescription>
           </CardHeader>
           <CardContent>
              <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                <BarChart data={stats.dailySales}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis dataKey="hour" tickLine={false} axisLine={false} tickMargin={8} />
-                    <YAxis tickFormatter={(value) => `₦${value/1000}k`} tickLine={false} axisLine={false} />
+                <BarChart data={stats.topProductsChart} layout="vertical" margin={{ left: 10, right: 30 }}>
+                    <CartesianGrid horizontal={false} />
+                    <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={80} />
+                    <XAxis dataKey="quantity" type="number" hide />
                     <ChartTooltip
                         cursor={false}
-                        content={<ChartTooltipContent indicator="dot" formatter={(value) => `₦${value.toLocaleString()}`} />}
+                        content={<ChartTooltipContent indicator="dot" />}
                     />
-                    <Bar dataKey="sales" fill="var(--color-sales)" radius={4} />
+                    <Bar dataKey="quantity" fill="var(--color-quantity)" radius={4} />
                 </BarChart>
             </ChartContainer>
           </CardContent>
