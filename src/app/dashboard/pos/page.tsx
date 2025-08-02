@@ -376,7 +376,10 @@ function POSPageContent() {
     const itemsWithCost = cart.map(item => {
         const productDetails = products.find(p => p.id === item.id);
         return {
-            ...item,
+            productId: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
             costPrice: productDetails?.costPrice || 0
         };
     });
