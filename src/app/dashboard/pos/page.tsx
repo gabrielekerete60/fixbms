@@ -50,7 +50,7 @@ import { collection, getDocs, doc, runTransaction, increment, getDoc, query, whe
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
-import { initializePaystackTransaction, handleSellToCustomer } from "@/app/actions";
+import { initializePaystackTransaction, handlePosSale } from "@/app/actions";
 import type PaystackPop from '@paystack/inline-js';
 
 
@@ -381,7 +381,7 @@ function POSPageContent() {
         };
     });
 
-    const newOrderData = {
+    const saleData = {
         items: itemsWithCost,
         total,
         paymentMethod: method,
@@ -389,36 +389,26 @@ function POSPageContent() {
         staffId: selectedStaffId,
     };
     
-    // We call handleSellToCustomer from actions.ts which is a server action
-    // This is not correct logic for a POS page, it should create a payment confirmation
-    // Re-evaluating this based on the existing `handleSellToCustomer`
-    // It seems the logic is already there to create payment_confirmations
-    // Let's call a simplified client-side order creation that just submits for confirmation
-    try {
-        const staffDoc = await getDoc(doc(db, 'staff', selectedStaffId));
-        const driverName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
+    const result = await handlePosSale(saleData);
 
-        const confirmationRef = doc(collection(db, 'payment_confirmations'));
-        await setDoc(confirmationRef, {
-            runId: `pos-sale-${Date.now()}`, // POS doesn't have a "run" but we can create a unique ID
-            customerId: '', // Walk-in doesn't have an ID
-            customerName: customerName || 'Walk-in',
-            items: cart,
-            amount: total,
-            driverId: selectedStaffId,
-            driverName: driverName,
-            date: serverTimestamp(),
-            status: 'pending',
-            paymentMethod: method
-        });
-        
-        toast({ title: 'Pending Approval', description: 'Sale has been submitted for accountant approval.' });
+    if (result.success && result.orderId) {
+        toast({ title: 'Sale Completed', description: 'Order has been successfully recorded.' });
+        const orderDoc = await getDoc(doc(db, 'orders', result.orderId));
+        if (orderDoc.exists()) {
+            const orderData = orderDoc.data();
+             setLastCompletedOrder({
+                ...orderData,
+                id: orderDoc.id,
+                date: (orderData.date as Timestamp).toDate().toISOString()
+            } as CompletedOrder);
+            setIsReceiptOpen(true);
+        }
         clearCartAndStorage();
-    } catch (error) {
+    } else {
          toast({
             variant: "destructive",
             title: "Order Failed",
-            description: "Could not submit sale for approval.",
+            description: result.error || "Could not complete the sale.",
         });
     }
 
@@ -860,7 +850,7 @@ function POSPageContent() {
                 <AlertDialogHeader>
                     <AlertDialogTitle>Confirm {confirmMethod} Payment</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Have you received <strong>₦{total.toFixed(2)}</strong> via {confirmMethod}? This will submit the sale for accountant approval.
+                        Have you received <strong>₦{total.toFixed(2)}</strong> via {confirmMethod}? This action is final and will complete the order.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

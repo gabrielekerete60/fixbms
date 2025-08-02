@@ -2247,6 +2247,61 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
   }
 }
 
+type PosSaleData = {
+    items: { productId: string; quantity: number; price: number, name: string, costPrice: number }[];
+    customerName: string;
+    paymentMethod: 'Cash' | 'POS';
+    staffId: string;
+    total: number;
+}
+export async function handlePosSale(data: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
+    try {
+        const newOrderRef = doc(collection(db, 'orders'));
+        
+        await runTransaction(db, async (transaction) => {
+            // --- 1. All READS must happen first ---
+            const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
+            const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
+
+            // --- 2. All VALIDATIONS happen next ---
+            for (let i = 0; i < data.items.length; i++) {
+                const item = data.items[i];
+                const stockDoc = stockDocs[i];
+                if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
+                    throw new Error(`Not enough stock for ${item.name}.`);
+                }
+            }
+
+            // --- 3. All WRITES happen last ---
+            for (let i = 0; i < data.items.length; i++) {
+                const item = data.items[i];
+                const stockRef = stockRefs[i];
+                transaction.update(stockRef, { stock: increment(-item.quantity) });
+            }
+
+            const orderData = {
+                id: newOrderRef.id,
+                salesRunId: `pos-sale-${newOrderRef.id}`,
+                customerId: 'walk-in',
+                customerName: data.customerName,
+                items: data.items,
+                total: data.total,
+                paymentMethod: data.paymentMethod,
+                date: Timestamp.now(),
+                staffId: data.staffId,
+                status: 'Completed',
+            };
+            transaction.set(newOrderRef, orderData);
+        });
+
+        return { success: true, orderId: newOrderRef.id };
+    } catch (error) {
+        console.error("Error processing POS sale:", error);
+        return { success: false, error: (error as Error).message };
+    }
+}
+
+
 type PaymentData = {
     runId: string;
     customerId: string;
