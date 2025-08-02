@@ -50,9 +50,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { collection, query, where, onSnapshot, Timestamp, getDocs, startOfDay, endOfDay } from "firebase/firestore";
+import { collection, query, where, onSnapshot, Timestamp, getDocs } from "firebase/firestore";
 import { db } from '@/lib/firebase';
-import { startOfMonth, format, eachDayOfInterval, subDays } from 'date-fns';
+import { startOfMonth, format, eachDayOfInterval, subDays, startOfDay, endOfDay } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -567,8 +567,7 @@ function StorekeeperDashboard({ user }: { user: User }) {
 function ShowroomStaffDashboard({ user }: { user: User }) {
   const [stats, setStats] = useState<ShowroomDashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
+  const fetchStats = useCallback(async () => {
     if (!user || !user.staff_id) return;
 
     setIsLoading(true);
@@ -586,7 +585,7 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const productCounts: { [productId: string]: { name: string; quantity: number } } = {};
         
-        snapshot.forEach(doc => {
+        snapshot.docs.forEach(doc => {
             const order = doc.data();
             order.items.forEach((item: any) => {
                 if (!productCounts[item.productId]) {
@@ -620,8 +619,24 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
     });
 
     return () => unsubscribe(); // Cleanup the listener
-
   }, [user, isLoading]);
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+        if (!user || !user.staff_id) return;
+        const initialStats = await getShowroomDashboardStats(user.staff_id);
+        setStats(initialStats);
+        setIsLoading(false);
+    };
+
+    fetchInitialData();
+    window.addEventListener('focus', fetchInitialData);
+    
+    return () => {
+        window.removeEventListener('focus', fetchInitialData);
+    };
+}, [user]);
+
   
   if (isLoading || !stats) {
     return (
@@ -740,4 +755,3 @@ export default function Dashboard() {
 
   return <StaffDashboard user={user} />;
 }
-
