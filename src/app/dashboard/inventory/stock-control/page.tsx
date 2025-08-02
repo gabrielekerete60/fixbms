@@ -222,7 +222,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    );
+    )
 }
 
 function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void }) {
@@ -687,7 +687,8 @@ export default function StockControlPage() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Date</TableHead>
+                                        <TableHead>Received</TableHead>
+                                        <TableHead>Completed</TableHead>
                                         <TableHead>From</TableHead>
                                         <TableHead>Type</TableHead>
                                         <TableHead>Status</TableHead>
@@ -696,13 +697,14 @@ export default function StockControlPage() {
                                 </TableHeader>
                                 <TableBody>
                                     {isLoading ? (
-                                    <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
                                 ) : paginatedHistory.length === 0 ? (
-                                    <TableRow><TableCell colSpan={5} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={6} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
                                 ) : (
                                     paginatedHistory.map(t => (
                                         <TableRow key={t.id}>
-                                            <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                            <TableCell>{t.time_received ? format(new Date(t.time_received), 'Pp') : 'N/A'}</TableCell>
+                                            <TableCell>{t.time_completed ? format(new Date(t.time_completed), 'Pp') : 'N/A'}</TableCell>
                                             <TableCell>{t.from_staff_name}</TableCell>
                                             <TableCell>
                                                 {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
@@ -1081,5 +1083,3 @@ export default function StockControlPage() {
     </div>
   );
 }
-
-    

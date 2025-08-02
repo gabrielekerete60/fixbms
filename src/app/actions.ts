@@ -1600,6 +1600,8 @@ export type Transfer = {
   totalValue?: number;
   is_sales_run?: boolean;
   notes?: string;
+  time_received?: string;
+  time_completed?: string;
 };
 
 
@@ -1686,7 +1688,9 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
             return { 
                 id: docSnap.id,
                 ...data,
-                date: (data.date as Timestamp).toDate().toISOString(),
+                date: (data.date as Timestamp)?.toDate().toISOString(),
+                time_received: (data.time_received as Timestamp)?.toDate().toISOString(),
+                time_completed: (data.time_completed as Timestamp)?.toDate().toISOString(),
              } as Transfer
         });
     } catch (error: any) {
@@ -1763,7 +1767,11 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             
             // This is a write, happens after all reads
             const newStatus = transfer.is_sales_run ? 'active' : 'completed';
-            transaction.update(transferRef, { status: newStatus });
+            transaction.update(transferRef, { 
+                status: newStatus,
+                time_received: transferDoc.data().date, // Original creation time
+                time_completed: serverTimestamp() // Time of acknowledgement
+            });
         });
 
         return { success: true };
