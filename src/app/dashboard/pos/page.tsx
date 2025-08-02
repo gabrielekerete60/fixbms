@@ -104,7 +104,7 @@ type PaymentStatus = {
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
     return (
         <div ref={ref}>
-            <h2 className="text-2xl font-bold text-center">BMS</h2>
+            <h2 className="text-2xl font-bold text-center font-headline">BMS</h2>
             <p className="text-center text-sm">{storeAddress || 'Your Friendly Bakery'}</p>
             <p className="text-center text-sm">Sale Receipt</p>
             <div className="py-4 space-y-4">
@@ -866,6 +866,12 @@ function POSPageContent() {
         {/* Receipt Dialog */}
         <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
             <DialogContent className="sm:max-w-md print:max-w-full print:border-none print:shadow-none">
+                <DialogHeader className="print:hidden">
+                    <DialogTitle>Sale Completed</DialogTitle>
+                    <DialogDescription>
+                        The sale was successful. You can now print the receipt.
+                    </DialogDescription>
+                </DialogHeader>
                 <div ref={receiptRef}>
                     {lastCompletedOrder && <Receipt order={lastCompletedOrder} storeAddress={storeAddress} />}
                 </div>
@@ -886,3 +892,5 @@ export default function POSPageWithSuspense() {
         </Suspense>
     )
 }
+
+    
