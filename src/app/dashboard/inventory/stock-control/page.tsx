@@ -48,6 +48,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -96,6 +97,46 @@ type Ingredient = {
     stock: number;
 };
 
+
+function PaginationControls({
+    visibleRows,
+    setVisibleRows,
+    totalRows
+}: {
+    visibleRows: number | 'all',
+    setVisibleRows: (val: number | 'all') => void,
+    totalRows: number
+}) {
+    const [inputValue, setInputValue] = useState<string | number>('');
+
+    const handleApplyInput = () => {
+        const num = Number(inputValue);
+        if (!isNaN(num) && num > 0) {
+            setVisibleRows(num);
+        }
+    };
+
+    return (
+        <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+            <span>Show:</span>
+            <Button variant={visibleRows === 10 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(10)}>10</Button>
+            <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
+            <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
+            <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
+            <div className="flex items-center gap-2">
+                <Input 
+                    type="number" 
+                    className="h-9 w-20"
+                    placeholder="Custom"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleApplyInput()}
+                />
+                 <Button size="sm" onClick={handleApplyInput}>Apply</Button>
+            </div>
+        </div>
+    )
+}
 
 function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[], onApproval: () => void }) {
     const { toast } = useToast();
@@ -377,6 +418,9 @@ export default function StockControlPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingBatches, setIsLoadingBatches] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [visiblePendingRows, setVisiblePendingRows] = useState<number | 'all'>(10);
+  const [visibleHistoryRows, setVisibleHistoryRows] = useState<number | 'all'>(10);
   
   const fetchPageData = async () => {
         const userStr = localStorage.getItem('loggedInUser');
@@ -562,6 +606,14 @@ export default function StockControlPage() {
     }
   };
 
+  const paginatedPending = useMemo(() => {
+    return visiblePendingRows === 'all' ? pendingTransfers : pendingTransfers.slice(0, visiblePendingRows);
+  }, [pendingTransfers, visiblePendingRows]);
+
+  const paginatedHistory = useMemo(() => {
+    return visibleHistoryRows === 'all' ? completedTransfers : completedTransfers.slice(0, visibleHistoryRows);
+  }, [completedTransfers, visibleHistoryRows]);
+
   const userRole = user?.role;
   const canInitiateTransfer = userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper';
   
@@ -599,10 +651,10 @@ export default function StockControlPage() {
                                 <TableBody>
                                     {isLoading ? (
                                         <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                    ) : pendingTransfers.length === 0 ? (
+                                    ) : paginatedPending.length === 0 ? (
                                         <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
                                     ) : (
-                                        pendingTransfers.map(t => (
+                                        paginatedPending.map(t => (
                                             <TableRow key={t.id}>
                                                 <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
                                                 <TableCell>{t.from_staff_name}</TableCell>
@@ -621,6 +673,9 @@ export default function StockControlPage() {
                                 </TableBody>
                             </Table>
                         </CardContent>
+                        <CardFooter>
+                            <PaginationControls visibleRows={visiblePendingRows} setVisibleRows={setVisiblePendingRows} totalRows={pendingTransfers.length} />
+                        </CardFooter>
                     </Card>
 
                     <Card>
@@ -642,10 +697,10 @@ export default function StockControlPage() {
                                 <TableBody>
                                     {isLoading ? (
                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                ) : completedTransfers.length === 0 ? (
+                                ) : paginatedHistory.length === 0 ? (
                                     <TableRow><TableCell colSpan={5} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
                                 ) : (
-                                    completedTransfers.map(t => (
+                                    paginatedHistory.map(t => (
                                         <TableRow key={t.id}>
                                             <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
                                             <TableCell>{t.from_staff_name}</TableCell>
@@ -666,6 +721,9 @@ export default function StockControlPage() {
                                 </TableBody>
                             </Table>
                         </CardContent>
+                         <CardFooter>
+                            <PaginationControls visibleRows={visibleHistoryRows} setVisibleRows={setVisibleHistoryRows} totalRows={completedTransfers.length} />
+                        </CardFooter>
                     </Card>
                 </div>
                 {userRole !== 'Baker' && (

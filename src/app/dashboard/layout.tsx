@@ -367,7 +367,9 @@ export default function DashboardLayout({
   }, [user]);
 
   const combinedNotificationCounts = useMemo(() => {
-      const stockControlCount = notificationCounts.pendingTransfers + notificationCounts.pendingBatches;
+    const canApproveBatches = user && ['Manager', 'Developer', 'Storekeeper'].includes(user.role);
+    const stockControlCount = notificationCounts.pendingTransfers + (canApproveBatches ? notificationCounts.pendingBatches : 0);
+      
       return {
           stockControl: stockControlCount,
           pendingBatches: notificationCounts.pendingBatches,
@@ -375,7 +377,7 @@ export default function DashboardLayout({
           accounting: notificationCounts.pendingPayments,
           payments: notificationCounts.pendingPayments,
       }
-  }, [notificationCounts]);
+  }, [notificationCounts, user]);
 
   if (!user) {
     return <div className="flex justify-center items-center h-screen w-screen"><Loader2 className="h-16 w-16 animate-spin"/></div>;
