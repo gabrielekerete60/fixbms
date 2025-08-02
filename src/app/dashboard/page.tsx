@@ -633,18 +633,24 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
             <CardDescription>A breakdown of the best-selling products today.</CardDescription>
           </CardHeader>
           <CardContent>
-             <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                <BarChart data={stats.topProductsChart} layout="vertical" margin={{ left: 10, right: 30 }}>
-                    <CartesianGrid horizontal={false} />
-                    <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={80} />
-                    <XAxis dataKey="quantity" type="number" hide />
-                    <ChartTooltip
-                        cursor={false}
-                        content={<ChartTooltipContent indicator="dot" />}
-                    />
-                    <Bar dataKey="quantity" fill="var(--color-quantity)" radius={4} />
-                </BarChart>
-            </ChartContainer>
+             {stats.topProductsChart.length > 0 ? (
+                <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                    <BarChart data={stats.topProductsChart} layout="vertical" margin={{ left: 10, right: 30 }}>
+                        <CartesianGrid horizontal={false} />
+                        <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={80} />
+                        <XAxis dataKey="quantity" type="number" hide />
+                        <ChartTooltip
+                            cursor={false}
+                            content={<ChartTooltipContent indicator="dot" />}
+                        />
+                        <Bar dataKey="quantity" fill="var(--color-quantity)" radius={4} />
+                    </BarChart>
+                </ChartContainer>
+            ) : (
+                <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                    No sales data available for today.
+                </div>
+            )}
           </CardContent>
         </Card>
     </>
