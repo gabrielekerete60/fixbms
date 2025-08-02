@@ -50,7 +50,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { DateRange } from "react-day-picker";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { collection, getDocs, query, orderBy, Timestamp, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -81,6 +81,11 @@ type CompletedOrder = {
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
+
+type User = {
+    name: string;
+    role: string;
+};
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
   return (
@@ -190,6 +195,35 @@ const getStatusVariant = (status?: string) => {
         default:
             return 'outline';
     }
+}
+
+function PaginationControls({
+    visibleRows,
+    setVisibleRows,
+    totalRows
+}: {
+    visibleRows: number;
+    setVisibleRows: (val: number) => void;
+    totalRows: number
+}) {
+    const [inputValue, setInputValue] = useState<string | number>('');
+
+    const handleApplyInput = () => {
+        const num = Number(inputValue);
+        if (!isNaN(num) && num > 0) {
+            setVisibleRows(num);
+        }
+    };
+
+    return (
+        <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+            <span>Show:</span>
+            <Button variant={visibleRows === 10 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(10)}>10</Button>
+            <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
+            <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
+            <Button variant={visibleRows === totalRows ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(totalRows)}>All ({totalRows})</Button>
+        </div>
+    )
 }
 
 function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected, storeAddress }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean, storeAddress?: string }) {
@@ -386,6 +420,7 @@ function ExportDialog({ children, onExport }: { children: React.ReactNode, onExp
 
 export default function RegularOrdersPage() {
   const { toast } = useToast();
+  const [user, setUser] = useState<User | null>(null);
   const [allOrders, setAllOrders] = useState<CompletedOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -393,7 +428,7 @@ export default function RegularOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
   const [storeAddress, setStoreAddress] = useState<string | undefined>();
-
+  const [visibleRows, setVisibleRows] = useState(10);
 
   const selectedOrdersRef = useRef<HTMLDivElement>(null);
   const [ordersToPrint, setOrdersToPrint] = useState<CompletedOrder[]>([]);
@@ -411,8 +446,12 @@ export default function RegularOrdersPage() {
   };
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    const fetchOrdersAndUser = async () => {
       setIsLoading(true);
+      const userStr = localStorage.getItem('loggedInUser');
+      const currentUser: User | null = userStr ? JSON.parse(userStr) : null;
+      setUser(currentUser);
+      
       try {
         const ordersQuery = query(collection(db, "orders"), orderBy("date", "desc"));
         const orderSnapshot = await getDocs(ordersQuery);
@@ -422,6 +461,11 @@ export default function RegularOrdersPage() {
         const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
         if (settingsDoc.exists()) {
             setStoreAddress(settingsDoc.data().storeAddress);
+        }
+
+        if(currentUser?.role === 'Showroom Staff') {
+            const today = new Date();
+            setDate({ from: startOfDay(today), to: endOfDay(today) });
         }
 
       } catch (error) {
@@ -435,7 +479,7 @@ export default function RegularOrdersPage() {
         setIsLoading(false);
       }
     };
-    fetchOrders();
+    fetchOrdersAndUser();
   }, [toast]);
 
   const filteredOrders = useMemo(() => {
@@ -447,6 +491,10 @@ export default function RegularOrdersPage() {
       return dateMatch && searchMatch && paymentMatch;
     });
   }, [allOrders, date, searchTerm, paymentMethodFilter]);
+
+  const paginatedOrders = useMemo(() => {
+    return filteredOrders.slice(0, visibleRows);
+  }, [filteredOrders, visibleRows]);
 
   const handleSelectOne = (orderId: string, checked: boolean) => {
     setSelectedOrders(prev => {
@@ -460,7 +508,7 @@ export default function RegularOrdersPage() {
   
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedOrders(filteredOrders.map(o => o.id));
+      setSelectedOrders(paginatedOrders.map(o => o.id));
     } else {
       setSelectedOrders([]);
     }
@@ -495,8 +543,8 @@ export default function RegularOrdersPage() {
     toast({ title: "Success", description: `${ordersToExport.length} orders exported.` });
   };
 
-
-  const ordersByStatus = (status: CompletedOrder['status']) => filteredOrders.filter(o => o.status === status);
+  const isShowroomStaff = user?.role === 'Showroom Staff';
+  const ordersByStatus = (status: CompletedOrder['status']) => paginatedOrders.filter(o => o.status === status);
   const TABS = ['All Orders', 'Completed', 'Pending', 'Cancelled'];
 
   const renderContent = (orders: CompletedOrder[]) => {
@@ -513,7 +561,7 @@ export default function RegularOrdersPage() {
         onSelectOne={handleSelectOne}
         onSelectAll={handleSelectAll}
         selectedOrders={selectedOrders}
-        allOrdersSelected={selectedOrders.length > 0 && selectedOrders.length === orders.length}
+        allOrdersSelected={selectedOrders.length > 0 && selectedOrders.length === paginatedOrders.length}
         storeAddress={storeAddress}
       />
     );
@@ -529,9 +577,11 @@ export default function RegularOrdersPage() {
                 </TabsList>
                  <div className="flex items-center gap-2">
                     <Button variant="outline" disabled={selectedOrders.length === 0} onClick={handlePrintSelected}><Printer className="mr-2"/> Print Selected</Button>
-                    <ExportDialog onExport={handleExport}>
-                        <Button variant="outline"><FileDown className="mr-2"/> Export</Button>
-                    </ExportDialog>
+                     {!isShowroomStaff && (
+                         <ExportDialog onExport={handleExport}>
+                            <Button variant="outline"><FileDown className="mr-2"/> Export</Button>
+                        </ExportDialog>
+                     )}
                 </div>
             </div>
             <Card>
@@ -541,6 +591,7 @@ export default function RegularOrdersPage() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                             <Input placeholder="Search by Order ID or customer..." className="pl-10 w-full sm:w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                         </div>
+                        {!isShowroomStaff && (
                         <Popover>
                             <PopoverTrigger asChild>
                             <Button
@@ -577,6 +628,7 @@ export default function RegularOrdersPage() {
                             />
                             </PopoverContent>
                         </Popover>
+                        )}
                          <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
                             <SelectTrigger className="w-full sm:w-[180px]">
                                 <SelectValue placeholder="Filter by payment" />
@@ -591,7 +643,7 @@ export default function RegularOrdersPage() {
                 </CardHeader>
                 <CardContent>
                     <TabsContent value="All Orders">
-                      {renderContent(filteredOrders)}
+                      {renderContent(paginatedOrders)}
                     </TabsContent>
                     <TabsContent value="Completed">
                       {renderContent(ordersByStatus('Completed'))}
@@ -603,10 +655,11 @@ export default function RegularOrdersPage() {
                       {renderContent(ordersByStatus('Cancelled'))}
                     </TabsContent>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex justify-between items-center">
                     <div className="text-xs text-muted-foreground">
-                        Showing <strong>{filteredOrders.length}</strong> of <strong>{allOrders.length}</strong> orders.
+                        Showing <strong>{paginatedOrders.length}</strong> of <strong>{filteredOrders.length}</strong> orders.
                     </div>
+                    <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredOrders.length} />
                 </CardFooter>
             </Card>
         </Tabs>
