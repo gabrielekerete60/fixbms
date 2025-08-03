@@ -41,7 +41,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RevenueChart } from '@/components/revenue-chart';
-import { checkForMissingIndexes, getDashboardStats, getStaffDashboardStats, getBakerDashboardStats, getShowroomDashboardStats } from '../actions';
+import { checkForMissingIndexes, getDashboardStats, getStaffDashboardStats, getBakerDashboardStats } from '../actions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,7 +50,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { collection, query, where, onSnapshot, Timestamp, getDocs } from "firebase/firestore";
+import { collection, query, where, onSnapshot, Timestamp } from "firebase/firestore";
 import { db } from '@/lib/firebase';
 import { startOfMonth, format, eachDayOfInterval, subDays, startOfDay, endOfDay } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
@@ -97,9 +97,9 @@ type StorekeeperDashboardStats = {
 };
 
 type ShowroomDashboardStats = {
-    dailySales: { hour: string; sales: number }[];
+    dailySales: number;
     topProduct: { name: string; quantity: number } | null;
-    topProductsChart: { name: string; quantity: number }[];
+    topProductsChart: { name: string; total: number }[];
 };
 
 function IndexWarning({ indexes }: { indexes: string[] }) {
@@ -333,18 +333,14 @@ function StaffDashboard({ user }: { user: User }) {
 }
 
 const chartConfig = {
-  quantity: {
-    label: "Quantity",
+  total: {
+    label: "Sales (₦)",
     color: "hsl(var(--chart-1))",
   },
   value: {
     label: "Value",
     color: "hsl(var(--chart-1))",
   },
-  sales: {
-    label: "Sales",
-    color: "hsl(var(--chart-1))",
-  }
 };
 
 function BakerDashboard({ user }: { user: User }) {
@@ -405,7 +401,7 @@ function BakerDashboard({ user }: { user: User }) {
             </div>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={chartConfig} className="h-[250px] w-full">
+            <ChartContainer config={{quantity: {label: "Quantity", color: "hsl(var(--chart-1))"}}} className="h-[250px] w-full">
                 <BarChart data={stats.weeklyProduction}>
                 <CartesianGrid vertical={false} />
                 <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={8} />
@@ -587,35 +583,36 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const productCounts: { [productId: string]: { name: string; quantity: number } } = {};
+        const productData: { [productId: string]: { name: string; quantity: number, total: number } } = {};
         
         snapshot.docs.forEach(doc => {
             const order = doc.data();
             if (Array.isArray(order.items)) {
                 order.items.forEach((item: any) => {
                     if (item.productId && item.name && typeof item.quantity === 'number') {
-                        if (!productCounts[item.productId]) {
-                            productCounts[item.productId] = { name: item.name, quantity: 0 };
+                        if (!productData[item.productId]) {
+                            productData[item.productId] = { name: item.name, quantity: 0, total: 0 };
                         }
-                        productCounts[item.productId].quantity += item.quantity;
+                        productData[item.productId].quantity += item.quantity;
+                        productData[item.productId].total += (item.price * item.quantity);
                     }
                 });
             }
         });
 
         let topProduct: { name: string; quantity: number } | null = null;
-        if (Object.keys(productCounts).length > 0) {
-            topProduct = Object.values(productCounts).reduce((max, product) => max.quantity > product.quantity ? max : product);
+        if (Object.keys(productData).length > 0) {
+            topProduct = Object.values(productData).reduce((max, product) => max.quantity > product.quantity ? max : product);
         }
 
-        const topProductsChart = Object.values(productCounts)
-            .sort((a, b) => b.quantity - a.quantity)
+        const topProductsChart = Object.values(productData)
+            .sort((a, b) => b.total - a.total)
             .slice(0, 5);
 
         const totalSales = snapshot.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
         
         setStats({
-            dailySales: [{ hour: 'Today', sales: totalSales }],
+            dailySales: totalSales,
             topProduct,
             topProductsChart,
         });
@@ -636,8 +633,6 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
     );
   }
 
-  const totalSalesToday = stats.dailySales.reduce((sum, hour) => sum + hour.sales, 0);
-
   return (
     <>
       <h1 className="text-3xl font-bold font-headline">Welcome back, {user.name.split(' ')[0]}!</h1>
@@ -650,7 +645,7 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₦{totalSalesToday.toLocaleString()}</div>
+            <div className="text-2xl font-bold">₦{stats.dailySales.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">From all completed orders today.</p>
           </CardContent>
         </Card>
@@ -677,7 +672,7 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
        <Card className="mt-6">
           <CardHeader>
             <CardTitle>Today's Top 5 Products</CardTitle>
-            <CardDescription>A breakdown of the best-selling products today.</CardDescription>
+            <CardDescription>A breakdown of the best-selling products today by revenue.</CardDescription>
           </CardHeader>
           <CardContent>
              {stats.topProductsChart.length > 0 ? (
@@ -685,12 +680,12 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
                     <BarChart data={stats.topProductsChart} layout="vertical" margin={{ left: 10, right: 30 }}>
                         <CartesianGrid horizontal={false} />
                         <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={80} />
-                        <XAxis dataKey="quantity" type="number" hide />
+                        <XAxis dataKey="total" type="number" hide />
                         <ChartTooltip
                             cursor={false}
-                            content={<ChartTooltipContent indicator="dot" />}
+                            content={<ChartTooltipContent indicator="dot" formatter={(value) => `₦${value.toLocaleString()}`} />}
                         />
-                        <Bar dataKey="quantity" fill="var(--color-quantity)" radius={4} />
+                        <Bar dataKey="total" fill="var(--color-total)" radius={4} />
                     </BarChart>
                 </ChartContainer>
             ) : (

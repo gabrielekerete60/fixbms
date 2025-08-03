@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, increment, serverTimestamp, getDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, increment, serverTimestamp, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -249,7 +249,6 @@ function IncreaseStockDialog({ isOpen, onOpenChange, onStockUpdated, ingredients
 
             await batch.commit();
             toast({ title: 'Success', description: 'Stock updated successfully.' });
-            onStockUpdated();
             onOpenChange(false);
             setIngredientId(''); setSupplierId(''); setQuantity(''); setCostPerUnit('');
         } catch (error) {
@@ -399,37 +398,36 @@ export default function IngredientsPage() {
     const [selectedProductionBatch, setSelectedProductionBatch] = useState<ProductionBatch | null>(null);
     const [selectedSupplyLog, setSelectedSupplyLog] = useState<SupplyLog | null>(null);
     
-    const fetchPageData = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const [ingredientSnapshot, suppliersSnapshot, logsData] = await Promise.all([
-                 getDocs(collection(db, "ingredients")),
-                 getDocs(collection(db, "suppliers")),
-                 getIngredientStockLogs()
-            ]);
-            
-            setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[]);
-            setSuppliers(suppliersSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name } as Supplier)));
-            setStockLogs(logsData);
-        } catch (error) {
-            console.error("Error fetching data:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not fetch page data." });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [toast]);
-
     useEffect(() => {
         const storedUser = localStorage.getItem('loggedInUser');
         if (storedUser) {
             setUser(JSON.parse(storedUser));
         }
-        fetchPageData();
-        window.addEventListener('focus', fetchPageData);
+
+        const unsubIngredients = onSnapshot(collection(db, "ingredients"), (snapshot) => {
+            setIngredients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[]);
+            if(isLoading) setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching ingredients:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch ingredients data." });
+        });
+
+        const unsubSuppliers = onSnapshot(collection(db, "suppliers"), (snapshot) => {
+            setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name } as Supplier)));
+        });
+
+        getIngredientStockLogs().then(logsData => {
+            setStockLogs(logsData);
+        }).catch(error => {
+            console.error("Error fetching stock logs:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch stock logs." });
+        });
+        
         return () => {
-            window.removeEventListener('focus', fetchPageData);
+            unsubIngredients();
+            unsubSuppliers();
         };
-    }, [fetchPageData]);
+    }, [toast, isLoading]);
 
     const handleSaveIngredient = async (ingredientData: Partial<Omit<Ingredient, 'id' | 'stock'>>) => {
         try {
@@ -442,7 +440,6 @@ export default function IngredientsPage() {
                 await addDoc(collection(db, "ingredients"), dataToSave);
                 toast({ title: "Success", description: "Ingredient created successfully." });
             }
-            fetchPageData();
         } catch (error) {
             console.error("Error saving ingredient:", error);
             toast({ variant: "destructive", title: "Error", description: "Could not save ingredient." });
@@ -454,7 +451,6 @@ export default function IngredientsPage() {
         try {
             await deleteDoc(doc(db, "ingredients", ingredientToDelete.id));
             toast({ title: "Success", description: "Ingredient deleted successfully." });
-            fetchPageData();
         } catch (error) {
             console.error("Error deleting ingredient:", error);
             toast({ variant: "destructive", title: "Error", description: "Could not delete ingredient." });
@@ -538,7 +534,7 @@ export default function IngredientsPage() {
             <IncreaseStockDialog
                 isOpen={isIncreaseStockOpen}
                 onOpenChange={setIsIncreaseStockOpen}
-                onStockUpdated={fetchPageData}
+                onStockUpdated={() => {}}
                 ingredients={ingredients}
                 suppliers={suppliers}
                 user={user}

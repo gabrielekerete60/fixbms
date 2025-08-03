@@ -55,7 +55,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -224,39 +224,32 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  const fetchProducts = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const productsCollection = collection(db, "products");
-      const productSnapshot = await getDocs(productsCollection);
-      const productsList = productSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Product[];
-      setProducts(productsList);
-    } catch (error) {
-      console.error("Error fetching products:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not fetch products from the database.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]);
-
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
         setUser(JSON.parse(storedUser));
     }
-    fetchProducts();
-    window.addEventListener('focus', fetchProducts);
-    return () => {
-        window.removeEventListener('focus', fetchProducts);
-    }
-  }, [fetchProducts]);
+
+    const productsCollection = collection(db, "products");
+    const unsubscribe = onSnapshot(productsCollection, (snapshot) => {
+        const productsList = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+        })) as Product[];
+        setProducts(productsList);
+        if (isLoading) setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching products:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not fetch products from the database.",
+        });
+        if (isLoading) setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast, isLoading]);
 
   const handleSaveProduct = async (productData: Omit<Product, 'id'>) => {
     try {
@@ -268,7 +261,6 @@ export default function ProductsPage() {
             await addDoc(collection(db, "products"), productData);
             toast({ title: "Success", description: "Product created successfully." });
         }
-        fetchProducts();
     } catch (error) {
         console.error("Error saving product:", error);
         toast({ variant: "destructive", title: "Error", description: "Could not save product." });
@@ -282,7 +274,6 @@ export default function ProductsPage() {
     try {
         await deleteDoc(doc(db, "products", productToDelete.id));
         toast({ title: "Success", description: "Product deleted successfully." });
-        fetchProducts();
     } catch (error) {
         console.error("Error deleting product:", error);
         toast({ variant: "destructive", title: "Error", description: "Could not delete product." });

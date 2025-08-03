@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, query, where, orderBy, increment } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, query, where, orderBy, increment, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -284,7 +284,7 @@ function SupplyLogDialog({
     )
 }
 
-function SupplierDetail({ supplier, onBack, onRefresh, user }: { supplier: Supplier, onBack: () => void, onRefresh: () => void, user: User | null }) {
+function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack: () => void, user: User | null }) {
     const { toast } = useToast();
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     const [supplyLogs, setSupplyLogs] = useState<SupplyLog[]>([]);
@@ -293,26 +293,25 @@ function SupplierDetail({ supplier, onBack, onRefresh, user }: { supplier: Suppl
     const [searchTerm, setSearchTerm] = useState("");
 
     useEffect(() => {
-        const fetchRelatedData = async () => {
-            setIsLoading(true);
-            try {
-                const ingredientsCollection = collection(db, "ingredients");
-                const ingredientSnapshot = await getDocs(ingredientsCollection);
-                setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[]);
-                
-                const logsQuery = query(collection(db, 'supply_logs'), where('supplierId', '==', supplier.id), orderBy('date', 'desc'));
-                const logsSnapshot = await getDocs(logsQuery);
-                setSupplyLogs(logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SupplyLog[]);
-
-            } catch (error) {
-                console.error("Error fetching related data:", error);
-                toast({ variant: "destructive", title: "Error", description: "Could not fetch data." });
-            } finally {
-                setIsLoading(false);
-            }
+        const fetchIngredients = async () => {
+            const ingredientsCollection = collection(db, "ingredients");
+            const ingredientSnapshot = await getDocs(ingredientsCollection);
+            setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[]);
         };
-        fetchRelatedData();
-    }, [supplier.id, toast]);
+        
+        fetchIngredients();
+
+        const logsQuery = query(collection(db, 'supply_logs'), where('supplierId', '==', supplier.id), orderBy('date', 'desc'));
+        const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
+            setSupplyLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupplyLog)));
+            if (isLoading) setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching logs:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch supply logs." });
+        });
+
+        return () => unsubscribe();
+    }, [supplier.id, toast, isLoading]);
 
     const filteredLogs = useMemo(() => {
         return supplyLogs.filter(log => 
@@ -351,7 +350,6 @@ function SupplierDetail({ supplier, onBack, onRefresh, user }: { supplier: Suppl
             await batch.commit();
 
             toast({ title: "Success", description: "Supply log saved and stock updated."});
-            onRefresh(); // Refresh the whole list to show new balance
             onBack(); // Go back to the main list
         } catch(error) {
             console.error("Error saving supply log:", error);
@@ -461,32 +459,24 @@ export default function SuppliersPage() {
     const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
     const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
 
-    const fetchSuppliers = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const suppliersCollection = collection(db, "suppliers");
-            const snapshot = await getDocs(suppliersCollection);
-            const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Supplier[];
-            setSuppliers(list);
-        } catch (error) {
-            console.error("Error fetching suppliers:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not fetch suppliers." });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [toast]);
-
     useEffect(() => {
         const storedUser = localStorage.getItem('loggedInUser');
         if (storedUser) {
             setUser(JSON.parse(storedUser));
         }
-        fetchSuppliers();
-        window.addEventListener('focus', fetchSuppliers);
-        return () => {
-            window.removeEventListener('focus', fetchSuppliers);
-        };
-    }, [fetchSuppliers]);
+        
+        const suppliersCollection = collection(db, "suppliers");
+        const unsubscribe = onSnapshot(suppliersCollection, (snapshot) => {
+            const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Supplier[];
+            setSuppliers(list);
+            if (isLoading) setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching suppliers:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch suppliers." });
+        });
+        
+        return () => unsubscribe();
+    }, [toast, isLoading]);
 
     const handleSaveSupplier = async (supplierData: Omit<Supplier, 'id'>) => {
         try {
@@ -498,7 +488,6 @@ export default function SuppliersPage() {
                 await addDoc(collection(db, "suppliers"), supplierData);
                 toast({ title: "Success", description: "Supplier created successfully." });
             }
-            fetchSuppliers();
         } catch (error) {
             console.error("Error saving supplier:", error);
             toast({ variant: "destructive", title: "Error", description: "Could not save supplier." });
@@ -510,7 +499,6 @@ export default function SuppliersPage() {
         try {
             await deleteDoc(doc(db, "suppliers", supplierToDelete.id));
             toast({ title: "Success", description: "Supplier deleted successfully." });
-            fetchSuppliers();
         } catch (error) {
             console.error("Error deleting supplier:", error);
             toast({ variant: "destructive", title: "Error", description: "Could not delete supplier." });
@@ -537,7 +525,7 @@ export default function SuppliersPage() {
     }, [suppliers]);
 
     if (selectedSupplier) {
-        return <SupplierDetail supplier={selectedSupplier} onBack={() => setSelectedSupplier(null)} onRefresh={fetchSuppliers} user={user} />;
+        return <SupplierDetail supplier={selectedSupplier} onBack={() => setSelectedSupplier(null)} user={user} />;
     }
 
     return (
