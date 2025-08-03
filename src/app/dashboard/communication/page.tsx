@@ -1,13 +1,13 @@
 
-
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { postAnnouncement, submitReport, Announcement as AnnouncementType, getReports, Report } from '@/app/actions';
@@ -18,12 +18,53 @@ import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/fire
 import { db } from '@/lib/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 type User = {
     name: string;
     role: string;
     staff_id: string;
 };
+
+function PaginationControls({
+    visibleRows,
+    setVisibleRows,
+    totalRows
+}: {
+    visibleRows: number | 'all',
+    setVisibleRows: (val: number | 'all') => void,
+    totalRows: number
+}) {
+    const [inputValue, setInputValue] = useState<string | number>('');
+
+    const handleApplyInput = () => {
+        const num = Number(inputValue);
+        if (!isNaN(num) && num > 0) {
+            setVisibleRows(num);
+        }
+    };
+
+    return (
+        <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+            <span>Show:</span>
+            <Button variant={visibleRows === 10 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(10)}>10</Button>
+            <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
+            <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
+            <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
+            <div className="flex items-center gap-2">
+                <Input 
+                    type="number" 
+                    className="h-9 w-20"
+                    placeholder="Custom"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleApplyInput()}
+                />
+                 <Button size="sm" onClick={handleApplyInput}>Apply</Button>
+            </div>
+        </div>
+    )
+}
 
 function ReportForm({ user, onReportSubmitted }: { user: User | null, onReportSubmitted: () => void }) {
     const { toast } = useToast();
@@ -99,10 +140,45 @@ function ReportForm({ user, onReportSubmitted }: { user: User | null, onReportSu
     );
 }
 
+function ReportDetailDialog({ report, isOpen, onOpenChange }: { report: Report | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+    if (!report) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>{report.subject}</DialogTitle>
+                    <DialogDescription>
+                        Report by {report.staffName} on {format(report.timestamp.toDate(), 'PPp')}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                    <div className="flex items-center gap-4">
+                        <Badge variant="secondary">{report.reportType}</Badge>
+                        <Badge>{report.status}</Badge>
+                    </div>
+                    <Separator />
+                    <p className="text-sm whitespace-pre-wrap">{report.message}</p>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                    {report.status === 'new' && <Button>Mark as In Progress</Button>}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 function ViewReportsTab() {
     const [reports, setReports] = useState<Report[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+
+    // Filtering and pagination state
+    const [staffFilter, setStaffFilter] = useState('all');
+    const [typeFilter, setTypeFilter] = useState('all');
+    const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
+    const [viewingReport, setViewingReport] = useState<Report | null>(null);
 
     useEffect(() => {
         const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
@@ -122,47 +198,105 @@ function ViewReportsTab() {
         return () => unsubscribe();
     }, [toast, isLoading]);
 
+    const staffList = useMemo(() => ['all', ...new Set(reports.map(r => r.staffName))], [reports]);
+    const typeList = useMemo(() => ['all', ...new Set(reports.map(r => r.reportType))], [reports]);
+
+    const filteredReports = useMemo(() => {
+        return reports.filter(report => {
+            const staffMatch = staffFilter === 'all' || report.staffName === staffFilter;
+            const typeMatch = typeFilter === 'all' || report.reportType === typeFilter;
+            return staffMatch && typeMatch;
+        });
+    }, [reports, staffFilter, typeFilter]);
+    
+    const paginatedReports = useMemo(() => {
+        return visibleRows === 'all' ? filteredReports : filteredReports.slice(0, visibleRows);
+    }, [filteredReports, visibleRows]);
+
+    const getStatusVariant = (status: Report['status']) => {
+        switch (status) {
+            case 'new': return 'default';
+            case 'in_progress': return 'secondary';
+            case 'resolved': return 'outline';
+            default: return 'outline';
+        }
+    }
+
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>View Reports</CardTitle>
-                <CardDescription>Review all submitted reports from staff members.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>From</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Subject</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading ? (
-                            <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                        ) : reports.length === 0 ? (
-                            <TableRow><TableCell colSpan={6} className="h-24 text-center">No reports found.</TableCell></TableRow>
-                        ) : (
-                            reports.map(report => (
-                                <TableRow key={report.id}>
-                                    <TableCell>{format(report.timestamp.toDate(), 'PPp')}</TableCell>
-                                    <TableCell>{report.staffName}</TableCell>
-                                    <TableCell><Badge variant="secondary">{report.reportType}</Badge></TableCell>
-                                    <TableCell>{report.subject}</TableCell>
-                                    <TableCell><Badge>{report.status}</Badge></TableCell>
-                                    <TableCell>
-                                        <Button variant="outline" size="sm">View</Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+        <>
+            <ReportDetailDialog 
+                report={viewingReport} 
+                isOpen={!!viewingReport} 
+                onOpenChange={() => setViewingReport(null)} 
+            />
+            <Card>
+                <CardHeader>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <CardTitle>View Reports</CardTitle>
+                            <CardDescription>Review all submitted reports from staff members.</CardDescription>
+                        </div>
+                        <div className="flex gap-2">
+                             <Select value={staffFilter} onValueChange={setStaffFilter}>
+                                <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="Filter by staff..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {staffList.map(staff => <SelectItem key={staff} value={staff}>{staff === 'all' ? 'All Staff' : staff}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <Select value={typeFilter} onValueChange={setTypeFilter}>
+                                <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="Filter by type..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {typeList.map(type => <SelectItem key={type} value={type}>{type === 'all' ? 'All Types' : type}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>From</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Subject</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : paginatedReports.length === 0 ? (
+                                <TableRow><TableCell colSpan={6} className="h-24 text-center">No reports found for this filter.</TableCell></TableRow>
+                            ) : (
+                                paginatedReports.map(report => (
+                                    <TableRow key={report.id}>
+                                        <TableCell>{format(report.timestamp.toDate(), 'PPp')}</TableCell>
+                                        <TableCell>{report.staffName}</TableCell>
+                                        <TableCell><Badge variant="secondary">{report.reportType}</Badge></TableCell>
+                                        <TableCell>{report.subject}</TableCell>
+                                        <TableCell><Badge variant={getStatusVariant(report.status)}>{report.status}</Badge></TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="outline" size="sm" onClick={() => setViewingReport(report)}>
+                                                <Eye className="mr-2 h-4 w-4"/>View
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+                <CardFooter>
+                    <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredReports.length} />
+                </CardFooter>
+            </Card>
+        </>
     );
 }
 
@@ -184,20 +318,22 @@ export default function CommunicationPage() {
                 return { id: doc.id, ...docData } as AnnouncementType;
             });
             setAnnouncements(data);
-            setIsLoading(false);
+            if (isLoading) setIsLoading(false);
         }, (error) => {
             console.error("Error fetching announcements:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch announcements.'});
-            setIsLoading(false);
+            if (isLoading) setIsLoading(false);
         });
 
         const storedUser = localStorage.getItem('loggedInUser');
         if (storedUser) {
             setUser(JSON.parse(storedUser));
+        } else {
+             if (isLoading) setIsLoading(false);
         }
 
         return () => unsubscribe();
-    }, [toast]);
+    }, [toast, isLoading]);
 
     const handlePostAnnouncement = async () => {
         if (!newMessage.trim() || !user) return;
@@ -292,7 +428,7 @@ export default function CommunicationPage() {
                     </Card>
                 </TabsContent>
                 <TabsContent value="submit-report" className="mt-4">
-                    <ReportForm user={user} onReportSubmitted={() => setActiveTab("announcements")} />
+                    <ReportForm user={user} onReportSubmitted={() => setActiveTab("view-reports")} />
                 </TabsContent>
                  {canViewReports && (
                     <TabsContent value="view-reports" className="mt-4">
@@ -303,3 +439,5 @@ export default function CommunicationPage() {
         </div>
     );
 }
+
+    
