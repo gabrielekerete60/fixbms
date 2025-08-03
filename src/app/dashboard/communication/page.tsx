@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Send, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { postAnnouncement, submitReport, Announcement as AnnouncementType, getReports, Report, updateReportStatus } from '@/app/actions';
+import { postAnnouncement, submitReport, Announcement as AnnouncementType, getReports, Report, updateReportStatus, getStaffList } from '@/app/actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -27,6 +26,11 @@ type User = {
     role: string;
     staff_id: string;
 };
+
+type StaffMember = {
+    id: string;
+    name: string;
+}
 
 function PaginationControls({
     visibleRows,
@@ -167,7 +171,7 @@ function ReportDetailDialog({ report, isOpen, onOpenChange, onStatusChange }: { 
                 <DialogHeader>
                     <DialogTitle>{report.subject}</DialogTitle>
                     <DialogDescription>
-                        Report by {report.staffName} on {format(report.timestamp.toDate(), 'PPp')}
+                        Report by {report.staffName} on {report.timestamp ? format(report.timestamp.toDate(), 'PPp') : 'Date not available'}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
@@ -192,6 +196,7 @@ function ReportDetailDialog({ report, isOpen, onOpenChange, onStatusChange }: { 
 
 function ViewReportsTab() {
     const [reports, setReports] = useState<Report[]>([]);
+    const [staffList, setStaffList] = useState<StaffMember[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
@@ -199,9 +204,12 @@ function ViewReportsTab() {
     const [activeTab, setActiveTab] = useState('new');
     const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
     const [viewingReport, setViewingReport] = useState<Report | null>(null);
+    const [typeFilter, setTypeFilter] = useState('all');
+    const [staffFilter, setStaffFilter] = useState('all');
+
 
      const fetchReports = useCallback(() => {
-        setIsLoading(true);
+        // No need to set loading here as onSnapshot handles it
         const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => {
@@ -209,25 +217,35 @@ function ViewReportsTab() {
                 return { id: doc.id, ...docData } as Report;
             });
             setReports(data);
-            setIsLoading(false);
+            if (isLoading) setIsLoading(false);
         }, (error) => {
             console.error("Error fetching reports:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch reports.' });
-            setIsLoading(false);
+            if (isLoading) setIsLoading(false);
         });
 
         return () => unsubscribe();
-    }, [toast]);
+    }, [toast, isLoading]);
 
     useEffect(() => {
         const unsubscribe = fetchReports();
+        
+        getStaffList().then(staff => {
+            setStaffList(staff);
+        });
+
         return () => unsubscribe();
     }, [fetchReports]);
 
 
     const filteredReports = useMemo(() => {
-        return reports.filter(report => report.status === activeTab);
-    }, [reports, activeTab]);
+        return reports.filter(report => {
+            const statusMatch = report.status === activeTab;
+            const typeMatch = typeFilter === 'all' || report.reportType === typeFilter;
+            const staffMatch = staffFilter === 'all' || report.staffId === staffFilter;
+            return statusMatch && typeMatch && staffMatch;
+        });
+    }, [reports, activeTab, typeFilter, staffFilter]);
     
     const paginatedReports = useMemo(() => {
         return visibleRows === 'all' ? filteredReports : filteredReports.slice(0, visibleRows);
@@ -249,6 +267,8 @@ function ViewReportsTab() {
             default: return 'outline';
         }
     }
+    
+    const reportTypes = ['all', 'Incident', 'Suggestion', 'Maintenance', 'Complaint', 'Other'];
 
     return (
         <>
@@ -267,7 +287,28 @@ function ViewReportsTab() {
                 <TabsContent value={activeTab} className="mt-4">
                      <Card>
                         <CardHeader>
-                            <CardTitle>Reports - <span className="capitalize">{activeTab.replace('_', ' ')}</span></CardTitle>
+                           <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                                <CardTitle>Reports - <span className="capitalize">{activeTab.replace('_', ' ')}</span></CardTitle>
+                                <div className="flex items-center gap-2">
+                                     <Select value={typeFilter} onValueChange={setTypeFilter}>
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="Filter by type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {reportTypes.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                     <Select value={staffFilter} onValueChange={setStaffFilter}>
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="Filter by staff" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Staff</SelectItem>
+                                            {staffList.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <Table>
@@ -277,23 +318,21 @@ function ViewReportsTab() {
                                         <TableHead>From</TableHead>
                                         <TableHead>Type</TableHead>
                                         <TableHead>Subject</TableHead>
-                                        <TableHead>Status</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {isLoading ? (
-                                        <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
                                     ) : paginatedReports.length === 0 ? (
-                                        <TableRow><TableCell colSpan={6} className="h-24 text-center">No reports found in this category.</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center">No reports found in this category.</TableCell></TableRow>
                                     ) : (
                                         paginatedReports.map(report => (
                                             <TableRow key={report.id}>
-                                                <TableCell>{format(report.timestamp.toDate(), 'PPp')}</TableCell>
+                                                <TableCell>{report.timestamp ? format(report.timestamp.toDate(), 'PPp') : 'N/A'}</TableCell>
                                                 <TableCell>{report.staffName}</TableCell>
                                                 <TableCell><Badge variant={getTypeVariant(report.reportType)}>{report.reportType}</Badge></TableCell>
                                                 <TableCell>{report.subject}</TableCell>
-                                                <TableCell><Badge variant={getStatusVariant(report.status)}>{report.status.replace('_', ' ')}</Badge></TableCell>
                                                 <TableCell className="text-right">
                                                     <Button variant="outline" size="sm" onClick={() => setViewingReport(report)}>
                                                         <Eye className="mr-2 h-4 w-4"/>View
@@ -449,7 +488,7 @@ export default function CommunicationPage() {
                     </Card>
                 </TabsContent>
                 <TabsContent value="submit-report" className="mt-4">
-                    <ReportForm user={user} onReportSubmitted={() => setActiveTab("view-reports")} />
+                    <ReportForm user={user} onReportSubmitted={() => setActiveTab("announcements")} />
                 </TabsContent>
                  {canViewReports && (
                     <TabsContent value="view-reports" className="mt-4">

@@ -280,7 +280,18 @@ const seedData = {
       { id: 'dr_5', bread_type: 'Jumbo', amount: 300 },
       { id: 'dr_6', bread_type: 'Mini Bite', amount: 550 },
       { id: 'dr_7', bread_type: 'Big Bite', amount: 600 },
-  ]
+  ],
+  announcements: [
+    { id: 'anno_1', message: 'Welcome to the new Bakery Management System! Please familiarize yourself with your dashboard.', staffId: '100001', staffName: 'Wisdom Effiong Edet', timestamp: daysAgo(5) },
+    { id: 'anno_2', message: 'Team meeting tomorrow at 9 AM sharp to discuss Q3 targets. Attendance is mandatory.', staffId: '100001', staffName: 'Wisdom Effiong Edet', timestamp: daysAgo(1) },
+    { id: 'anno_3', message: 'Please remember to log all waste accurately at the end of your shift. Thank you.', staffId: '100002', staffName: 'Angela Uwem', timestamp: daysAgo(0) },
+  ],
+  reports: [
+    { id: 'rep_1', subject: 'Oven #2 Not Heating Properly', reportType: 'Maintenance', message: 'The main oven (number 2) is not reaching the set temperature. It took much longer to bake the last batch of Family Loaf.', staffId: '300001', staffName: 'MR Bassey OFFIONG', timestamp: daysAgo(2), status: 'new' },
+    { id: 'rep_2', subject: 'Suggestion for New Product', reportType: 'Suggestion', message: 'Many customers have been asking if we could start making coconut bread. I think it would be a popular addition.', staffId: '500002', staffName: 'Mary Felix Ating', timestamp: daysAgo(3), status: 'in_progress' },
+    { id: 'rep_3', subject: 'Leaky Faucet in Washroom', reportType: 'Maintenance', message: 'The faucet in the staff washroom has been dripping constantly for two days.', staffId: '700001', staffName: 'Nnamso George Walter', timestamp: daysAgo(1), status: 'resolved' },
+    { id: 'rep_4', subject: 'Customer Complaint - Meat Pie', reportType: 'Complaint', message: 'A customer reported that the meat pie they bought yesterday was too salty. This was a verbal complaint made at the counter.', staffId: '500002', staffName: 'Mary Felix Ating', timestamp: daysAgo(1), status: 'new' },
+  ],
 };
 
 // Calculate net pay for seeded wages
