@@ -1547,6 +1547,34 @@ export async function submitReport(data: ReportSubmission): Promise<{ success: b
     }
 }
 
+export type Report = {
+    id: string;
+    subject: string;
+    reportType: string;
+    message: string;
+    staffId: string;
+    staffName: string;
+    timestamp: Timestamp;
+    status: 'new' | 'in_progress' | 'resolved';
+}
+
+export async function getReports(): Promise<Report[]> {
+    try {
+        const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            return { 
+                id: docSnap.id,
+                ...data
+            } as Report;
+        });
+    } catch (error) {
+        console.error("Error fetching reports:", error);
+        return [];
+    }
+}
+
 type ReportWasteData = {
     productId: string;
     productName: string;
@@ -2530,3 +2558,4 @@ export async function getStaffByRole(role: string): Promise<any[]> {
         return { id: doc.id, ...plainData };
     });
 }
+
