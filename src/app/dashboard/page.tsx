@@ -567,14 +567,18 @@ function StorekeeperDashboard({ user }: { user: User }) {
 function ShowroomStaffDashboard({ user }: { user: User }) {
   const [stats, setStats] = useState<ShowroomDashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const fetchStats = useCallback(async () => {
-    if (!user || !user.staff_id) return;
 
+  useEffect(() => {
+    if (!user || !user.staff_id) {
+        setIsLoading(false);
+        return;
+    }
+    
     setIsLoading(true);
 
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
-
+    
     const q = query(
         collection(db, 'orders'),
         where('staffId', '==', user.staff_id),
@@ -587,12 +591,16 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
         
         snapshot.docs.forEach(doc => {
             const order = doc.data();
-            order.items.forEach((item: any) => {
-                if (!productCounts[item.productId]) {
-                    productCounts[item.productId] = { name: item.name, quantity: 0 };
-                }
-                productCounts[item.productId].quantity += item.quantity;
-            });
+            if (Array.isArray(order.items)) {
+                order.items.forEach((item: any) => {
+                    if (item.productId && item.name && typeof item.quantity === 'number') {
+                        if (!productCounts[item.productId]) {
+                            productCounts[item.productId] = { name: item.name, quantity: 0 };
+                        }
+                        productCounts[item.productId].quantity += item.quantity;
+                    }
+                });
+            }
         });
 
         let topProduct: { name: string; quantity: number } | null = null;
@@ -604,39 +612,21 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
             .sort((a, b) => b.quantity - a.quantity)
             .slice(0, 5);
 
-        // This calculation now happens inside the listener
-        const totalSales = snapshot.docs.reduce((sum, doc) => sum + doc.data().total, 0);
+        const totalSales = snapshot.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
         
         setStats({
-            dailySales: [{ hour: 'Today', sales: totalSales }], // Simplified for total sales card
+            dailySales: [{ hour: 'Today', sales: totalSales }],
             topProduct,
             topProductsChart,
         });
-
-        if (isLoading) {
-            setIsLoading(false);
-        }
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching showroom stats:", error);
+        setIsLoading(false);
     });
 
-    return () => unsubscribe(); // Cleanup the listener
-  }, [user, isLoading]);
-
-  useEffect(() => {
-    const fetchInitialData = async () => {
-        if (!user || !user.staff_id) return;
-        const initialStats = await getShowroomDashboardStats(user.staff_id);
-        setStats(initialStats);
-        setIsLoading(false);
-    };
-
-    fetchInitialData();
-    window.addEventListener('focus', fetchInitialData);
-    
-    return () => {
-        window.removeEventListener('focus', fetchInitialData);
-    };
-}, [user]);
-
+    return () => unsubscribe();
+  }, [user]);
   
   if (isLoading || !stats) {
     return (
