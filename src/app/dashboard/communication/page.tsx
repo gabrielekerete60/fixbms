@@ -1,6 +1,6 @@
 
 "use client";
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Send, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { postAnnouncement, submitReport, Announcement as AnnouncementType, getReports, Report } from '@/app/actions';
+import { postAnnouncement, submitReport, Announcement as AnnouncementType, getReports, Report, updateReportStatus } from '@/app/actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -140,8 +140,24 @@ function ReportForm({ user, onReportSubmitted }: { user: User | null, onReportSu
     );
 }
 
-function ReportDetailDialog({ report, isOpen, onOpenChange }: { report: Report | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+function ReportDetailDialog({ report, isOpen, onOpenChange, onStatusChange }: { report: Report | null, isOpen: boolean, onOpenChange: (open: boolean) => void, onStatusChange: () => void }) {
+    const { toast } = useToast();
+    const [isUpdating, setIsUpdating] = useState(false);
+
     if (!report) return null;
+
+    const handleUpdateStatus = async (newStatus: Report['status']) => {
+        setIsUpdating(true);
+        const result = await updateReportStatus(report.id, newStatus);
+        if (result.success) {
+            toast({ title: 'Success', description: `Report status updated to "${newStatus.replace('_', ' ')}".` });
+            onStatusChange();
+            onOpenChange(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsUpdating(false);
+    }
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -155,14 +171,17 @@ function ReportDetailDialog({ report, isOpen, onOpenChange }: { report: Report |
                 <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
                     <div className="flex items-center gap-4">
                         <Badge variant="secondary">{report.reportType}</Badge>
-                        <Badge>{report.status}</Badge>
+                        <Badge>{report.status.replace('_', ' ')}</Badge>
                     </div>
                     <Separator />
                     <p className="text-sm whitespace-pre-wrap">{report.message}</p>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-                    {report.status === 'new' && <Button>Mark as In Progress</Button>}
+                <DialogFooter className="justify-between">
+                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isUpdating}>Close</Button>
+                    <div className="flex gap-2">
+                        {report.status === 'new' && <Button onClick={() => handleUpdateStatus('in_progress')} disabled={isUpdating}>{isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Mark as In Progress</Button>}
+                        {report.status === 'in_progress' && <Button onClick={() => handleUpdateStatus('resolved')} disabled={isUpdating}>{isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Mark as Resolved</Button>}
+                    </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -175,13 +194,13 @@ function ViewReportsTab() {
     const { toast } = useToast();
 
     // Filtering and pagination state
-    const [staffFilter, setStaffFilter] = useState('all');
-    const [typeFilter, setTypeFilter] = useState('all');
+    const [activeTab, setActiveTab] = useState('new');
     const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
     const [viewingReport, setViewingReport] = useState<Report | null>(null);
 
-    useEffect(() => {
-        const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
+    const fetchReports = useCallback(() => {
+        setIsLoading(true);
+         const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => {
                 const docData = doc.data();
@@ -198,16 +217,15 @@ function ViewReportsTab() {
         return () => unsubscribe();
     }, [toast, isLoading]);
 
-    const staffList = useMemo(() => ['all', ...new Set(reports.map(r => r.staffName))], [reports]);
-    const typeList = useMemo(() => ['all', ...new Set(reports.map(r => r.reportType))], [reports]);
+    useEffect(() => {
+        const unsubscribe = fetchReports();
+        return () => unsubscribe();
+    }, [fetchReports]);
+
 
     const filteredReports = useMemo(() => {
-        return reports.filter(report => {
-            const staffMatch = staffFilter === 'all' || report.staffName === staffFilter;
-            const typeMatch = typeFilter === 'all' || report.reportType === typeFilter;
-            return staffMatch && typeMatch;
-        });
-    }, [reports, staffFilter, typeFilter]);
+        return reports.filter(report => report.status === activeTab);
+    }, [reports, activeTab]);
     
     const paginatedReports = useMemo(() => {
         return visibleRows === 'all' ? filteredReports : filteredReports.slice(0, visibleRows);
@@ -227,75 +245,62 @@ function ViewReportsTab() {
             <ReportDetailDialog 
                 report={viewingReport} 
                 isOpen={!!viewingReport} 
-                onOpenChange={() => setViewingReport(null)} 
+                onOpenChange={() => setViewingReport(null)}
+                onStatusChange={fetchReports}
             />
-            <Card>
-                <CardHeader>
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div>
-                            <CardTitle>View Reports</CardTitle>
-                            <CardDescription>Review all submitted reports from staff members.</CardDescription>
-                        </div>
-                        <div className="flex gap-2">
-                             <Select value={staffFilter} onValueChange={setStaffFilter}>
-                                <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="Filter by staff..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {staffList.map(staff => <SelectItem key={staff} value={staff}>{staff === 'all' ? 'All Staff' : staff}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <Select value={typeFilter} onValueChange={setTypeFilter}>
-                                <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="Filter by type..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {typeList.map(type => <SelectItem key={type} value={type}>{type === 'all' ? 'All Types' : type}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>From</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Subject</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                            ) : paginatedReports.length === 0 ? (
-                                <TableRow><TableCell colSpan={6} className="h-24 text-center">No reports found for this filter.</TableCell></TableRow>
-                            ) : (
-                                paginatedReports.map(report => (
-                                    <TableRow key={report.id}>
-                                        <TableCell>{format(report.timestamp.toDate(), 'PPp')}</TableCell>
-                                        <TableCell>{report.staffName}</TableCell>
-                                        <TableCell><Badge variant="secondary">{report.reportType}</Badge></TableCell>
-                                        <TableCell>{report.subject}</TableCell>
-                                        <TableCell><Badge variant={getStatusVariant(report.status)}>{report.status}</Badge></TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="outline" size="sm" onClick={() => setViewingReport(report)}>
-                                                <Eye className="mr-2 h-4 w-4"/>View
-                                            </Button>
-                                        </TableCell>
+             <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList>
+                    <TabsTrigger value="new">New</TabsTrigger>
+                    <TabsTrigger value="in_progress">In Progress</TabsTrigger>
+                    <TabsTrigger value="resolved">Resolved</TabsTrigger>
+                </TabsList>
+                <TabsContent value={activeTab} className="mt-4">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Reports - <span className="capitalize">{activeTab.replace('_', ' ')}</span></CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>From</TableHead>
+                                        <TableHead>Type</TableHead>
+                                        <TableHead>Subject</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-                <CardFooter>
-                    <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredReports.length} />
-                </CardFooter>
-            </Card>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                        <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                    ) : paginatedReports.length === 0 ? (
+                                        <TableRow><TableCell colSpan={6} className="h-24 text-center">No reports found in this category.</TableCell></TableRow>
+                                    ) : (
+                                        paginatedReports.map(report => (
+                                            <TableRow key={report.id}>
+                                                <TableCell>{format(report.timestamp.toDate(), 'PPp')}</TableCell>
+                                                <TableCell>{report.staffName}</TableCell>
+                                                <TableCell><Badge variant="secondary">{report.reportType}</Badge></TableCell>
+                                                <TableCell>{report.subject}</TableCell>
+                                                <TableCell><Badge variant={getStatusVariant(report.status)}>{report.status.replace('_', ' ')}</Badge></TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button variant="outline" size="sm" onClick={() => setViewingReport(report)}>
+                                                        <Eye className="mr-2 h-4 w-4"/>View
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                        <CardFooter>
+                            <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredReports.length} />
+                        </CardFooter>
+                    </Card>
+                </TabsContent>
+            </Tabs>
         </>
     );
 }
@@ -439,5 +444,3 @@ export default function CommunicationPage() {
         </div>
     );
 }
-
-    

@@ -592,7 +592,7 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
 export type ShowroomDashboardStats = {
     dailySales: { hour: string; sales: number }[];
     topProduct: { name: string; quantity: number } | null;
-    topProductsChart: { name: string; quantity: number }[];
+    topProductsChart: { name: string; quantity: number, total: number }[];
 };
 
 export async function getShowroomDashboardStats(staffId: string): Promise<ShowroomDashboardStats> {
@@ -614,7 +614,7 @@ export async function getShowroomDashboardStats(staffId: string): Promise<Showro
             sales: 0
         }));
 
-        const productCounts: { [productId: string]: { name: string; quantity: number } } = {};
+        const productCounts: { [productId: string]: { name: string; quantity: number, total: number } } = {};
 
         snapshot.forEach(doc => {
             const order = doc.data();
@@ -624,9 +624,10 @@ export async function getShowroomDashboardStats(staffId: string): Promise<Showro
 
             order.items.forEach((item: any) => {
                 if (!productCounts[item.productId]) {
-                    productCounts[item.productId] = { name: item.name, quantity: 0 };
+                    productCounts[item.productId] = { name: item.name, quantity: 0, total: 0 };
                 }
                 productCounts[item.productId].quantity += item.quantity;
+                productCounts[item.productId].total += item.price * item.quantity;
             });
         });
         
@@ -1572,6 +1573,17 @@ export async function getReports(): Promise<Report[]> {
     } catch (error) {
         console.error("Error fetching reports:", error);
         return [];
+    }
+}
+
+export async function updateReportStatus(reportId: string, newStatus: Report['status']): Promise<{ success: boolean; error?: string }> {
+    try {
+        const reportRef = doc(db, 'reports', reportId);
+        await updateDoc(reportRef, { status: newStatus });
+        return { success: true };
+    } catch (error) {
+        console.error("Error updating report status:", error);
+        return { success: false, error: "Failed to update report status." };
     }
 }
 
@@ -2558,4 +2570,3 @@ export async function getStaffByRole(role: string): Promise<any[]> {
         return { id: doc.id, ...plainData };
     });
 }
-
