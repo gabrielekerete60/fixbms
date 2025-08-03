@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog";
+
 
 type StaffMember = {
     id: string;
@@ -299,10 +301,26 @@ export default function PayrollPage() {
                     </div>
                 </CardContent>
                 <CardFooter>
-                     <Button onClick={handleProcessPayroll} disabled={isProcessing || isLoading || !payroll || payroll.length === 0}>
-                        {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Process Payroll for {format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')}
-                    </Button>
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                             <Button disabled={isProcessing || isLoading || !payroll || payroll.length === 0}>
+                                {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Process Payroll for {format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')}
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will finalize the payroll for {format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')} and log it as an expense. This action cannot be undone.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleProcessPayroll}>Confirm & Process</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </CardFooter>
             </Card>
         </div>

@@ -19,6 +19,8 @@ import { db } from '@/lib/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
+
 
 type User = {
     name: string;
@@ -198,7 +200,7 @@ function ViewReportsTab() {
     const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
     const [viewingReport, setViewingReport] = useState<Report | null>(null);
 
-    const fetchReports = useCallback(() => {
+     const fetchReports = useCallback(() => {
         setIsLoading(true);
         const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -233,9 +235,17 @@ function ViewReportsTab() {
 
     const getStatusVariant = (status: Report['status']) => {
         switch (status) {
-            case 'new': return 'default';
-            case 'in_progress': return 'secondary';
+            case 'new': return 'destructive';
+            case 'in_progress': return 'default';
             case 'resolved': return 'outline';
+            default: return 'outline';
+        }
+    }
+
+    const getTypeVariant = (type: string) => {
+        switch (type) {
+            case 'Complaint': return 'destructive';
+            case 'Maintenance': return 'secondary';
             default: return 'outline';
         }
     }
@@ -281,7 +291,7 @@ function ViewReportsTab() {
                                             <TableRow key={report.id}>
                                                 <TableCell>{format(report.timestamp.toDate(), 'PPp')}</TableCell>
                                                 <TableCell>{report.staffName}</TableCell>
-                                                <TableCell><Badge variant="secondary">{report.reportType}</Badge></TableCell>
+                                                <TableCell><Badge variant={getTypeVariant(report.reportType)}>{report.reportType}</Badge></TableCell>
                                                 <TableCell>{report.subject}</TableCell>
                                                 <TableCell><Badge variant={getStatusVariant(report.status)}>{report.status.replace('_', ' ')}</Badge></TableCell>
                                                 <TableCell className="text-right">
@@ -323,6 +333,12 @@ export default function CommunicationPage() {
                 return { id: doc.id, ...docData } as AnnouncementType;
             });
             setAnnouncements(data);
+            if (data.length > 0) {
+                // When announcements are loaded or updated, set the "last read" timestamp
+                localStorage.setItem('lastReadAnnouncement', data[0].timestamp!.toDate().toISOString());
+                // Dispatch a custom event to notify the layout that announcements have been read
+                window.dispatchEvent(new Event('announcementsRead'));
+            }
             if (isLoading) setIsLoading(false);
         }, (error) => {
             console.error("Error fetching announcements:", error);

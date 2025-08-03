@@ -24,6 +24,7 @@ import {
   LogIn,
   Loader2,
   HelpingHand,
+  MessageSquare,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -56,7 +57,7 @@ import { cn } from '@/lib/utils';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getAttendanceStatus, handleClockIn, handleClockOut } from '../actions';
-import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 
@@ -158,6 +159,8 @@ export default function DashboardLayout({
       pendingTransfers: 0,
       pendingBatches: 0,
       pendingPayments: 0,
+      newReports: 0,
+      unreadAnnouncements: 0,
   });
   
   const applyTheme = useCallback((theme: string | undefined) => {
@@ -255,13 +258,37 @@ export default function DashboardLayout({
 
     const pendingPaymentsQuery = query(collection(db, 'payment_confirmations'), where('status', '==', 'pending'));
     const unsubPayments = onSnapshot(pendingPaymentsQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingPayments: snap.size })));
-    
+
+    const newReportsQuery = query(collection(db, 'reports'), where('status', '==', 'new'));
+    const unsubReports = onSnapshot(newReportsQuery, (snap) => setNotificationCounts(prev => ({...prev, newReports: snap.size })));
+
+    // Announcement listener
+    const announcementsQuery = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
+    const unsubAnnouncements = onSnapshot(announcementsQuery, (snap) => {
+        const lastReadTimestamp = localStorage.getItem('lastReadAnnouncement');
+        if (!lastReadTimestamp) {
+            setNotificationCounts(prev => ({...prev, unreadAnnouncements: snap.size }));
+        } else {
+            const lastReadDate = new Date(lastReadTimestamp);
+            const newCount = snap.docs.filter(doc => doc.data().timestamp.toDate() > lastReadDate).length;
+            setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
+        }
+    });
+
+    const handleAnnouncementsRead = () => {
+        setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
+    }
+    window.addEventListener('announcementsRead', handleAnnouncementsRead);
+
     return () => {
         clearInterval(timer);
         unsubUser();
         unsubPending();
         unsubBatches();
         unsubPayments();
+        unsubReports();
+        unsubAnnouncements();
+        window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
   }, [user?.staff_id, handleLogout, applyTheme]);
   
@@ -325,13 +352,13 @@ export default function DashboardLayout({
         icon: Users2, label: "Staff", roles: ['Manager', 'Supervisor', 'Developer'], sublinks: [
           { href: "/dashboard/staff/management", label: "Staff Management" },
           { href: "/dashboard/staff/attendance", label: "Attendance" },
-          { href: "/dashboard/staff/payroll", label: "Payroll", disabled: true },
+          { href: "/dashboard/staff/payroll", label: "Payroll", disabled: false },
         ]
       },
       { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", roles: ['Manager', 'Supervisor', 'Delivery Staff', 'Developer'] },
       { href: "/dashboard/accounting", icon: Wallet, label: "Accounting", notificationKey: "accounting", roles: ['Manager', 'Accountant', 'Developer'] },
       { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor', 'Developer'], disabled: true },
-      { href: "/dashboard/communication", icon: HelpingHand, label: "Communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
+      { href: "/dashboard/communication", icon: MessageSquare, label: "Communication", notificationKey: "communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/documentation", icon: BookOpen, label: "Documentation", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/settings", icon: Settings, label: "Settings", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
     ];
@@ -368,14 +395,16 @@ export default function DashboardLayout({
 
   const combinedNotificationCounts = useMemo(() => {
     const canApproveBatches = user && ['Manager', 'Developer', 'Storekeeper'].includes(user.role);
+    const canViewReports = user && ['Manager', 'Supervisor', 'Developer'].includes(user.role);
     const stockControlCount = notificationCounts.pendingTransfers + (canApproveBatches ? notificationCounts.pendingBatches : 0);
       
       return {
           stockControl: stockControlCount,
           pendingBatches: notificationCounts.pendingBatches,
-          inventory: stockControlCount, // The parent inventory link shows the sum
+          inventory: stockControlCount,
           accounting: notificationCounts.pendingPayments,
           payments: notificationCounts.pendingPayments,
+          communication: (canViewReports ? notificationCounts.newReports : 0) + notificationCounts.unreadAnnouncements,
       }
   }, [notificationCounts, user]);
 
