@@ -398,7 +398,7 @@ export async function clearDatabase(): Promise<ActionResult> {
     const allKnownCollections = [
       ...Object.keys(seedData),
       "expenses", "payment_confirmations", "ingredient_stock_logs", 
-      "supply_logs", "production_logs", "temp_orders", "settings"
+      "supply_logs", "production_logs", "temp_orders", "settings", "drinkSales"
     ];
     const collectionsToClear = [...new Set(allKnownCollections)]; // Remove duplicates
 
