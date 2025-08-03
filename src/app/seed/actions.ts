@@ -395,7 +395,12 @@ async function clearSubcollections(collectionPath: string) {
 export async function clearDatabase(): Promise<ActionResult> {
   console.log("Attempting to clear database...");
   try {
-    const collectionsToClear = Object.keys(seedData);
+    const allKnownCollections = [
+      ...Object.keys(seedData),
+      "expenses", "payment_confirmations", "ingredient_stock_logs", 
+      "supply_logs", "production_logs", "temp_orders", "settings"
+    ];
+    const collectionsToClear = [...new Set(allKnownCollections)]; // Remove duplicates
 
     await clearSubcollections('staff');
 
@@ -411,7 +416,7 @@ export async function clearDatabase(): Promise<ActionResult> {
             batch = writeBatch(db);
         }
       }
-      if (count % 400 !== 0) {
+      if (count > 0 && count % 400 !== 0) {
          await batch.commit();
       }
       console.log(`Cleared collection: ${collectionName}`);
