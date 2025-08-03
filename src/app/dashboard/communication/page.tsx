@@ -200,22 +200,22 @@ function ViewReportsTab() {
 
     const fetchReports = useCallback(() => {
         setIsLoading(true);
-         const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
+        const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => {
                 const docData = doc.data();
                 return { id: doc.id, ...docData } as Report;
             });
             setReports(data);
-            if (isLoading) setIsLoading(false);
+            setIsLoading(false);
         }, (error) => {
             console.error("Error fetching reports:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch reports.' });
-            if (isLoading) setIsLoading(false);
+            setIsLoading(false);
         });
 
         return () => unsubscribe();
-    }, [toast, isLoading]);
+    }, [toast]);
 
     useEffect(() => {
         const unsubscribe = fetchReports();
@@ -246,7 +246,7 @@ function ViewReportsTab() {
                 report={viewingReport} 
                 isOpen={!!viewingReport} 
                 onOpenChange={() => setViewingReport(null)}
-                onStatusChange={fetchReports}
+                onStatusChange={() => {}} // Listener handles this
             />
              <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList>
