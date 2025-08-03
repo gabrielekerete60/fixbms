@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,7 @@ import { postAnnouncement, submitReport, Announcement as AnnouncementType, getRe
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, Timestamp, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -199,6 +200,7 @@ function ViewReportsTab() {
     const [staffList, setStaffList] = useState<StaffMember[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const [notificationCounts, setNotificationCounts] = useState({ new: 0, inProgress: 0 });
 
     // Filtering and pagination state
     const [activeTab, setActiveTab] = useState('new');
@@ -217,6 +219,10 @@ function ViewReportsTab() {
                 return { id: doc.id, ...docData } as Report;
             });
             setReports(data);
+             // Update notification counts
+            const newCount = data.filter(r => r.status === 'new').length;
+            const inProgressCount = data.filter(r => r.status === 'in_progress').length;
+            setNotificationCounts({ new: newCount, inProgress: inProgressCount });
             if (isLoading) setIsLoading(false);
         }, (error) => {
             console.error("Error fetching reports:", error);
@@ -240,7 +246,7 @@ function ViewReportsTab() {
 
     const filteredReports = useMemo(() => {
         return reports.filter(report => {
-            const statusMatch = report.status === activeTab;
+            const statusMatch = report.status.replace('_', ' ') === activeTab;
             const typeMatch = typeFilter === 'all' || report.reportType === typeFilter;
             const staffMatch = staffFilter === 'all' || report.staffId === staffFilter;
             return statusMatch && typeMatch && staffMatch;
@@ -280,8 +286,12 @@ function ViewReportsTab() {
             />
              <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList>
-                    <TabsTrigger value="new">New</TabsTrigger>
-                    <TabsTrigger value="in_progress">In Progress</TabsTrigger>
+                    <TabsTrigger value="new" className="relative">
+                        New {notificationCounts.new > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.new}</Badge>}
+                    </TabsTrigger>
+                    <TabsTrigger value="in progress" className="relative">
+                        In Progress {notificationCounts.inProgress > 0 && <Badge className="ml-2">{notificationCounts.inProgress}</Badge>}
+                    </TabsTrigger>
                     <TabsTrigger value="resolved">Resolved</TabsTrigger>
                 </TabsList>
                 <TabsContent value={activeTab} className="mt-4">
@@ -363,28 +373,10 @@ export default function CommunicationPage() {
     const [isPosting, setIsPosting] = useState(false);
     const [user, setUser] = useState<User | null>(null);
     const [activeTab, setActiveTab] = useState("announcements");
+    const [notificationCounts, setNotificationCounts] = useState({ unreadAnnouncements: 0, actionableReports: 0 });
+
 
     useEffect(() => {
-        const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => {
-                 const docData = doc.data();
-                return { id: doc.id, ...docData } as AnnouncementType;
-            });
-            setAnnouncements(data);
-            if (data.length > 0) {
-                // When announcements are loaded or updated, set the "last read" timestamp
-                localStorage.setItem('lastReadAnnouncement', data[0].timestamp!.toDate().toISOString());
-                // Dispatch a custom event to notify the layout that announcements have been read
-                window.dispatchEvent(new Event('announcementsRead'));
-            }
-            if (isLoading) setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching announcements:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch announcements.'});
-            if (isLoading) setIsLoading(false);
-        });
-
         const storedUser = localStorage.getItem('loggedInUser');
         if (storedUser) {
             setUser(JSON.parse(storedUser));
@@ -392,8 +384,53 @@ export default function CommunicationPage() {
              if (isLoading) setIsLoading(false);
         }
 
-        return () => unsubscribe();
-    }, [toast, isLoading]);
+        const qAnnouncements = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
+        const unsubAnnouncements = onSnapshot(qAnnouncements, (snapshot) => {
+            const data = snapshot.docs.map(doc => {
+                 const docData = doc.data();
+                return { id: doc.id, ...docData } as AnnouncementType;
+            });
+            setAnnouncements(data);
+
+            const lastReadTimestamp = localStorage.getItem('lastReadAnnouncement');
+            if (!lastReadTimestamp) {
+                setNotificationCounts(prev => ({...prev, unreadAnnouncements: snapshot.size }));
+            } else {
+                const lastReadDate = new Date(lastReadTimestamp);
+                const newCount = data.filter(doc => doc.timestamp && doc.timestamp.toDate() > lastReadDate).length;
+                setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
+            }
+            if (activeTab === "announcements") {
+                localStorage.setItem('lastReadAnnouncement', new Date().toISOString());
+                window.dispatchEvent(new Event('announcementsRead'));
+            }
+
+            if (isLoading) setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching announcements:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch announcements.'});
+            if (isLoading) setIsLoading(false);
+        });
+
+        // Reports listener
+        const qReports = query(collection(db, 'reports'), where('status', 'in', ['new', 'in_progress']));
+        const unsubReports = onSnapshot(qReports, (snapshot) => {
+            setNotificationCounts(prev => ({...prev, actionableReports: snapshot.size }));
+        });
+
+        return () => {
+            unsubAnnouncements();
+            unsubReports();
+        };
+    }, [toast, isLoading, activeTab]);
+
+    const handleTabChange = (value: string) => {
+        if (value === 'announcements') {
+            localStorage.setItem('lastReadAnnouncement', new Date().toISOString());
+            window.dispatchEvent(new Event('announcementsRead'));
+        }
+        setActiveTab(value);
+    }
 
     const handlePostAnnouncement = async () => {
         if (!newMessage.trim() || !user) return;
@@ -418,11 +455,19 @@ export default function CommunicationPage() {
         <div className="flex flex-col gap-4">
             <h1 className="text-2xl font-bold font-headline">Communication Center</h1>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
                 <TabsList>
-                    <TabsTrigger value="announcements">Announcements</TabsTrigger>
+                    <TabsTrigger value="announcements" className="relative">
+                        Announcements
+                        {notificationCounts.unreadAnnouncements > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.unreadAnnouncements}</Badge>}
+                    </TabsTrigger>
                     <TabsTrigger value="submit-report">Submit a Report</TabsTrigger>
-                    {canViewReports && <TabsTrigger value="view-reports">View Reports</TabsTrigger>}
+                    {canViewReports && (
+                        <TabsTrigger value="view-reports" className="relative">
+                            View Reports
+                            {notificationCounts.actionableReports > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.actionableReports}</Badge>}
+                        </TabsTrigger>
+                    )}
                 </TabsList>
                 <TabsContent value="announcements" className="mt-4">
                     <Card>

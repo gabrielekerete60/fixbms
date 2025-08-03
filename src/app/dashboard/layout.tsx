@@ -160,6 +160,7 @@ export default function DashboardLayout({
       pendingBatches: 0,
       pendingPayments: 0,
       newReports: 0,
+      inProgressReports: 0,
       unreadAnnouncements: 0,
   });
   
@@ -261,6 +262,10 @@ export default function DashboardLayout({
 
     const newReportsQuery = query(collection(db, 'reports'), where('status', '==', 'new'));
     const unsubReports = onSnapshot(newReportsQuery, (snap) => setNotificationCounts(prev => ({...prev, newReports: snap.size })));
+    
+    const inProgressReportsQuery = query(collection(db, 'reports'), where('status', '==', 'in_progress'));
+    const unsubInProgress = onSnapshot(inProgressReportsQuery, (snap) => setNotificationCounts(prev => ({...prev, inProgressReports: snap.size })));
+
 
     // Announcement listener
     const announcementsQuery = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
@@ -288,6 +293,7 @@ export default function DashboardLayout({
         unsubPayments();
         unsubReports();
         unsubAnnouncements();
+        unsubInProgress();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
   }, [user?.staff_id, handleLogout, applyTheme]);
@@ -397,6 +403,7 @@ export default function DashboardLayout({
     const canApproveBatches = user && ['Manager', 'Developer', 'Storekeeper'].includes(user.role);
     const canViewReports = user && ['Manager', 'Supervisor', 'Developer'].includes(user.role);
     const stockControlCount = notificationCounts.pendingTransfers + (canApproveBatches ? notificationCounts.pendingBatches : 0);
+    const reportsCount = canViewReports ? notificationCounts.newReports + notificationCounts.inProgressReports : 0;
       
       return {
           stockControl: stockControlCount,
@@ -404,7 +411,7 @@ export default function DashboardLayout({
           inventory: stockControlCount,
           accounting: notificationCounts.pendingPayments,
           payments: notificationCounts.pendingPayments,
-          communication: (canViewReports ? notificationCounts.newReports : 0) + notificationCounts.unreadAnnouncements,
+          communication: reportsCount + notificationCounts.unreadAnnouncements,
       }
   }, [notificationCounts, user]);
 
