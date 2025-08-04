@@ -707,7 +707,9 @@ function DirectCostsTab() {
                             <AddDirectCostDialog onCostAdded={fetchCosts} />
                             <Popover>
                                 <PopoverTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button></PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="end"><Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/></PopoverContent>
+                                <PopoverContent className="w-auto p-0" align="end">
+                                    <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                                </PopoverContent>
                             </Popover>
                         </div>
                     </CardHeader>
@@ -1071,6 +1073,8 @@ function SalesRecordsTab() {
             });
             setRecords(data); 
             if (isLoading) setIsLoading(false);
+        }, () => {
+            if (isLoading) setIsLoading(false);
         });
 
         return () => unsubscribe();
@@ -1089,6 +1093,8 @@ function SalesRecordsTab() {
     const paginatedRecords = useMemo(() => {
         return visibleRows === 'all' ? filteredRecords : filteredRecords.slice(0, visibleRows);
     }, [filteredRecords, visibleRows]);
+
+    const grandTotal = useMemo(() => paginatedRecords.reduce((sum, item) => sum + item.total, 0), [paginatedRecords]);
 
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
@@ -1118,6 +1124,12 @@ function SalesRecordsTab() {
                     <Table>
                         <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Cash</TableHead><TableHead className="text-right">Transfer</TableHead><TableHead className="text-right">POS</TableHead><TableHead className="text-right">Credit Sales</TableHead><TableHead className="text-right">Shortage</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
                         <TableBody>{paginatedRecords.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell className="text-right">{formatCurrency(r.cash)}</TableCell><TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell><TableCell className="text-right">{formatCurrency(r.pos)}</TableCell><TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell><TableCell className="text-right">{formatCurrency(r.shortage)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell></TableRow>)}</TableBody>
+                        <TableFooter>
+                            <TableRow>
+                                <TableCell colSpan={7} className="font-bold text-right">Grand Total</TableCell>
+                                <TableCell className="font-bold text-right">{formatCurrency(grandTotal)}</TableCell>
+                            </TableRow>
+                        </TableFooter>
                     </Table>
                 </div>
             </CardContent>
@@ -1576,24 +1588,26 @@ function BusinessHealthTab() {
                         <CardDescription>Operating expenses for the selected period.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                         <Table>
-                            <TableHeader><TableRow><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                <TableRow><TableCell className="font-semibold">COGS (Cost of Goods Sold)</TableCell><TableCell className="text-right font-semibold">{formatCurrency(cogs)}</TableCell></TableRow>
-                                <TableRow><TableCell className="pl-6">Confectionaries</TableCell><TableCell className="text-right">{formatCurrency(statement.purchases)}</TableCell></TableRow>
-                                <TableRow><TableCell className="pl-6">Less: Closing Stocks</TableCell><TableCell className="text-right">({formatCurrency(statement.closingStock)})</TableCell></TableRow>
-                                
-                                <TableRow><TableCell className="font-semibold">Utilities</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Utilities)}</TableCell></TableRow>
+                         <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader><TableRow><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    <TableRow><TableCell className="font-semibold">COGS (Cost of Goods Sold)</TableCell><TableCell className="text-right font-semibold">{formatCurrency(cogs)}</TableCell></TableRow>
+                                    <TableRow><TableCell className="pl-6">Confectionaries</TableCell><TableCell className="text-right">{formatCurrency(statement.purchases)}</TableCell></TableRow>
+                                    <TableRow><TableCell className="pl-6">Less: Closing Stocks</TableCell><TableCell className="text-right">({formatCurrency(statement.closingStock)})</TableCell></TableRow>
+                                    
+                                    <TableRow><TableCell className="font-semibold">Utilities</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Utilities)}</TableCell></TableRow>
 
-                                <TableRow><TableCell className="font-semibold">Operations</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Operations)}</TableCell></TableRow>
-                                {Object.entries(statement.expenses).filter(([key]) => ['Repairs', 'Production', 'Promotion', 'Transport', 'Purchases'].includes(key)).map(([key, val]) => (
-                                   <TableRow key={key}><TableCell className="pl-6">{key}</TableCell><TableCell className="text-right">{formatCurrency(val as number)}</TableCell></TableRow>
-                                ))}
-                                
-                                 <TableRow><TableCell className="font-semibold">Wages</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Wages)}</TableCell></TableRow>
-                            </TableBody>
-                             <TableFooter><TableRow><TableCell className="font-bold text-lg">GRAND TOTAL OPEX:</TableCell><TableCell className="text-right font-bold text-lg">{formatCurrency(totalOpex)}</TableCell></TableRow></TableFooter>
-                        </Table>
+                                    <TableRow><TableCell className="font-semibold">Operations</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Operations)}</TableCell></TableRow>
+                                    {Object.entries(statement.expenses).filter(([key]) => ['Repairs', 'Production', 'Promotion', 'Transport', 'Purchases'].includes(key)).map(([key, val]) => (
+                                    <TableRow key={key}><TableCell className="pl-6">{key}</TableCell><TableCell className="text-right">{formatCurrency(val as number)}</TableCell></TableRow>
+                                    ))}
+                                    
+                                    <TableRow><TableCell className="font-semibold">Wages</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Wages)}</TableCell></TableRow>
+                                </TableBody>
+                                <TableFooter><TableRow><TableCell className="font-bold text-lg">GRAND TOTAL OPEX:</TableCell><TableCell className="text-right font-bold text-lg">{formatCurrency(totalOpex)}</TableCell></TableRow></TableFooter>
+                            </Table>
+                         </div>
                     </CardContent>
                 </Card>
                 <div className="md:col-span-2 space-y-6">
@@ -1739,3 +1753,4 @@ export default function AccountingPage() {
     </div>
   );
 }
+
