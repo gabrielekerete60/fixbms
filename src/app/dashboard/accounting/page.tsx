@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -32,7 +33,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Separator } from '@/components/ui/separator';
-import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Progress } from '@/components/ui/progress';
 
@@ -86,17 +87,6 @@ function PaginationControls({
             <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
             <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
             <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
-            <div className="flex items-center gap-2">
-                <Input 
-                    type="number" 
-                    className="h-9 w-20"
-                    placeholder="Custom"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleApplyInput()}
-                />
-                 <Button size="sm" onClick={handleApplyInput}>Apply</Button>
-            </div>
         </div>
     )
 }
@@ -1060,20 +1050,22 @@ function SalesRecordsTab() {
     const [date, setDate] = useState<DateRange | undefined>();
     const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
-    useEffect(() => { 
+    useEffect(() => {
         const q = query(collection(db, "sales"), orderBy("date", "desc"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => {
                 const docData = doc.data();
+                const firestoreTimestamp = docData.date as Timestamp;
                 return {
                     id: doc.id,
                     ...docData,
-                    date: (docData.date as any)?.toDate().toISOString()
-                } as Sale
+                    date: firestoreTimestamp.toDate().toISOString() // Correct conversion
+                } as Sale;
             });
-            setRecords(data); 
+            setRecords(data);
             if (isLoading) setIsLoading(false);
-        }, () => {
+        }, (error) => {
+            console.error("Error fetching sales records in real-time: ", error);
             if (isLoading) setIsLoading(false);
         });
 
@@ -1753,5 +1745,6 @@ export default function AccountingPage() {
     </div>
   );
 }
+
 
 
