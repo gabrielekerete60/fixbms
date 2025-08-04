@@ -684,7 +684,7 @@ function DirectCostsTab() {
                     <Card key={name}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">{name}</CardTitle>
-                        </CardHeader>
+                        </Header>
                         <CardContent>
                             <div className="text-2xl font-bold">{formatCurrency(total)}</div>
                         </CardContent>
@@ -692,14 +692,14 @@ function DirectCostsTab() {
                 ))}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-5">
-                <Card className="lg:col-span-3">
+            <div className="grid gap-6 xl:grid-cols-5">
+                <Card className="xl:col-span-3">
                     <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div className="space-y-1.5">
                             <CardTitle>Direct Costs Log</CardTitle>
                             <CardDescription>All costs directly tied to production, like ingredients.</CardDescription>
                         </div>
-                        <div className="flex w-full md:w-auto items-center gap-2">
+                        <div className="flex w-full flex-wrap md:flex-nowrap md:w-auto items-center gap-2">
                              <div className="relative flex-1 md:flex-initial">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -741,7 +741,7 @@ function DirectCostsTab() {
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="lg:col-span-2">
+                <Card className="xl:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top direct costs.</CardDescription>
@@ -834,7 +834,7 @@ function IndirectCostsTab() {
                     <Card key={name}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">{name}</CardTitle>
-                        </CardHeader>
+                        </Header>
                         <CardContent>
                             <div className="text-2xl font-bold">{formatCurrency(amount)}</div>
                         </CardContent>
@@ -842,14 +842,14 @@ function IndirectCostsTab() {
                 ))}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-5">
-                <Card className="lg:col-span-3">
+            <div className="grid gap-6 xl:grid-cols-5">
+                <Card className="xl:col-span-3">
                     <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div className="space-y-1.5">
                             <CardTitle>Indirect Costs Log</CardTitle>
                             <CardDescription>All operational costs not tied to a single product.</CardDescription>
                         </div>
-                        <div className="flex w-full md:w-auto items-center gap-2">
+                        <div className="flex w-full flex-wrap md:flex-nowrap md:w-auto items-center gap-2">
                              <div className="relative flex-1 md:flex-initial">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -889,7 +889,7 @@ function IndirectCostsTab() {
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="lg:col-span-2">
+                <Card className="xl:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top indirect costs.</CardDescription>
@@ -1569,8 +1569,8 @@ function BusinessHealthTab() {
                     </PopoverContent>
                 </Popover>
             </div>
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-1">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="md:col-span-1">
                     <CardHeader>
                         <CardTitle>OPEX Breakdown</CardTitle>
                         <CardDescription>Operating expenses for the selected period.</CardDescription>
@@ -1596,7 +1596,7 @@ function BusinessHealthTab() {
                         </Table>
                     </CardContent>
                 </Card>
-                <div className="lg:col-span-2 space-y-6">
+                <div className="md:col-span-2 space-y-6">
                     <Card>
                         <CardHeader>
                             <CardTitle>Ratio Profiling with Revenue</CardTitle>
