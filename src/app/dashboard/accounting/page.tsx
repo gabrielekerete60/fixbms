@@ -330,7 +330,7 @@ function SummaryTab() {
                     </TableBody>
                     <TableFooter>
                         <TableRow>
-                            <TableCell colSpan={2} className="text-right font-bold">Grand Total</TableCell>
+                            <TableCell colSpan={1} className="text-right font-bold">Grand Total</TableCell>
                             <TableCell className="text-right font-bold">{formatCurrency(totalSummary)}</TableCell>
                         </TableRow>
                     </TableFooter>
@@ -684,7 +684,7 @@ function DirectCostsTab() {
                     <Card key={name}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">{name}</CardTitle>
-                        </Header>
+                        </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{formatCurrency(total)}</div>
                         </CardContent>
@@ -836,7 +836,7 @@ function IndirectCostsTab() {
                     <Card key={name}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">{name}</CardTitle>
-                        </Header>
+                        </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{formatCurrency(amount)}</div>
                         </CardContent>
