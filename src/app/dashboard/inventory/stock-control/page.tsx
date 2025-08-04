@@ -423,6 +423,7 @@ export default function StockControlPage() {
 
   const [visiblePendingRows, setVisiblePendingRows] = useState<number | 'all'>(10);
   const [visibleHistoryRows, setVisibleHistoryRows] = useState<number | 'all'>(10);
+  const [visibleLogRows, setVisibleLogRows] = useState<number | 'all'>(10);
   
   const fetchPageData = async () => {
         const userStr = localStorage.getItem('loggedInUser');
@@ -435,31 +436,25 @@ export default function StockControlPage() {
         setUser(currentUser);
 
         try {
-            // Fetch all staff for the transfer dropdown, excluding the developer
             const staffQuery = query(collection(db, "staff"), where("role", "!=", "Developer"));
             const staffSnapshot = await getDocs(staffQuery);
             setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
 
-            // Fetch products based on user role
             const userRole = currentUser.role;
             if (userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper') {
-                // Admins see main inventory for transfers and waste reporting
                 const productsSnapshot = await getDocs(collection(db, "products"));
                 setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
                 const ingredientsSnapshot = await getDocs(collection(db, "ingredients"));
                 setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock })));
-                 // Fetch transfers initiated by the user for the log
                 const transfersQuery = query(collection(db, "transfers"), where('from_staff_id', '==', currentUser.staff_id), orderBy("date", "desc"));
                 const transfersSnapshot = await getDocs(transfersQuery);
                 setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
             } else {
-                // Other staff see their personal stock for waste reporting
                 const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
                 const personalStockSnapshot = await getDocs(personalStockQuery);
                 setProducts(personalStockSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().productName, stock: doc.data().stock })));
             }
             
-            // Fetch data specific to the logged-in user
             const [pendingData, completedData, wasteData, prodTransfers] = await Promise.all([
                 getPendingTransfersForStaff(currentUser.staff_id),
                 getCompletedTransfersForStaff(currentUser.staff_id),
@@ -484,7 +479,6 @@ export default function StockControlPage() {
     setIsLoading(true);
     fetchPageData();
 
-    // Real-time listener for pending batches (for storekeeper)
     setIsLoadingBatches(true);
     const qPending = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
     const unsubPending = onSnapshot(qPending, (snapshot) => {
@@ -556,7 +550,6 @@ export default function StockControlPage() {
         return;
     }
 
-    // Final validation before submitting
     for (const item of items) {
         const product = products.find(p => p.id === item.productId);
         if (!product || item.quantity! > product.stock) {
@@ -588,7 +581,7 @@ export default function StockControlPage() {
         setIsSalesRun(false);
         setNotes("");
         setItems([{ productId: "", quantity: 1 }]);
-        fetchPageData(); // Refetch all data
+        fetchPageData();
 
     } else {
         toast({ variant: "destructive", title: "Error", description: result.error });
@@ -616,6 +609,24 @@ export default function StockControlPage() {
     return visibleHistoryRows === 'all' ? completedTransfers : completedTransfers.slice(0, visibleHistoryRows);
   }, [completedTransfers, visibleHistoryRows]);
 
+  const paginatedLogs = useMemo(() => {
+    let filtered = initiatedTransfers;
+    if (date?.from) {
+        const from = date.from;
+        const to = date.to || from;
+        filtered = filtered.filter(t => {
+            const transferDate = new Date(t.date);
+            return transferDate >= from && transferDate <= to;
+        })
+    }
+    return visibleLogRows === 'all' ? filtered : filtered.slice(0, visibleLogRows);
+  }, [initiatedTransfers, visibleLogRows, date]);
+  
+  const availableProducts = useMemo(() => {
+    const selectedIds = new Set(items.map(i => i.productId));
+    return products.filter(p => !selectedIds.has(p.id));
+  }, [products, items]);
+
   const userRole = user?.role;
   const canInitiateTransfer = userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper';
   
@@ -623,7 +634,6 @@ export default function StockControlPage() {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
   
-  // Simplified view for sales and delivery staff
   if (!canInitiateTransfer) {
      return (
          <div className="flex flex-col gap-6">
@@ -796,7 +806,7 @@ export default function StockControlPage() {
                         <SelectValue placeholder="Select a staff member" />
                     </SelectTrigger>
                     <SelectContent>
-                        {staff.map((s) => (
+                        {staff.filter(s => s.role === 'Showroom Staff' || s.role === 'Delivery Staff').map((s) => (
                         <SelectItem key={s.staff_id} value={s.staff_id}>
                             {s.name} ({s.role})
                         </SelectItem>
@@ -841,7 +851,7 @@ export default function StockControlPage() {
                         <SelectValue placeholder="Select a product" />
                         </SelectTrigger>
                         <SelectContent>
-                        {products.map((p) => (
+                        {availableProducts.map((p) => (
                             <SelectItem key={p.id} value={p.id}>
                             {p.name} (Stock: {p.stock})
                             </SelectItem>
@@ -1002,7 +1012,7 @@ export default function StockControlPage() {
 
       <Card>
         <CardHeader>
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <CardTitle>My Initiated Transfers Log</CardTitle>
                     <CardDescription>A log of transfers you have initiated.</CardDescription>
@@ -1013,7 +1023,7 @@ export default function StockControlPage() {
                         id="date"
                         variant={"outline"}
                         className={cn(
-                        "w-[260px] justify-start text-left font-normal",
+                        "w-full sm:w-[260px] justify-start text-left font-normal",
                         !date && "text-muted-foreground"
                         )}
                     >
@@ -1063,8 +1073,8 @@ export default function StockControlPage() {
                                 <Loader2 className="h-8 w-8 animate-spin"/>
                             </TableCell>
                         </TableRow>
-                    ) : initiatedTransfers.length > 0 ? (
-                        initiatedTransfers.map((transfer) => (
+                    ) : paginatedLogs.length > 0 ? (
+                        paginatedLogs.map((transfer) => (
                              <TableRow key={transfer.id}>
                                 <TableCell>{transfer.date ? format(new Date(transfer.date), 'PPpp') : 'N/A'}</TableCell>
                                 <TableCell>{transfer.from_staff_name}</TableCell>
@@ -1081,6 +1091,9 @@ export default function StockControlPage() {
                 </TableBody>
             </Table>
         </CardContent>
+        <CardFooter>
+            <PaginationControls visibleRows={visibleLogRows} setVisibleRows={setVisibleLogRows} totalRows={initiatedTransfers.length} />
+        </CardFooter>
       </Card>
     </div>
   );

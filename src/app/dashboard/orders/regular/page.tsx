@@ -17,6 +17,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,7 @@ import { Input } from "@/components/ui/input"
 import { DateRange } from "react-day-picker";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
-import { collection, getDocs, query, orderBy, Timestamp, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, Timestamp, doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -86,6 +87,9 @@ type User = {
     name: string;
     role: string;
 };
+
+const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
   return (
@@ -202,8 +206,8 @@ function PaginationControls({
     setVisibleRows,
     totalRows
 }: {
-    visibleRows: number;
-    setVisibleRows: (val: number) => void;
+    visibleRows: number | 'all',
+    setVisibleRows: (val: number | 'all') => void,
     totalRows: number
 }) {
     const [inputValue, setInputValue] = useState<string | number>('');
@@ -221,12 +225,12 @@ function PaginationControls({
             <Button variant={visibleRows === 10 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(10)}>10</Button>
             <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
             <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
-            <Button variant={visibleRows === totalRows ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(totalRows)}>All ({totalRows})</Button>
+            <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
         </div>
     )
 }
 
-function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected, storeAddress }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean, storeAddress?: string }) {
+function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected, storeAddress, grandTotal }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean, storeAddress?: string, grandTotal: number }) {
     const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
     const [printingOrder, setPrintingOrder] = useState<CompletedOrder | null>(null);
     const receiptRef = useRef<HTMLDivElement>(null);
@@ -334,6 +338,13 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                     ))
                 )}
             </TableBody>
+            <TableFooter>
+                <TableRow>
+                    <TableCell colSpan={7} className="text-right font-bold">Grand Total</TableCell>
+                    <TableCell className="text-right font-bold">{formatCurrency(grandTotal)}</TableCell>
+                    <TableCell></TableCell>
+                </TableRow>
+            </TableFooter>
         </Table>
         </div>
         </>
@@ -428,7 +439,7 @@ export default function RegularOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
   const [storeAddress, setStoreAddress] = useState<string | undefined>();
-  const [visibleRows, setVisibleRows] = useState(10);
+  const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
   const selectedOrdersRef = useRef<HTMLDivElement>(null);
   const [ordersToPrint, setOrdersToPrint] = useState<CompletedOrder[]>([]);
@@ -446,41 +457,41 @@ export default function RegularOrdersPage() {
   };
 
   useEffect(() => {
-    const fetchOrdersAndUser = async () => {
-      setIsLoading(true);
+    const fetchUserAndSettings = async () => {
       const userStr = localStorage.getItem('loggedInUser');
       const currentUser: User | null = userStr ? JSON.parse(userStr) : null;
       setUser(currentUser);
       
-      try {
-        const ordersQuery = query(collection(db, "orders"), orderBy("date", "desc"));
-        const orderSnapshot = await getDocs(ordersQuery);
-        const ordersList = orderSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CompletedOrder[];
+      const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
+      if (settingsDoc.exists()) {
+          setStoreAddress(settingsDoc.data().storeAddress);
+      }
+
+      if(currentUser?.role === 'Showroom Staff') {
+          const today = new Date();
+          setDate({ from: startOfDay(today), to: endOfDay(today) });
+      }
+    };
+    
+    fetchUserAndSettings();
+
+    const ordersQuery = query(collection(db, "orders"), orderBy("date", "desc"));
+    const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+        const ordersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CompletedOrder[];
         setAllOrders(ordersList);
-
-        const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
-        if (settingsDoc.exists()) {
-            setStoreAddress(settingsDoc.data().storeAddress);
-        }
-
-        if(currentUser?.role === 'Showroom Staff') {
-            const today = new Date();
-            setDate({ from: startOfDay(today), to: endOfDay(today) });
-        }
-
-      } catch (error) {
+        if (isLoading) setIsLoading(false);
+    }, (error) => {
         console.error("Error fetching orders:", error);
         toast({
           variant: "destructive",
           title: "Error",
           description: "Could not fetch orders from the database.",
         });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchOrdersAndUser();
-  }, [toast]);
+        if (isLoading) setIsLoading(false);
+    });
+    
+    return () => unsubscribe();
+  }, [toast, isLoading]);
 
   const filteredOrders = useMemo(() => {
     return allOrders.filter(order => {
@@ -491,9 +502,13 @@ export default function RegularOrdersPage() {
       return dateMatch && searchMatch && paymentMatch;
     });
   }, [allOrders, date, searchTerm, paymentMethodFilter]);
+  
+  const grandTotal = useMemo(() => {
+    return filteredOrders.reduce((sum, order) => sum + order.total, 0);
+  }, [filteredOrders]);
 
   const paginatedOrders = useMemo(() => {
-    return filteredOrders.slice(0, visibleRows);
+    return visibleRows === 'all' ? filteredOrders : filteredOrders.slice(0, visibleRows);
   }, [filteredOrders, visibleRows]);
 
   const handleSelectOne = (orderId: string, checked: boolean) => {
@@ -563,6 +578,7 @@ export default function RegularOrdersPage() {
         selectedOrders={selectedOrders}
         allOrdersSelected={selectedOrders.length > 0 && selectedOrders.length === paginatedOrders.length}
         storeAddress={storeAddress}
+        grandTotal={grandTotal}
       />
     );
   };
@@ -661,7 +677,7 @@ export default function RegularOrdersPage() {
                     <div className="text-xs text-muted-foreground">
                         Showing <strong>{paginatedOrders.length}</strong> of <strong>{filteredOrders.length}</strong> orders.
                     </div>
-                    <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredOrders.length} />
+                    <PaginationControls visibleRows={visibleRows === 'all' ? filteredOrders.length : visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredOrders.length} />
                 </CardFooter>
             </Card>
         </Tabs>

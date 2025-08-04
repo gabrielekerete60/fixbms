@@ -32,7 +32,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Separator } from '@/components/ui/separator';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Progress } from '@/components/ui/progress';
 
@@ -330,7 +330,7 @@ function SummaryTab() {
                     </TableBody>
                     <TableFooter>
                         <TableRow>
-                            <TableCell className="text-right font-bold">Grand Total</TableCell>
+                            <TableCell colSpan={2} className="text-right font-bold">Grand Total</TableCell>
                             <TableCell className="text-right font-bold">{formatCurrency(totalSummary)}</TableCell>
                         </TableRow>
                     </TableFooter>
@@ -692,8 +692,8 @@ function DirectCostsTab() {
                 ))}
             </div>
 
-            <div className="grid gap-6 md:grid-cols-5">
-                <Card className="md:col-span-3">
+            <div className="grid gap-6 lg:grid-cols-5">
+                <Card className="lg:col-span-3">
                     <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div className="space-y-1.5">
                             <CardTitle>Direct Costs Log</CardTitle>
@@ -741,7 +741,7 @@ function DirectCostsTab() {
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="md:col-span-2">
+                <Card className="lg:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top direct costs.</CardDescription>
@@ -842,8 +842,8 @@ function IndirectCostsTab() {
                 ))}
             </div>
 
-            <div className="grid gap-6 md:grid-cols-5">
-                <Card className="md:col-span-3">
+            <div className="grid gap-6 lg:grid-cols-5">
+                <Card className="lg:col-span-3">
                     <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div className="space-y-1.5">
                             <CardTitle>Indirect Costs Log</CardTitle>
@@ -889,7 +889,7 @@ function IndirectCostsTab() {
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="md:col-span-2">
+                <Card className="lg:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top indirect costs.</CardDescription>
@@ -1059,11 +1059,22 @@ function SalesRecordsTab() {
     const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
     useEffect(() => { 
-        getSales().then(data => { 
-            setRecords(data as Sale[]); 
-            setIsLoading(false); 
-        }); 
-    }, []);
+        const q = query(collection(db, "sales"), orderBy("date", "desc"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => {
+                const docData = doc.data();
+                return {
+                    id: doc.id,
+                    ...docData,
+                    date: (docData.date as any)?.toDate().toISOString()
+                } as Sale
+            });
+            setRecords(data); 
+            if (isLoading) setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [isLoading]);
 
     const filteredRecords = useMemo(() => {
         if (!date?.from) return records;
@@ -1592,6 +1603,7 @@ function BusinessHealthTab() {
                             <CardDescription>Comparison of expense ratios to industry benchmarks.</CardDescription>
                         </CardHeader>
                         <CardContent>
+                            <div className="overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -1629,6 +1641,7 @@ function BusinessHealthTab() {
                                     </TableRow>
                                  </TableFooter>
                             </Table>
+                            </div>
                              <Progress value={totalOpexRatio > 100 ? 100 : totalOpexRatio} className={cn("mt-2", totalOpexRatio > 70 ? "[&>div]:bg-orange-500" : "[&>div]:bg-green-500")} />
                         </CardContent>
                     </Card>
