@@ -227,15 +227,17 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
 
 function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
 
-    const handleAction = (action: 'accept' | 'decline') => {
+    const handleAction = async (action: 'accept' | 'decline') => {
         setIsSubmitting(true);
-        onAccept(transfer.id, action);
-        // The dialog will close on its own if the parent component rerenders and this dialog is no longer there
+        await onAccept(transfer.id, action);
+        setIsSubmitting(false);
+        setIsOpen(false);
     }
 
     return (
-        <Dialog>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                 <Button size="sm">View & Acknowledge</Button>
             </DialogTrigger>
