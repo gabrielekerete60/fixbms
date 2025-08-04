@@ -591,6 +591,7 @@ export default function StockControlPage() {
   };
   
   const handleAcknowledge = async (id: string, type: 'accept' | 'decline') => {
+    setIsSubmitting(true);
     const result = await handleAcknowledgeTransfer(id, type);
     if (result.success) {
         const message = type === 'accept' ? 'Transfer accepted.' : 'Transfer has been declined.';
@@ -599,6 +600,7 @@ export default function StockControlPage() {
     } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
     }
+    setIsSubmitting(false);
   };
 
   const paginatedPending = useMemo(() => {
@@ -820,7 +822,7 @@ export default function StockControlPage() {
                         <div className="grid gap-1.5 leading-none">
                             <label
                             htmlFor="sales-run"
-                            className={cn("text-sm font-medium leading-none", isSalesRunDisabled ? "text-muted-foreground" : "peer-disabled:cursor-not-allowed peer-disabled:opacity-70")}
+                            className={cn("text-sm font-medium leading-none", isSalesRunDisabled ? "text-muted-foreground" : "peer-disabled:cursor-not-allowed peer-disabled:opacity-50")}
                             >
                             This is for a sales run
                             </label>
