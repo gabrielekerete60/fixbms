@@ -51,7 +51,6 @@ import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { initializePaystackTransaction, handlePosSale } from "@/app/actions";
-import type PaystackPop from '@paystack/inline-js';
 
 
 type Product = {
@@ -272,8 +271,9 @@ function POSPageContent() {
       if (storedUser) {
         const parsedUser: User = JSON.parse(storedUser);
         setUser(parsedUser);
-        
-        if(!customerEmail) {
+
+        const currentCustomerEmail = localStorage.getItem('posCustomerEmail');
+        if (!currentCustomerEmail || JSON.parse(currentCustomerEmail) === '') {
             setCustomerEmail(parsedUser.email || '');
         }
 
@@ -282,7 +282,8 @@ function POSPageContent() {
           const staffQuery = query(collection(db, "staff"), where("role", "==", "Showroom Staff"));
           const staffSnapshot = await getDocs(staffQuery);
           setAllStaff(staffSnapshot.docs.map(d => ({ staff_id: d.id, ...d.data() } as SelectableStaff)));
-          if (!selectedStaffId) {
+          const currentSelectedStaff = localStorage.getItem('posSelectedStaff');
+          if (!currentSelectedStaff || JSON.parse(currentSelectedStaff) === null) {
             setIsStaffSelectionOpen(true);
           }
         } else {
@@ -295,7 +296,8 @@ function POSPageContent() {
       }
     };
     initializePos();
-  }, [customerEmail, selectedStaffId, setCustomerEmail]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
@@ -315,30 +317,32 @@ function POSPageContent() {
   }, [selectedStaffId])
   
   useEffect(() => {
-    const handleStorageChange = async () => {
-        const storedStatusRaw = localStorage.getItem('paymentStatus');
-        if (storedStatusRaw) {
-            const newStatus: PaymentStatus = JSON.parse(storedStatusRaw);
+    const handleStorageChange = async (event: StorageEvent) => {
+        if (event.key === 'paymentStatus') {
+            const storedStatusRaw = localStorage.getItem('paymentStatus');
+            if (storedStatusRaw) {
+                const newStatus: PaymentStatus = JSON.parse(storedStatusRaw);
 
-            if (newStatus.status !== paymentStatus.status && newStatus.status !== 'idle' && newStatus.status !== 'processing') {
-                if (newStatus.status === 'success' && newStatus.orderId) {
-                    toast({ title: "Payment Successful", description: "Order completed." });
-                    const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
-                    if (orderDoc.exists()) {
-                        const orderData = orderDoc.data();
-                        setLastCompletedOrder({
-                            ...orderData,
-                            id: orderDoc.id,
-                            date: (orderData.date as Timestamp).toDate().toISOString()
-                        } as CompletedOrder);
-                        setIsReceiptOpen(true);
+                if (newStatus.status !== paymentStatus.status && newStatus.status !== 'idle' && newStatus.status !== 'processing') {
+                    if (newStatus.status === 'success' && newStatus.orderId) {
+                        toast({ title: "Payment Successful", description: "Order completed." });
+                        const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
+                        if (orderDoc.exists()) {
+                            const orderData = orderDoc.data();
+                            setLastCompletedOrder({
+                                ...orderData,
+                                id: orderDoc.id,
+                                date: (orderData.date as Timestamp).toDate().toISOString()
+                            } as CompletedOrder);
+                            setIsReceiptOpen(true);
+                        }
+                    } else if (newStatus.status === 'cancelled') {
+                        toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
+                    } else if (newStatus.status === 'failed') {
+                        toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
                     }
-                } else if (newStatus.status === 'cancelled') {
-                    toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
-                } else if (newStatus.status === 'failed') {
-                    toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
+                    setPaymentStatus({ status: 'idle' });
                 }
-                setPaymentStatus({ status: 'idle' });
             }
         }
     }
@@ -892,5 +896,3 @@ export default function POSPageWithSuspense() {
         </Suspense>
     )
 }
-
-    
