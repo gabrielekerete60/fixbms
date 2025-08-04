@@ -1059,7 +1059,7 @@ function SalesRecordsTab() {
                 return {
                     id: doc.id,
                     ...docData,
-                    date: firestoreTimestamp.toDate().toISOString() // Correct conversion
+                    date: firestoreTimestamp.toDate().toISOString()
                 } as Sale;
             });
             setRecords(data);
@@ -1070,7 +1070,7 @@ function SalesRecordsTab() {
         });
 
         return () => unsubscribe();
-    }, [isLoading]);
+    }, []);
 
     const filteredRecords = useMemo(() => {
         if (!date?.from) return records;
@@ -1745,6 +1745,7 @@ export default function AccountingPage() {
     </div>
   );
 }
+
 
 
 
