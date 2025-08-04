@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 function getValue<T>(key: string, initialValue: T | (() => T)) {
   if (typeof window === 'undefined') {
@@ -18,16 +18,39 @@ function getValue<T>(key: string, initialValue: T | (() => T)) {
 
 export function useLocalStorage<T>(key: string, initialValue: T | (() => T)): [T, React.Dispatch<React.SetStateAction<T>>] {
   const [storedValue, setStoredValue] = useState<T>(() => getValue(key, initialValue));
-  
-  useEffect(() => {
+
+  const setValue = (value: T | ((val: T) => T)) => {
     try {
-      const valueToStore = storedValue instanceof Function ? storedValue(storedValue) : storedValue;
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+        // Dispatch a storage event to notify other tabs
+        window.dispatchEvent(new StorageEvent('storage', { key, newValue: JSON.stringify(valueToStore) }));
+      }
     } catch (error) {
       console.warn(`Error setting localStorage key “${key}”:`, error);
     }
-  }, [key, storedValue]);
+  };
+  
+  const handleStorageChange = useCallback((event: StorageEvent) => {
+    if (event.key === key && event.newValue) {
+      try {
+        setStoredValue(JSON.parse(event.newValue));
+      } catch (error) {
+        console.warn(`Error parsing storage event for key “${key}”:`, error);
+      }
+    }
+  }, [key]);
 
-  return [storedValue, setStoredValue];
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorageChange);
+      return () => {
+        window.removeEventListener('storage', handleStorageChange);
+      };
+    }
+  }, [key, handleStorageChange]);
+
+  return [storedValue, setValue as React.Dispatch<React.SetStateAction<T>>];
 }
-
