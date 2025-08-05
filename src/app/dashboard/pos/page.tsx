@@ -133,7 +133,7 @@ const handlePrint = (node: HTMLElement | null) => {
                 </head>
                 <body>
                     <div class="receipt-container">
-                        ${node.innerHTML}
+                        ${receiptContent.innerHTML}
                     </div>
                     <script>
                         window.onload = function() {
@@ -221,7 +221,7 @@ function POSPageContent() {
         setIsLoadingProducts(false);
     });
   }
-  
+
   const clearCartAndStorage = useCallback(() => {
     setCart([]);
     setCustomerName('');
