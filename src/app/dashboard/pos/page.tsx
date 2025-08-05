@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
 import Image from "next/image";
 import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet, ArrowRightLeft } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -243,19 +243,23 @@ function POSPageContent() {
   const onPaystackSuccess = useCallback(async (reference: { reference: string }) => {
     if (!reference.reference) {
         toast({ variant: "destructive", title: "Payment Failed", description: "No payment reference returned." });
+        setPaymentStatus({ status: 'idle' });
         return;
     }
 
     setPaymentStatus({ status: 'processing', message: 'Payment confirmed, finalizing order...' });
     setIsCheckoutOpen(false);
+    
+    const finalizationResult = await verifyPaystackOnServerAndFinalizeOrder(reference.reference);
 
-    // This is the critical part: we now have the reference. 
-    // We can assume the server-side verification and order finalization will happen on the callback page.
-    // The main challenge is knowing WHEN it's done. 
-    // We'll rely on the `handleSaleMade` being called by the message listener now.
-    toast({ title: 'Payment Confirmed', description: 'Waiting for server to finalize order...' });
-
-}, [toast]);
+    if (finalizationResult.success && finalizationResult.orderId) {
+        toast({ title: 'Payment Confirmed', description: 'Your order has been successfully placed.' });
+        handleSaleMade(finalizationResult.orderId);
+    } else {
+        toast({ variant: 'destructive', title: 'Order Recording Failed', description: finalizationResult.error });
+    }
+    setPaymentStatus({ status: 'idle' });
+  }, [toast, handleSaleMade]);
 
 
   const onPaystackClose = useCallback(() => {
@@ -273,6 +277,8 @@ function POSPageContent() {
       email: customerEmail || user?.email || '',
       amount: Math.round(total * 100),
       publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+      onSuccess: onPaystackSuccess,
+      onClose: onPaystackClose,
   };
 
   const initializePayment = usePaystackPayment(paystackConfig);
@@ -347,18 +353,6 @@ function POSPageContent() {
       }
     };
     initializePos();
-
-    const handleMessage = (event: MessageEvent) => {
-        if (event.data.type === 'paymentSuccess' && event.data.orderId) {
-            handleSaleMade(event.data.orderId);
-        }
-    };
-
-    window.addEventListener('message', handleMessage);
-
-    return () => {
-        window.removeEventListener('message', handleMessage);
-    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -766,7 +760,7 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <Button className="h-20 text-lg" onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
+                    <Button className="h-20 text-lg" onClick={() => initializePayment()}>
                         <ArrowRightLeft className="mr-2 h-6 w-6" />
                         Pay with Transfer
                     </Button>
