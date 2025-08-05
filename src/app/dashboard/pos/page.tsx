@@ -227,6 +227,22 @@ function POSPageContent() {
     setCustomerEmail(user?.email || '');
   }, [setCart, setCustomerName, setCustomerEmail, user?.email]);
   
+  const handleSaleMade = useCallback(async (orderId: string) => {
+      const orderDoc = await getDoc(doc(db, 'orders', orderId));
+      if (orderDoc.exists()) {
+          const orderData = orderDoc.data();
+          setLastCompletedOrder({
+              ...orderData,
+              id: orderDoc.id,
+              date: (orderData.date as any).toDate().toISOString()
+          } as CompletedOrder);
+          setIsReceiptOpen(true);
+          clearCartAndStorage();
+      } else {
+          toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch completed order details for receipt.' });
+      }
+  }, [clearCartAndStorage, toast]);
+  
 
   const handlePaystackPayment = async () => {
     setIsCheckoutOpen(false);
@@ -253,17 +269,15 @@ function POSPageContent() {
         items: itemsWithCost,
         total,
         email: customerEmail || user.email,
+        staffId: selectedStaffId,
+        customerName: customerName || 'Walk-in',
     };
     
     const result = await initializePaystackTransaction(saleData);
 
     if (result.success && result.authorization_url) {
-        // We have a URL, open it in a new window.
-        window.open(result.authorization_url, '_blank');
-        // Now, we need to listen for when the order is actually completed.
-        // This is handled by the payment callback page and Firestore listeners.
+        window.open(result.authorization_url, '_blank', 'toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=800,height=600');
         toast({ title: 'Payment Window Opened', description: 'Please complete your payment in the new window.' });
-        clearCartAndStorage();
     } else {
         toast({
             variant: "destructive",
@@ -308,17 +322,7 @@ function POSPageContent() {
 
     if (result.success && result.orderId) {
         toast({ title: 'Sale Completed', description: 'Order has been successfully recorded.' });
-        const orderDoc = await getDoc(doc(db, 'orders', result.orderId));
-        if (orderDoc.exists()) {
-            const orderData = orderDoc.data();
-             setLastCompletedOrder({
-                ...orderData,
-                id: orderDoc.id,
-                date: (orderData.date as any).toDate().toISOString()
-            } as CompletedOrder);
-            setIsReceiptOpen(true);
-        }
-        clearCartAndStorage();
+        handleSaleMade(result.orderId);
     } else {
          toast({
             variant: "destructive",
@@ -386,6 +390,18 @@ function POSPageContent() {
       }, 100);
     }
   }, [isReceiptOpen, lastCompletedOrder]);
+
+  useEffect(() => {
+    const handlePaymentMessage = (event: MessageEvent) => {
+        if (event.data.type === 'paymentSuccess' && event.data.orderId) {
+            handleSaleMade(event.data.orderId);
+        }
+    };
+    window.addEventListener('message', handlePaymentMessage);
+    return () => {
+        window.removeEventListener('message', handlePaymentMessage);
+    };
+  }, [handleSaleMade]);
 
 
   const categories = ['All', ...new Set(products.map(p => p.category))];

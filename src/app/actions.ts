@@ -2595,3 +2595,67 @@ export async function getStaffByRole(role: string): Promise<any[]> {
         return { id: doc.id, ...plainData };
     });
 }
+
+
+export async function verifyPaystackOnServerAndFinalizeOrder(reference: string): Promise<{ success: boolean; error?: string, orderId?: string }> {
+    try {
+        const tempOrderRef = doc(db, "temp_orders", reference);
+        const tempOrderDoc = await getDoc(tempOrderRef);
+
+        if (!tempOrderDoc.exists()) {
+            return { success: false, error: "Order reference not found. It might have been processed already." };
+        }
+        
+        const orderPayload = tempOrderDoc.data();
+        
+        const newOrderId = await runTransaction(db, async (transaction) => {
+            const newOrderRef = doc(collection(db, 'orders'));
+            
+            // Check if this is a POS sale (no runId) or a sales run sale
+            if (orderPayload.runId) {
+                // Sales Run logic
+                const runRef = doc(db, 'transfers', orderPayload.runId);
+                transaction.update(runRef, { totalCollected: increment(orderPayload.total) });
+                transaction.set(newOrderRef, { ...orderPayload, id: newOrderRef.id, paymentMethod: 'Paystack' });
+            } else {
+                // POS Sale Logic
+                const today = new Date();
+                const salesDocId = format(today, 'yyyy-MM-dd');
+                const salesDocRef = doc(db, 'sales', salesDocId);
+                const salesDoc = await transaction.get(salesDocRef);
+                
+                if (salesDoc.exists()) {
+                    transaction.update(salesDocRef, {
+                        transfer: increment(orderPayload.total),
+                        total: increment(orderPayload.total)
+                    });
+                } else {
+                    transaction.set(salesDocRef, {
+                        date: Timestamp.fromDate(startOfDay(today)),
+                        description: `Daily Sales for ${salesDocId}`,
+                        cash: 0, pos: 0, creditSales: 0, shortage: 0,
+                        transfer: orderPayload.total,
+                        total: orderPayload.total
+                    });
+                }
+                transaction.set(newOrderRef, { ...orderPayload, id: newOrderRef.id, paymentMethod: 'Paystack' });
+            }
+
+            // Decrement stock for all sales
+            for (const item of orderPayload.items) {
+              const stockRef = doc(db, 'staff', orderPayload.staffId, 'personal_stock', item.productId);
+              transaction.update(stockRef, { stock: increment(-item.quantity) });
+            }
+            
+            // Delete the temporary order record
+            transaction.delete(tempOrderRef);
+
+            return newOrderRef.id;
+        });
+
+        return { success: true, orderId: newOrderId };
+    } catch (error) {
+        console.error("Error finalizing order:", error);
+        return { success: false, error: "Failed to finalize the order after payment verification." };
+    }
+}

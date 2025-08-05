@@ -5,50 +5,15 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { doc, getDoc, runTransaction, increment } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { verifyPaystackOnServerAndFinalizeOrder } from '@/app/actions';
 
 type VerificationStatus = 'verifying' | 'success' | 'failed' | 'cancelled';
 type VerificationResult = {
     status: VerificationStatus;
     message: string;
     orderId?: string;
-    runId?: string;
 };
-
-// This function is now a server-callable utility, not a client-side one
-// It's part of a larger transaction handling flow.
-async function verifyPaystackOnServerAndFinalizeOrder(reference: string): Promise<{ success: boolean; error?: string }> {
-    try {
-        const tempOrderRef = doc(db, "temp_orders", reference);
-        const tempOrderDoc = await getDoc(tempOrderRef);
-
-        if (!tempOrderDoc.exists()) {
-            return { success: false, error: "Order reference not found. It might have been processed already." };
-        }
-        
-        const orderPayload = tempOrderDoc.data();
-        
-        await runTransaction(db, async (transaction) => {
-            const newOrderRef = doc(collection(db, 'orders'));
-            transaction.set(newOrderRef, { ...orderPayload, id: newOrderRef.id });
-
-            if (orderPayload.runId) {
-                const runRef = doc(db, 'transfers', orderPayload.runId);
-                transaction.update(runRef, { totalCollected: increment(orderPayload.total) });
-            }
-            // Delete the temporary order record
-            transaction.delete(tempOrderRef);
-        });
-
-        return { success: true };
-    } catch (error) {
-        console.error("Error finalizing order:", error);
-        return { success: false, error: "Failed to finalize the order after payment verification." };
-    }
-}
-
 
 function PaymentCallback() {
     const searchParams = useSearchParams();
@@ -64,13 +29,15 @@ function PaymentCallback() {
                 return;
             }
 
-            // Here we assume Paystack redirecting means success on their end.
-            // The critical step is finalizing the order on our server.
             const finalizationResult = await verifyPaystackOnServerAndFinalizeOrder(reference);
 
             if (finalizationResult.success) {
-                 setResult({ status: 'success', message: 'Payment successful and order recorded! Closing this window...' });
+                 setResult({ status: 'success', message: 'Payment successful and order recorded! Closing this window...', orderId: finalizationResult.orderId });
                  toast({ title: 'Payment Confirmed', description: 'Your order has been successfully placed.' });
+                 // Notify the opening window
+                 if (window.opener) {
+                     window.opener.postMessage({ type: 'paymentSuccess', orderId: finalizationResult.orderId }, '*');
+                 }
             } else {
                  setResult({ status: 'failed', message: finalizationResult.error || 'There was a problem recording your order. Please contact support.' });
                  toast({ variant: 'destructive', title: 'Order Recording Failed', description: finalizationResult.error });
