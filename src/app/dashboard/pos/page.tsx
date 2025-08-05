@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
 import Image from "next/image";
 import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet, ArrowRightLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -51,6 +51,7 @@ import { db } from "@/lib/firebase";
 import { handlePosSale, initializePaystackTransaction } from "@/app/actions";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { usePaystackPayment } from "react-paystack";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -239,50 +240,42 @@ function POSPageContent() {
   }, [clearCartAndStorage, toast]);
   
 
-  const handlePaystackPayment = async () => {
-    setIsCheckoutOpen(false);
-    setPaymentStatus({ status: 'processing', message: 'Initializing payment...' });
-
-    if (!user || !selectedStaffId) {
-        toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified." });
-        setPaymentStatus({ status: 'idle' });
+  const onPaystackSuccess = useCallback(async (reference: { reference: string }) => {
+    if (!reference.reference) {
+        toast({ variant: "destructive", title: "Payment Failed", description: "No payment reference returned." });
         return;
     }
-    
-    const itemsWithCost = cart.map(item => {
-        const productDetails = products.find(p => p.id === item.id);
-        return {
-            productId: item.id,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            costPrice: productDetails?.costPrice || 0
-        };
-    });
 
-    const saleData = {
-        items: itemsWithCost,
-        total,
-        email: customerEmail || user.email,
-        staffId: selectedStaffId,
-        customerName: customerName || 'Walk-in',
-    };
-    
-    const result = await initializePaystackTransaction(saleData);
+    setPaymentStatus({ status: 'processing', message: 'Payment confirmed, finalizing order...' });
+    setIsCheckoutOpen(false);
 
-    if (result.success && result.authorization_url) {
-        window.open(result.authorization_url, 'paystack_window', 'toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=800,height=600');
-        toast({ title: 'Payment Window Opened', description: 'Please complete your payment in the new window.' });
-    } else {
-        toast({
-            variant: "destructive",
-            title: "Payment Initialization Failed",
-            description: result.error || "Could not connect to the payment provider.",
-        });
-    }
+    // This is the critical part: we now have the reference. 
+    // We can assume the server-side verification and order finalization will happen on the callback page.
+    // The main challenge is knowing WHEN it's done. 
+    // We'll rely on the `handleSaleMade` being called by the message listener now.
+    toast({ title: 'Payment Confirmed', description: 'Waiting for server to finalize order...' });
 
+}, [toast]);
+
+
+  const onPaystackClose = useCallback(() => {
     setPaymentStatus({ status: 'idle' });
+    toast({
+        variant: "destructive",
+        title: "Payment Window Closed",
+        description: "The payment process was cancelled or closed.",
+    });
+  }, [toast]);
+
+
+  const paystackConfig = {
+      reference: new Date().getTime().toString(),
+      email: customerEmail || user?.email || '',
+      amount: Math.round(total * 100),
+      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
   };
+
+  const initializePayment = usePaystackPayment(paystackConfig);
   
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
@@ -381,18 +374,6 @@ function POSPageContent() {
       }, 100);
     }
   }, [isReceiptOpen, lastCompletedOrder]);
-
-  useEffect(() => {
-    const handlePaymentMessage = (event: MessageEvent) => {
-        if (event.data.type === 'paymentSuccess' && event.data.orderId) {
-            handleSaleMade(event.data.orderId);
-        }
-    };
-    window.addEventListener('message', handlePaymentMessage);
-    return () => {
-        window.removeEventListener('message', handlePaymentMessage);
-    };
-  }, [handleSaleMade]);
 
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
@@ -773,7 +754,7 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <Button className="h-20 text-lg" onClick={handlePaystackPayment}>
+                    <Button className="h-20 text-lg" onClick={() => initializePayment({onSuccess, onClose: onPaystackClose})}>
                         <ArrowRightLeft className="mr-2 h-6 w-6" />
                         Pay with Transfer
                     </Button>

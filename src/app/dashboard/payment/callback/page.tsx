@@ -32,14 +32,14 @@ function PaymentCallback() {
             const finalizationResult = await verifyPaystackOnServerAndFinalizeOrder(reference);
 
             if (finalizationResult.success && finalizationResult.orderId) {
-                 setResult({ status: 'success', message: 'Payment successful! Finalizing order...', orderId: finalizationResult.orderId });
+                 setResult({ status: 'success', message: 'Payment successful! You can close this window.' });
                  toast({ title: 'Payment Confirmed', description: 'Your order has been successfully placed.' });
                  // Notify the opening window
-                 if (window.opener) {
+                 if (window.opener && !window.opener.closed) {
                      window.opener.postMessage({ type: 'paymentSuccess', orderId: finalizationResult.orderId }, '*');
                  }
                  // Close the window after a short delay
-                 setTimeout(() => window.close(), 1000);
+                 setTimeout(() => window.close(), 1500);
             } else {
                  setResult({ status: 'failed', message: finalizationResult.error || 'There was a problem recording your order. Please contact support.' });
                  toast({ variant: 'destructive', title: 'Order Recording Failed', description: finalizationResult.error });

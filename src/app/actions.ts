@@ -2611,35 +2611,27 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         const newOrderId = await runTransaction(db, async (transaction) => {
             const newOrderRef = doc(collection(db, 'orders'));
             
-            // Check if this is a POS sale (no runId) or a sales run sale
-            if (orderPayload.runId) {
-                // Sales Run logic
-                const runRef = doc(db, 'transfers', orderPayload.runId);
-                transaction.update(runRef, { totalCollected: increment(orderPayload.total) });
-                transaction.set(newOrderRef, { ...orderPayload, id: newOrderRef.id, paymentMethod: 'Paystack' });
+            // This is for a POS sale, which does not have a runId
+            const today = new Date();
+            const salesDocId = format(today, 'yyyy-MM-dd');
+            const salesDocRef = doc(db, 'sales', salesDocId);
+            const salesDoc = await transaction.get(salesDocRef);
+            
+            if (salesDoc.exists()) {
+                transaction.update(salesDocRef, {
+                    transfer: increment(orderPayload.total),
+                    total: increment(orderPayload.total)
+                });
             } else {
-                // POS Sale Logic
-                const today = new Date();
-                const salesDocId = format(today, 'yyyy-MM-dd');
-                const salesDocRef = doc(db, 'sales', salesDocId);
-                const salesDoc = await transaction.get(salesDocRef);
-                
-                if (salesDoc.exists()) {
-                    transaction.update(salesDocRef, {
-                        transfer: increment(orderPayload.total),
-                        total: increment(orderPayload.total)
-                    });
-                } else {
-                    transaction.set(salesDocRef, {
-                        date: Timestamp.fromDate(startOfDay(today)),
-                        description: `Daily Sales for ${salesDocId}`,
-                        cash: 0, pos: 0, creditSales: 0, shortage: 0,
-                        transfer: orderPayload.total,
-                        total: orderPayload.total
-                    });
-                }
-                transaction.set(newOrderRef, { ...orderPayload, id: newOrderRef.id, paymentMethod: 'Paystack' });
+                transaction.set(salesDocRef, {
+                    date: Timestamp.fromDate(startOfDay(today)),
+                    description: `Daily Sales for ${salesDocId}`,
+                    cash: 0, pos: 0, creditSales: 0, shortage: 0,
+                    transfer: orderPayload.total,
+                    total: orderPayload.total
+                });
             }
+            transaction.set(newOrderRef, { ...orderPayload, id: newOrderRef.id, paymentMethod: 'Paystack' });
 
             // Decrement stock for all sales
             for (const item of orderPayload.items) {
