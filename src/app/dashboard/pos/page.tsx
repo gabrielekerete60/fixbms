@@ -823,5 +823,3 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
-
-    
