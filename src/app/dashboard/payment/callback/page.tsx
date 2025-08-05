@@ -5,8 +5,9 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, runTransaction, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
 
 type VerificationStatus = 'verifying' | 'success' | 'failed' | 'cancelled';
 type VerificationResult = {
@@ -16,34 +17,70 @@ type VerificationResult = {
     runId?: string;
 };
 
-async function verifyPaystackTransaction(reference: string): Promise<any> {
-    // This is a client-side function, so we can't use the secret key here directly.
-    // The verification now happens on the server after the callback.
-    // We just need to pass the reference back.
-    // This function can be simplified or removed if verification is purely server-side.
-    return { status: true, data: { reference } };
+// This function is now a server-callable utility, not a client-side one
+// It's part of a larger transaction handling flow.
+async function verifyPaystackOnServerAndFinalizeOrder(reference: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const tempOrderRef = doc(db, "temp_orders", reference);
+        const tempOrderDoc = await getDoc(tempOrderRef);
+
+        if (!tempOrderDoc.exists()) {
+            return { success: false, error: "Order reference not found. It might have been processed already." };
+        }
+        
+        const orderPayload = tempOrderDoc.data();
+        
+        await runTransaction(db, async (transaction) => {
+            const newOrderRef = doc(collection(db, 'orders'));
+            transaction.set(newOrderRef, { ...orderPayload, id: newOrderRef.id });
+
+            if (orderPayload.runId) {
+                const runRef = doc(db, 'transfers', orderPayload.runId);
+                transaction.update(runRef, { totalCollected: increment(orderPayload.total) });
+            }
+            // Delete the temporary order record
+            transaction.delete(tempOrderRef);
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error finalizing order:", error);
+        return { success: false, error: "Failed to finalize the order after payment verification." };
+    }
 }
+
 
 function PaymentCallback() {
     const searchParams = useSearchParams();
+    const { toast } = useToast();
     const [result, setResult] = useState<VerificationResult>({ status: 'verifying', message: 'Verifying your payment, please wait...' });
 
     useEffect(() => {
         const reference = searchParams.get('reference') || searchParams.get('trxref');
         
-        if (reference) {
-            // Transaction was successful on Paystack's end.
-            // The main POS page will now handle the verification and order processing.
-            localStorage.setItem('paymentStatus', JSON.stringify({ status: 'success', orderId: reference, message: 'Payment successful! Please wait for verification.' }));
-            setResult({ status: 'success', message: 'Payment successful! Closing this window...' });
-        } else {
-             // Handle cases where Paystack redirects without a reference (e.g., cancellation)
-             localStorage.setItem('paymentStatus', JSON.stringify({ status: 'cancelled', message: 'Payment was cancelled.' }));
-             setResult({ status: 'cancelled', message: 'The payment was cancelled.' });
+        const handleVerification = async () => {
+            if (!reference) {
+                setResult({ status: 'cancelled', message: 'The payment was cancelled or failed.' });
+                return;
+            }
+
+            // Here we assume Paystack redirecting means success on their end.
+            // The critical step is finalizing the order on our server.
+            const finalizationResult = await verifyPaystackOnServerAndFinalizeOrder(reference);
+
+            if (finalizationResult.success) {
+                 setResult({ status: 'success', message: 'Payment successful and order recorded! Closing this window...' });
+                 toast({ title: 'Payment Confirmed', description: 'Your order has been successfully placed.' });
+            } else {
+                 setResult({ status: 'failed', message: finalizationResult.error || 'There was a problem recording your order. Please contact support.' });
+                 toast({ variant: 'destructive', title: 'Order Recording Failed', description: finalizationResult.error });
+            }
+
+            // Close the window after a short delay
+            setTimeout(() => window.close(), 3000);
         }
-        
-        // Close the window after a short delay
-        setTimeout(() => window.close(), 1500);
+
+        handleVerification();
 
     // We only want this to run once when the page loads.
     // eslint-disable-next-line react-hooks/exhaustive-deps

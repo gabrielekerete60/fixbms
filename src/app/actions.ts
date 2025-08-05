@@ -2364,7 +2364,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
 type PosSaleData = {
     items: { productId: string; quantity: number; price: number, name: string, costPrice: number }[];
     customerName: string;
-    paymentMethod: 'Cash' | 'POS';
+    paymentMethod: 'Cash' | 'POS' | 'Paystack';
     staffId: string;
     total: number;
 }
@@ -2413,7 +2413,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
             transaction.set(newOrderRef, orderData);
 
             // Update or create the daily sales summary
-            const paymentField = data.paymentMethod === 'Cash' ? 'cash' : 'pos';
+            const paymentField = data.paymentMethod === 'Cash' ? 'cash' : (data.paymentMethod === 'POS' ? 'pos' : 'transfer');
             if (salesDoc.exists()) {
                 transaction.update(salesDocRef, {
                     [paymentField]: increment(data.total),
@@ -2425,7 +2425,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                     description: `Daily Sales for ${salesDocId}`,
                     cash: data.paymentMethod === 'Cash' ? data.total : 0,
                     pos: data.paymentMethod === 'POS' ? data.total : 0,
-                    transfer: 0,
+                    transfer: data.paymentMethod === 'Paystack' ? data.total : 0,
                     creditSales: 0,
                     shortage: 0,
                     total: data.total
