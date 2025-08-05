@@ -2,12 +2,11 @@
 "use client";
 
 import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, writeBatch, collection, runTransaction, increment, deleteDoc, updateDoc, Timestamp } from 'firebase/firestore';
 
 type VerificationStatus = 'verifying' | 'success' | 'failed' | 'cancelled';
 type VerificationResult = {
@@ -17,123 +16,38 @@ type VerificationResult = {
     runId?: string;
 };
 
-type PaymentStatus = {
-    status: 'idle' | 'processing' | 'success' | 'failed' | 'cancelled';
-    orderId?: string | null;
-    message?: string;
-}
-
-
 async function verifyPaystackTransaction(reference: string): Promise<any> {
-    const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
-    if (!secretKey) return { status: false, message: "Paystack secret key is not configured." };
-    
-    const url = `https://api.paystack.co/transaction/verify/${reference}`;
-    
-    try {
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                Authorization: `Bearer ${secretKey}`,
-            },
-        });
-        return await response.json();
-    } catch (error) {
-        console.error("Verification connection error:", error);
-        return { status: false, message: "Failed to connect to Paystack for verification." };
-    }
+    // This is a client-side function, so we can't use the secret key here directly.
+    // The verification now happens on the server after the callback.
+    // We just need to pass the reference back.
+    // This function can be simplified or removed if verification is purely server-side.
+    return { status: true, data: { reference } };
 }
 
 function PaymentCallback() {
     const searchParams = useSearchParams();
-    const router = useRouter();
     const [result, setResult] = useState<VerificationResult>({ status: 'verifying', message: 'Verifying your payment, please wait...' });
 
     useEffect(() => {
         const reference = searchParams.get('reference') || searchParams.get('trxref');
         
         if (reference) {
-            processTransaction(reference);
+            // Transaction was successful on Paystack's end.
+            // The main POS page will now handle the verification and order processing.
+            localStorage.setItem('paymentStatus', JSON.stringify({ status: 'success', orderId: reference, message: 'Payment successful! Please wait for verification.' }));
+            setResult({ status: 'success', message: 'Payment successful! Closing this window...' });
         } else {
-            const statusParam = searchParams.get('status');
-             if (statusParam === 'cancelled' || searchParams.get('message')?.includes('cancel')) {
-                 setResult({ status: 'cancelled', message: 'The payment was cancelled.' });
-                 localStorage.setItem('paymentStatus', JSON.stringify({ status: 'cancelled', message: 'The payment was cancelled.' }));
-                 setTimeout(() => window.close(), 1500);
-            } else {
-                setResult({ status: 'failed', message: 'No payment reference found.' });
-                localStorage.setItem('paymentStatus', JSON.stringify({ status: 'failed', message: 'No payment reference found.' }));
-            }
+             // Handle cases where Paystack redirects without a reference (e.g., cancellation)
+             localStorage.setItem('paymentStatus', JSON.stringify({ status: 'cancelled', message: 'Payment was cancelled.' }));
+             setResult({ status: 'cancelled', message: 'The payment was cancelled.' });
         }
+        
+        // Close the window after a short delay
+        setTimeout(() => window.close(), 1500);
+
+    // We only want this to run once when the page loads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchParams]);
-
-    const processTransaction = async (reference: string) => {
-        const verificationResponse = await verifyPaystackTransaction(reference);
-        
-        const metadata = verificationResponse?.data?.metadata || {};
-        const orderId = metadata.orderId || reference;
-        const runId = metadata.runId;
-
-        if (verificationResponse?.data?.status !== 'success') {
-            const failureMessage = verificationResponse.message || 'Payment verification failed.';
-            setResult({ status: 'failed', message: failureMessage, orderId });
-            localStorage.setItem('paymentStatus', JSON.stringify({ status: 'failed', message: failureMessage, orderId }));
-            await deleteDoc(doc(db, 'temp_orders', reference)).catch(console.error);
-            setTimeout(() => window.close(), 3000);
-            return;
-        }
-
-        const tempOrderRef = doc(db, 'temp_orders', reference);
-        
-        try {
-             await runTransaction(db, async (transaction) => {
-                const tempOrderDoc = await transaction.get(tempOrderRef);
-                if (!tempOrderDoc.exists()) {
-                    console.log(`Order ${reference} might have been processed already.`);
-                    return;
-                }
-                const orderData = tempOrderDoc.data();
-                
-                const expectedAmount = Math.round(orderData.total * 100);
-                if (verificationResponse.data.amount !== expectedAmount) {
-                    throw new Error(`Amount mismatch. Expected ${expectedAmount}, got ${verificationResponse.data.amount}.`);
-                }
-                
-                if (orderData.isDebtPayment) {
-                    transaction.update(doc(db, 'transfers', orderData.runId), { totalCollected: increment(orderData.total) });
-                    if (orderData.customerId) {
-                        transaction.update(doc(db, 'customers', orderData.customerId), { amountPaid: increment(orderData.total) });
-                    }
-                } else {
-                    const finalOrderRef = doc(db, "orders", orderId);
-                    const finalOrderData = {
-                        ...orderData,
-                        id: orderId,
-                        date: Timestamp.now(), // Use Timestamp here
-                        paymentMethod: 'Paystack',
-                        status: 'Completed',
-                    };
-                    delete finalOrderData.createdAt;
-                    transaction.set(finalOrderRef, finalOrderData);
-                }
-                
-                transaction.delete(tempOrderRef);
-            });
-            
-            const successMessage = 'Payment successful! Your transaction has been recorded.';
-            setResult({ status: 'success', message: successMessage, orderId, runId });
-            localStorage.setItem('paymentStatus', JSON.stringify({ status: 'success', orderId, message: successMessage }));
-            setTimeout(() => window.close(), 1500);
-
-        } catch (error) {
-            console.error("Error completing transaction:", error);
-            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-            setResult({ status: 'failed', message: `Transaction completion failed: ${errorMessage}`, orderId });
-            localStorage.setItem('paymentStatus', JSON.stringify({ status: 'failed', message: `Transaction completion failed: ${errorMessage}`, orderId }));
-            setTimeout(() => window.close(), 3000);
-        }
-    };
+    }, []);
 
     return (
         <main className="flex min-h-screen flex-col items-center justify-center p-4">

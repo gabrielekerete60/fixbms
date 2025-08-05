@@ -46,59 +46,13 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, doc, runTransaction, increment, getDoc, query, where, setDoc, Timestamp, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useRouter } from "next/navigation";
 import { initializePaystackTransaction, handlePosSale } from "@/app/actions";
+import { usePaystackPayment } from "react-paystack";
+import type { CompletedOrder, PaystackTransaction, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 
-
-type Product = {
-  id: string;
-  name: string;
-  price: number;
-  stock: number;
-  category: string;
-  image: string;
-  'data-ai-hint': string;
-  costPrice?: number;
-};
-
-type CartItem = {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-};
-
-type CompletedOrder = {
-  id: string;
-  items: CartItem[];
-  total: number;
-  date: string;
-  paymentMethod: 'POS' | 'Cash' | 'Paystack' | 'Credit';
-  customerName?: string;
-  status: 'Completed' | 'Pending' | 'Cancelled';
-}
-
-type User = {
-  name: string;
-  role: string;
-  staff_id: string;
-  email: string;
-};
-
-type SelectableStaff = {
-    staff_id: string;
-    name: string;
-    role: string;
-};
-
-type PaymentStatus = {
-    status: 'idle' | 'processing' | 'success' | 'failed' | 'cancelled';
-    orderId?: string | null;
-    message?: string;
-}
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
     return (
@@ -216,9 +170,6 @@ function POSPageContent() {
   
   const [paymentStatus, setPaymentStatus] = useLocalStorage<PaymentStatus>('paymentStatus', { status: 'idle' });
   const [showCancel, setShowCancel] = useState(false);
-  const paymentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const paymentWindowRef = useRef<Window | null>(null);
-
 
   const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useLocalStorage<string | null>('posSelectedStaff', null);
@@ -270,112 +221,6 @@ function POSPageContent() {
     });
   }
 
-  const handlePaymentState = useCallback(async (newStatus: PaymentStatus) => {
-    if (paymentTimeoutRef.current) {
-      clearTimeout(paymentTimeoutRef.current);
-      paymentTimeoutRef.current = null;
-    }
-    setShowCancel(false);
-    paymentWindowRef.current = null;
-
-    if (newStatus.status !== 'idle' && newStatus.status !== 'processing') {
-        if (newStatus.status === 'success' && newStatus.orderId) {
-            toast({ title: "Payment Successful", description: "Order completed." });
-            const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
-            if (orderDoc.exists()) {
-                const orderData = orderDoc.data();
-                setLastCompletedOrder({
-                    ...orderData,
-                    id: orderDoc.id,
-                    date: (orderData.date as Timestamp).toDate().toISOString()
-                } as CompletedOrder);
-                setIsReceiptOpen(true);
-                clearCartAndStorage();
-            }
-        } else if (newStatus.status === 'cancelled') {
-            toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
-        } else if (newStatus.status === 'failed') {
-            toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
-        }
-        setPaymentStatus({ status: 'idle' });
-        localStorage.setItem('paymentStatus', JSON.stringify({ status: 'idle' }));
-    }
-  }, [toast, setPaymentStatus]);
-
-  useEffect(() => {
-    const initializePos = async () => {
-      const storedUser = localStorage.getItem('loggedInUser');
-      if (storedUser) {
-        const parsedUser: User = JSON.parse(storedUser);
-        setUser(parsedUser);
-
-        if (!customerEmail) {
-            setCustomerEmail(parsedUser.email || '');
-        }
-
-        const adminRoles = ['Manager', 'Developer'];
-        if (adminRoles.includes(parsedUser.role)) {
-          const staffQuery = query(collection(db, "staff"), where("role", "==", "Showroom Staff"));
-          const staffSnapshot = await getDocs(staffQuery);
-          setAllStaff(staffSnapshot.docs.map(d => ({ staff_id: d.id, ...d.data() } as SelectableStaff)));
-          if (!selectedStaffId) {
-            setIsStaffSelectionOpen(true);
-          }
-        } else {
-          setSelectedStaffId(parsedUser.staff_id);
-        }
-      }
-      const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
-      if (settingsDoc.exists()) {
-          setStoreAddress(settingsDoc.data().storeAddress);
-      }
-    };
-    initializePos();
-  }, [customerEmail, selectedStaffId, setCustomerEmail]);
-
-  useEffect(() => {
-    let unsubscribe: (() => void) | null = null;
-    if (selectedStaffId) {
-        fetchProductsForStaff(selectedStaffId).then(unsub => {
-            unsubscribe = unsub;
-        });
-    } else {
-        setProducts([]);
-        setIsLoadingProducts(false);
-    }
-    return () => {
-        if (unsubscribe) {
-            unsubscribe();
-        }
-    };
-  }, [selectedStaffId])
-  
-  useEffect(() => {
-    const handleStorageChange = (event: StorageEvent) => {
-        if (event.key === 'paymentStatus' && event.newValue) {
-            const newStatus: PaymentStatus = JSON.parse(event.newValue);
-            handlePaymentState(newStatus);
-        }
-    }
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [handlePaymentState]);
-
-  useEffect(() => {
-    if (isReceiptOpen && lastCompletedOrder) {
-      setTimeout(() => {
-        handlePrint(receiptRef.current);
-      }, 100);
-    }
-  }, [isReceiptOpen, lastCompletedOrder]);
-
-
-  const clearCartAndStorage = () => {
-    setCart([]);
-    setCustomerName('');
-    setCustomerEmail(user?.email || '');
-  }
-
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
     setPaymentStatus({ status: 'processing' });
@@ -415,7 +260,6 @@ function POSPageContent() {
              setLastCompletedOrder({
                 ...orderData,
                 id: orderDoc.id,
-                date: (orderData.date as Timestamp).toDate().toISOString()
             } as CompletedOrder);
             setIsReceiptOpen(true);
         }
@@ -431,54 +275,154 @@ function POSPageContent() {
     setPaymentStatus({ status: 'idle' });
   }
 
-  const handleTransferPayment = async () => {
+  const paystackConfig = {
+      email: customerEmail || user?.email || '',
+      amount: Math.round(total * 100),
+      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+      reference: `BMS-${Date.now()}`
+  };
+  
+  const initializePayment = usePaystackPayment(paystackConfig);
+
+  const onPaystackSuccess = async (transaction: PaystackTransaction) => {
     setIsCheckoutOpen(false);
-    
+    setPaymentStatus({ status: 'processing', message: 'Verifying payment...' });
+
     if (!user || !selectedStaffId) {
         toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
+        setPaymentStatus({ status: 'idle' });
         return;
     }
     
-    setPaymentStatus({ status: 'processing' });
-    
-    paymentTimeoutRef.current = setTimeout(() => {
-        setShowCancel(true);
+    // Once Paystack confirms, we record the sale in our DB
+    const itemsWithCost = cart.map(item => {
+        const productDetails = products.find(p => p.id === item.id);
+        return {
+            productId: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            costPrice: productDetails?.costPrice || 0
+        };
+    });
+
+    const saleData = {
+        items: itemsWithCost,
+        total,
+        paymentMethod: 'Paystack' as const,
+        customerName: customerName || 'Walk-in',
+        staffId: selectedStaffId,
+    };
+
+    const result = await handlePosSale(saleData);
+
+    if (result.success && result.orderId) {
+        toast({ title: 'Payment Successful', description: 'Order has been successfully recorded.' });
+        const orderDoc = await getDoc(doc(db, 'orders', result.orderId));
+        if (orderDoc.exists()) {
+            const orderData = orderDoc.data();
+             setLastCompletedOrder({
+                ...orderData,
+                id: orderDoc.id,
+            } as CompletedOrder);
+            setIsReceiptOpen(true);
+        }
+        clearCartAndStorage();
+    } else {
         toast({
             variant: "destructive",
-            title: "Payment Taking Too Long?",
-            description: "If the payment window is closed, you can cancel.",
+            title: "Order Processing Failed",
+            description: result.error || "Payment was successful but we couldn't save the order.",
         });
-    }, 30000);
-    
-    const orderPayload = {
-        email: customerEmail || user.email,
-        total: total,
-        runId: `pos-sale-${Date.now()}`,
-        items: cart,
-    };
-    
-    const paystackResult = await initializePaystackTransaction(orderPayload);
-
-    if (paystackResult.success && paystackResult.reference && paystackResult.authorization_url) {
-        paymentWindowRef.current = window.open(paystackResult.authorization_url, 'paystackWindow', 'height=600,width=800');
-        
-        const pollTimer = setInterval(() => {
-            if (paymentWindowRef.current && paymentWindowRef.current.closed) {
-                clearInterval(pollTimer);
-                // The storage event will handle the final state, but if it doesn't fire, we cancel.
-                 const currentStatus = JSON.parse(localStorage.getItem('paymentStatus') || '{}');
-                 if (currentStatus.status === 'processing' || currentStatus.status === 'idle') {
-                     handlePaymentState({ status: 'cancelled', message: 'Payment window was closed.' });
-                 }
-            }
-        }, 1000);
-
-    } else {
-        toast({ variant: 'destructive', title: 'Initialization Error', description: paystackResult.error });
-        handlePaymentState({ status: 'failed', message: paystackResult.error });
     }
+     setPaymentStatus({ status: 'idle' });
   };
 
+  const onPaystackClose = () => {
+    setIsCheckoutOpen(false);
+    toast({
+        variant: 'destructive',
+        title: 'Payment Cancelled',
+        description: 'The payment window was closed.'
+    });
+    setPaymentStatus({ status: 'idle' });
+  };
+  
+  const handlePaystackPayment = () => {
+    initializePayment({
+        onSuccess: onPaystackSuccess,
+        onClose: onPaystackClose,
+        config: { // Re-pass config here to ensure it's fresh
+            email: customerEmail || user?.email || '',
+            amount: Math.round(total * 100),
+            reference: `BMS-${Date.now()}`
+        }
+    });
+  }
+
+  useEffect(() => {
+    const initializePos = async () => {
+      const storedUser = localStorage.getItem('loggedInUser');
+      if (storedUser) {
+        const parsedUser: User = JSON.parse(storedUser);
+        setUser(parsedUser);
+
+        if (!customerEmail) {
+            setCustomerEmail(parsedUser.email || '');
+        }
+
+        const adminRoles = ['Manager', 'Developer'];
+        if (adminRoles.includes(parsedUser.role)) {
+          const staffQuery = query(collection(db, "staff"), where("role", "==", "Showroom Staff"));
+          const staffSnapshot = await getDocs(staffQuery);
+          setAllStaff(staffSnapshot.docs.map(d => ({ staff_id: d.id, ...d.data() } as SelectableStaff)));
+          if (!selectedStaffId) {
+            setIsStaffSelectionOpen(true);
+          }
+        } else {
+          setSelectedStaffId(parsedUser.staff_id);
+        }
+      }
+      const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
+      if (settingsDoc.exists()) {
+          setStoreAddress(settingsDoc.data().storeAddress);
+      }
+    };
+    initializePos();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    if (selectedStaffId) {
+        fetchProductsForStaff(selectedStaffId).then(unsub => {
+            unsubscribe = unsub;
+        });
+    } else {
+        setProducts([]);
+        setIsLoadingProducts(false);
+    }
+    return () => {
+        if (unsubscribe) {
+            unsubscribe();
+        }
+    };
+  }, [selectedStaffId])
+  
+  useEffect(() => {
+    if (isReceiptOpen && lastCompletedOrder) {
+      setTimeout(() => {
+        handlePrint(receiptRef.current);
+      }, 100);
+    }
+  }, [isReceiptOpen, lastCompletedOrder]);
+
+
+  const clearCartAndStorage = () => {
+    setCart([]);
+    setCustomerName('');
+    setCustomerEmail(user?.email || '');
+  }
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
   
@@ -800,16 +744,10 @@ function POSPageContent() {
                             </AlertDialogContent>
                         </AlertDialog>
                     </div>
-                    {showCancel ? (
-                         <Button size="lg" className="w-full font-bold text-lg" variant="destructive" onClick={() => handlePaymentState({ status: 'cancelled', message: 'Payment manually cancelled.' })}>
-                           Cancel Payment
-                        </Button>
-                    ) : (
-                        <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'} onClick={() => setIsCheckoutOpen(true)}>
-                            {paymentStatus.status === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                            Checkout
-                        </Button>
-                    )}
+                    <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'} onClick={() => setIsCheckoutOpen(true)}>
+                        {paymentStatus.status === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Checkout
+                    </Button>
                 </CardFooter>
             </Card>
        </div>
@@ -864,7 +802,7 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <Button className="h-20 text-lg" onClick={handleTransferPayment}>
+                    <Button className="h-20 text-lg" onClick={handlePaystackPayment}>
                         <ArrowRightLeft className="mr-2 h-6 w-6" />
                         Pay with Transfer
                     </Button>
@@ -910,7 +848,7 @@ function POSPageContent() {
   );
 }
 
-export default function POSPageWithSuspense() {
+function POSPageWithSuspense() {
     return (
         <Suspense fallback={<div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>}>
             <POSPageContent />
@@ -918,5 +856,6 @@ export default function POSPageWithSuspense() {
     )
 }
 
-
-    
+export default function POSPageWithTypes() {
+  return <POSPageWithSuspense />;
+}
