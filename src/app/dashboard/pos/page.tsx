@@ -51,6 +51,7 @@ import { db } from "@/lib/firebase";
 import { handlePosSale } from "@/app/actions";
 import { PaystackButton } from "react-paystack";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus, PaystackTransaction } from "./types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -784,7 +785,7 @@ function POSPageContent() {
                             Pay with POS
                         </Button>
                         <PaystackButton
-                            className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full")}
+                            className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg")}
                             text="Pay with Transfer"
                             onSuccess={onPaystackSuccess}
                             onClose={onPaystackClose}
