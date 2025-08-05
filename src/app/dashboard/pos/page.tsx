@@ -108,6 +108,7 @@ const handlePrint = (node: HTMLElement | null) => {
     if (!node) return;
     const printWindow = window.open('', '_blank');
     if (printWindow) {
+        const receiptContent = node.innerHTML;
         const printableContent = `
             <html>
                 <head>
@@ -133,7 +134,7 @@ const handlePrint = (node: HTMLElement | null) => {
                 </head>
                 <body>
                     <div class="receipt-container">
-                        ${receiptContent.innerHTML}
+                        ${receiptContent}
                     </div>
                     <script>
                         window.onload = function() {
@@ -267,6 +268,7 @@ function POSPageContent() {
              setLastCompletedOrder({
                 ...orderData,
                 id: orderDoc.id,
+                date: (orderData.date as any).toDate().toISOString()
             } as CompletedOrder);
             setIsReceiptOpen(true);
         }
@@ -291,19 +293,17 @@ function POSPageContent() {
     setPaymentStatus({ status: 'idle' });
   }, [toast]);
   
-  const paystackConfig = {
-      email: customerEmail || user?.email || '',
-      amount: Math.round(total * 100),
-      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-      reference: `BMS-${Date.now()}`,
-      onSuccess: onPaystackSuccess,
-      onClose: onPaystackClose,
-  };
-
-  const initializePayment = usePaystackPayment(paystackConfig);
+  const initializePayment = usePaystackPayment({});
   
   const handlePaystackPayment = () => {
-    initializePayment();
+    initializePayment({
+        onSuccess: onPaystackSuccess,
+        onClose: onPaystackClose,
+        email: customerEmail || user?.email || '',
+        amount: Math.round(total * 100),
+        publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+        reference: `BMS-${Date.now()}`,
+    });
   }
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
@@ -345,6 +345,7 @@ function POSPageContent() {
              setLastCompletedOrder({
                 ...orderData,
                 id: orderDoc.id,
+                date: (orderData.date as any).toDate().toISOString()
             } as CompletedOrder);
             setIsReceiptOpen(true);
         }
