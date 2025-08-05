@@ -269,6 +269,37 @@ function POSPageContent() {
     });
   }
 
+  const handlePaymentState = useCallback(async (newStatus: PaymentStatus) => {
+    if (paymentTimeoutRef.current) {
+      clearTimeout(paymentTimeoutRef.current);
+      paymentTimeoutRef.current = null;
+    }
+    setShowCancel(false);
+
+    if (newStatus.status !== 'idle' && newStatus.status !== 'processing') {
+        if (newStatus.status === 'success' && newStatus.orderId) {
+            toast({ title: "Payment Successful", description: "Order completed." });
+            const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
+            if (orderDoc.exists()) {
+                const orderData = orderDoc.data();
+                setLastCompletedOrder({
+                    ...orderData,
+                    id: orderDoc.id,
+                    date: (orderData.date as Timestamp).toDate().toISOString()
+                } as CompletedOrder);
+                setIsReceiptOpen(true);
+                clearCartAndStorage();
+            }
+        } else if (newStatus.status === 'cancelled') {
+            toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
+        } else if (newStatus.status === 'failed') {
+            toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
+        }
+        setPaymentStatus({ status: 'idle' });
+        localStorage.setItem('paymentStatus', JSON.stringify({ status: 'idle' }));
+    }
+  }, [toast, setPaymentStatus]);
+
   useEffect(() => {
     const initializePos = async () => {
       const storedUser = localStorage.getItem('loggedInUser');
@@ -317,37 +348,6 @@ function POSPageContent() {
     };
   }, [selectedStaffId])
   
-  const handlePaymentState = async (newStatus: PaymentStatus) => {
-      if (paymentTimeoutRef.current) {
-        clearTimeout(paymentTimeoutRef.current);
-        paymentTimeoutRef.current = null;
-      }
-      setShowCancel(false);
-
-      if (newStatus.status !== 'idle' && newStatus.status !== 'processing') {
-          if (newStatus.status === 'success' && newStatus.orderId) {
-              toast({ title: "Payment Successful", description: "Order completed." });
-              const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
-              if (orderDoc.exists()) {
-                  const orderData = orderDoc.data();
-                  setLastCompletedOrder({
-                      ...orderData,
-                      id: orderDoc.id,
-                      date: (orderData.date as Timestamp).toDate().toISOString()
-                  } as CompletedOrder);
-                  setIsReceiptOpen(true);
-                  clearCartAndStorage();
-              }
-          } else if (newStatus.status === 'cancelled') {
-              toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
-          } else if (newStatus.status === 'failed') {
-              toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
-          }
-          setPaymentStatus({ status: 'idle' });
-          localStorage.setItem('paymentStatus', JSON.stringify({ status: 'idle' }));
-      }
-  }
-
   useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
         if (event.key === 'paymentStatus' && event.newValue) {
@@ -357,7 +357,7 @@ function POSPageContent() {
     }
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [toast, setPaymentStatus]);
+  }, [handlePaymentState]);
 
   useEffect(() => {
     if (isReceiptOpen && lastCompletedOrder) {
@@ -460,18 +460,15 @@ function POSPageContent() {
     if (paystackResult.success && paystackResult.reference && paystackResult.authorization_url) {
         const paymentWindow = window.open(paystackResult.authorization_url, 'paystackWindow', 'height=600,width=800');
         
-        // Poll to check if window is closed
         const pollTimer = setInterval(() => {
-            if (paymentWindow && paymentWindow.closed) {
+            if (!paymentWindow || paymentWindow.closed) {
                 clearInterval(pollTimer);
-                // Check if status has been updated by the callback
                 const currentStatus = JSON.parse(localStorage.getItem('paymentStatus') || '{}');
                 if (currentStatus.status !== 'success' && currentStatus.status !== 'failed') {
-                    // If not, it means user cancelled by closing window
                     handlePaymentState({ status: 'cancelled', message: 'Payment window was closed.' });
                 }
             }
-        }, 500);
+        }, 1000);
 
     } else {
         toast({ variant: 'destructive', title: 'Initialization Error', description: paystackResult.error });

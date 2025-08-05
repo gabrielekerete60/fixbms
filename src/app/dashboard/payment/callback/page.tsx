@@ -55,8 +55,8 @@ function PaymentCallback() {
         if (reference) {
             processTransaction(reference);
         } else {
-            const status = searchParams.get('payment_status');
-            if (status === 'cancelled') {
+            const statusParam = searchParams.get('status');
+             if (statusParam === 'cancelled' || searchParams.get('message')?.includes('cancel')) {
                  setResult({ status: 'cancelled', message: 'The payment was cancelled.' });
                  localStorage.setItem('paymentStatus', JSON.stringify({ status: 'cancelled', message: 'The payment was cancelled.' }));
                  setTimeout(() => window.close(), 1500);
@@ -65,6 +65,7 @@ function PaymentCallback() {
                 localStorage.setItem('paymentStatus', JSON.stringify({ status: 'failed', message: 'No payment reference found.' }));
             }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
     const processTransaction = async (reference: string) => {
