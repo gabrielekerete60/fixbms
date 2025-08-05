@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
@@ -47,9 +48,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { handlePosSale, initializePaystackTransaction } from "@/app/actions";
+import { handlePosSale, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { usePaystackPayment } from "react-paystack";
+
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
     return (
@@ -223,11 +226,15 @@ function POSPageContent() {
       const orderDoc = await getDoc(doc(db, 'orders', orderId));
       if (orderDoc.exists()) {
           const orderData = orderDoc.data();
-          const completedOrder = {
-              ...orderData,
+          const completedOrder: CompletedOrder = {
               id: orderDoc.id,
-              date: (orderData.date as any).toDate().toISOString()
-          } as CompletedOrder
+              items: orderData.items,
+              total: orderData.total,
+              date: (orderData.date as any).toDate().toISOString(),
+              paymentMethod: orderData.paymentMethod,
+              customerName: orderData.customerName,
+              status: orderData.status,
+          };
           setLastCompletedOrder(completedOrder);
           setIsReceiptOpen(true);
           clearCartAndStorage();
@@ -235,21 +242,6 @@ function POSPageContent() {
           toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch completed order details for receipt.' });
       }
   }, [clearCartAndStorage, toast]);
-
-  useEffect(() => {
-    const handleSuccessfulPaymentMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-
-      if (event.data?.type === 'paymentSuccess' && event.data.orderId) {
-        handleSaleMade(event.data.orderId);
-      }
-    };
-    
-    window.addEventListener("message", handleSuccessfulPaymentMessage);
-    return () => {
-      window.removeEventListener("message", handleSuccessfulPaymentMessage);
-    };
-  }, [handleSaleMade]);
   
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
@@ -296,12 +288,12 @@ function POSPageContent() {
     setPaymentStatus({ status: 'idle' });
   }
 
-  const handlePaystackPayment = async () => {
+  const onPaystackSuccess = useCallback(async (reference: { reference: string }) => {
     setIsCheckoutOpen(false);
     setPaymentStatus({ status: 'processing' });
-    
+
     if (!user || !selectedStaffId) {
-        toast({ variant: "destructive", title: "Error", description: "User not identified." });
+        toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified." });
         setPaymentStatus({ status: 'idle' });
         return;
     }
@@ -317,24 +309,37 @@ function POSPageContent() {
         };
     });
 
-    const orderPayload = {
+    const saleData = {
         items: itemsWithCost,
         total,
+        paymentMethod: 'Paystack' as const,
         customerName: customerName || 'Walk-in',
         staffId: selectedStaffId,
-        email: customerEmail || user.email,
-        date: new Date().toISOString()
     };
+
+    const result = await verifyPaystackOnServerAndFinalizeOrder(reference.reference, saleData);
     
-    const result = await initializePaystackTransaction(orderPayload);
-    
-    if (result.success && result.authorization_url) {
-        window.open(result.authorization_url, 'paystack-window', 'width=800,height=600');
+    if (result.success && result.orderId) {
+        toast({ title: "Payment Verified", description: "Your order has been placed." });
+        handleSaleMade(result.orderId);
     } else {
-        toast({ variant: "destructive", title: "Payment Error", description: result.error });
+        toast({ variant: "destructive", title: "Verification Failed", description: result.error });
     }
     setPaymentStatus({ status: 'idle' });
-  };
+}, [cart, customerName, handleSaleMade, products, selectedStaffId, toast, total, user]);
+
+  const onPaystackClose = useCallback(() => {
+    toast({ variant: "default", title: "Payment window closed." });
+  }, [toast]);
+  
+  const paystackConfig = useMemo(() => ({
+        reference: new Date().getTime().toString(),
+        email: customerEmail || user?.email || '',
+        amount: Math.round(total * 100),
+        publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+  }), [total, customerEmail, user]);
+
+  const initializePayment = usePaystackPayment(paystackConfig);
 
 
   useEffect(() => {
@@ -769,7 +774,7 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <Button className="h-20 text-lg" onClick={handlePaystackPayment}>
+                    <Button className="h-20 text-lg" onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
                         <ArrowRightLeft className="mr-2 h-6 w-6" />
                         Pay with Transfer
                     </Button>

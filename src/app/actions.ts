@@ -2580,7 +2580,6 @@ export async function getStaffByRole(role: string): Promise<any[]> {
     const q = query(collection(db, "staff"), where("role", "==", role));
     const snapshot = await getDocs(q);
     
-    // Convert Firestore Timestamps to ISO strings to avoid hydration errors
     return snapshot.docs.map(doc => {
         const data = doc.data();
         const plainData: { [key: string]: any } = {};
@@ -2596,22 +2595,23 @@ export async function getStaffByRole(role: string): Promise<any[]> {
     });
 }
 
+export async function verifyPaystackOnServerAndFinalizeOrder(reference: string, orderData: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
+    const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
+    if (!secretKey) return { success: false, error: "Paystack secret key is not configured." };
 
-export async function verifyPaystackOnServerAndFinalizeOrder(reference: string): Promise<{ success: boolean; error?: string, orderId?: string }> {
     try {
-        const tempOrderRef = doc(db, "temp_orders", reference);
-        const tempOrderDoc = await getDoc(tempOrderRef);
+        const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+            headers: { Authorization: `Bearer ${secretKey}` },
+        });
 
-        if (!tempOrderDoc.exists()) {
-            return { success: false, error: "Order reference not found. It might have been processed already." };
+        const verificationData = await response.json();
+        if (!verificationData.status || verificationData.data.status !== 'success') {
+            return { success: false, error: 'Payment verification failed.' };
         }
-        
-        const orderPayload = tempOrderDoc.data();
-        
+
         const newOrderId = await runTransaction(db, async (transaction) => {
             const newOrderRef = doc(collection(db, 'orders'));
             
-            // This is for a POS sale, which does not have a runId
             const today = new Date();
             const salesDocId = format(today, 'yyyy-MM-dd');
             const salesDocRef = doc(db, 'sales', salesDocId);
@@ -2619,28 +2619,24 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
             
             if (salesDoc.exists()) {
                 transaction.update(salesDocRef, {
-                    transfer: increment(orderPayload.total),
-                    total: increment(orderPayload.total)
+                    transfer: increment(orderData.total),
+                    total: increment(orderData.total)
                 });
             } else {
                 transaction.set(salesDocRef, {
                     date: Timestamp.fromDate(startOfDay(today)),
                     description: `Daily Sales for ${salesDocId}`,
                     cash: 0, pos: 0, creditSales: 0, shortage: 0,
-                    transfer: orderPayload.total,
-                    total: orderPayload.total
+                    transfer: orderData.total,
+                    total: orderData.total
                 });
             }
-            transaction.set(newOrderRef, { ...orderPayload, id: newOrderRef.id, paymentMethod: 'Paystack' });
+            transaction.set(newOrderRef, { ...orderData, id: newOrderRef.id, paymentMethod: 'Paystack' });
 
-            // Decrement stock for all sales
-            for (const item of orderPayload.items) {
-              const stockRef = doc(db, 'staff', orderPayload.staffId, 'personal_stock', item.productId);
+            for (const item of orderData.items) {
+              const stockRef = doc(db, 'staff', orderData.staffId, 'personal_stock', item.productId);
               transaction.update(stockRef, { stock: increment(-item.quantity) });
             }
-            
-            // Delete the temporary order record
-            transaction.delete(tempOrderRef);
 
             return newOrderRef.id;
         });
