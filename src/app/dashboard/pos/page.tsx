@@ -76,7 +76,7 @@ type CompletedOrder = {
   items: CartItem[];
   total: number;
   date: string;
-  paymentMethod: 'POS' | 'Cash' | 'Credit' | 'Paystack';
+  paymentMethod: 'POS' | 'Cash' | 'Paystack' | 'Credit';
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
@@ -150,6 +150,7 @@ Receipt.displayName = 'Receipt';
 
 const handlePrint = (node: HTMLElement | null) => {
     if (!node) return;
+    const receiptContent = node.innerHTML;
     const printWindow = window.open('', '_blank');
     if (printWindow) {
         const printableContent = `
@@ -177,7 +178,7 @@ const handlePrint = (node: HTMLElement | null) => {
                 </head>
                 <body>
                     <div class="receipt-container">
-                        ${receiptContent.innerHTML}
+                        ${receiptContent}
                     </div>
                     <script>
                         window.onload = function() {
@@ -214,6 +215,9 @@ function POSPageContent() {
   const [storeAddress, setStoreAddress] = useState<string | undefined>();
   
   const [paymentStatus, setPaymentStatus] = useLocalStorage<PaymentStatus>('paymentStatus', { status: 'idle' });
+  const [showCancel, setShowCancel] = useState(false);
+  const paymentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
 
   const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useLocalStorage<string | null>('posSelectedStaff', null);
@@ -313,40 +317,47 @@ function POSPageContent() {
     };
   }, [selectedStaffId])
   
+  const handlePaymentState = async (newStatus: PaymentStatus) => {
+      if (paymentTimeoutRef.current) {
+        clearTimeout(paymentTimeoutRef.current);
+        paymentTimeoutRef.current = null;
+      }
+      setShowCancel(false);
+
+      if (newStatus.status !== 'idle' && newStatus.status !== 'processing') {
+          if (newStatus.status === 'success' && newStatus.orderId) {
+              toast({ title: "Payment Successful", description: "Order completed." });
+              const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
+              if (orderDoc.exists()) {
+                  const orderData = orderDoc.data();
+                  setLastCompletedOrder({
+                      ...orderData,
+                      id: orderDoc.id,
+                      date: (orderData.date as Timestamp).toDate().toISOString()
+                  } as CompletedOrder);
+                  setIsReceiptOpen(true);
+                  clearCartAndStorage();
+              }
+          } else if (newStatus.status === 'cancelled') {
+              toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
+          } else if (newStatus.status === 'failed') {
+              toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
+          }
+          setPaymentStatus({ status: 'idle' });
+          localStorage.setItem('paymentStatus', JSON.stringify({ status: 'idle' }));
+      }
+  }
+
   useEffect(() => {
-    const handleStorageChange = async (event: StorageEvent) => {
+    const handleStorageChange = (event: StorageEvent) => {
         if (event.key === 'paymentStatus' && event.newValue) {
             const newStatus: PaymentStatus = JSON.parse(event.newValue);
-            if (newStatus.status !== 'idle' && newStatus.status !== 'processing') {
-                if (newStatus.status === 'success' && newStatus.orderId) {
-                    toast({ title: "Payment Successful", description: "Order completed." });
-                    const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
-                    if (orderDoc.exists()) {
-                        const orderData = orderDoc.data();
-                        setLastCompletedOrder({
-                            ...orderData,
-                            id: orderDoc.id,
-                            date: (orderData.date as Timestamp).toDate().toISOString()
-                        } as CompletedOrder);
-                        setIsReceiptOpen(true);
-                        clearCartAndStorage();
-                    }
-                } else if (newStatus.status === 'cancelled') {
-                    toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
-                } else if (newStatus.status === 'failed') {
-                    toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
-                }
-                // Reset the status to avoid re-triggering
-                setPaymentStatus({ status: 'idle' });
-                // Also reset in localStorage for other tabs
-                localStorage.setItem('paymentStatus', JSON.stringify({ status: 'idle' }));
-            }
+            handlePaymentState(newStatus);
         }
     }
-    
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-}, [toast, setPaymentStatus]);
+  }, [toast, setPaymentStatus]);
 
   useEffect(() => {
     if (isReceiptOpen && lastCompletedOrder) {
@@ -428,6 +439,15 @@ function POSPageContent() {
     
     setPaymentStatus({ status: 'processing' });
     
+    paymentTimeoutRef.current = setTimeout(() => {
+        setShowCancel(true);
+        toast({
+            variant: "destructive",
+            title: "Payment Taking Too Long?",
+            description: "If the payment window is closed, you can cancel.",
+        });
+    }, 30000);
+    
     const orderPayload = {
         email: customerEmail || user.email,
         total: total,
@@ -438,10 +458,24 @@ function POSPageContent() {
     const paystackResult = await initializePaystackTransaction(orderPayload);
 
     if (paystackResult.success && paystackResult.reference && paystackResult.authorization_url) {
-        window.open(paystackResult.authorization_url, 'paystackWindow', 'height=600,width=800');
+        const paymentWindow = window.open(paystackResult.authorization_url, 'paystackWindow', 'height=600,width=800');
+        
+        // Poll to check if window is closed
+        const pollTimer = setInterval(() => {
+            if (paymentWindow && paymentWindow.closed) {
+                clearInterval(pollTimer);
+                // Check if status has been updated by the callback
+                const currentStatus = JSON.parse(localStorage.getItem('paymentStatus') || '{}');
+                if (currentStatus.status !== 'success' && currentStatus.status !== 'failed') {
+                    // If not, it means user cancelled by closing window
+                    handlePaymentState({ status: 'cancelled', message: 'Payment window was closed.' });
+                }
+            }
+        }, 500);
+
     } else {
         toast({ variant: 'destructive', title: 'Initialization Error', description: paystackResult.error });
-        setPaymentStatus({ status: 'idle' });
+        handlePaymentState({ status: 'failed', message: paystackResult.error });
     }
   };
 
@@ -766,10 +800,16 @@ function POSPageContent() {
                             </AlertDialogContent>
                         </AlertDialog>
                     </div>
-                    <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'} onClick={() => setIsCheckoutOpen(true)}>
-                        {paymentStatus.status === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Checkout
-                    </Button>
+                    {showCancel ? (
+                         <Button size="lg" className="w-full font-bold text-lg" variant="destructive" onClick={() => handlePaymentState({ status: 'cancelled', message: 'Payment manually cancelled.' })}>
+                           Cancel Payment
+                        </Button>
+                    ) : (
+                        <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'} onClick={() => setIsCheckoutOpen(true)}>
+                            {paymentStatus.status === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            Checkout
+                        </Button>
+                    )}
                 </CardFooter>
             </Card>
        </div>
