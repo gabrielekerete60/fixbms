@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
+import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
 import Image from "next/image";
 import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -217,6 +217,7 @@ function POSPageContent() {
   const [paymentStatus, setPaymentStatus] = useLocalStorage<PaymentStatus>('paymentStatus', { status: 'idle' });
   const [showCancel, setShowCancel] = useState(false);
   const paymentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const paymentWindowRef = useRef<Window | null>(null);
 
 
   const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
@@ -275,6 +276,7 @@ function POSPageContent() {
       paymentTimeoutRef.current = null;
     }
     setShowCancel(false);
+    paymentWindowRef.current = null;
 
     if (newStatus.status !== 'idle' && newStatus.status !== 'processing') {
         if (newStatus.status === 'success' && newStatus.orderId) {
@@ -329,7 +331,7 @@ function POSPageContent() {
       }
     };
     initializePos();
-  }, []);
+  }, [customerEmail, selectedStaffId, setCustomerEmail]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
@@ -458,15 +460,16 @@ function POSPageContent() {
     const paystackResult = await initializePaystackTransaction(orderPayload);
 
     if (paystackResult.success && paystackResult.reference && paystackResult.authorization_url) {
-        const paymentWindow = window.open(paystackResult.authorization_url, 'paystackWindow', 'height=600,width=800');
+        paymentWindowRef.current = window.open(paystackResult.authorization_url, 'paystackWindow', 'height=600,width=800');
         
         const pollTimer = setInterval(() => {
-            if (!paymentWindow || paymentWindow.closed) {
+            if (paymentWindowRef.current && paymentWindowRef.current.closed) {
                 clearInterval(pollTimer);
-                const currentStatus = JSON.parse(localStorage.getItem('paymentStatus') || '{}');
-                if (currentStatus.status !== 'success' && currentStatus.status !== 'failed') {
-                    handlePaymentState({ status: 'cancelled', message: 'Payment window was closed.' });
-                }
+                // The storage event will handle the final state, but if it doesn't fire, we cancel.
+                 const currentStatus = JSON.parse(localStorage.getItem('paymentStatus') || '{}');
+                 if (currentStatus.status === 'processing' || currentStatus.status === 'idle') {
+                     handlePaymentState({ status: 'cancelled', message: 'Payment window was closed.' });
+                 }
             }
         }, 1000);
 
@@ -914,3 +917,6 @@ export default function POSPageWithSuspense() {
         </Suspense>
     )
 }
+
+
+    
