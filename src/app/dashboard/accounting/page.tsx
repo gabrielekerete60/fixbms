@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -36,6 +35,7 @@ import { Separator } from '@/components/ui/separator';
 import { collection, onSnapshot, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Progress } from '@/components/ui/progress';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 // --- Helper Functions & Type Definitions ---
@@ -1579,27 +1579,59 @@ function BusinessHealthTab() {
                         <CardTitle>OPEX Breakdown</CardTitle>
                         <CardDescription>Operating expenses for the selected period.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                         <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader><TableRow><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                    <TableRow><TableCell className="font-semibold">COGS (Cost of Goods Sold)</TableCell><TableCell className="text-right font-semibold">{formatCurrency(cogs)}</TableCell></TableRow>
-                                    <TableRow><TableCell className="pl-6">Confectionaries</TableCell><TableCell className="text-right">{formatCurrency(statement.purchases)}</TableCell></TableRow>
-                                    <TableRow><TableCell className="pl-6">Less: Closing Stocks</TableCell><TableCell className="text-right">({formatCurrency(statement.closingStock)})</TableCell></TableRow>
-                                    
-                                    <TableRow><TableCell className="font-semibold">Utilities</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Utilities)}</TableCell></TableRow>
-
-                                    <TableRow><TableCell className="font-semibold">Operations</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Operations)}</TableCell></TableRow>
-                                    {Object.entries(statement.expenses).filter(([key]) => ['Repairs', 'Production', 'Promotion', 'Transport', 'Purchases'].includes(key)).map(([key, val]) => (
-                                    <TableRow key={key}><TableCell className="pl-6">{key}</TableCell><TableCell className="text-right">{formatCurrency(val as number)}</TableCell></TableRow>
-                                    ))}
-                                    
-                                    <TableRow><TableCell className="font-semibold">Wages</TableCell><TableCell className="text-right font-semibold">{formatCurrency(expenseDetails.Wages)}</TableCell></TableRow>
-                                </TableBody>
-                                <TableFooter><TableRow><TableCell className="font-bold text-lg">GRAND TOTAL OPEX:</TableCell><TableCell className="text-right font-bold text-lg">{formatCurrency(totalOpex)}</TableCell></TableRow></TableFooter>
-                            </Table>
-                         </div>
+                    <CardContent className="space-y-2">
+                        <Accordion type="single" collapsible defaultValue="cogs">
+                            <AccordionItem value="cogs">
+                                <AccordionTrigger>
+                                    <div className="flex justify-between w-full pr-4"><span>COGS (Cost of Goods Sold)</span><span className="font-semibold">{formatCurrency(cogs)}</span></div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pl-4">
+                                     <Table>
+                                        <TableBody>
+                                            <TableRow><TableCell>Confectionaries</TableCell><TableCell className="text-right">{formatCurrency(statement.purchases)}</TableCell></TableRow>
+                                            <TableRow><TableCell>Less: Closing Stocks</TableCell><TableCell className="text-right">({formatCurrency(statement.closingStock)})</TableCell></TableRow>
+                                        </TableBody>
+                                    </Table>
+                                </AccordionContent>
+                            </AccordionItem>
+                             <AccordionItem value="utilities">
+                                <AccordionTrigger>
+                                    <div className="flex justify-between w-full pr-4"><span>Utilities</span><span className="font-semibold">{formatCurrency(expenseDetails.Utilities)}</span></div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pl-4">
+                                    <Table>
+                                        <TableBody>
+                                            {Object.entries(statement.expenses).filter(([key]) => ['Diesel', 'Petrol', 'Gas', 'Electricity', 'Water'].includes(key)).map(([key, val]) => (
+                                                <TableRow key={key}><TableCell>{key}</TableCell><TableCell className="text-right">{formatCurrency(val as number)}</TableCell></TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </AccordionContent>
+                            </AccordionItem>
+                             <AccordionItem value="operations">
+                                <AccordionTrigger>
+                                    <div className="flex justify-between w-full pr-4"><span>Operations</span><span className="font-semibold">{formatCurrency(expenseDetails.Operations)}</span></div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pl-4">
+                                     <Table>
+                                        <TableBody>
+                                            {Object.entries(statement.expenses).filter(([key]) => ['Repairs', 'Production', 'Promotion', 'Transport', 'Purchases'].includes(key)).map(([key, val]) => (
+                                                <TableRow key={key}><TableCell>{key}</TableCell><TableCell className="text-right">{formatCurrency(val as number)}</TableCell></TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </AccordionContent>
+                            </AccordionItem>
+                            <AccordionItem value="wages">
+                                <AccordionTrigger>
+                                    <div className="flex justify-between w-full pr-4"><span>Wages</span><span className="font-semibold">{formatCurrency(expenseDetails.Wages)}</span></div>
+                                </AccordionTrigger>
+                            </AccordionItem>
+                        </Accordion>
+                        <div className="pt-2 border-t mt-2 flex justify-between font-bold text-lg">
+                            <span>GRAND TOTAL OPEX:</span>
+                            <span>{formatCurrency(totalOpex)}</span>
+                        </div>
                     </CardContent>
                 </Card>
                 <div className="md:col-span-2 space-y-6">
@@ -1745,7 +1777,3 @@ export default function AccountingPage() {
     </div>
   );
 }
-
-
-
-
