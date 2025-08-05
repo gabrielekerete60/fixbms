@@ -56,44 +56,46 @@ import type { CompletedOrder, PaystackTransaction, CartItem, User, SelectableSta
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
     return (
-        <div ref={ref}>
-            <h2 className="text-2xl font-bold text-center font-headline">BMS</h2>
-            <p className="text-center text-sm">{storeAddress || 'Your Friendly Bakery'}</p>
-            <p className="text-center text-sm">Sale Receipt</p>
-            <div className="py-4 space-y-4">
-                <div className="text-sm text-muted-foreground">
+        <div ref={ref} className="print:p-8">
+            <div className="text-center mb-4">
+                <h2 className="font-headline text-2xl text-center">BMS</h2>
+                <p className="text-center text-sm">Sale Receipt</p>
+                {storeAddress && <p className="text-center text-xs text-muted-foreground">{storeAddress}</p>}
+            </div>
+            <div className="py-2 space-y-2">
+                <div className="text-xs text-muted-foreground">
                     <p><strong>Order ID:</strong> {order.id}</p>
                     <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
                     <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
                     <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
                 </div>
-                <Separator />
+                <Separator className="my-2"/>
                 <Table>
                     <TableHeader>
                         <TableRow>
-                        <TableHead>Item</TableHead>
-                        <TableHead className="text-center">Qty</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="text-xs h-auto p-1">Item</TableHead>
+                        <TableHead className="text-center text-xs h-auto p-1">Qty</TableHead>
+                        <TableHead className="text-right text-xs h-auto p-1">Amount</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {order.items.map((item, i) => (
-                        <TableRow key={i}>
-                            <TableCell>{item.name}</TableCell>
-                            <TableCell className="text-center">{item.quantity}</TableCell>
-                            <TableCell className="text-right">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
+                        {order.items.map((item, index) => (
+                        <TableRow key={item.id || index}>
+                            <TableCell className="text-xs p-1">{item.name}</TableCell>
+                            <TableCell className="text-center text-xs p-1">{item.quantity}</TableCell>
+                            <TableCell className="text-right text-xs p-1">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
                         </TableRow>
                         ))}
                     </TableBody>
                 </Table>
-                <Separator />
-                <div className="w-full space-y-1 text-sm pr-2">
+                    <Separator className="my-2"/>
+                    <div className="w-full space-y-1 text-sm pr-1">
                     <div className="flex justify-between font-bold text-base mt-1">
                         <span>Total</span>
                         <span>₦{order.total.toFixed(2)}</span>
                     </div>
                 </div>
-                <Separator />
+                <Separator className="my-2"/>
                 <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
             </div>
         </div>
@@ -104,7 +106,6 @@ Receipt.displayName = 'Receipt';
 
 const handlePrint = (node: HTMLElement | null) => {
     if (!node) return;
-    const receiptContent = node.innerHTML;
     const printWindow = window.open('', '_blank');
     if (printWindow) {
         const printableContent = `
@@ -132,7 +133,7 @@ const handlePrint = (node: HTMLElement | null) => {
                 </head>
                 <body>
                     <div class="receipt-container">
-                        ${receiptContent}
+                        ${node.innerHTML}
                     </div>
                     <script>
                         window.onload = function() {
@@ -168,7 +169,7 @@ function POSPageContent() {
   const [confirmMethod, setConfirmMethod] = useState<'Cash' | 'POS' | null>(null);
   const [storeAddress, setStoreAddress] = useState<string | undefined>();
   
-  const [paymentStatus, setPaymentStatus] = useLocalStorage<PaymentStatus>('paymentStatus', { status: 'idle' });
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>({ status: 'idle' });
   const [showCancel, setShowCancel] = useState(false);
 
   const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
@@ -295,14 +296,15 @@ function POSPageContent() {
       amount: Math.round(total * 100),
       publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
       reference: `BMS-${Date.now()}`,
-      onSuccess: onPaystackSuccess,
-      onClose: onPaystackClose,
-  }), [customerEmail, user, total, onPaystackSuccess, onPaystackClose]);
+  }), [customerEmail, user, total]);
 
   const initializePayment = usePaystackPayment(paystackConfig);
   
   const handlePaystackPayment = () => {
-    initializePayment();
+    initializePayment({
+        onSuccess: onPaystackSuccess,
+        onClose: onPaystackClose,
+    });
   }
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
