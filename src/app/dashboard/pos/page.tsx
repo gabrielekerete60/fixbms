@@ -48,8 +48,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { initializePaystackTransaction, handlePosSale } from "@/app/actions";
+import { handlePosSale } from "@/app/actions";
 import { PaystackButton } from "react-paystack";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus, PaystackTransaction } from "./types";
 
@@ -171,7 +170,6 @@ function POSPageContent() {
   const [storeAddress, setStoreAddress] = useState<string | undefined>();
   
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>({ status: 'idle' });
-  const [showCancel, setShowCancel] = useState(false);
 
   const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useLocalStorage<string | null>('posSelectedStaff', null);
@@ -775,26 +773,28 @@ function POSPageContent() {
                         Total Amount: <span className="font-bold text-foreground">₦{total.toFixed(2)}</span>
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid grid-cols-1 gap-4 py-4">
-                    <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
-                        <Wallet className="mr-2 h-6 w-6" />
-                        Pay with Cash
-                    </Button>
-                    <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('POS'); setIsConfirmOpen(true); } }>
-                        <CreditCard className="mr-2 h-6 w-6" />
-                        Pay with POS
-                    </Button>
-                    <PaystackButton
-                        className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg")}
-                        text="Pay with Transfer"
-                        onSuccess={onPaystackSuccess}
-                        onClose={onPaystackClose}
-                        email={customerEmail || user?.email || ''}
-                        amount={Math.round(total * 100)}
-                        publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || ''}
-                        reference={`BMS-${Date.now()}`}
-                    />
-                </div>
+                <form>
+                    <div className="grid grid-cols-1 gap-4 py-4">
+                        <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
+                            <Wallet className="mr-2 h-6 w-6" />
+                            Pay with Cash
+                        </Button>
+                        <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('POS'); setIsConfirmOpen(true); } }>
+                            <CreditCard className="mr-2 h-6 w-6" />
+                            Pay with POS
+                        </Button>
+                        <PaystackButton
+                            className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full")}
+                            text="Pay with Transfer"
+                            onSuccess={onPaystackSuccess}
+                            onClose={onPaystackClose}
+                            email={customerEmail || user?.email || ''}
+                            amount={Math.round(total * 100)}
+                            publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || ''}
+                            reference={`BMS-${Date.now()}`}
+                        />
+                    </div>
+                </form>
             </DialogContent>
         </Dialog>
         
