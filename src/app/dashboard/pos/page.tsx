@@ -50,7 +50,7 @@ import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "fire
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initializePaystackTransaction, handlePosSale } from "@/app/actions";
-import { usePaystackPayment } from "react-paystack";
+import { PaystackButton } from "react-paystack";
 import type { CompletedOrder, PaystackTransaction, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 
 
@@ -152,6 +152,18 @@ const handlePrint = (node: HTMLElement | null) => {
     }
 };
 
+const PaystackPaymentButton = ({ config, onSuccess, onClose, children }: { config: any, onSuccess: (ref: any) => void, onClose: () => void, children: React.ReactNode }) => {
+    return (
+        <PaystackButton
+            {...config}
+            onSuccess={onSuccess}
+            onClose={onClose}
+        >
+            {children}
+        </PaystackButton>
+    )
+}
+
 function POSPageContent() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -178,6 +190,8 @@ function POSPageContent() {
   const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
   
   const receiptRef = useRef<HTMLDivElement>(null);
+  const paystackBtnRef = useRef<HTMLButtonElement>(null);
+
 
   const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
 
@@ -300,10 +314,8 @@ function POSPageContent() {
     reference: `BMS-${Date.now()}`,
   };
 
-  const initializePayment = usePaystackPayment(paystackConfig);
-  
   const handlePaystackPayment = () => {
-    initializePayment(onPaystackSuccess, onPaystackClose);
+    paystackBtnRef.current?.click();
   }
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
@@ -801,6 +813,15 @@ function POSPageContent() {
                         <ArrowRightLeft className="mr-2 h-6 w-6" />
                         Pay with Transfer
                     </Button>
+                    <div className="hidden">
+                        <PaystackPaymentButton
+                            config={paystackConfig}
+                            onSuccess={onPaystackSuccess}
+                            onClose={onPaystackClose}
+                        >
+                            <button ref={paystackBtnRef}>Hidden Paystack Button</button>
+                        </PaystackPaymentButton>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>
