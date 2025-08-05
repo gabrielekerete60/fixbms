@@ -50,7 +50,7 @@ import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "fire
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initializePaystackTransaction, handlePosSale } from "@/app/actions";
-import { PaystackButton, usePaystackPayment } from "react-paystack";
+import { PaystackButton } from "react-paystack";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus, PaystackTransaction } from "./types";
 
 
@@ -292,19 +292,6 @@ function POSPageContent() {
     });
     setPaymentStatus({ status: 'idle' });
   }, [toast]);
-  
-  const initializePaystack = usePaystackPayment({
-    email: customerEmail || user?.email || '',
-    amount: Math.round(total * 100),
-    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-    reference: `BMS-${Date.now()}`,
-    onSuccess: onPaystackSuccess,
-    onClose: onPaystackClose,
-  });
-
-  const handlePaystackPayment = () => {
-    initializePaystack();
-  }
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
@@ -800,11 +787,12 @@ function POSPageContent() {
                     <PaystackButton
                         className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg")}
                         text="Pay with Transfer"
+                        onSuccess={onPaystackSuccess}
+                        onClose={onPaystackClose}
                         email={customerEmail || user?.email || ''}
                         amount={Math.round(total * 100)}
                         publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || ''}
-                        onSuccess={onPaystackSuccess}
-                        onClose={onPaystackClose}
+                        reference={`BMS-${Date.now()}`}
                     />
                 </div>
             </DialogContent>
