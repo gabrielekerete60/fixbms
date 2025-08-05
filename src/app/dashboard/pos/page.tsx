@@ -788,27 +788,25 @@ function POSPageContent() {
                         Total Amount: <span className="font-bold text-foreground">₦{total.toFixed(2)}</span>
                     </DialogDescription>
                 </DialogHeader>
-                <form>
-                    <div className="grid grid-cols-1 gap-4 py-4">
-                        <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
-                            <Wallet className="mr-2 h-6 w-6" />
-                            Pay with Cash
-                        </Button>
-                        <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('POS'); setIsConfirmOpen(true); } }>
-                            <CreditCard className="mr-2 h-6 w-6" />
-                            Pay with POS
-                        </Button>
-                        <PaystackButton
-                            className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg")}
-                            text="Pay with Transfer"
-                            email={customerEmail || user?.email || ''}
-                            amount={Math.round(total * 100)}
-                            publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || ''}
-                            onSuccess={onPaystackSuccess}
-                            onClose={onPaystackClose}
-                        />
-                    </div>
-                </form>
+                <div className="grid grid-cols-1 gap-4 py-4">
+                    <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
+                        <Wallet className="mr-2 h-6 w-6" />
+                        Pay with Cash
+                    </Button>
+                    <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('POS'); setIsConfirmOpen(true); } }>
+                        <CreditCard className="mr-2 h-6 w-6" />
+                        Pay with POS
+                    </Button>
+                    <PaystackButton
+                        className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg")}
+                        text="Pay with Transfer"
+                        email={customerEmail || user?.email || ''}
+                        amount={Math.round(total * 100)}
+                        publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || ''}
+                        onSuccess={onPaystackSuccess}
+                        onClose={onPaystackClose}
+                    />
+                </div>
             </DialogContent>
         </Dialog>
         
@@ -861,5 +859,3 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
-
-    
