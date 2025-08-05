@@ -48,10 +48,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { handlePosSale, initializePaystackTransaction, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
+import { handlePosSale, initializePaystackTransaction } from "@/app/actions";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePaystackPayment } from "react-paystack";
+import PaystackPop from "@paystack/inline-js";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -239,40 +239,20 @@ function POSPageContent() {
       }
   }, [clearCartAndStorage, toast]);
 
-    const onPaystackSuccess = useCallback((transaction: { reference: string }) => {
-        setIsCheckoutOpen(false);
-        setPaymentStatus({ status: 'processing', message: 'Payment confirmed, finalizing order...' });
-        
-        verifyPaystackOnServerAndFinalizeOrder(transaction.reference).then(result => {
-            if (result.success && result.orderId) {
-                toast({ title: 'Payment Confirmed', description: 'Your order has been successfully placed.' });
-                handleSaleMade(result.orderId);
-            } else {
-                toast({ variant: 'destructive', title: 'Order Recording Failed', description: result.error });
-            }
-            setPaymentStatus({ status: 'idle' });
-        });
-    }, [handleSaleMade, toast]);
-    
-    const onPaystackClose = useCallback(() => {
-        setPaymentStatus({ status: 'idle' });
-        toast({
-            variant: "destructive",
-            title: "Payment Window Closed",
-            description: "The payment process was cancelled or closed.",
-        });
-    }, [toast]);
-    
-    const paystackConfig = useMemo(() => ({
-        publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-        email: customerEmail || user?.email || '',
-        amount: Math.round(total * 100),
-        reference: new Date().getTime().toString(),
-        onSuccess: onPaystackSuccess,
-        onClose: onPaystackClose,
-    }), [total, customerEmail, user?.email, onPaystackSuccess, onPaystackClose]);
+  useEffect(() => {
+    const handleSuccessfulPaymentMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
 
-    const initializePayment = usePaystackPayment(paystackConfig);
+      if (event.data?.type === 'paymentSuccess' && event.data.orderId) {
+        handleSaleMade(event.data.orderId);
+      }
+    };
+    
+    window.addEventListener("message", handleSuccessfulPaymentMessage);
+    return () => {
+      window.removeEventListener("message", handleSuccessfulPaymentMessage);
+    };
+  }, [handleSaleMade]);
   
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
@@ -318,6 +298,47 @@ function POSPageContent() {
 
     setPaymentStatus({ status: 'idle' });
   }
+
+  const handlePaystackPayment = async () => {
+    setIsCheckoutOpen(false);
+    setPaymentStatus({ status: 'processing' });
+    
+    if (!user || !selectedStaffId) {
+        toast({ variant: "destructive", title: "Error", description: "User not identified." });
+        setPaymentStatus({ status: 'idle' });
+        return;
+    }
+    
+    const itemsWithCost = cart.map(item => {
+        const productDetails = products.find(p => p.id === item.id);
+        return {
+            productId: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            costPrice: productDetails?.costPrice || 0
+        };
+    });
+
+    const orderPayload = {
+        items: itemsWithCost,
+        total,
+        customerName: customerName || 'Walk-in',
+        staffId: selectedStaffId,
+        email: customerEmail || user.email,
+        date: new Date().toISOString()
+    };
+    
+    const result = await initializePaystackTransaction(orderPayload);
+    
+    if (result.success && result.authorization_url) {
+        window.open(result.authorization_url, 'paystack-window', 'width=800,height=600');
+    } else {
+        toast({ variant: "destructive", title: "Payment Error", description: result.error });
+    }
+    setPaymentStatus({ status: 'idle' });
+  };
+
 
   useEffect(() => {
     const initializePos = async () => {
@@ -751,7 +772,7 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <Button className="h-20 text-lg" onClick={() => initializePayment()}>
+                    <Button className="h-20 text-lg" onClick={handlePaystackPayment}>
                         <ArrowRightLeft className="mr-2 h-6 w-6" />
                         Pay with Transfer
                     </Button>
