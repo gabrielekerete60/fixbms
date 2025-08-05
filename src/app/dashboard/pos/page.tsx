@@ -50,8 +50,8 @@ import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "fire
 import { db } from "@/lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initializePaystackTransaction, handlePosSale } from "@/app/actions";
-import { PaystackButton } from "react-paystack";
-import type { CompletedOrder, PaystackTransaction, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
+import { PaystackButton, usePaystackPayment } from "react-paystack";
+import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus, PaystackTransaction } from "./types";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -152,18 +152,6 @@ const handlePrint = (node: HTMLElement | null) => {
     }
 };
 
-const PaystackPaymentButton = ({ config, onSuccess, onClose, children }: { config: any, onSuccess: (ref: any) => void, onClose: () => void, children: React.ReactNode }) => {
-    return (
-        <PaystackButton
-            {...config}
-            onSuccess={onSuccess}
-            onClose={onClose}
-        >
-            {children}
-        </PaystackButton>
-    )
-}
-
 function POSPageContent() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -190,8 +178,6 @@ function POSPageContent() {
   const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
   
   const receiptRef = useRef<HTMLDivElement>(null);
-  const paystackBtnRef = useRef<HTMLButtonElement>(null);
-
 
   const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
 
@@ -307,15 +293,17 @@ function POSPageContent() {
     setPaymentStatus({ status: 'idle' });
   }, [toast]);
   
-  const paystackConfig = {
+  const initializePaystack = usePaystackPayment({
     email: customerEmail || user?.email || '',
     amount: Math.round(total * 100),
     publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
     reference: `BMS-${Date.now()}`,
-  };
+    onSuccess: onPaystackSuccess,
+    onClose: onPaystackClose,
+  });
 
   const handlePaystackPayment = () => {
-    paystackBtnRef.current?.click();
+    initializePaystack();
   }
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
@@ -800,29 +788,27 @@ function POSPageContent() {
                         Total Amount: <span className="font-bold text-foreground">₦{total.toFixed(2)}</span>
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid grid-cols-1 gap-4 py-4">
-                     <Button variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
-                        <Wallet className="mr-2 h-6 w-6" />
-                        Pay with Cash
-                    </Button>
-                    <Button variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('POS'); setIsConfirmOpen(true); } }>
-                        <CreditCard className="mr-2 h-6 w-6" />
-                        Pay with POS
-                    </Button>
-                    <Button className="h-20 text-lg" onClick={handlePaystackPayment}>
-                        <ArrowRightLeft className="mr-2 h-6 w-6" />
-                        Pay with Transfer
-                    </Button>
-                    <div className="hidden">
-                        <PaystackPaymentButton
-                            config={paystackConfig}
+                <form>
+                    <div className="grid grid-cols-1 gap-4 py-4">
+                        <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
+                            <Wallet className="mr-2 h-6 w-6" />
+                            Pay with Cash
+                        </Button>
+                        <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('POS'); setIsConfirmOpen(true); } }>
+                            <CreditCard className="mr-2 h-6 w-6" />
+                            Pay with POS
+                        </Button>
+                        <PaystackButton
+                            className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg")}
+                            text="Pay with Transfer"
+                            email={customerEmail || user?.email || ''}
+                            amount={Math.round(total * 100)}
+                            publicKey={process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || ''}
                             onSuccess={onPaystackSuccess}
                             onClose={onPaystackClose}
-                        >
-                            <button ref={paystackBtnRef}>Hidden Paystack Button</button>
-                        </PaystackPaymentButton>
+                        />
                     </div>
-                </div>
+                </form>
             </DialogContent>
         </Dialog>
         
