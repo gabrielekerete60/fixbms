@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
 import Image from "next/image";
 import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet, ArrowRightLeft } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -55,40 +55,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
     return (
-        <div ref={ref} className="print:p-8">
+        <div ref={ref} className="p-2">
             <div className="text-center mb-4">
-                <h2 className="font-headline text-2xl text-center">BMS</h2>
+                <h2 className="font-headline text-xl text-center">BMS</h2>
                 <p className="text-center text-sm">Sale Receipt</p>
                 {storeAddress && <p className="text-center text-xs text-muted-foreground">{storeAddress}</p>}
             </div>
-            <div className="py-2 space-y-2">
-                <div className="text-xs text-muted-foreground">
-                    <p><strong>Order ID:</strong> {order.id}</p>
+            <div className="py-2 space-y-2 text-xs">
+                <div className="space-y-1">
+                    <p><strong>Order ID:</strong> {order.id.substring(0, 12)}...</p>
                     <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
                     <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
                     <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
                 </div>
-                <Separator className="my-2"/>
+                <Separator className="my-2" />
                 <Table>
                     <TableHeader>
                         <TableRow>
-                        <TableHead className="text-xs h-auto p-1">Item</TableHead>
-                        <TableHead className="text-center text-xs h-auto p-1">Qty</TableHead>
-                        <TableHead className="text-right text-xs h-auto p-1">Amount</TableHead>
+                        <TableHead className="h-auto p-1 text-xs">Item</TableHead>
+                        <TableHead className="text-center h-auto p-1 text-xs">Qty</TableHead>
+                        <TableHead className="text-right h-auto p-1 text-xs">Amount</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {order.items.map((item, index) => (
                         <TableRow key={item.id || index}>
-                            <TableCell className="text-xs p-1">{item.name}</TableCell>
-                            <TableCell className="text-center text-xs p-1">{item.quantity}</TableCell>
-                            <TableCell className="text-right text-xs p-1">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
+                            <TableCell className="p-1 text-xs">{item.name}</TableCell>
+                            <TableCell className="text-center p-1 text-xs">{item.quantity}</TableCell>
+                            <TableCell className="text-right p-1 text-xs">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
                         </TableRow>
                         ))}
                     </TableBody>
                 </Table>
-                    <Separator className="my-2"/>
-                    <div className="w-full space-y-1 text-sm pr-1">
+                <Separator className="my-2"/>
+                <div className="w-full space-y-1 pr-1">
                     <div className="flex justify-between font-bold text-base mt-1">
                         <span>Total</span>
                         <span>₦{order.total.toFixed(2)}</span>
@@ -105,7 +105,7 @@ Receipt.displayName = 'Receipt';
 
 const handlePrint = (node: HTMLElement | null) => {
     if (!node) return;
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open('', '_blank', 'width=320,height=500');
     if (printWindow) {
         const receiptContent = node.innerHTML;
         const printableContent = `
@@ -113,28 +113,22 @@ const handlePrint = (node: HTMLElement | null) => {
                 <head>
                     <title>Receipt</title>
                     <style>
-                        body { font-family: sans-serif; margin: 20px; }
-                        .receipt-container { max-width: 300px; margin: auto; }
-                        .text-center { text-align: center; }
-                        .font-bold { font-weight: bold; }
-                        .text-lg { font-size: 1.125rem; }
-                        .text-2xl { font-size: 1.5rem; }
-                        .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
-                        .text-sm { font-size: 0.875rem; }
-                        .text-xs { font-size: 0.75rem; }
-                        .text-muted-foreground { color: #6b7280; }
-                        table { width: 100%; border-collapse: collapse; }
-                        th, td { padding: 4px 0; }
-                        .text-right { text-align: right; }
-                        .flex { display: flex; }
-                        .justify-between { justify-content: space-between; }
-                        hr { border: 0; border-top: 1px dashed #d1d5db; margin: 1rem 0; }
+                        @media print {
+                            @page {
+                                margin: 0;
+                                size: 80mm auto;
+                            }
+                            body { 
+                                font-family: sans-serif; 
+                                margin: 0;
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                        }
                     </style>
                 </head>
                 <body>
-                    <div class="receipt-container">
-                        ${receiptContent}
-                    </div>
+                    ${receiptContent}
                     <script>
                         window.onload = function() {
                             window.print();
@@ -224,18 +218,19 @@ function POSPageContent() {
   const clearCartAndStorage = useCallback(() => {
     setCart([]);
     setCustomerName('');
-    setCustomerEmail(user?.email || '');
-  }, [setCart, setCustomerName, setCustomerEmail, user?.email]);
+    setCustomerEmail('');
+  }, [setCart, setCustomerName, setCustomerEmail]);
   
   const handleSaleMade = useCallback(async (orderId: string) => {
       const orderDoc = await getDoc(doc(db, 'orders', orderId));
       if (orderDoc.exists()) {
           const orderData = orderDoc.data();
-          setLastCompletedOrder({
+          const completedOrder = {
               ...orderData,
               id: orderDoc.id,
               date: (orderData.date as any).toDate().toISOString()
-          } as CompletedOrder);
+          } as CompletedOrder
+          setLastCompletedOrder(completedOrder);
           setIsReceiptOpen(true);
           clearCartAndStorage();
       } else {
@@ -276,7 +271,7 @@ function POSPageContent() {
     const result = await initializePaystackTransaction(saleData);
 
     if (result.success && result.authorization_url) {
-        window.open(result.authorization_url, '_blank', 'toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=800,height=600');
+        window.open(result.authorization_url, 'paystack_window', 'toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=800,height=600');
         toast({ title: 'Payment Window Opened', description: 'Please complete your payment in the new window.' });
     } else {
         toast({
@@ -340,10 +335,6 @@ function POSPageContent() {
       if (storedUser) {
         const parsedUser: User = JSON.parse(storedUser);
         setUser(parsedUser);
-
-        if (!customerEmail) {
-            setCustomerEmail(parsedUser.email || '');
-        }
 
         const adminRoles = ['Manager', 'Developer'];
         if (adminRoles.includes(parsedUser.role)) {
@@ -808,17 +799,11 @@ function POSPageContent() {
 
         {/* Receipt Dialog */}
         <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
-            <DialogContent className="sm:max-w-md print:max-w-full print:border-none print:shadow-none">
-                <DialogHeader className="print:hidden">
-                    <DialogTitle>Sale Completed</DialogTitle>
-                    <DialogDescription>
-                        The sale was successful. You can now print the receipt.
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="sm:max-w-xs print:max-w-full print:border-none print:shadow-none">
                 <div ref={receiptRef}>
                     {lastCompletedOrder && <Receipt order={lastCompletedOrder} storeAddress={storeAddress} />}
                 </div>
-                <DialogFooter className="flex justify-end gap-2 print:hidden">
+                <DialogFooter className="flex-row justify-end gap-2 print:hidden">
                     <Button variant="outline" onClick={() => handlePrint(receiptRef.current)}><Printer className="mr-2 h-4 w-4"/> Print</Button>
                     <Button onClick={() => setIsReceiptOpen(false)}>Close</Button>
                 </DialogFooter>
