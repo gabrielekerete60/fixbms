@@ -123,17 +123,6 @@ function PaginationControls({
             <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
             <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
             <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
-            <div className="flex items-center gap-2">
-                <Input 
-                    type="number" 
-                    className="h-9 w-20"
-                    placeholder="Custom"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleApplyInput()}
-                />
-                 <Button size="sm" onClick={handleApplyInput}>Apply</Button>
-            </div>
         </div>
     )
 }
@@ -624,10 +613,12 @@ export default function StockControlPage() {
     return visibleLogRows === 'all' ? filtered : filtered.slice(0, visibleLogRows);
   }, [initiatedTransfers, visibleLogRows, date]);
   
-  const availableProducts = useMemo(() => {
-    const selectedIds = new Set(items.map(i => i.productId));
-    return products.filter(p => !selectedIds.has(p.id));
-  }, [products, items]);
+  const getAvailableProductsForRow = (rowIndex: number) => {
+    const selectedIdsInOtherRows = new Set(
+        items.filter((_, i) => i !== rowIndex).map(item => item.productId)
+    );
+    return products.filter(p => !selectedIdsInOtherRows.has(p.id));
+  };
 
   const userRole = user?.role;
   const canInitiateTransfer = userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper';
@@ -837,47 +828,50 @@ export default function StockControlPage() {
             <div className="space-y-2">
                 <Label>Items to Transfer</Label>
                 <div className="space-y-2">
-                {items.map((item, index) => (
-                    <div
-                    key={index}
-                    className="grid grid-cols-[1fr_120px_auto] gap-2 items-center"
-                    >
-                    <Select
-                        value={item.productId}
-                        onValueChange={(value) =>
-                        handleItemChange(index, "productId", value)
-                        }
-                        disabled={isLoading}
-                    >
-                        <SelectTrigger>
-                        <SelectValue placeholder="Select a product" />
-                        </SelectTrigger>
-                        <SelectContent>
-                        {availableProducts.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                            {p.name} (Stock: {p.stock})
-                            </SelectItem>
-                        ))}
-                        </SelectContent>
-                    </Select>
-                    <Input
-                        type="number"
-                        placeholder="Qty"
-                        min="1"
-                        value={item.quantity || ''}
-                        onChange={(e) =>
-                        handleItemChange(index, "quantity", e.target.value)
-                        }
-                    />
-                    <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => handleRemoveItem(index)}
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
-                    </div>
-                ))}
+                {items.map((item, index) => {
+                    const availableProducts = getAvailableProductsForRow(index);
+                    return (
+                        <div
+                        key={index}
+                        className="grid grid-cols-[1fr_120px_auto] gap-2 items-center"
+                        >
+                        <Select
+                            value={item.productId}
+                            onValueChange={(value) =>
+                            handleItemChange(index, "productId", value)
+                            }
+                            disabled={isLoading}
+                        >
+                            <SelectTrigger>
+                            <SelectValue placeholder="Select a product" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            {availableProducts.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                {p.name} (Stock: {p.stock})
+                                </SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <Input
+                            type="number"
+                            placeholder="Qty"
+                            min="1"
+                            value={item.quantity || ''}
+                            onChange={(e) =>
+                            handleItemChange(index, "quantity", e.target.value)
+                            }
+                        />
+                        <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => handleRemoveItem(index)}
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                        </div>
+                    );
+                })}
                 </div>
                 <Button
                 variant="outline"
