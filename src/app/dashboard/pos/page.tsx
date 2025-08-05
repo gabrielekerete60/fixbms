@@ -291,20 +291,19 @@ function POSPageContent() {
     setPaymentStatus({ status: 'idle' });
   }, [toast]);
   
-  const paystackConfig = useMemo(() => ({
+  const paystackConfig = {
       email: customerEmail || user?.email || '',
       amount: Math.round(total * 100),
       publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
       reference: `BMS-${Date.now()}`,
-  }), [customerEmail, user, total]);
+      onSuccess: onPaystackSuccess,
+      onClose: onPaystackClose,
+  };
 
   const initializePayment = usePaystackPayment(paystackConfig);
   
   const handlePaystackPayment = () => {
-    initializePayment({
-        onSuccess: onPaystackSuccess,
-        onClose: onPaystackClose,
-    });
+    initializePayment();
   }
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
