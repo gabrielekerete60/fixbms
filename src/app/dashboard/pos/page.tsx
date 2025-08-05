@@ -347,6 +347,18 @@ function POSPageContent() {
       }
     };
     initializePos();
+
+    const handleMessage = (event: MessageEvent) => {
+        if (event.data.type === 'paymentSuccess' && event.data.orderId) {
+            handleSaleMade(event.data.orderId);
+        }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+        window.removeEventListener('message', handleMessage);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -754,7 +766,7 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <Button className="h-20 text-lg" onClick={() => initializePayment({onSuccess, onClose: onPaystackClose})}>
+                    <Button className="h-20 text-lg" onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
                         <ArrowRightLeft className="mr-2 h-6 w-6" />
                         Pay with Transfer
                     </Button>
