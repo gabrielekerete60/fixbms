@@ -228,7 +228,7 @@ function POSPageContent() {
     setCustomerName('');
     setCustomerEmail(user?.email || '');
   }, [setCart, setCustomerName, setCustomerEmail, user?.email]);
-
+  
   const onPaystackSuccess = useCallback(async (transaction: PaystackTransaction) => {
     setIsCheckoutOpen(false);
     setPaymentStatus({ status: 'processing', message: 'Verifying payment...' });
@@ -293,17 +293,17 @@ function POSPageContent() {
     setPaymentStatus({ status: 'idle' });
   }, [toast]);
   
-  const initializePayment = usePaystackPayment({});
+  const paystackConfig = {
+    email: customerEmail || user?.email || '',
+    amount: Math.round(total * 100),
+    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+    reference: `BMS-${Date.now()}`,
+  };
+
+  const initializePayment = usePaystackPayment(paystackConfig);
   
   const handlePaystackPayment = () => {
-    initializePayment({
-        onSuccess: onPaystackSuccess,
-        onClose: onPaystackClose,
-        email: customerEmail || user?.email || '',
-        amount: Math.round(total * 100),
-        publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-        reference: `BMS-${Date.now()}`,
-    });
+    initializePayment(onPaystackSuccess, onPaystackClose);
   }
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
