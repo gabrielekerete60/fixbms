@@ -1978,7 +1978,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
         
         await runTransaction(db, async (transaction) => {
             const batchDoc = await transaction.get(batchRef);
-            if (!batchDoc.exists() || batchDoc.data().status !== 'pending_approval') {
+            if (!batchDoc.exists() || batchDoc.data.status !== 'pending_approval') {
                 throw new Error("Batch is not pending approval.");
             }
 

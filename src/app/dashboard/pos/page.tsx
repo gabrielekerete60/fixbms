@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
@@ -51,8 +50,6 @@ import { db } from "@/lib/firebase";
 import { handlePosSale, initializePaystackTransaction } from "@/app/actions";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import PaystackPop from "@paystack/inline-js";
-
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
     return (
