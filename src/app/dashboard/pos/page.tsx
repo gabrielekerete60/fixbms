@@ -352,11 +352,6 @@ function POSPageContent() {
     initializePayment({
         onSuccess: onPaystackSuccess,
         onClose: onPaystackClose,
-        config: { // Re-pass config here to ensure it's fresh
-            email: customerEmail || user?.email || '',
-            amount: Math.round(total * 100),
-            reference: `BMS-${Date.now()}`
-        }
     });
   }
 
