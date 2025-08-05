@@ -275,16 +275,7 @@ function POSPageContent() {
     setPaymentStatus({ status: 'idle' });
   }
 
-  const paystackConfig = {
-      email: customerEmail || user?.email || '',
-      amount: Math.round(total * 100),
-      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-      reference: `BMS-${Date.now()}`
-  };
-  
-  const initializePayment = usePaystackPayment(paystackConfig);
-
-  const onPaystackSuccess = async (transaction: PaystackTransaction) => {
+  const onPaystackSuccess = useCallback(async (transaction: PaystackTransaction) => {
     setIsCheckoutOpen(false);
     setPaymentStatus({ status: 'processing', message: 'Verifying payment...' });
 
@@ -294,7 +285,6 @@ function POSPageContent() {
         return;
     }
     
-    // Once Paystack confirms, we record the sale in our DB
     const itemsWithCost = cart.map(item => {
         const productDetails = products.find(p => p.id === item.id);
         return {
@@ -336,9 +326,9 @@ function POSPageContent() {
         });
     }
      setPaymentStatus({ status: 'idle' });
-  };
+  }, [user, selectedStaffId, cart, total, customerName, products, toast, clearCartAndStorage]);
 
-  const onPaystackClose = () => {
+  const onPaystackClose = useCallback(() => {
     setIsCheckoutOpen(false);
     toast({
         variant: 'destructive',
@@ -346,13 +336,21 @@ function POSPageContent() {
         description: 'The payment window was closed.'
     });
     setPaymentStatus({ status: 'idle' });
-  };
+  }, [toast]);
+  
+  const paystackConfig = useMemo(() => ({
+      email: customerEmail || user?.email || '',
+      amount: Math.round(total * 100),
+      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+      reference: `BMS-${Date.now()}`,
+      onSuccess: onPaystackSuccess,
+      onClose: onPaystackClose,
+  }), [customerEmail, user, total, onPaystackSuccess, onPaystackClose]);
+
+  const initializePayment = usePaystackPayment(paystackConfig);
   
   const handlePaystackPayment = () => {
-    initializePayment({
-        onSuccess: onPaystackSuccess,
-        onClose: onPaystackClose,
-    });
+    initializePayment();
   }
 
   useEffect(() => {
@@ -413,11 +411,11 @@ function POSPageContent() {
   }, [isReceiptOpen, lastCompletedOrder]);
 
 
-  const clearCartAndStorage = () => {
+  const clearCartAndStorage = useCallback(() => {
     setCart([]);
     setCustomerName('');
     setCustomerEmail(user?.email || '');
-  }
+  }, [setCart, setCustomerName, setCustomerEmail, user?.email]);
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
   
@@ -854,3 +852,5 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
+
+    
