@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-function getValue<T>(key: string, initialValue: T | (() => T)) {
+// Function to safely get value from localStorage
+function getStoredValue<T>(key: string, initialValue: T | (() => T)): T {
   if (typeof window === 'undefined') {
     return initialValue instanceof Function ? initialValue() : initialValue;
   }
@@ -11,46 +12,56 @@ function getValue<T>(key: string, initialValue: T | (() => T)) {
     const item = window.localStorage.getItem(key);
     return item ? JSON.parse(item) : (initialValue instanceof Function ? initialValue() : initialValue);
   } catch (error) {
-    console.warn(`Error reading localStorage key “${key}”:`, error);
+    console.warn(`Error reading localStorage key "${key}":`, error);
     return initialValue instanceof Function ? initialValue() : initialValue;
   }
 }
 
 export function useLocalStorage<T>(key: string, initialValue: T | (() => T)): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const [storedValue, setStoredValue] = useState<T>(() => getValue(key, initialValue));
+  const [storedValue, setStoredValue] = useState<T>(() => getStoredValue(key, initialValue));
 
-  const setValue = (value: T | ((val: T) => T)) => {
+  const setValue: React.Dispatch<React.SetStateAction<T>> = useCallback((value) => {
     try {
+      // Allow value to be a function so we have same API as useState
       const valueToStore = value instanceof Function ? value(storedValue) : value;
+      // Save state
       setStoredValue(valueToStore);
+      // Save to local storage
       if (typeof window !== "undefined") {
         window.localStorage.setItem(key, JSON.stringify(valueToStore));
-        // Dispatch a storage event to notify other tabs
+        // We dispatch a custom event so every useLocalStorage hook are notified
         window.dispatchEvent(new StorageEvent('storage', { key, newValue: JSON.stringify(valueToStore) }));
       }
     } catch (error) {
       console.warn(`Error setting localStorage key “${key}”:`, error);
     }
-  };
-  
-  const handleStorageChange = useCallback((event: StorageEvent) => {
-    if (event.key === key && event.newValue) {
-      try {
-        setStoredValue(JSON.parse(event.newValue));
-      } catch (error) {
-        console.warn(`Error parsing storage event for key “${key}”:`, error);
-      }
-    }
-  }, [key]);
+  }, [key, storedValue]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', handleStorageChange);
-      return () => {
-        window.removeEventListener('storage', handleStorageChange);
-      };
+    // This is the key change. We listen for the 'storage' event.
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === key && event.newValue !== null) {
+        try {
+          setStoredValue(JSON.parse(event.newValue));
+        } catch (error) {
+           console.warn(`Error parsing storage event for key “${key}”:`, error);
+        }
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check the value on focus, as a fallback for some browser scenarios
+    const handleFocus = () => {
+        setStoredValue(getStoredValue(key, initialValue));
     }
-  }, [key, handleStorageChange]);
+    window.addEventListener('focus', handleFocus);
 
-  return [storedValue, setValue as React.Dispatch<React.SetStateAction<T>>];
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [key, initialValue]);
+
+  return [storedValue, setValue];
 }

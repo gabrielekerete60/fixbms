@@ -177,7 +177,7 @@ const handlePrint = (node: HTMLElement | null) => {
                 </head>
                 <body>
                     <div class="receipt-container">
-                        ${node.innerHTML}
+                        ${receiptContent.innerHTML}
                     </div>
                     <script>
                         window.onload = function() {
@@ -272,8 +272,7 @@ function POSPageContent() {
         const parsedUser: User = JSON.parse(storedUser);
         setUser(parsedUser);
 
-        const currentCustomerEmail = localStorage.getItem('posCustomerEmail');
-        if (!currentCustomerEmail || JSON.parse(currentCustomerEmail) === '') {
+        if (!customerEmail) {
             setCustomerEmail(parsedUser.email || '');
         }
 
@@ -282,8 +281,7 @@ function POSPageContent() {
           const staffQuery = query(collection(db, "staff"), where("role", "==", "Showroom Staff"));
           const staffSnapshot = await getDocs(staffQuery);
           setAllStaff(staffSnapshot.docs.map(d => ({ staff_id: d.id, ...d.data() } as SelectableStaff)));
-          const currentSelectedStaff = localStorage.getItem('posSelectedStaff');
-          if (!currentSelectedStaff || JSON.parse(currentSelectedStaff) === null) {
+          if (!selectedStaffId) {
             setIsStaffSelectionOpen(true);
           }
         } else {
@@ -296,7 +294,6 @@ function POSPageContent() {
       }
     };
     initializePos();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -318,39 +315,38 @@ function POSPageContent() {
   
   useEffect(() => {
     const handleStorageChange = async (event: StorageEvent) => {
-        if (event.key === 'paymentStatus') {
-            const storedStatusRaw = localStorage.getItem('paymentStatus');
-            if (storedStatusRaw) {
-                const newStatus: PaymentStatus = JSON.parse(storedStatusRaw);
-
-                if (newStatus.status !== paymentStatus.status && newStatus.status !== 'idle' && newStatus.status !== 'processing') {
-                    if (newStatus.status === 'success' && newStatus.orderId) {
-                        toast({ title: "Payment Successful", description: "Order completed." });
-                        const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
-                        if (orderDoc.exists()) {
-                            const orderData = orderDoc.data();
-                            setLastCompletedOrder({
-                                ...orderData,
-                                id: orderDoc.id,
-                                date: (orderData.date as Timestamp).toDate().toISOString()
-                            } as CompletedOrder);
-                            setIsReceiptOpen(true);
-                        }
-                    } else if (newStatus.status === 'cancelled') {
-                        toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
-                    } else if (newStatus.status === 'failed') {
-                        toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
+        if (event.key === 'paymentStatus' && event.newValue) {
+            const newStatus: PaymentStatus = JSON.parse(event.newValue);
+            if (newStatus.status !== 'idle' && newStatus.status !== 'processing') {
+                if (newStatus.status === 'success' && newStatus.orderId) {
+                    toast({ title: "Payment Successful", description: "Order completed." });
+                    const orderDoc = await getDoc(doc(db, 'orders', newStatus.orderId));
+                    if (orderDoc.exists()) {
+                        const orderData = orderDoc.data();
+                        setLastCompletedOrder({
+                            ...orderData,
+                            id: orderDoc.id,
+                            date: (orderData.date as Timestamp).toDate().toISOString()
+                        } as CompletedOrder);
+                        setIsReceiptOpen(true);
+                        clearCartAndStorage();
                     }
-                    setPaymentStatus({ status: 'idle' });
+                } else if (newStatus.status === 'cancelled') {
+                    toast({ variant: 'destructive', title: "Transaction Cancelled", description: newStatus.message || "The payment was cancelled." });
+                } else if (newStatus.status === 'failed') {
+                    toast({ variant: 'destructive', title: "Payment Failed", description: newStatus.message || "An unknown error occurred." });
                 }
+                // Reset the status to avoid re-triggering
+                setPaymentStatus({ status: 'idle' });
+                // Also reset in localStorage for other tabs
+                localStorage.setItem('paymentStatus', JSON.stringify({ status: 'idle' }));
             }
         }
     }
     
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-
-  }, [toast, setPaymentStatus, paymentStatus.status]);
+}, [toast, setPaymentStatus]);
 
   useEffect(() => {
     if (isReceiptOpen && lastCompletedOrder) {
@@ -442,22 +438,7 @@ function POSPageContent() {
     const paystackResult = await initializePaystackTransaction(orderPayload);
 
     if (paystackResult.success && paystackResult.reference && paystackResult.authorization_url) {
-        const PaystackPop = (await import('@paystack/inline-js')).default;
-        const paystack = new PaystackPop();
-        paystack.newTransaction({
-            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-            email: customerEmail || user.email,
-            amount: Math.round(total * 100),
-            ref: paystackResult.reference,
-            onClose: () => {
-                toast({ variant: "destructive", title: "Payment Cancelled" });
-                setPaymentStatus({ status: 'idle' });
-            },
-            callback: (response) => {
-                // Paystack's callback, we will rely on the server-side verification on the callback page
-                console.log(response);
-            }
-        });
+        window.open(paystackResult.authorization_url, 'paystackWindow', 'height=600,width=800');
     } else {
         toast({ variant: 'destructive', title: 'Initialization Error', description: paystackResult.error });
         setPaymentStatus({ status: 'idle' });
