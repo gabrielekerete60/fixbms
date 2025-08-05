@@ -220,60 +220,12 @@ function POSPageContent() {
         setIsLoadingProducts(false);
     });
   }
-
-  const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
-    setIsConfirmOpen(false);
-    setPaymentStatus({ status: 'processing' });
-
-    if (!user || !selectedStaffId) {
-        toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
-        setPaymentStatus({ status: 'idle' });
-        return;
-    }
-    
-    const itemsWithCost = cart.map(item => {
-        const productDetails = products.find(p => p.id === item.id);
-        return {
-            productId: item.id,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            costPrice: productDetails?.costPrice || 0
-        };
-    });
-
-    const saleData = {
-        items: itemsWithCost,
-        total,
-        paymentMethod: method,
-        customerName: customerName || 'Walk-in',
-        staffId: selectedStaffId,
-    };
-    
-    const result = await handlePosSale(saleData);
-
-    if (result.success && result.orderId) {
-        toast({ title: 'Sale Completed', description: 'Order has been successfully recorded.' });
-        const orderDoc = await getDoc(doc(db, 'orders', result.orderId));
-        if (orderDoc.exists()) {
-            const orderData = orderDoc.data();
-             setLastCompletedOrder({
-                ...orderData,
-                id: orderDoc.id,
-            } as CompletedOrder);
-            setIsReceiptOpen(true);
-        }
-        clearCartAndStorage();
-    } else {
-         toast({
-            variant: "destructive",
-            title: "Order Failed",
-            description: result.error || "Could not complete the sale.",
-        });
-    }
-
-    setPaymentStatus({ status: 'idle' });
-  }
+  
+  const clearCartAndStorage = useCallback(() => {
+    setCart([]);
+    setCustomerName('');
+    setCustomerEmail(user?.email || '');
+  }, [setCart, setCustomerName, setCustomerEmail, user?.email]);
 
   const onPaystackSuccess = useCallback(async (transaction: PaystackTransaction) => {
     setIsCheckoutOpen(false);
@@ -353,6 +305,60 @@ function POSPageContent() {
     initializePayment();
   }
 
+  const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
+    setIsConfirmOpen(false);
+    setPaymentStatus({ status: 'processing' });
+
+    if (!user || !selectedStaffId) {
+        toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
+        setPaymentStatus({ status: 'idle' });
+        return;
+    }
+    
+    const itemsWithCost = cart.map(item => {
+        const productDetails = products.find(p => p.id === item.id);
+        return {
+            productId: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            costPrice: productDetails?.costPrice || 0
+        };
+    });
+
+    const saleData = {
+        items: itemsWithCost,
+        total,
+        paymentMethod: method,
+        customerName: customerName || 'Walk-in',
+        staffId: selectedStaffId,
+    };
+    
+    const result = await handlePosSale(saleData);
+
+    if (result.success && result.orderId) {
+        toast({ title: 'Sale Completed', description: 'Order has been successfully recorded.' });
+        const orderDoc = await getDoc(doc(db, 'orders', result.orderId));
+        if (orderDoc.exists()) {
+            const orderData = orderDoc.data();
+             setLastCompletedOrder({
+                ...orderData,
+                id: orderDoc.id,
+            } as CompletedOrder);
+            setIsReceiptOpen(true);
+        }
+        clearCartAndStorage();
+    } else {
+         toast({
+            variant: "destructive",
+            title: "Order Failed",
+            description: result.error || "Could not complete the sale.",
+        });
+    }
+
+    setPaymentStatus({ status: 'idle' });
+  }
+
   useEffect(() => {
     const initializePos = async () => {
       const storedUser = localStorage.getItem('loggedInUser');
@@ -410,12 +416,6 @@ function POSPageContent() {
     }
   }, [isReceiptOpen, lastCompletedOrder]);
 
-
-  const clearCartAndStorage = useCallback(() => {
-    setCart([]);
-    setCustomerName('');
-    setCustomerEmail(user?.email || '');
-  }, [setCart, setCustomerName, setCustomerEmail, user?.email]);
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
   
@@ -852,5 +852,3 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
-
-    
