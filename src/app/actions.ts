@@ -2557,13 +2557,13 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
                 metadata: {
                     customer_name: data.customerName,
                     staff_id: data.staffId,
-                    cart: JSON.stringify(data.items.map((item: any) => ({
+                    cart: data.items.map((item: any) => ({
                         id: item.productId,
                         name: item.name,
                         quantity: item.quantity,
                         price: item.price,
                         costPrice: item.costPrice || 0
-                    }))),
+                    })),
                 }
             }),
         });
@@ -2596,7 +2596,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         }
         
         const metadata = verificationData.data.metadata;
-        const cartItems = JSON.parse(metadata.cart);
+        const cartItems = metadata.cart; // Already an object, no need to parse
 
         const posSaleData: PosSaleData = {
             items: cartItems.map((item: any) => ({
