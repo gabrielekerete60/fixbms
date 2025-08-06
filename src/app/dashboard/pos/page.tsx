@@ -48,7 +48,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { handlePosSale, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
+import { handlePosSale, verifyPaystackOnServerAndFinalizeOrder, initializePaystackTransaction } from "@/app/actions";
 import { PaystackButton } from "react-paystack";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -747,15 +747,17 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                     <PaystackButton
-                        {...paystackConfig}
-                        text="Pay with Transfer"
-                        className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full font-bold")}
-                        onSuccess={onPaystackSuccess}
-                        onClose={onPaystackClose}
-                     >
-                        <ArrowRightLeft className="mr-2 h-6 w-6" />
-                     </PaystackButton>
+                     <form>
+                        <PaystackButton
+                            {...paystackConfig}
+                            text="Pay with Transfer"
+                            className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full font-bold")}
+                            onSuccess={onPaystackSuccess}
+                            onClose={onPaystackClose}
+                        >
+                            <ArrowRightLeft className="mr-2 h-6 w-6" />
+                        </PaystackButton>
+                     </form>
                 </div>
             </DialogContent>
         </Dialog>
