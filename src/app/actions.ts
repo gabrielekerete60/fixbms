@@ -2577,8 +2577,8 @@ export async function getSupplyLog(logId: string): Promise<SupplyLog | null> {
 
 
 export async function getStaffByRole(role: string): Promise<any[]> {
-  const q = query(collection(db, "staff"), where("role", "==", role));
-  const snapshot = await getDocs(q);
+    const q = query(collection(db, "staff"), where("role", "==", role));
+    const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => {
         const data = doc.data();
         const plainData: { [key: string]: any } = {};

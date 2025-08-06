@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, Suspense } from 'react';
+import { useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { verifyPaystackOnServerAndFinalizeOrder } from '@/app/actions';
@@ -9,31 +9,29 @@ import { verifyPaystackOnServerAndFinalizeOrder } from '@/app/actions';
 function CallbackContent() {
     const searchParams = useSearchParams();
 
+    const handleVerification = useCallback(async (reference: string) => {
+        const result = await verifyPaystackOnServerAndFinalizeOrder(reference);
+        if (window.opener) {
+            if (result.success && result.orderId) {
+                window.opener.postMessage({ type: 'paymentSuccess', orderId: result.orderId }, window.location.origin);
+            } else {
+                window.opener.postMessage({ type: 'paymentError', error: result.error || 'Verification failed.' }, window.location.origin);
+            }
+        }
+        window.close();
+    }, []);
+
     useEffect(() => {
         const reference = searchParams.get('reference');
-
         if (reference) {
-            verifyPaystackOnServerAndFinalizeOrder(reference).then(result => {
-                if (result.success && result.orderId) {
-                    // Send success message to the opener window
-                    if (window.opener) {
-                        window.opener.postMessage({ type: 'paymentSuccess', orderId: result.orderId }, window.location.origin);
-                    }
-                } else {
-                     if (window.opener) {
-                        window.opener.postMessage({ type: 'paymentError', error: result.error }, window.location.origin);
-                    }
-                }
-                // Close the popup window
-                window.close();
-            });
+            handleVerification(reference);
         } else {
             if (window.opener) {
                 window.opener.postMessage({ type: 'paymentError', error: 'No transaction reference found.' }, window.location.origin);
             }
             window.close();
         }
-    }, [searchParams]);
+    }, [searchParams, handleVerification]);
 
     return (
         <div className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-background text-foreground">
@@ -43,7 +41,6 @@ function CallbackContent() {
         </div>
     );
 }
-
 
 export default function PaymentCallbackPage() {
     return (
