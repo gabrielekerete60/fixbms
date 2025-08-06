@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour, startOfYear as dateFnsStartOfYear } from "date-fns";
 import { db } from "@/lib/firebase";
 import { randomUUID } from 'crypto';
 import speakeasy from 'speakeasy';
@@ -355,26 +355,36 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
     try {
         const now = new Date();
         let startOfPeriod: Date;
+        let endOfPeriod: Date;
 
         switch (filter) {
             case 'daily':
                 startOfPeriod = startOfDay(now);
+                endOfPeriod = endOfDay(now);
                 break;
             case 'weekly':
                 startOfPeriod = startOfWeek(now, { weekStartsOn: 1 });
+                endOfPeriod = endOfWeek(now, { weekStartsOn: 1 });
                 break;
             case 'monthly':
             default:
                 startOfPeriod = startOfMonth(now);
+                endOfPeriod = endOfMonth(now);
                 break;
             case 'yearly':
-                startOfPeriod = startOfYear(now);
+                startOfPeriod = dateFnsStartOfYear(now);
+                endOfPeriod = endOfYear(now);
                 break;
         }
         
         const startOfPeriodTimestamp = Timestamp.fromDate(startOfPeriod);
+        const endOfPeriodTimestamp = Timestamp.fromDate(endOfPeriod);
 
-        const ordersQuery = query(collection(db, "orders"), where("date", ">=", startOfPeriodTimestamp));
+        const ordersQuery = query(
+            collection(db, "orders"), 
+            where("date", ">=", startOfPeriodTimestamp),
+            where("date", "<=", endOfPeriodTimestamp)
+        );
         const ordersSnapshot = await getDocs(ordersQuery);
         
         let revenue = 0;
@@ -387,7 +397,11 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
             }
         });
 
-        const customersQuery = query(collection(db, "customers"), where("joinedDate", ">=", startOfPeriodTimestamp));
+        const customersQuery = query(
+            collection(db, "customers"), 
+            where("joinedDate", ">=", startOfPeriodTimestamp),
+            where("joinedDate", "<=", endOfPeriodTimestamp)
+        );
         const customersSnapshot = await getDocs(customersQuery);
 
         const weekStart = startOfWeek(now, { weekStartsOn: 1 });
