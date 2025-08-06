@@ -38,18 +38,3 @@ export type SelectableStaff = {
     name: string;
     role: string;
 };
-
-export type PaymentStatus = {
-    status: 'idle' | 'processing' | 'success' | 'failed' | 'cancelled';
-    orderId?: string | null;
-    message?: string;
-}
-
-export type PaystackTransaction = {
-    message: string;
-    reference: string;
-    status: 'success' | 'abandoned';
-    trans: string;
-    transaction: string;
-    trxref: string;
-}

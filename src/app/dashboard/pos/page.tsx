@@ -50,8 +50,8 @@ import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "fire
 import { db } from "@/lib/firebase";
 import { handlePosSale, initializePaystackTransaction, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { PaystackTransaction, PaymentStatus, User, CartItem, Product, CompletedOrder, SelectableStaff } from "./types";
-import { usePaystackPayment } from "react-paystack";
+import type { User, CartItem, Product, CompletedOrder, SelectableStaff } from "./types";
+import { PaystackButton } from "react-paystack";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -164,7 +164,7 @@ function POSPageContent() {
   const [confirmMethod, setConfirmMethod] = useState<'Cash' | 'POS' | null>(null);
   const [storeAddress, setStoreAddress] = useState<string | undefined>();
   
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>({ status: 'idle' });
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed' | 'cancelled'>('idle');
 
   const [allStaff, setAllStaff] = useState<SelectableStaff[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useLocalStorage<string | null>('posSelectedStaff', null);
@@ -241,26 +241,26 @@ function POSPageContent() {
       } else {
           toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch completed order details for receipt.' });
       }
-      setPaymentStatus({ status: 'idle' });
+      setPaymentStatus('idle');
   }, [clearCartAndStorage, toast]);
   
-  const handlePaystackSuccess = useCallback(async (transaction: { reference: string }) => {
-      setPaymentStatus({ status: 'processing', message: 'Verifying...' });
+   const onPaystackSuccess = useCallback(async (transaction: { reference: string }) => {
+      setPaymentStatus('processing');
       const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
       if (verifyResult.success && verifyResult.orderId) {
           toast({ title: "Payment Successful", description: "Order has been verified and completed." });
           handleSaleMade(verifyResult.orderId);
       } else {
           toast({ variant: "destructive", title: "Verification Failed", description: verifyResult.error || "Could not verify payment. Please contact support." });
-          setPaymentStatus({ status: 'failed', message: 'Verification Failed' });
+          setPaymentStatus('failed');
       }
   }, [handleSaleMade, toast]);
 
-  const handlePaystackClose = useCallback(() => {
-      if(paymentStatus.status === 'idle') {
+  const onPaystackClose = useCallback(() => {
+      if(paymentStatus !== 'processing') {
           toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment window was closed." });
       }
-  }, [paymentStatus.status, toast]);
+  }, [paymentStatus, toast]);
 
   const paystackConfig = useMemo(() => ({
       publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
@@ -274,8 +274,6 @@ function POSPageContent() {
       }
   }), [total, customerEmail, customerName, selectedStaffId, cart]);
   
-  const initializePayment = usePaystackPayment(paystackConfig);
-
 
   useEffect(() => {
     const initializePos = async () => {
@@ -332,11 +330,11 @@ function POSPageContent() {
   
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
-    setPaymentStatus({ status: 'processing' });
+    setPaymentStatus('processing');
 
     if (!user || !selectedStaffId) {
         toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
-        setPaymentStatus({ status: 'idle' });
+        setPaymentStatus('idle');
         return;
     }
     
@@ -370,7 +368,7 @@ function POSPageContent() {
             title: "Order Failed",
             description: result.error || "Could not complete the sale.",
         });
-        setPaymentStatus({ status: 'idle' });
+        setPaymentStatus('idle');
     }
     setIsCheckoutOpen(false);
   }
@@ -672,12 +670,12 @@ function POSPageContent() {
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 w-full">
-                        <Button variant="outline" onClick={holdOrder} disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'}>
+                        <Button variant="outline" onClick={holdOrder} disabled={cart.length === 0 || !selectedStaffId || paymentStatus === 'processing'}>
                             <Hand /> Hold
                         </Button>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button variant="destructive" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'}>
+                                <Button variant="destructive" disabled={cart.length === 0 || !selectedStaffId || paymentStatus === 'processing'}>
                                     <Trash2/> Clear
                                 </Button>
                             </AlertDialogTrigger>
@@ -695,9 +693,9 @@ function POSPageContent() {
                             </AlertDialogContent>
                         </AlertDialog>
                     </div>
-                    <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'} onClick={() => setIsCheckoutOpen(true)}>
-                        {paymentStatus.status === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        {paymentStatus.status === 'processing' ? paymentStatus.message || 'Processing...' : 'Checkout'}
+                    <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId || paymentStatus === 'processing'} onClick={() => setIsCheckoutOpen(true)}>
+                        {paymentStatus === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        {paymentStatus === 'processing' ? 'Processing...' : 'Checkout'}
                     </Button>
                 </CardFooter>
             </Card>
@@ -737,26 +735,31 @@ function POSPageContent() {
 
         {/* Checkout Method Dialog */}
         <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+            <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Select Payment Method</DialogTitle>
                     <DialogDescription>
                         Total Amount: <span className="font-bold text-foreground">₦{total.toFixed(2)}</span>
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid grid-cols-1 gap-4 py-4">
-                    <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
+                <div className="flex flex-col gap-4 py-4">
+                    <Button type="button" variant="outline" className="h-20 text-lg w-full" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
                     </Button>
-                    <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('POS'); setIsConfirmOpen(true); } }>
+                    <Button type="button" variant="outline" className="h-20 text-lg w-full" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('POS'); setIsConfirmOpen(true); } }>
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <Button type="button" className="h-20 text-lg w-full font-bold" onClick={() => initializePayment({onSuccess: handlePaystackSuccess, onClose: handlePaystackClose})}>
-                         <ArrowRightLeft className="mr-2 h-6 w-6" />
-                         Pay with Transfer
-                     </Button>
+                    <PaystackButton
+                        {...paystackConfig}
+                        className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full font-bold")}
+                        onSuccess={onPaystackSuccess}
+                        onClose={onPaystackClose}
+                        text="Pay with Transfer"
+                    />
                 </div>
+            </DialogContent>
         </Dialog>
         
         {/* Cash/POS Confirmation Dialog */}
