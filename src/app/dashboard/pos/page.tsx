@@ -170,6 +170,8 @@ function POSPageContent() {
   const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
   
   const receiptRef = useRef<HTMLDivElement>(null);
+  const paymentPopupRef = useRef<Window | null>(null);
+  const paymentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
 
@@ -240,10 +242,19 @@ function POSPageContent() {
       } else {
           toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch completed order details for receipt.' });
       }
+      setPaymentStatus({ status: 'idle' });
   }, [clearCartAndStorage, toast]);
   
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      if (paymentTimeoutRef.current) {
+        clearTimeout(paymentTimeoutRef.current);
+        paymentTimeoutRef.current = null;
+      }
+      if (paymentPopupRef.current && !paymentPopupRef.current.closed) {
+        paymentPopupRef.current.close();
+      }
+      
       if (event.data?.type === 'paymentSuccess' && event.data.orderId) {
         handleSaleMade(event.data.orderId);
       }
@@ -294,9 +305,8 @@ function POSPageContent() {
             title: "Order Failed",
             description: result.error || "Could not complete the sale.",
         });
+        setPaymentStatus({ status: 'idle' });
     }
-
-    setPaymentStatus({ status: 'idle' });
   }
   
   const handlePaystackPayment = async () => {
@@ -325,12 +335,22 @@ function POSPageContent() {
     const result = await initializePaystackTransaction(saleData);
 
     if (result.success && result.authorization_url) {
-        // Open a popup window for payment
-        window.open(result.authorization_url, 'paystack-payment', 'width=800,height=600');
+        paymentPopupRef.current = window.open(result.authorization_url, 'paystack-payment', 'width=800,height=600');
+        
+        paymentTimeoutRef.current = setTimeout(() => {
+            if (paymentPopupRef.current && !paymentPopupRef.current.closed) {
+                paymentPopupRef.current.close();
+            }
+            toast({ variant: 'destructive', title: 'Payment Timed Out', description: 'The payment was not completed in time.' });
+            setPaymentStatus({ status: 'cancelled' });
+             // Re-enable checkout after a short delay
+            setTimeout(() => setPaymentStatus({status: 'idle'}), 1000);
+        }, 30000); // 30 seconds
+
     } else {
         toast({ variant: "destructive", title: "Initialization Failed", description: result.error });
+        setPaymentStatus({ status: 'idle' });
     }
-    setPaymentStatus({ status: 'idle' });
   }
 
   useEffect(() => {
@@ -816,3 +836,5 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
+
+    
