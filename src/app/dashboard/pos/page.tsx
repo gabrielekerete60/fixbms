@@ -49,7 +49,7 @@ import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { handlePosSale, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
-import { usePaystackPayment } from "react-paystack";
+import { PaystackButton } from "react-paystack";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -322,11 +322,7 @@ function POSPageContent() {
       email: customerEmail || user?.email || 'customer@example.com',
       amount: Math.round(total * 100) || 0, // Amount in kobo
       reference: new Date().getTime().toString(),
-      onSuccess: onPaystackSuccess,
-      onClose: onPaystackClose,
   };
-
-  const initializePayment = usePaystackPayment(paystackConfig);
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
@@ -751,17 +747,16 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <Button 
-                        type="button" 
-                        className="h-20 text-lg" 
-                        onClick={() => {
-                            setPaymentStatus({ status: 'processing', message: 'Waiting for payment...' });
-                            initializePayment();
-                        }}
-                    >
-                       <ArrowRightLeft className="mr-2 h-6 w-6" />
+                     <PaystackButton
+                        {...paystackConfig}
+                        text="Pay with Transfer"
+                        className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full font-bold")}
+                        onSuccess={onPaystackSuccess}
+                        onClose={onPaystackClose}
+                     >
+                        <ArrowRightLeft className="mr-2 h-6 w-6" />
                         Pay with Transfer
-                    </Button>
+                     </PaystackButton>
                 </div>
             </DialogContent>
         </Dialog>
