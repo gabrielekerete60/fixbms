@@ -34,6 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogClose
 } from "@/components/ui/dialog"
 import {
   Table,
@@ -254,6 +255,7 @@ function POSPageContent() {
   
    const onPaystackSuccess = useCallback(async (transaction: { reference: string }) => {
       setPaymentStatus('processing');
+      setIsCheckoutOpen(false); 
       const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
       if (verifyResult.success && verifyResult.orderId) {
           toast({ title: "Payment Successful", description: "Order has been verified and completed." });
@@ -268,6 +270,7 @@ function POSPageContent() {
       if(paymentStatus !== 'processing') {
           toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment window was closed." });
       }
+      setIsCheckoutOpen(false);
   }, [paymentStatus, toast]);
 
   const paystackConfig = useMemo(() => ({
@@ -761,9 +764,9 @@ function POSPageContent() {
                     {hasMounted && (
                         <PaystackButton
                             {...paystackConfig}
-                            className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full font-bold bg-blue-600 hover:bg-blue-700 text-white")}
                             onSuccess={(reference) => onPaystackSuccess(reference as { reference: string })}
                             onClose={onPaystackClose}
+                            className={cn(buttonVariants({ size: 'lg' }), "h-20 text-lg w-full font-bold bg-primary hover:bg-primary/90 text-primary-foreground")}
                         >
                             <ArrowRightLeft className="mr-2 h-6 w-6"/>
                             Pay with Transfer
@@ -816,5 +819,3 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
-
-    
