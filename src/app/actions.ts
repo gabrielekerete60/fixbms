@@ -2610,7 +2610,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
             return { success: false, error: 'Payment verification failed.' };
         }
         
-        const tempOrderId = verificationData.data.reference;
+        const tempOrderId = verificationData.data.metadata.orderId;
 
         return await runTransaction(db, async (transaction) => {
             // 2. Get the temporary order data

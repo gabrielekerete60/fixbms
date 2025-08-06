@@ -1,6 +1,5 @@
 import type {NextConfig} from 'next';
 
-// Force rebuild to resolve chunking issue
 const nextConfig: NextConfig = {
   /* config options here */
   typescript: {

@@ -48,7 +48,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { handlePosSale, initializePaystackTransaction } from "@/app/actions";
+import { handlePosSale, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
+import { usePaystackPayment } from "react-paystack";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -170,8 +171,6 @@ function POSPageContent() {
   const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
   
   const receiptRef = useRef<HTMLDivElement>(null);
-  const paymentPopupRef = useRef<Window | null>(null);
-  const paymentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
 
@@ -245,114 +244,7 @@ function POSPageContent() {
       setPaymentStatus({ status: 'idle' });
   }, [clearCartAndStorage, toast]);
   
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (paymentTimeoutRef.current) {
-        clearTimeout(paymentTimeoutRef.current);
-        paymentTimeoutRef.current = null;
-      }
-      if (paymentPopupRef.current && !paymentPopupRef.current.closed) {
-        paymentPopupRef.current.close();
-      }
-      
-      if (event.data?.type === 'paymentSuccess' && event.data.orderId) {
-        handleSaleMade(event.data.orderId);
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, [handleSaleMade]);
-
-  const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
-    setIsConfirmOpen(false);
-    setPaymentStatus({ status: 'processing' });
-
-    if (!user || !selectedStaffId) {
-        toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
-        setPaymentStatus({ status: 'idle' });
-        return;
-    }
-    
-    const itemsWithCost = cart.map(item => {
-        const productDetails = products.find(p => p.id === item.id);
-        return {
-            productId: item.id,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            costPrice: productDetails?.costPrice || 0
-        };
-    });
-
-    const saleData = {
-        items: itemsWithCost,
-        total,
-        paymentMethod: method,
-        customerName: customerName || 'Walk-in',
-        staffId: selectedStaffId,
-    };
-    
-    const result = await handlePosSale(saleData);
-
-    if (result.success && result.orderId) {
-        toast({ title: 'Sale Completed', description: 'Order has been successfully recorded.' });
-        handleSaleMade(result.orderId);
-    } else {
-         toast({
-            variant: "destructive",
-            title: "Order Failed",
-            description: result.error || "Could not complete the sale.",
-        });
-        setPaymentStatus({ status: 'idle' });
-    }
-  }
   
-  const handlePaystackPayment = async () => {
-    setIsCheckoutOpen(false);
-    setPaymentStatus({ status: 'processing' });
-     if (!user || !selectedStaffId) {
-        toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified." });
-        setPaymentStatus({ status: 'idle' });
-        return;
-    }
-    
-    const itemsWithCost = cart.map(item => {
-        const productDetails = products.find(p => p.id === item.id);
-        return {
-            productId: item.id, name: item.name, quantity: item.quantity,
-            price: item.price, costPrice: productDetails?.costPrice || 0
-        };
-    });
-
-    const saleData = {
-        items: itemsWithCost, total, paymentMethod: 'Paystack' as const,
-        customerName: customerName || 'Walk-in', staffId: selectedStaffId,
-        email: customerEmail || user.email,
-    };
-
-    const result = await initializePaystackTransaction(saleData);
-
-    if (result.success && result.authorization_url) {
-        paymentPopupRef.current = window.open(result.authorization_url, 'paystack-payment', 'width=800,height=600');
-        
-        paymentTimeoutRef.current = setTimeout(() => {
-            if (paymentPopupRef.current && !paymentPopupRef.current.closed) {
-                paymentPopupRef.current.close();
-            }
-            toast({ variant: 'destructive', title: 'Payment Timed Out', description: 'The payment was not completed in time.' });
-            setPaymentStatus({ status: 'cancelled' });
-             // Re-enable checkout after a short delay
-            setTimeout(() => setPaymentStatus({status: 'idle'}), 1000);
-        }, 30000); // 30 seconds
-
-    } else {
-        toast({ variant: "destructive", title: "Initialization Failed", description: result.error });
-        setPaymentStatus({ status: 'idle' });
-    }
-  }
-
   useEffect(() => {
     const initializePos = async () => {
       const storedUser = localStorage.getItem('loggedInUser');
@@ -406,6 +298,85 @@ function POSPageContent() {
     }
   }, [isReceiptOpen, lastCompletedOrder]);
 
+  const onPaystackSuccess = useCallback(async (transaction: { reference: string }) => {
+    setPaymentStatus({ status: 'processing', message: 'Verifying payment...' });
+    const result = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
+    if (result.success && result.orderId) {
+      toast({ title: 'Payment Successful', description: 'Your order has been processed.' });
+      handleSaleMade(result.orderId);
+    } else {
+      toast({ variant: 'destructive', title: 'Verification Failed', description: result.error });
+      setPaymentStatus({ status: 'failed', message: result.error });
+    }
+    setIsCheckoutOpen(false);
+  }, [handleSaleMade, toast]);
+  
+  const onPaystackClose = useCallback(() => {
+    if(paymentStatus.status === 'processing' && paymentStatus.message !== 'Verifying payment...'){
+        toast({ variant: 'destructive', title: 'Payment Cancelled' });
+        setPaymentStatus({ status: 'idle' });
+    }
+    setIsCheckoutOpen(false);
+  }, [toast, paymentStatus]);
+  
+  const paystackConfig = useMemo(() => {
+    return {
+      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+      email: customerEmail || user?.email || '',
+      amount: Math.round(total * 100), // Amount in kobo
+      reference: new Date().getTime().toString(), // Unique reference for each transaction
+      onSuccess: onPaystackSuccess,
+      onClose: onPaystackClose,
+    };
+  }, [total, customerEmail, user?.email, onPaystackSuccess, onPaystackClose]);
+  
+  const initializePayment = usePaystackPayment(paystackConfig);
+
+
+  const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
+    setIsConfirmOpen(false);
+    setPaymentStatus({ status: 'processing' });
+
+    if (!user || !selectedStaffId) {
+        toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
+        setPaymentStatus({ status: 'idle' });
+        return;
+    }
+    
+    const itemsWithCost = cart.map(item => {
+        const productDetails = products.find(p => p.id === item.id);
+        return {
+            productId: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            costPrice: productDetails?.costPrice || 0
+        };
+    });
+
+    const saleData = {
+        items: itemsWithCost,
+        total,
+        paymentMethod: method,
+        customerName: customerName || 'Walk-in',
+        staffId: selectedStaffId,
+    };
+    
+    const result = await handlePosSale(saleData);
+
+    if (result.success && result.orderId) {
+        toast({ title: 'Sale Completed', description: 'Order has been successfully recorded.' });
+        handleSaleMade(result.orderId);
+    } else {
+         toast({
+            variant: "destructive",
+            title: "Order Failed",
+            description: result.error || "Could not complete the sale.",
+        });
+        setPaymentStatus({ status: 'idle' });
+    }
+    setIsCheckoutOpen(false);
+  }
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
   
@@ -729,7 +700,7 @@ function POSPageContent() {
                     </div>
                     <Button size="lg" className="w-full font-bold text-lg" disabled={cart.length === 0 || !selectedStaffId || paymentStatus.status === 'processing'} onClick={() => setIsCheckoutOpen(true)}>
                         {paymentStatus.status === 'processing' && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Checkout
+                        {paymentStatus.status === 'processing' ? paymentStatus.message || 'Processing...' : 'Checkout'}
                     </Button>
                 </CardFooter>
             </Card>
@@ -785,7 +756,14 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <Button type="button" className="h-20 text-lg" onClick={handlePaystackPayment}>
+                    <Button 
+                        type="button" 
+                        className="h-20 text-lg" 
+                        onClick={() => {
+                            setPaymentStatus({ status: 'processing', message: 'Waiting for payment...' });
+                            initializePayment();
+                        }}
+                    >
                        <ArrowRightLeft className="mr-2 h-6 w-6" />
                         Pay with Transfer
                     </Button>
@@ -836,5 +814,3 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
-
-    
