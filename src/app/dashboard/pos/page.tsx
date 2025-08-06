@@ -331,10 +331,12 @@ function POSPageContent() {
         metadata: {
             customer_name: customerName || 'Walk-in',
             staff_id: selectedStaffId,
-            cart: JSON.stringify(cart),
+            cart: JSON.stringify(cart.map(item => ({id: item.id, name: item.name, quantity: item.quantity, price: item.price}))),
         },
+        onSuccess: onPaystackSuccess,
+        onClose: onPaystackClose,
     };
-  }, [total, customerEmail, customerName, selectedStaffId, cart]);
+  }, [total, customerEmail, customerName, selectedStaffId, cart, onPaystackSuccess, onPaystackClose]);
 
   const initializePayment = usePaystackPayment(paystackConfig);
 
@@ -345,7 +347,7 @@ function POSPageContent() {
     }
     setIsCheckoutOpen(false);
     setPaymentStatus({ status: 'processing', message: 'Opening...' });
-    initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose});
+    initializePayment();
   }
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
