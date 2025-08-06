@@ -326,7 +326,7 @@ function POSPageContent() {
     return {
         reference: new Date().getTime().toString(),
         email: customerEmail || 'customer@example.com',
-        amount: Math.round(total * 100),
+        amount: Math.round(total * 100) || 0,
         publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
         metadata: {
             customer_name: customerName || 'Walk-in',
@@ -339,9 +339,13 @@ function POSPageContent() {
   const initializePayment = usePaystackPayment(paystackConfig);
 
   const handlePaystackPayment = () => {
+    if (!paystackConfig.publicKey) {
+        toast({ variant: 'destructive', title: 'Configuration Error', description: 'Paystack public key is not set.' });
+        return;
+    }
     setIsCheckoutOpen(false);
     setPaymentStatus({ status: 'processing', message: 'Opening...' });
-    initializePayment(onPaystackSuccess, onPaystackClose);
+    initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose});
   }
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
