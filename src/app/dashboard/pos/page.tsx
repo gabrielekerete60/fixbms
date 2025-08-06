@@ -299,6 +299,7 @@ function POSPageContent() {
   }, [isReceiptOpen, lastCompletedOrder]);
 
   const onPaystackSuccess = useCallback(async (transaction: { reference: string }) => {
+    setIsCheckoutOpen(false);
     setPaymentStatus({ status: 'processing', message: 'Verifying payment...' });
     const result = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
     if (result.success && result.orderId) {
@@ -308,30 +309,24 @@ function POSPageContent() {
       toast({ variant: 'destructive', title: 'Verification Failed', description: result.error });
       setPaymentStatus({ status: 'failed', message: result.error });
     }
-    setIsCheckoutOpen(false);
   }, [handleSaleMade, toast]);
   
   const onPaystackClose = useCallback(() => {
-    if(paymentStatus.status === 'processing' && paymentStatus.message !== 'Verifying payment...'){
-        toast({ variant: 'destructive', title: 'Payment Cancelled' });
-        setPaymentStatus({ status: 'idle' });
-    }
+    toast({ variant: 'destructive', title: 'Payment Cancelled' });
+    setPaymentStatus({ status: 'idle' });
     setIsCheckoutOpen(false);
-  }, [toast, paymentStatus]);
+  }, [toast]);
   
-  const paystackConfig = useMemo(() => {
-    return {
+  const paystackConfig = {
       publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-      email: customerEmail || user?.email || '',
-      amount: Math.round(total * 100), // Amount in kobo
-      reference: new Date().getTime().toString(), // Unique reference for each transaction
+      email: customerEmail || user?.email || 'customer@example.com',
+      amount: Math.round(total * 100) || 0, // Amount in kobo
+      reference: new Date().getTime().toString(),
       onSuccess: onPaystackSuccess,
       onClose: onPaystackClose,
-    };
-  }, [total, customerEmail, user?.email, onPaystackSuccess, onPaystackClose]);
-  
-  const initializePayment = usePaystackPayment(paystackConfig);
+  };
 
+  const initializePayment = usePaystackPayment(paystackConfig);
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
