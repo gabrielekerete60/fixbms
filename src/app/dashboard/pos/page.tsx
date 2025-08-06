@@ -51,7 +51,7 @@ import { db } from "@/lib/firebase";
 import { handlePosSale, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePaystackPayment } from "react-paystack";
+import { PaystackButton } from "react-paystack";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -322,33 +322,17 @@ function POSPageContent() {
     });
   }, [toast]);
   
-  const paystackConfig = useMemo(() => {
-    return {
-        reference: new Date().getTime().toString(),
-        email: customerEmail || 'customer@example.com',
-        amount: Math.round(total * 100) || 0,
-        publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-        metadata: {
-            customer_name: customerName || 'Walk-in',
-            staff_id: selectedStaffId,
-            cart: JSON.stringify(cart.map(item => ({id: item.id, name: item.name, quantity: item.quantity, price: item.price}))),
-        },
-        onSuccess: onPaystackSuccess,
-        onClose: onPaystackClose,
-    };
-  }, [total, customerEmail, customerName, selectedStaffId, cart, onPaystackSuccess, onPaystackClose]);
-
-  const initializePayment = usePaystackPayment(paystackConfig);
-
-  const handlePaystackPayment = () => {
-    if (!paystackConfig.publicKey) {
-        toast({ variant: 'destructive', title: 'Configuration Error', description: 'Paystack public key is not set.' });
-        return;
-    }
-    setIsCheckoutOpen(false);
-    setPaymentStatus({ status: 'processing', message: 'Opening...' });
-    initializePayment();
-  }
+  const paystackConfig = {
+      reference: new Date().getTime().toString(),
+      email: customerEmail || 'customer@example.com',
+      amount: Math.round(total * 100) || 0,
+      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+      metadata: {
+          customer_name: customerName || 'Walk-in',
+          staff_id: selectedStaffId,
+          cart: JSON.stringify(cart.map(item => ({id: item.id, name: item.name, quantity: item.quantity, price: item.price}))),
+      },
+  };
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
@@ -774,10 +758,16 @@ function POSPageContent() {
                             <CreditCard className="mr-2 h-6 w-6" />
                             Pay with POS
                         </Button>
-                        <Button type="button" className="h-20 text-lg" onClick={handlePaystackPayment}>
-                            <ArrowRightLeft className="mr-2 h-6 w-6" />
-                            Pay with Transfer
-                        </Button>
+                        <PaystackButton
+                            {...paystackConfig}
+                            text="Pay with Transfer"
+                            className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full font-bold")}
+                            onSuccess={onPaystackSuccess}
+                            onClose={onPaystackClose}
+                         >
+                             <ArrowRightLeft className="mr-2 h-6 w-6" />
+                             Pay with Transfer
+                         </PaystackButton>
                     </div>
                  </form>
             </DialogContent>
