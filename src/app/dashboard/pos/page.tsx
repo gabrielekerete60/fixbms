@@ -51,6 +51,7 @@ import { db } from "@/lib/firebase";
 import { handlePosSale, initializePaystackTransaction, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { PaystackTransaction, PaymentStatus, User, CartItem, Product, CompletedOrder, SelectableStaff } from "./types";
+import { usePaystackPayment } from "react-paystack";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -243,7 +244,7 @@ function POSPageContent() {
       setPaymentStatus({ status: 'idle' });
   }, [clearCartAndStorage, toast]);
   
-  const handlePaystackSuccess = useCallback(async (transaction: PaystackTransaction) => {
+  const handlePaystackSuccess = useCallback(async (transaction: { reference: string }) => {
       setPaymentStatus({ status: 'processing', message: 'Verifying...' });
       const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
       if (verifyResult.success && verifyResult.orderId) {
@@ -260,6 +261,20 @@ function POSPageContent() {
           toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment window was closed." });
       }
   }, [paymentStatus.status, toast]);
+
+  const paystackConfig = useMemo(() => ({
+      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
+      email: customerEmail || 'customer@example.com',
+      amount: Math.round(total * 100),
+      reference: new Date().getTime().toString(),
+      metadata: {
+        customer_name: customerName || 'Walk-in',
+        staff_id: selectedStaffId,
+        cart: JSON.stringify(cart.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, price: item.price }))),
+      }
+  }), [total, customerEmail, customerName, selectedStaffId, cart]);
+  
+  const initializePayment = usePaystackPayment(paystackConfig);
 
 
   useEffect(() => {
@@ -314,39 +329,6 @@ function POSPageContent() {
     }
   }, [isReceiptOpen, lastCompletedOrder]);
   
-  const handlePaystackPayment = async () => {
-    if (!user || !selectedStaffId) return;
-
-    setIsCheckoutOpen(false);
-    setPaymentStatus({ status: 'processing', message: 'Initializing...' });
-
-    const saleData = {
-        items: cart,
-        total,
-        customerName: customerName || 'Walk-in',
-        email: customerEmail || 'customer@example.com',
-        staffId: selectedStaffId,
-    };
-
-    const initResult = await initializePaystackTransaction(saleData);
-
-    if (initResult.success && initResult.reference) {
-        const PaystackPop = (await import('@paystack/inline-js')).default;
-        const paystack = new PaystackPop();
-        
-        paystack.newTransaction({
-            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
-            email: saleData.email,
-            amount: Math.round(saleData.total * 100),
-            ref: initResult.reference,
-            onSuccess: (transaction) => handlePaystackSuccess(transaction as PaystackTransaction),
-            onClose: handlePaystackClose,
-        });
-    } else {
-        toast({ variant: "destructive", title: "Initialization Failed", description: initResult.error });
-        setPaymentStatus({ status: 'idle' });
-    }
-  };
   
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
@@ -755,30 +737,26 @@ function POSPageContent() {
 
         {/* Checkout Method Dialog */}
         <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-            <DialogContent>
-                <form onSubmit={(e) => e.preventDefault()}>
-                    <DialogHeader>
-                        <DialogTitle>Select Payment Method</DialogTitle>
-                        <DialogDescription>
-                            Total Amount: <span className="font-bold text-foreground">₦{total.toFixed(2)}</span>
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid grid-cols-1 gap-4 py-4">
-                        <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
-                            <Wallet className="mr-2 h-6 w-6" />
-                            Pay with Cash
-                        </Button>
-                        <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('POS'); setIsConfirmOpen(true); } }>
-                            <CreditCard className="mr-2 h-6 w-6" />
-                            Pay with POS
-                        </Button>
-                        <Button type="button" className="h-20 text-lg w-full font-bold" onClick={handlePaystackPayment}>
-                             <ArrowRightLeft className="mr-2 h-6 w-6" />
-                             Pay with Transfer
-                         </Button>
-                    </div>
-                 </form>
-            </DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Select Payment Method</DialogTitle>
+                    <DialogDescription>
+                        Total Amount: <span className="font-bold text-foreground">₦{total.toFixed(2)}</span>
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid grid-cols-1 gap-4 py-4">
+                    <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
+                        <Wallet className="mr-2 h-6 w-6" />
+                        Pay with Cash
+                    </Button>
+                    <Button type="button" variant="outline" className="h-20 text-lg" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('POS'); setIsConfirmOpen(true); } }>
+                        <CreditCard className="mr-2 h-6 w-6" />
+                        Pay with POS
+                    </Button>
+                    <Button type="button" className="h-20 text-lg w-full font-bold" onClick={() => initializePayment({onSuccess: handlePaystackSuccess, onClose: handlePaystackClose})}>
+                         <ArrowRightLeft className="mr-2 h-6 w-6" />
+                         Pay with Transfer
+                     </Button>
+                </div>
         </Dialog>
         
         {/* Cash/POS Confirmation Dialog */}
@@ -824,5 +802,3 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
-
-    
