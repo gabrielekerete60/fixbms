@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
 import Image from "next/image";
 import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet, ArrowRightLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -755,7 +755,6 @@ function POSPageContent() {
                         onClose={onPaystackClose}
                      >
                         <ArrowRightLeft className="mr-2 h-6 w-6" />
-                        Pay with Transfer
                      </PaystackButton>
                 </div>
             </DialogContent>
