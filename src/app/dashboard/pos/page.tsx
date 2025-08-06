@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
@@ -47,8 +48,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { handlePosSale, verifyPaystackOnServerAndFinalizeOrder, initializePaystackTransaction } from "@/app/actions";
-import { PaystackButton } from "react-paystack";
+import { handlePosSale, initializePaystackTransaction } from "@/app/actions";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -170,6 +170,8 @@ function POSPageContent() {
   const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
   
   const receiptRef = useRef<HTMLDivElement>(null);
+  const paymentWindowRef = useRef<Window | null>(null);
+  const paymentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
 
@@ -243,6 +245,18 @@ function POSPageContent() {
       setPaymentStatus({ status: 'idle' });
   }, [clearCartAndStorage, toast]);
   
+  const handlePaymentMessage = useCallback((event: MessageEvent) => {
+    if (event.origin !== window.location.origin) {
+        return;
+    }
+
+    if (event.data.type === 'paymentSuccess' && event.data.orderId) {
+        if (paymentTimeoutRef.current) {
+            clearTimeout(paymentTimeoutRef.current);
+        }
+        handleSaleMade(event.data.orderId);
+    }
+  }, [handleSaleMade]);
   
   useEffect(() => {
     const initializePos = async () => {
@@ -269,6 +283,11 @@ function POSPageContent() {
       }
     };
     initializePos();
+    
+    window.addEventListener('message', handlePaymentMessage);
+    return () => {
+        window.removeEventListener('message', handlePaymentMessage);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -297,30 +316,47 @@ function POSPageContent() {
     }
   }, [isReceiptOpen, lastCompletedOrder]);
 
-  const onPaystackSuccess = useCallback(async (transaction: { reference: string }) => {
+  const handlePaystackPayment = async () => {
+    if (!user || !selectedStaffId) return;
+
     setIsCheckoutOpen(false);
-    setPaymentStatus({ status: 'processing', message: 'Verifying payment...' });
-    const result = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
-    if (result.success && result.orderId) {
-      toast({ title: 'Payment Successful', description: 'Your order has been processed.' });
-      handleSaleMade(result.orderId);
+    setPaymentStatus({ status: 'processing', message: 'Initializing...' });
+    
+    const itemsWithCost = cart.map(item => {
+        const productDetails = products.find(p => p.id === item.id);
+        return {
+            productId: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            costPrice: productDetails?.costPrice || 0
+        };
+    });
+
+    const result = await initializePaystackTransaction({
+        email: customerEmail || user.email || 'customer@example.com',
+        total: total,
+        items: itemsWithCost,
+        staffId: selectedStaffId,
+        customerName: customerName || 'Walk-in',
+    });
+
+    if (result.success && result.authorization_url) {
+        setPaymentStatus({ status: 'processing', message: 'Waiting for payment...' });
+        paymentWindowRef.current = window.open(result.authorization_url, 'Paystack', 'width=800,height=600');
+
+        paymentTimeoutRef.current = setTimeout(() => {
+            if (paymentWindowRef.current && !paymentWindowRef.current.closed) {
+                paymentWindowRef.current.close();
+            }
+            toast({ variant: 'destructive', title: 'Payment Timed Out', description: 'The transaction was cancelled.' });
+            setPaymentStatus({ status: 'cancelled' });
+        }, 30000); // 30 seconds
+
     } else {
-      toast({ variant: 'destructive', title: 'Verification Failed', description: result.error });
-      setPaymentStatus({ status: 'failed', message: result.error });
+        toast({ variant: 'destructive', title: 'Initialization Failed', description: result.error });
+        setPaymentStatus({ status: 'failed', message: result.error });
     }
-  }, [handleSaleMade, toast]);
-  
-  const onPaystackClose = useCallback(() => {
-    toast({ variant: 'destructive', title: 'Payment Cancelled' });
-    setPaymentStatus({ status: 'idle' });
-    setIsCheckoutOpen(false);
-  }, [toast]);
-  
-  const paystackConfig = {
-      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-      email: customerEmail || user?.email || 'customer@example.com',
-      amount: Math.round(total * 100) || 0, // Amount in kobo
-      reference: new Date().getTime().toString(),
   };
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
@@ -746,15 +782,10 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                     <PaystackButton
-                        {...paystackConfig}
-                        text="Pay with Transfer"
-                        className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full font-bold")}
-                        onSuccess={onPaystackSuccess}
-                        onClose={onPaystackClose}
-                    >
+                    <Button type="button" className="h-20 text-lg" onClick={handlePaystackPayment}>
                         <ArrowRightLeft className="mr-2 h-6 w-6" />
-                    </PaystackButton>
+                        Pay with Transfer
+                    </Button>
                  </form>
             </DialogContent>
         </Dialog>
@@ -802,3 +833,5 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
+
+    
