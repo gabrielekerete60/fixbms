@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
 import Image from "next/image";
 import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet, ArrowRightLeft } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -170,8 +170,6 @@ function POSPageContent() {
   const [isStaffSelectionOpen, setIsStaffSelectionOpen] = useState(false);
   
   const receiptRef = useRef<HTMLDivElement>(null);
-  const paymentWindowRef = useRef<Window | null>(null);
-  const paymentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
 
@@ -251,12 +249,12 @@ function POSPageContent() {
     }
 
     if (event.data.type === 'paymentSuccess' && event.data.orderId) {
-        if (paymentTimeoutRef.current) {
-            clearTimeout(paymentTimeoutRef.current);
-        }
         handleSaleMade(event.data.orderId);
+    } else if (event.data.type === 'paymentError') {
+        toast({ variant: 'destructive', title: 'Payment Failed', description: event.data.error || 'An unknown error occurred in the payment window.' });
+        setPaymentStatus({ status: 'failed', message: event.data.error });
     }
-  }, [handleSaleMade]);
+  }, [handleSaleMade, toast]);
   
   useEffect(() => {
     const initializePos = async () => {
@@ -343,16 +341,7 @@ function POSPageContent() {
 
     if (result.success && result.authorization_url) {
         setPaymentStatus({ status: 'processing', message: 'Waiting for payment...' });
-        paymentWindowRef.current = window.open(result.authorization_url, 'Paystack', 'width=800,height=600');
-
-        paymentTimeoutRef.current = setTimeout(() => {
-            if (paymentWindowRef.current && !paymentWindowRef.current.closed) {
-                paymentWindowRef.current.close();
-            }
-            toast({ variant: 'destructive', title: 'Payment Timed Out', description: 'The transaction was cancelled.' });
-            setPaymentStatus({ status: 'cancelled' });
-        }, 30000); // 30 seconds
-
+        window.open(result.authorization_url, 'Paystack', 'width=800,height=600');
     } else {
         toast({ variant: 'destructive', title: 'Initialization Failed', description: result.error });
         setPaymentStatus({ status: 'failed', message: result.error });
@@ -833,5 +822,3 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
-
-    

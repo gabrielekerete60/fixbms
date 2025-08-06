@@ -27,6 +27,11 @@ function CallbackContent() {
                 // Close the popup window
                 window.close();
             });
+        } else {
+            if (window.opener) {
+                window.opener.postMessage({ type: 'paymentError', error: 'No transaction reference found.' }, window.location.origin);
+            }
+            window.close();
         }
     }, [searchParams]);
 
@@ -42,10 +47,8 @@ function CallbackContent() {
 
 export default function PaymentCallbackPage() {
     return (
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<div className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-background text-foreground"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p>Loading...</p></div>}>
             <CallbackContent />
         </Suspense>
     );
 }
-
-    
