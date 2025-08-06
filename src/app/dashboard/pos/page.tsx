@@ -172,6 +172,11 @@ function POSPageContent() {
   
   const receiptRef = useRef<HTMLDivElement>(null);
 
+  const [hasMounted, setHasMounted] = useState(false);
+    useEffect(() => {
+        setHasMounted(true);
+    }, []);
+
   const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
 
   const fetchProductsForStaff = async (staffId: string) => {
@@ -753,13 +758,17 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <PaystackButton
-                        {...paystackConfig}
-                        className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full font-bold")}
-                        onSuccess={(reference) => onPaystackSuccess(reference)}
-                        onClose={onPaystackClose}
-                        text="Pay with Transfer"
-                    />
+                    {hasMounted && (
+                        <PaystackButton
+                            {...paystackConfig}
+                            className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full font-bold bg-blue-600 hover:bg-blue-700 text-white")}
+                            onSuccess={(reference) => onPaystackSuccess(reference as { reference: string })}
+                            onClose={onPaystackClose}
+                        >
+                            <ArrowRightLeft className="mr-2 h-6 w-6"/>
+                            Pay with Transfer
+                        </PaystackButton>
+                    )}
                 </form>
             </DialogContent>
         </Dialog>
@@ -807,3 +816,5 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
+
+    
