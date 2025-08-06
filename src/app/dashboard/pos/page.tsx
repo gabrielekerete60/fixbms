@@ -278,7 +278,7 @@ function POSPageContent() {
       }
     };
     initializePos();
-  }, []);
+  }, [selectedStaffId]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
@@ -355,6 +355,7 @@ function POSPageContent() {
     if (!user || !selectedStaffId) return;
 
     setPaymentStatus('processing');
+    setIsCheckoutOpen(false);
 
     const initResult = await initializePaystackTransaction({
         email: customerEmail || user.email,
@@ -394,7 +395,6 @@ function POSPageContent() {
         toast({ variant: 'destructive', title: 'Error', description: initResult.error || 'Could not initialize payment.' });
         setPaymentStatus('failed');
     }
-    setIsCheckoutOpen(false);
   }
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
