@@ -48,10 +48,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { handlePosSale, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
+import { handlePosSale, initializePaystackTransaction } from "@/app/actions";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PaystackButton } from "react-paystack";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -243,6 +242,18 @@ function POSPageContent() {
       }
   }, [clearCartAndStorage, toast]);
   
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'paymentSuccess' && event.data.orderId) {
+        handleSaleMade(event.data.orderId);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [handleSaleMade]);
+
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
     setPaymentStatus({ status: 'processing' });
@@ -288,11 +299,10 @@ function POSPageContent() {
     setPaymentStatus({ status: 'idle' });
   }
   
-  const onPaystackSuccess = useCallback(async (reference: { reference: string }) => {
+  const handlePaystackPayment = async () => {
     setIsCheckoutOpen(false);
     setPaymentStatus({ status: 'processing' });
-
-    if (!user || !selectedStaffId) {
+     if (!user || !selectedStaffId) {
         toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified." });
         setPaymentStatus({ status: 'idle' });
         return;
@@ -301,37 +311,27 @@ function POSPageContent() {
     const itemsWithCost = cart.map(item => {
         const productDetails = products.find(p => p.id === item.id);
         return {
-            productId: item.id,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            costPrice: productDetails?.costPrice || 0
+            productId: item.id, name: item.name, quantity: item.quantity,
+            price: item.price, costPrice: productDetails?.costPrice || 0
         };
     });
 
     const saleData = {
-        items: itemsWithCost,
-        total,
-        paymentMethod: 'Paystack' as const,
-        customerName: customerName || 'Walk-in',
-        staffId: selectedStaffId,
+        items: itemsWithCost, total, paymentMethod: 'Paystack' as const,
+        customerName: customerName || 'Walk-in', staffId: selectedStaffId,
+        email: customerEmail || user.email,
     };
 
-    const result = await verifyPaystackOnServerAndFinalizeOrder(reference.reference, saleData);
-    
-    if (result.success && result.orderId) {
-        toast({ title: "Payment Verified", description: "Your order has been placed." });
-        handleSaleMade(result.orderId);
+    const result = await initializePaystackTransaction(saleData);
+
+    if (result.success && result.authorization_url) {
+        // Open a popup window for payment
+        window.open(result.authorization_url, 'paystack-payment', 'width=800,height=600');
     } else {
-        toast({ variant: "destructive", title: "Verification Failed", description: result.error });
+        toast({ variant: "destructive", title: "Initialization Failed", description: result.error });
     }
     setPaymentStatus({ status: 'idle' });
-  }, [cart, customerName, handleSaleMade, products, selectedStaffId, toast, total, user]);
-
-  const onPaystackClose = useCallback(() => {
-    toast({ variant: "default", title: "Payment window closed." });
-  }, [toast]);
-  
+  }
 
   useEffect(() => {
     const initializePos = async () => {
@@ -479,13 +479,6 @@ function POSPageContent() {
   }
 
   const selectedStaffName = allStaff.find(s => s.staff_id === selectedStaffId)?.name || user?.name;
-
-  const paystackConfig = {
-    reference: new Date().getTime().toString(),
-    email: customerEmail || user?.email || '',
-    amount: Math.round(total * 100),
-    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-  };
 
 
   return (
@@ -772,19 +765,10 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <PaystackButton
-                        {...paystackConfig}
-                        onSuccess={onPaystackSuccess}
-                        onClose={onPaystackClose}
-                        className={cn(
-                            "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-                            "bg-primary text-primary-foreground hover:bg-primary/90",
-                            "h-20 text-lg"
-                        )}
-                    >
-                        <ArrowRightLeft className="mr-2 h-6 w-6" />
+                    <Button type="button" className="h-20 text-lg" onClick={handlePaystackPayment}>
+                       <ArrowRightLeft className="mr-2 h-6 w-6" />
                         Pay with Transfer
-                    </PaystackButton>
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>

@@ -2595,23 +2595,37 @@ export async function getStaffByRole(role: string): Promise<any[]> {
     });
 }
 
-export async function verifyPaystackOnServerAndFinalizeOrder(reference: string, orderData: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
+export async function verifyPaystackOnServerAndFinalizeOrder(reference: string): Promise<{ success: boolean; error?: string, orderId?: string }> {
     const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
     if (!secretKey) return { success: false, error: "Paystack secret key is not configured." };
 
     try {
-        const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+        // 1. Verify transaction with Paystack
+        const verifyResponse = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
             headers: { Authorization: `Bearer ${secretKey}` },
         });
 
-        const verificationData = await response.json();
+        const verificationData = await verifyResponse.json();
         if (!verificationData.status || verificationData.data.status !== 'success') {
             return { success: false, error: 'Payment verification failed.' };
         }
+        
+        const tempOrderId = verificationData.data.reference;
 
-        const newOrderId = await runTransaction(db, async (transaction) => {
+        return await runTransaction(db, async (transaction) => {
+            // 2. Get the temporary order data
+            const tempOrderRef = doc(db, 'temp_orders', tempOrderId);
+            const tempOrderDoc = await transaction.get(tempOrderRef);
+            if (!tempOrderDoc.exists()) {
+                throw new Error("Temporary order not found, something went wrong.");
+            }
+            const orderData = tempOrderDoc.data() as PosSaleData;
+
+            // 3. Create the final order
             const newOrderRef = doc(collection(db, 'orders'));
-            
+            transaction.set(newOrderRef, { ...orderData, id: newOrderRef.id, paymentMethod: 'Paystack' });
+
+            // 4. Update daily sales summary
             const today = new Date();
             const salesDocId = format(today, 'yyyy-MM-dd');
             const salesDocRef = doc(db, 'sales', salesDocId);
@@ -2631,17 +2645,19 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string, 
                     total: orderData.total
                 });
             }
-            transaction.set(newOrderRef, { ...orderData, id: newOrderRef.id, paymentMethod: 'Paystack' });
-
+            
+            // 5. Decrement stock
             for (const item of orderData.items) {
               const stockRef = doc(db, 'staff', orderData.staffId, 'personal_stock', item.productId);
               transaction.update(stockRef, { stock: increment(-item.quantity) });
             }
 
-            return newOrderRef.id;
+            // 6. Delete the temporary order
+            transaction.delete(tempOrderRef);
+            
+            return { success: true, orderId: newOrderRef.id };
         });
 
-        return { success: true, orderId: newOrderId };
     } catch (error) {
         console.error("Error finalizing order:", error);
         return { success: false, error: "Failed to finalize the order after payment verification." };
