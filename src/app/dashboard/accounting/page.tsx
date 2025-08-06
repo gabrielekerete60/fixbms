@@ -525,13 +525,15 @@ function DebtorsCreditorsTab() {
                     <CardContent>
                         <div className="overflow-x-auto">
                         <Table>
-                            <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader>
+                            <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Amount Owed</TableHead><TableHead className="text-right">Amount Paid</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader>
                             <TableBody>
-                                {paginatedDebtors.length === 0 && <TableRow><TableCell colSpan={3} className="h-24 text-center">No outstanding debtors.</TableCell></TableRow>}
+                                {paginatedDebtors.length === 0 && <TableRow><TableCell colSpan={5} className="h-24 text-center">No outstanding debtors.</TableCell></TableRow>}
                                 {paginatedDebtors.map(d => (
                                     <TableRow key={d.id}>
                                         <TableCell>{d.name}</TableCell>
                                         <TableCell>{d.phone}</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(d.amountOwed)}</TableCell>
+                                        <TableCell className="text-right text-green-500">{formatCurrency(d.amountPaid)}</TableCell>
                                         <TableCell className="text-right font-medium">{formatCurrency(d.balance)}</TableCell>
                                     </TableRow>
                                 ))}
@@ -564,7 +566,7 @@ function DebtorsCreditorsTab() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Date</TableHead>
+                                    <TableHead>Date &amp; Time</TableHead>
                                     <TableHead>Description</TableHead>
                                     <TableHead className="text-right">Debit</TableHead>
                                     <TableHead className="text-right">Credit</TableHead>
@@ -574,7 +576,7 @@ function DebtorsCreditorsTab() {
                                 {paginatedLedger.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">No ledger entries for this period.</TableCell></TableRow>}
                                 {paginatedLedger.map(item => (
                                     <TableRow key={item.id}>
-                                        <TableCell>{format(new Date(item.date), 'PPP')}</TableCell>
+                                        <TableCell>{format(new Date(item.date), 'Pp')}</TableCell>
                                         <TableCell>{item.description}</TableCell>
                                         <TableCell className="text-right">{item.debit ? formatCurrency(item.debit) : '-'}</TableCell>
                                         <TableCell className="text-right">{item.credit ? formatCurrency(item.credit) : '-'}</TableCell>
@@ -1586,7 +1588,7 @@ function BusinessHealthTab() {
                                     <div className="flex justify-between w-full pr-4"><span>COGS (Cost of Goods Sold)</span><span className="font-semibold">{formatCurrency(cogs)}</span></div>
                                 </AccordionTrigger>
                                 <AccordionContent>
-                                     <Table>
+                                    <Table>
                                         <TableBody>
                                             <TableRow><TableCell>Confectionaries</TableCell><TableCell className="text-right">{formatCurrency(statement.purchases)}</TableCell></TableRow>
                                             <TableRow><TableCell>Less: Closing Stocks</TableCell><TableCell className="text-right">({formatCurrency(statement.closingStock)})</TableCell></TableRow>
@@ -1777,3 +1779,5 @@ export default function AccountingPage() {
     </div>
   );
 }
+
+    
