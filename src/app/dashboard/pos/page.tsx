@@ -48,10 +48,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { handlePosSale, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
+import { handlePosSale, initializePaystackTransaction, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PaystackButton } from "react-paystack";
+import type PaystackPop from '@paystack/inline-js';
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -297,43 +297,55 @@ function POSPageContent() {
     }
   }, [isReceiptOpen, lastCompletedOrder]);
   
-  const onPaystackSuccess = useCallback(async (reference: { reference: string }) => {
+  const handlePaystackPayment = async () => {
+    if (!user || !selectedStaffId) return;
+
     setIsCheckoutOpen(false);
-    setPaymentStatus({ status: 'processing', message: 'Verifying...' });
-    
-    const result = await verifyPaystackOnServerAndFinalizeOrder(reference.reference);
-    
-    if (result.success && result.orderId) {
-        toast({ title: "Payment Successful", description: "Order has been verified and completed." });
-        handleSaleMade(result.orderId);
+    setPaymentStatus({ status: 'processing', message: 'Initializing...' });
+
+    const saleData = {
+        items: cart,
+        total,
+        customerName: customerName || 'Walk-in',
+        email: customerEmail || 'customer@example.com',
+        staffId: selectedStaffId,
+    };
+
+    const initResult = await initializePaystackTransaction(saleData);
+
+    if (initResult.success && initResult.reference) {
+        const PaystackPop = (await import('@paystack/inline-js')).default;
+        const paystack = new PaystackPop();
+        
+        paystack.newTransaction({
+            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
+            email: saleData.email,
+            amount: Math.round(saleData.total * 100),
+            ref: initResult.reference,
+            onSuccess: async (transaction) => {
+                setPaymentStatus({ status: 'processing', message: 'Verifying...' });
+                const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
+                if (verifyResult.success && verifyResult.orderId) {
+                    toast({ title: "Payment Successful", description: "Order has been verified and completed." });
+                    handleSaleMade(verifyResult.orderId);
+                } else {
+                    toast({ variant: "destructive", title: "Verification Failed", description: verifyResult.error || "Could not verify payment. Please contact support." });
+                    setPaymentStatus({ status: 'failed', message: 'Verification Failed' });
+                }
+            },
+            onClose: () => {
+                if(paymentStatus.status !== 'processing') {
+                    toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment window was closed." });
+                    setPaymentStatus({ status: 'idle' });
+                }
+            },
+        });
     } else {
-        toast({ variant: "destructive", title: "Verification Failed", description: result.error || "Could not verify payment. Please contact support." });
-        setPaymentStatus({ status: 'failed', message: 'Verification Failed' });
+        toast({ variant: "destructive", title: "Initialization Failed", description: initResult.error });
+        setPaymentStatus({ status: 'idle' });
     }
-  }, [toast, handleSaleMade]);
-
-  const onPaystackClose = useCallback(() => {
-    setPaymentStatus({ status: 'idle' });
-    setIsCheckoutOpen(false);
-    toast({
-        variant: "destructive",
-        title: "Payment Cancelled",
-        description: "The payment window was closed.",
-    });
-  }, [toast]);
-  
-  const paystackConfig = {
-      reference: new Date().getTime().toString(),
-      email: customerEmail || 'customer@example.com',
-      amount: Math.round(total * 100) || 0,
-      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-      metadata: {
-          customer_name: customerName || 'Walk-in',
-          staff_id: selectedStaffId,
-          cart: JSON.stringify(cart.map(item => ({id: item.id, name: item.name, quantity: item.quantity, price: item.price}))),
-      },
   };
-
+  
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
     setPaymentStatus({ status: 'processing' });
@@ -758,16 +770,10 @@ function POSPageContent() {
                             <CreditCard className="mr-2 h-6 w-6" />
                             Pay with POS
                         </Button>
-                        <PaystackButton
-                            {...paystackConfig}
-                            text="Pay with Transfer"
-                            className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full font-bold")}
-                            onSuccess={onPaystackSuccess}
-                            onClose={onPaystackClose}
-                         >
+                        <Button type="button" className="h-20 text-lg w-full font-bold" onClick={handlePaystackPayment}>
                              <ArrowRightLeft className="mr-2 h-6 w-6" />
                              Pay with Transfer
-                         </PaystackButton>
+                         </Button>
                     </div>
                  </form>
             </DialogContent>
@@ -816,3 +822,5 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
+
+    

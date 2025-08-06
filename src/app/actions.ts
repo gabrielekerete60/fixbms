@@ -2541,12 +2541,51 @@ export async function getStaffByRole(role: string): Promise<any[]> {
     });
 }
 
+export async function initializePaystackTransaction(data: any): Promise<{ success: boolean; error?: string, reference?: string }> {
+    const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
+    if (!secretKey) return { success: false, error: "Paystack secret key is not configured." };
+    
+    try {
+        const response = await fetch('https://api.paystack.co/transaction/initialize', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${secretKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: data.email,
+                amount: Math.round(data.total * 100), // amount in kobo
+                metadata: {
+                    customer_name: data.customerName,
+                    staff_id: data.staffId,
+                    cart: JSON.stringify(data.items.map((item: any) => ({
+                        id: item.productId,
+                        name: item.name,
+                        quantity: item.quantity,
+                        price: item.price,
+                        costPrice: item.costPrice || 0
+                    }))),
+                }
+            }),
+        });
+
+        const responseData = await response.json();
+
+        if (responseData.status) {
+            return { success: true, reference: responseData.data.reference };
+        } else {
+            return { success: false, error: responseData.message };
+        }
+    } catch (error) {
+        return { success: false, error: 'An unknown error occurred while initializing payment.' };
+    }
+}
+
 export async function verifyPaystackOnServerAndFinalizeOrder(reference: string): Promise<{ success: boolean; error?: string, orderId?: string }> {
     const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
     if (!secretKey) return { success: false, error: "Paystack secret key is not configured." };
 
     try {
-        // 1. Verify transaction with Paystack
         const verifyResponse = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
             headers: { Authorization: `Bearer ${secretKey}` },
         });
@@ -2559,17 +2598,18 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         
         const metadata = verificationData.data.metadata;
         const cartItems = JSON.parse(metadata.cart);
-        const staffId = metadata.staff_id;
 
         const posSaleData: PosSaleData = {
             items: cartItems.map((item: any) => ({
-                ...item,
-                // You may need to fetch costPrice here if not in metadata
-                costPrice: item.costPrice || 0
+                productId: item.id,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                costPrice: item.costPrice || 0,
             })),
             customerName: metadata.customer_name,
             paymentMethod: 'Paystack',
-            staffId: staffId,
+            staffId: metadata.staff_id,
             total: verificationData.data.amount / 100,
         };
 
