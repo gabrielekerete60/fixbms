@@ -2545,6 +2545,22 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
     if (!secretKey) return { success: false, error: "Paystack secret key is not configured." };
     
     try {
+        // Fetch cost price for each item in the cart
+        const productIds = data.items.map((item: any) => item.id);
+        const productDocs = await Promise.all(productIds.map((id: string) => getDoc(doc(db, 'products', id))));
+        
+        const itemsWithCost = data.items.map((item: any, index: number) => {
+            const productDoc = productDocs[index];
+            const costPrice = productDoc.exists() ? productDoc.data()?.costPrice : 0;
+            return {
+                productId: item.id,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                costPrice: costPrice || 0,
+            };
+        });
+
         const response = await fetch('https://api.paystack.co/transaction/initialize', {
             method: 'POST',
             headers: {
@@ -2557,7 +2573,7 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
                 metadata: {
                     customer_name: data.customerName,
                     staff_id: data.staffId,
-                    cart: data.items, // Pass the cart object directly
+                    cart: itemsWithCost, // Pass the enriched cart data
                 }
             }),
         });
@@ -2570,6 +2586,7 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
             return { success: false, error: responseData.message };
         }
     } catch (error) {
+        console.error('Paystack initialization error:', error);
         return { success: false, error: 'An unknown error occurred while initializing payment.' };
     }
 }
@@ -2586,29 +2603,31 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         const verificationData = await verifyResponse.json();
         
         if (!verificationData || !verificationData.status || verificationData.data.status !== 'success') {
-            return { success: false, error: 'Payment verification failed.' };
+            return { success: false, error: verificationData.message || 'Payment verification failed.' };
         }
         
         const metadata = verificationData.data.metadata;
-        if (!metadata || !metadata.cart) {
+        if (!metadata || !metadata.cart || !Array.isArray(metadata.cart)) {
             return { success: false, error: 'Transaction metadata is missing or corrupt.'}
         }
 
-        const cartItems = metadata.cart; // Already an object
-
         const posSaleData: PosSaleData = {
-            items: cartItems.map((item: any) => ({
-                productId: item.productId,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                costPrice: item.costPrice || 0,
-            })),
+            items: metadata.cart, // cart now contains costPrice
             customerName: metadata.customer_name,
             paymentMethod: 'Paystack',
             staffId: metadata.staff_id,
             total: verificationData.data.amount / 100,
         };
+        
+        // Final validation to ensure all items have costPrice
+        for (const item of posSaleData.items) {
+            if (typeof item.costPrice !== 'number') {
+                console.error('Missing costPrice for item in verified metadata:', item);
+                // Try to fetch it again as a fallback
+                const productDoc = await getDoc(doc(db, 'products', item.productId));
+                item.costPrice = productDoc.exists() ? productDoc.data()?.costPrice || 0 : 0;
+            }
+        }
 
         const finalizationResult = await handlePosSale(posSaleData);
 
@@ -2623,4 +2642,3 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         return { success: false, error: "Failed to finalize the order after payment verification." };
     }
 }
-
