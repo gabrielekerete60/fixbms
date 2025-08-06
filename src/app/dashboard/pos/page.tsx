@@ -287,7 +287,7 @@ function POSPageContent() {
 
     setPaymentStatus({ status: 'idle' });
   }
-
+  
   const onPaystackSuccess = useCallback(async (reference: { reference: string }) => {
     setIsCheckoutOpen(false);
     setPaymentStatus({ status: 'processing' });
@@ -326,7 +326,7 @@ function POSPageContent() {
         toast({ variant: "destructive", title: "Verification Failed", description: result.error });
     }
     setPaymentStatus({ status: 'idle' });
-}, [cart, customerName, handleSaleMade, products, selectedStaffId, toast, total, user]);
+  }, [cart, customerName, handleSaleMade, products, selectedStaffId, toast, total, user]);
 
   const onPaystackClose = useCallback(() => {
     toast({ variant: "default", title: "Payment window closed." });
@@ -337,7 +337,9 @@ function POSPageContent() {
         email: customerEmail || user?.email || '',
         amount: Math.round(total * 100),
         publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-  }), [total, customerEmail, user]);
+        onSuccess: onPaystackSuccess,
+        onClose: onPaystackClose,
+  }), [total, customerEmail, user, onPaystackSuccess, onPaystackClose]);
 
   const initializePayment = usePaystackPayment(paystackConfig);
 
@@ -774,7 +776,7 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    <Button className="h-20 text-lg" onClick={() => initializePayment({onSuccess: onPaystackSuccess, onClose: onPaystackClose})}>
+                    <Button className="h-20 text-lg" onClick={() => initializePayment()}>
                         <ArrowRightLeft className="mr-2 h-6 w-6" />
                         Pay with Transfer
                     </Button>
@@ -825,3 +827,5 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
+
+    
