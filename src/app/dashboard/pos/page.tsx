@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
 import Image from "next/image";
 import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet, ArrowRightLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -48,9 +48,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { handlePosSale, initializePaystackTransaction } from "@/app/actions";
+import { handlePosSale, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
 import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { usePaystackPayment } from "react-paystack";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -243,19 +244,7 @@ function POSPageContent() {
       setPaymentStatus({ status: 'idle' });
   }, [clearCartAndStorage, toast]);
   
-  const handlePaymentMessage = useCallback((event: MessageEvent) => {
-    if (event.origin !== window.location.origin) {
-        return;
-    }
 
-    if (event.data.type === 'paymentSuccess' && event.data.orderId) {
-        handleSaleMade(event.data.orderId);
-    } else if (event.data.type === 'paymentError') {
-        toast({ variant: 'destructive', title: 'Payment Failed', description: event.data.error || 'An unknown error occurred in the payment window.' });
-        setPaymentStatus({ status: 'failed', message: event.data.error });
-    }
-  }, [handleSaleMade, toast]);
-  
   useEffect(() => {
     const initializePos = async () => {
       const storedUser = localStorage.getItem('loggedInUser');
@@ -281,11 +270,6 @@ function POSPageContent() {
       }
     };
     initializePos();
-    
-    window.addEventListener('message', handlePaymentMessage);
-    return () => {
-        window.removeEventListener('message', handlePaymentMessage);
-    }
   }, []);
 
   useEffect(() => {
@@ -312,40 +296,53 @@ function POSPageContent() {
       }, 100);
     }
   }, [isReceiptOpen, lastCompletedOrder]);
-
-  const handlePaystackPayment = async () => {
-    if (!user || !selectedStaffId) return;
-
+  
+  const onPaystackSuccess = useCallback(async (reference: { reference: string }) => {
     setIsCheckoutOpen(false);
-    setPaymentStatus({ status: 'processing', message: 'Initializing...' });
+    setPaymentStatus({ status: 'processing', message: 'Verifying...' });
     
-    const itemsWithCost = cart.map(item => {
-        const productDetails = products.find(p => p.id === item.id);
-        return {
-            productId: item.id,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            costPrice: productDetails?.costPrice || 0
-        };
-    });
-
-    const result = await initializePaystackTransaction({
-        email: customerEmail || user.email || 'customer@example.com',
-        total: total,
-        items: itemsWithCost,
-        staffId: selectedStaffId,
-        customerName: customerName || 'Walk-in',
-    });
-
-    if (result.success && result.authorization_url) {
-        setPaymentStatus({ status: 'processing', message: 'Waiting for payment...' });
-        window.open(result.authorization_url, 'Paystack', 'width=800,height=600');
+    const result = await verifyPaystackOnServerAndFinalizeOrder(reference.reference);
+    
+    if (result.success && result.orderId) {
+        toast({ title: "Payment Successful", description: "Order has been verified and completed." });
+        handleSaleMade(result.orderId);
     } else {
-        toast({ variant: 'destructive', title: 'Initialization Failed', description: result.error });
-        setPaymentStatus({ status: 'failed', message: result.error });
+        toast({ variant: "destructive", title: "Verification Failed", description: result.error || "Could not verify payment. Please contact support." });
+        setPaymentStatus({ status: 'failed', message: 'Verification Failed' });
     }
-  };
+  }, [toast, handleSaleMade]);
+
+  const onPaystackClose = useCallback(() => {
+    setPaymentStatus({ status: 'idle' });
+    setIsCheckoutOpen(false);
+    toast({
+        variant: "destructive",
+        title: "Payment Cancelled",
+        description: "The payment window was closed.",
+    });
+  }, [toast]);
+  
+  const paystackConfig = useMemo(() => {
+    return {
+        reference: new Date().getTime().toString(),
+        email: customerEmail || 'customer@example.com',
+        amount: Math.round(total * 100),
+        publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+        metadata: {
+            customer_name: customerName || 'Walk-in',
+            staff_id: selectedStaffId,
+            cart: JSON.stringify(cart),
+        },
+    };
+  }, [total, customerEmail, customerName, selectedStaffId, cart]);
+
+  const initializePayment = usePaystackPayment(paystackConfig);
+
+  const handlePaystackPayment = () => {
+    setIsCheckoutOpen(false);
+    setPaymentStatus({ status: 'processing', message: 'Opening...' });
+    initializePayment(onPaystackSuccess, onPaystackClose);
+  }
 
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
@@ -755,7 +752,7 @@ function POSPageContent() {
         {/* Checkout Method Dialog */}
         <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
             <DialogContent>
-                 <form onSubmit={(e) => e.preventDefault()}>
+                <form onSubmit={(e) => e.preventDefault()}>
                     <DialogHeader>
                         <DialogTitle>Select Payment Method</DialogTitle>
                         <DialogDescription>
