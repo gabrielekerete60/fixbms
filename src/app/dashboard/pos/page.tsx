@@ -803,6 +803,9 @@ function POSPageContent() {
         {/* Receipt Dialog */}
         <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
             <DialogContent className="sm:max-w-xs print:max-w-full print:border-none print:shadow-none">
+                <DialogHeader>
+                   <DialogTitle className="sr-only">Sale Receipt</DialogTitle>
+                </DialogHeader>
                 <div ref={receiptRef}>
                     {lastCompletedOrder && <Receipt order={lastCompletedOrder} storeAddress={storeAddress} />}
                 </div>
