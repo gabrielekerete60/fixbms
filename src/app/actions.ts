@@ -2557,13 +2557,7 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
                 metadata: {
                     customer_name: data.customerName,
                     staff_id: data.staffId,
-                    cart: data.items.map((item: any) => ({
-                        id: item.productId,
-                        name: item.name,
-                        quantity: item.quantity,
-                        price: item.price,
-                        costPrice: item.costPrice || 0
-                    })),
+                    cart: data.items, // Pass the cart object directly
                 }
             }),
         });
@@ -2591,16 +2585,20 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
 
         const verificationData = await verifyResponse.json();
         
-        if (!verificationData.status || verificationData.data.status !== 'success') {
+        if (!verificationData || !verificationData.status || verificationData.data.status !== 'success') {
             return { success: false, error: 'Payment verification failed.' };
         }
         
         const metadata = verificationData.data.metadata;
-        const cartItems = metadata.cart; // Already an object, no need to parse
+        if (!metadata || !metadata.cart) {
+            return { success: false, error: 'Transaction metadata is missing or corrupt.'}
+        }
+
+        const cartItems = metadata.cart; // Already an object
 
         const posSaleData: PosSaleData = {
             items: cartItems.map((item: any) => ({
-                productId: item.id,
+                productId: item.productId,
                 name: item.name,
                 price: item.price,
                 quantity: item.quantity,
@@ -2625,3 +2623,4 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         return { success: false, error: "Failed to finalize the order after payment verification." };
     }
 }
+
