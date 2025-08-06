@@ -234,6 +234,8 @@ function POSPageContent() {
               paymentMethod: orderData.paymentMethod,
               customerName: orderData.customerName,
               status: orderData.status,
+              subtotal: 0, // Placeholder
+              tax: 0, // Placeholder
           };
           setLastCompletedOrder(completedOrder);
           setIsReceiptOpen(true);
@@ -242,6 +244,7 @@ function POSPageContent() {
           toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch completed order details for receipt.' });
       }
       setPaymentStatus('idle');
+      setIsCheckoutOpen(false);
   }, [clearCartAndStorage, toast]);
   
    const onPaystackSuccess = useCallback(async (transaction: { reference: string }) => {
@@ -270,9 +273,9 @@ function POSPageContent() {
       metadata: {
         customer_name: customerName || 'Walk-in',
         staff_id: selectedStaffId,
-        cart: JSON.stringify(cart.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, price: item.price }))),
+        cart: JSON.stringify(cart.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, price: item.price, costPrice: products.find(p=>p.id===item.id)?.costPrice || 0 }))),
       }
-  }), [total, customerEmail, customerName, selectedStaffId, cart]);
+  }), [total, customerEmail, customerName, selectedStaffId, cart, products]);
   
 
   useEffect(() => {
@@ -370,7 +373,6 @@ function POSPageContent() {
         });
         setPaymentStatus('idle');
     }
-    setIsCheckoutOpen(false);
   }
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
@@ -742,7 +744,7 @@ function POSPageContent() {
                         Total Amount: <span className="font-bold text-foreground">₦{total.toFixed(2)}</span>
                     </DialogDescription>
                 </DialogHeader>
-                <div className="flex flex-col gap-4 py-4">
+                 <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4 py-4">
                     <Button type="button" variant="outline" className="h-20 text-lg w-full" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
@@ -754,11 +756,11 @@ function POSPageContent() {
                     <PaystackButton
                         {...paystackConfig}
                         className={cn(buttonVariants({ size: "lg" }), "h-20 text-lg w-full font-bold")}
-                        onSuccess={onPaystackSuccess}
+                        onSuccess={(reference) => onPaystackSuccess(reference)}
                         onClose={onPaystackClose}
                         text="Pay with Transfer"
                     />
-                </div>
+                </form>
             </DialogContent>
         </Dialog>
         

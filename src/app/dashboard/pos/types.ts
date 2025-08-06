@@ -19,6 +19,8 @@ export type CartItem = {
 export type CompletedOrder = {
   id: string;
   items: CartItem[];
+  subtotal: number;
+  tax: number;
   total: number;
   date: string;
   paymentMethod: 'POS' | 'Cash' | 'Paystack' | 'Credit';
