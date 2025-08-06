@@ -52,7 +52,7 @@ import { db } from "@/lib/firebase";
 import { handlePosSale, initializePaystackTransaction, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { User, CartItem, Product, CompletedOrder, SelectableStaff } from "./types";
-import { PaystackButton } from "react-paystack";
+import type PaystackPop from '@paystack/inline-js';
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -252,39 +252,6 @@ function POSPageContent() {
       setPaymentStatus('idle');
       setIsCheckoutOpen(false);
   }, [clearCartAndStorage, toast]);
-  
-   const onPaystackSuccess = useCallback(async (transaction: { reference: string }) => {
-      setPaymentStatus('processing');
-      setIsCheckoutOpen(false); 
-      const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
-      if (verifyResult.success && verifyResult.orderId) {
-          toast({ title: "Payment Successful", description: "Order has been verified and completed." });
-          handleSaleMade(verifyResult.orderId);
-      } else {
-          toast({ variant: "destructive", title: "Verification Failed", description: verifyResult.error || "Could not verify payment. Please contact support." });
-          setPaymentStatus('failed');
-      }
-  }, [handleSaleMade, toast]);
-
-  const onPaystackClose = useCallback(() => {
-      if(paymentStatus !== 'processing') {
-          toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment window was closed." });
-      }
-      setIsCheckoutOpen(false);
-  }, [paymentStatus, toast]);
-
-  const paystackConfig = useMemo(() => ({
-      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
-      email: customerEmail || 'customer@example.com',
-      amount: Math.round(total * 100),
-      reference: new Date().getTime().toString(),
-      metadata: {
-        customer_name: customerName || 'Walk-in',
-        staff_id: selectedStaffId,
-        cart: JSON.stringify(cart.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, price: item.price, costPrice: products.find(p=>p.id===item.id)?.costPrice || 0 }))),
-      }
-  }), [total, customerEmail, customerName, selectedStaffId, cart, products]);
-  
 
   useEffect(() => {
     const initializePos = async () => {
@@ -342,6 +309,7 @@ function POSPageContent() {
   const handleOfflinePayment = async (method: 'Cash' | 'POS') => {
     setIsConfirmOpen(false);
     setPaymentStatus('processing');
+    setIsCheckoutOpen(false);
 
     if (!user || !selectedStaffId) {
         toast({ variant: "destructive", title: "Error", description: "User or operating staff not identified. Cannot complete order." });
@@ -381,6 +349,52 @@ function POSPageContent() {
         });
         setPaymentStatus('idle');
     }
+  }
+
+  const handlePaystackPayment = async () => {
+    if (!user || !selectedStaffId) return;
+
+    setPaymentStatus('processing');
+
+    const initResult = await initializePaystackTransaction({
+        email: customerEmail || user.email,
+        total: total,
+        customerName: customerName || 'Walk-in',
+        staffId: selectedStaffId,
+        items: cart,
+    });
+    
+    if (initResult.success && initResult.reference) {
+        const PaystackPop = (await import('@paystack/inline-js')).default;
+        const paystack = new PaystackPop();
+        
+        paystack.newTransaction({
+            key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+            email: customerEmail || user.email,
+            amount: Math.round(total * 100),
+            ref: initResult.reference,
+            onSuccess: async (transaction) => {
+                const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
+                if (verifyResult.success && verifyResult.orderId) {
+                    toast({ title: "Payment Successful", description: "Order has been verified and completed." });
+                    handleSaleMade(verifyResult.orderId);
+                } else {
+                    toast({ variant: "destructive", title: "Verification Failed", description: verifyResult.error || "Could not verify payment. Please contact support." });
+                    setPaymentStatus('failed');
+                }
+            },
+            onClose: () => {
+                if (paymentStatus !== 'success') {
+                    toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment window was closed." });
+                    setPaymentStatus('cancelled');
+                }
+            }
+        });
+    } else {
+        toast({ variant: 'destructive', title: 'Error', description: initResult.error || 'Could not initialize payment.' });
+        setPaymentStatus('failed');
+    }
+    setIsCheckoutOpen(false);
   }
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
@@ -752,7 +766,7 @@ function POSPageContent() {
                         Total Amount: <span className="font-bold text-foreground">₦{total.toFixed(2)}</span>
                     </DialogDescription>
                 </DialogHeader>
-                 <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4 py-4">
+                 <div className="flex flex-col gap-4 py-4">
                     <Button type="button" variant="outline" className="h-20 text-lg w-full" onClick={() => { setIsCheckoutOpen(false); setConfirmMethod('Cash'); setIsConfirmOpen(true); } }>
                         <Wallet className="mr-2 h-6 w-6" />
                         Pay with Cash
@@ -761,18 +775,11 @@ function POSPageContent() {
                         <CreditCard className="mr-2 h-6 w-6" />
                         Pay with POS
                     </Button>
-                    {hasMounted && (
-                        <PaystackButton
-                            {...paystackConfig}
-                            onSuccess={(reference) => onPaystackSuccess(reference as { reference: string })}
-                            onClose={onPaystackClose}
-                            className={cn(buttonVariants({ size: 'lg' }), "h-20 text-lg w-full font-bold bg-primary hover:bg-primary/90 text-primary-foreground")}
-                        >
-                            <ArrowRightLeft className="mr-2 h-6 w-6"/>
-                            Pay with Transfer
-                        </PaystackButton>
-                    )}
-                </form>
+                    <Button className="h-20 text-lg w-full font-bold bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handlePaystackPayment}>
+                        <ArrowRightLeft className="mr-2 h-6 w-6"/>
+                        Pay with Transfer
+                    </Button>
+                </div>
             </DialogContent>
         </Dialog>
         
