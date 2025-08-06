@@ -76,6 +76,7 @@ type Product = {
   image: string;
   "data-ai-hint": string;
   costPrice?: number;
+  lowStockThreshold?: number;
 };
 
 type User = {
@@ -84,11 +85,12 @@ type User = {
   staff_id: string;
 };
 
-const getStatusBadge = (stock: number) => {
+const getStatusBadge = (stock: number, threshold?: number) => {
+  const lowStock = threshold || 20;
   if (stock === 0) {
     return <Badge variant="destructive">Out of Stock</Badge>;
   }
-  if (stock < 20) {
+  if (stock < lowStock) {
     return <Badge variant="secondary">Low Stock</Badge>;
   }
   return <Badge variant="outline">In Stock</Badge>;
@@ -102,6 +104,7 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
     const [price, setPrice] = useState(0);
     const [stock, setStock] = useState(0);
     const [unit, setUnit] = useState("");
+    const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(20);
 
     const handleSubmit = () => {
         const newProductData = {
@@ -112,7 +115,8 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
             stock: Number(stock),
             unit: unit,
             image: product?.image || "https://placehold.co/150x150.png",
-            "data-ai-hint": product?.['data-ai-hint'] || "product image"
+            "data-ai-hint": product?.['data-ai-hint'] || "product image",
+            lowStockThreshold: Number(lowStockThreshold),
         };
         onSave(newProductData);
         onOpenChange(false);
@@ -126,6 +130,7 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
             setPrice(product.price || 0);
             setStock(product.stock || 0);
             setUnit(product.unit || "");
+            setLowStockThreshold(product.lowStockThreshold || 20);
         } else {
             setName("");
             setCategory(categories[0] || "");
@@ -133,6 +138,7 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
             setPrice(0);
             setStock(0);
             setUnit("");
+            setLowStockThreshold(20);
         }
     }, [product, categories]);
     
@@ -147,7 +153,7 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
                         {product?.id ? "Update the details of this product." : "Fill in the details for the new product."}
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="name" className="text-right">Name</Label>
                         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
@@ -182,6 +188,11 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
                             <Label htmlFor="unit">Unit</Label>
                             <Input id="unit" placeholder="e.g., loaf, pcs" value={unit} onChange={(e) => setUnit(e.target.value)} />
                          </div>
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="low-stock">Low Stock Threshold</Label>
+                        <Input id="low-stock" type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} />
+                        <p className="text-xs text-muted-foreground px-1">Get a 'Low Stock' warning when inventory falls below this number.</p>
                     </div>
                 </div>
                 <DialogFooter>
@@ -285,8 +296,9 @@ export default function ProductsPage() {
   const { productsWithFinancials, grandTotalValue, grandTotalProfit } = useMemo(() => {
     const filtered = products.filter(p => {
         if (activeTab === 'all') return true;
-        if (activeTab === 'in-stock') return p.stock >= 20;
-        if (activeTab === 'low-stock') return p.stock > 0 && p.stock < 20;
+        const threshold = p.lowStockThreshold || 20;
+        if (activeTab === 'in-stock') return p.stock >= threshold;
+        if (activeTab === 'low-stock') return p.stock > 0 && p.stock < threshold;
         if (activeTab === 'out-of-stock') return p.stock === 0;
         return true;
     });
@@ -420,7 +432,7 @@ export default function ProductsPage() {
                             <span>{product.name}</span>
                           </div>
                         </TableCell>
-                        <TableCell>{getStatusBadge(product.stock)}</TableCell>
+                        <TableCell>{getStatusBadge(product.stock, product.lowStockThreshold)}</TableCell>
                         {canViewFinancials && <TableCell>₦{(product.costPrice || 0).toFixed(2)}</TableCell>}
                         <TableCell>₦{product.price.toFixed(2)}</TableCell>
                         <TableCell>{product.stock > 0 ? `${product.stock} ${product.unit || ''}`.trim() : '--'}</TableCell>

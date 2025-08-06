@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle, MessageSquareQuote } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, startOfYear } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement, getAccountSummary } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
@@ -1600,7 +1600,7 @@ function BusinessHealthTab() {
                                 <AccordionTrigger>
                                     <div className="flex justify-between w-full pr-4"><span>Utilities</span><span className="font-semibold">{formatCurrency(expenseDetails.Utilities)}</span></div>
                                 </AccordionTrigger>
-                                <AccordionContent className="pl-4">
+                                <AccordionContent>
                                     <Table>
                                         <TableBody>
                                             {Object.entries(statement.expenses).filter(([key]) => ['Diesel', 'Petrol', 'Gas', 'Electricity', 'Water'].includes(key)).map(([key, val]) => (
@@ -1614,7 +1614,7 @@ function BusinessHealthTab() {
                                 <AccordionTrigger>
                                     <div className="flex justify-between w-full pr-4"><span>Operations</span><span className="font-semibold">{formatCurrency(expenseDetails.Operations)}</span></div>
                                 </AccordionTrigger>
-                                <AccordionContent className="pl-4">
+                                <AccordionContent>
                                      <Table>
                                         <TableBody>
                                             {Object.entries(statement.expenses).filter(([key]) => ['Repairs', 'Production', 'Promotion', 'Transport', 'Purchases'].includes(key)).map(([key, val]) => (

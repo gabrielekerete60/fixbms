@@ -76,6 +76,7 @@ type Ingredient = {
   unit: string;
   costPerUnit: number;
   expiryDate: string | null;
+  lowStockThreshold?: number;
 };
 
 type Supplier = {
@@ -100,6 +101,7 @@ function IngredientDialog({
     const [unit, setUnit] = useState("");
     const [costPerUnit, setCostPerUnit] = useState(0);
     const [expiryDate, setExpiryDate] = useState<Date | undefined>();
+    const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(10);
 
     useEffect(() => {
         if (ingredient) {
@@ -107,11 +109,13 @@ function IngredientDialog({
             setUnit(ingredient.unit || "");
             setCostPerUnit(ingredient.costPerUnit || 0);
             setExpiryDate(ingredient.expiryDate ? new Date(ingredient.expiryDate) : undefined);
+            setLowStockThreshold(ingredient.lowStockThreshold || 10);
         } else {
             setName("");
             setUnit("");
             setCostPerUnit(0);
             setExpiryDate(undefined);
+            setLowStockThreshold(10);
         }
     }, [ingredient]);
 
@@ -124,7 +128,8 @@ function IngredientDialog({
             name,
             unit, 
             costPerUnit: Number(costPerUnit), 
-            expiryDate: expiryDate ? expiryDate.toISOString() : null 
+            expiryDate: expiryDate ? expiryDate.toISOString() : null,
+            lowStockThreshold: Number(lowStockThreshold),
         });
         onOpenChange(false);
     };
@@ -138,7 +143,7 @@ function IngredientDialog({
                         {ingredient?.id ? 'Update the details of this ingredient.' : 'Fill in the details for the new ingredient.'}
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
+                <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="name" className="text-right">Name</Label>
                         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
@@ -150,6 +155,10 @@ function IngredientDialog({
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="costPerUnit" className="text-right">Cost/Unit (₦)</Label>
                         <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" />
+                    </div>
+                     <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="low-stock" className="text-right">Low Stock Threshold</Label>
+                        <Input id="low-stock" type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} className="col-span-3" />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label className="text-right">Expiry Date</Label>
@@ -582,7 +591,15 @@ export default function IngredientsPage() {
                                     ) : ingredientsWithTotal.length > 0 ? (
                                         ingredientsWithTotal.map(ingredient => (
                                             <TableRow key={ingredient.id}>
-                                                <TableCell className="font-medium">{ingredient.name}</TableCell>
+                                                <TableCell className="font-medium">
+                                                    {ingredient.name}
+                                                    {(ingredient.stock < (ingredient.lowStockThreshold || 10)) && ingredient.stock > 0 && 
+                                                        <Badge variant="secondary" className="ml-2">Low</Badge>
+                                                    }
+                                                    {ingredient.stock === 0 && 
+                                                        <Badge variant="destructive" className="ml-2">Out</Badge>
+                                                    }
+                                                </TableCell>
                                                 <TableCell>{(ingredient.stock || 0).toFixed(2)} {ingredient.unit}</TableCell>
                                                 {canViewCosts && <TableCell>₦{(ingredient.costPerUnit || 0).toFixed(2)}</TableCell>}
                                                 {canViewCosts && <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>}
