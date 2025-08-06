@@ -49,9 +49,8 @@ import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { handlePosSale, initializePaystackTransaction, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
-import type { CompletedOrder, CartItem, User, SelectableStaff, Product, PaymentStatus } from "./types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type PaystackPop from '@paystack/inline-js';
+import type { PaystackTransaction, PaymentStatus, User, CartItem, Product, CompletedOrder, SelectableStaff } from "./types";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -244,6 +243,24 @@ function POSPageContent() {
       setPaymentStatus({ status: 'idle' });
   }, [clearCartAndStorage, toast]);
   
+  const handlePaystackSuccess = useCallback(async (transaction: PaystackTransaction) => {
+      setPaymentStatus({ status: 'processing', message: 'Verifying...' });
+      const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
+      if (verifyResult.success && verifyResult.orderId) {
+          toast({ title: "Payment Successful", description: "Order has been verified and completed." });
+          handleSaleMade(verifyResult.orderId);
+      } else {
+          toast({ variant: "destructive", title: "Verification Failed", description: verifyResult.error || "Could not verify payment. Please contact support." });
+          setPaymentStatus({ status: 'failed', message: 'Verification Failed' });
+      }
+  }, [handleSaleMade, toast]);
+
+  const handlePaystackClose = useCallback(() => {
+      if(paymentStatus.status === 'idle') {
+          toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment window was closed." });
+      }
+  }, [paymentStatus.status, toast]);
+
 
   useEffect(() => {
     const initializePos = async () => {
@@ -322,23 +339,8 @@ function POSPageContent() {
             email: saleData.email,
             amount: Math.round(saleData.total * 100),
             ref: initResult.reference,
-            onSuccess: async (transaction) => {
-                setPaymentStatus({ status: 'processing', message: 'Verifying...' });
-                const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
-                if (verifyResult.success && verifyResult.orderId) {
-                    toast({ title: "Payment Successful", description: "Order has been verified and completed." });
-                    handleSaleMade(verifyResult.orderId);
-                } else {
-                    toast({ variant: "destructive", title: "Verification Failed", description: verifyResult.error || "Could not verify payment. Please contact support." });
-                    setPaymentStatus({ status: 'failed', message: 'Verification Failed' });
-                }
-            },
-            onClose: () => {
-                if(paymentStatus.status !== 'processing') {
-                    toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment window was closed." });
-                    setPaymentStatus({ status: 'idle' });
-                }
-            },
+            onSuccess: (transaction) => handlePaystackSuccess(transaction as PaystackTransaction),
+            onClose: handlePaystackClose,
         });
     } else {
         toast({ variant: "destructive", title: "Initialization Failed", description: initResult.error });
