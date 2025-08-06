@@ -385,6 +385,7 @@ function POSPageContent() {
                 }
             },
             onClose: () => {
+                setIsCheckoutOpen(false); // Close the method selection dialog
                 if (paymentStatus !== 'success') {
                     toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment window was closed." });
                     setPaymentStatus('cancelled');
