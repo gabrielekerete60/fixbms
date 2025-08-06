@@ -2622,7 +2622,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
 
             // 3. Create the final order
             const newOrderRef = doc(collection(db, 'orders'));
-            transaction.set(newOrderRef, { ...orderData, id: newOrderRef.id, paymentMethod: 'Paystack' });
+            transaction.set(newOrderRef, { ...orderData, id: newOrderRef.id, paymentMethod: 'Paystack', status: 'Completed', date: serverTimestamp() });
 
             // 4. Update daily sales summary
             const today = new Date();

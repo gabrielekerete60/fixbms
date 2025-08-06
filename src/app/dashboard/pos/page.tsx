@@ -286,7 +286,6 @@ function POSPageContent() {
     return () => {
         window.removeEventListener('message', handlePaymentMessage);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
