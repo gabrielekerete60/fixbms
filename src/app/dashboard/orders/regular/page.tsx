@@ -80,6 +80,7 @@ type CompletedOrder = {
   date: Timestamp;
   paymentMethod: 'POS' | 'Cash' | 'Paystack' | 'Credit';
   customerName?: string;
+  staffName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
 
@@ -275,6 +276,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                     <TableHead>Order ID</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Customer</TableHead>
+                    <TableHead>Staff</TableHead>
                     <TableHead>Items</TableHead>
                     <TableHead>Payment</TableHead>
                     <TableHead>Status</TableHead>
@@ -285,7 +287,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
             <TableBody>
                 {orders.length === 0 ? (
                     <TableRow>
-                        <TableCell colSpan={9} className="h-24 text-center">
+                        <TableCell colSpan={10} className="h-24 text-center">
                             No orders found for this view.
                         </TableCell>
                     </TableRow>
@@ -302,6 +304,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                             <TableCell className="font-medium">{order.id.substring(0, 7)}...</TableCell>
                             <TableCell>{order.date.toDate().toLocaleDateString()}</TableCell>
                             <TableCell>{order.customerName || 'Walk-in'}</TableCell>
+                            <TableCell>{order.staffName || 'N/A'}</TableCell>
                             <TableCell>{order.items.reduce((acc, item) => acc + item.quantity, 0)}</TableCell>
                             <TableCell>
                                 <Badge variant={'secondary'}>
@@ -340,7 +343,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
             </TableBody>
             <TableFooter>
                 <TableRow>
-                    <TableCell colSpan={7} className="text-right font-bold">Grand Total</TableCell>
+                    <TableCell colSpan={8} className="text-right font-bold">Grand Total</TableCell>
                     <TableCell className="text-right font-bold">{formatCurrency(grandTotal)}</TableCell>
                     <TableCell></TableCell>
                 </TableRow>
