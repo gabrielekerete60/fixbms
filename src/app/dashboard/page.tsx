@@ -52,7 +52,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { collection, query, where, onSnapshot, Timestamp } from "firebase/firestore";
 import { db } from '@/lib/firebase';
-import { startOfMonth, format, eachDayOfInterval, subDays, startOfDay, endOfDay } from 'date-fns';
+import { startOfMonth, format, eachDayOfInterval, subDays, startOfDay, endOfDay, endOfYear as dateFnsEndOfYear, startOfYear as dateFnsStartOfYear } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -93,7 +93,7 @@ type StorekeeperDashboardStats = {
     totalInventoryValue: number;
     lowStockIngredients: number;
     productCategories: number;
-    inventoryValueByCategory: { name: string, value: number }[];
+    mostAvailableIngredients: { name: string, stock: number }[];
 };
 
 type ShowroomDashboardStats = {
@@ -337,8 +337,8 @@ const chartConfig = {
     label: "Sales (₦)",
     color: "hsl(var(--chart-1))",
   },
-  value: {
-    label: "Value",
+  stock: {
+    label: "Stock",
     color: "hsl(var(--chart-1))",
   },
 };
@@ -426,7 +426,7 @@ function StorekeeperDashboard({ user }: { user: User }) {
     totalInventoryValue: 0,
     lowStockIngredients: 0,
     productCategories: 0,
-    inventoryValueByCategory: []
+    mostAvailableIngredients: []
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -442,29 +442,22 @@ function StorekeeperDashboard({ user }: { user: User }) {
     const ingredientsQuery = collection(db, 'ingredients');
     const unsubIngredients = onSnapshot(ingredientsQuery, (snapshot) => {
         let lowStockCount = 0;
-        const valueByCategory: Record<string, number> = {};
+        const ingredientsList = snapshot.docs.map(doc => doc.data());
 
-        snapshot.docs.forEach(doc => {
-            const data = doc.data();
+        ingredientsList.forEach(data => {
             const stock = data.stock || 0;
-            const cost = data.costPerUnit || 0;
-
-            if (stock > 0 && stock < 20) { // Assuming low stock is < 20
+            const threshold = data.lowStockThreshold || 10;
+            if (stock > 0 && stock <= threshold) {
                 lowStockCount++;
             }
-            // Grouping by first word of name for simplicity
-            const category = data.name.split(' ')[0] || 'Other';
-            if(!valueByCategory[category]) valueByCategory[category] = 0;
-            valueByCategory[category] += stock * cost;
-
         });
 
-        const inventoryValueByCategory = Object.entries(valueByCategory)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a,b) => b.value - a.value)
-            .slice(0, 5); // top 5
+        const mostAvailable = ingredientsList
+            .sort((a,b) => (b.stock || 0) - (a.stock || 0))
+            .slice(0, 5)
+            .map(ing => ({ name: ing.name, stock: ing.stock || 0 }));
 
-        setStats(prev => ({ ...prev, lowStockIngredients: lowStockCount, inventoryValueByCategory }));
+        setStats(prev => ({ ...prev, lowStockIngredients: lowStockCount, mostAvailableIngredients: mostAvailable }));
     });
 
     const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
@@ -516,7 +509,7 @@ function StorekeeperDashboard({ user }: { user: User }) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.lowStockIngredients}</div>
-            <p className="text-xs text-muted-foreground">Items with less than 20 units.</p>
+            <p className="text-xs text-muted-foreground">Items at or below threshold.</p>
           </CardContent>
         </Card>
         <Link href="/dashboard/inventory/stock-control">
@@ -536,21 +529,21 @@ function StorekeeperDashboard({ user }: { user: User }) {
        <Card className="mt-6">
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
-              <CardTitle>Inventory Value by Category</CardTitle>
-              <CardDescription>Top 5 most valuable ingredient categories.</CardDescription>
+              <CardTitle>Most Available Ingredients by Quantity</CardTitle>
+              <CardDescription>Top 5 most abundant ingredients in your inventory.</CardDescription>
             </div>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                <BarChart data={stats.inventoryValueByCategory} layout="vertical" margin={{ left: 10, right: 30 }}>
+                <BarChart data={stats.mostAvailableIngredients} layout="vertical" margin={{ left: 10, right: 30 }}>
                 <CartesianGrid horizontal={false} />
                 <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={80} />
-                <XAxis dataKey="value" type="number" hide />
+                <XAxis dataKey="stock" type="number" hide />
                 <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent indicator="dot" formatter={(value) => `₦${value.toLocaleString()}`} />}
+                    content={<ChartTooltipContent indicator="dot" />}
                 />
-                <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+                <Bar dataKey="stock" fill="var(--color-stock)" radius={4} />
                 </BarChart>
             </ChartContainer>
           </CardContent>

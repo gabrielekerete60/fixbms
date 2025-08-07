@@ -53,7 +53,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
@@ -107,15 +107,6 @@ function PaginationControls({
     setVisibleRows: (val: number | 'all') => void,
     totalRows: number
 }) {
-    const [inputValue, setInputValue] = useState<string | number>('');
-
-    const handleApplyInput = () => {
-        const num = Number(inputValue);
-        if (!isNaN(num) && num > 0) {
-            setVisibleRows(num);
-        }
-    };
-
     return (
         <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
             <span>Show:</span>
@@ -413,6 +404,7 @@ export default function StockControlPage() {
   const [visiblePendingRows, setVisiblePendingRows] = useState<number | 'all'>(10);
   const [visibleHistoryRows, setVisibleHistoryRows] = useState<number | 'all'>(10);
   const [visibleLogRows, setVisibleLogRows] = useState<number | 'all'>(10);
+  const [visibleAllPendingRows, setVisibleAllPendingRows] = useState<number | 'all'>(10);
   
   const fetchPageData = async () => {
         const userStr = localStorage.getItem('loggedInUser');
@@ -435,9 +427,11 @@ export default function StockControlPage() {
                 setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
                 const ingredientsSnapshot = await getDocs(collection(db, "ingredients"));
                 setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock })));
-                const transfersQuery = query(collection(db, "transfers"), where('from_staff_id', '==', currentUser.staff_id), orderBy("date", "desc"));
-                const transfersSnapshot = await getDocs(transfersQuery);
+                
+                const allTransfersQuery = query(collection(db, "transfers"), orderBy("date", "desc"));
+                const transfersSnapshot = await getDocs(allTransfersQuery);
                 setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
+
             } else {
                 const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
                 const personalStockSnapshot = await getDocs(personalStockQuery);
@@ -600,11 +594,19 @@ export default function StockControlPage() {
     return visibleHistoryRows === 'all' ? completedTransfers : completedTransfers.slice(0, visibleHistoryRows);
   }, [completedTransfers, visibleHistoryRows]);
 
+  const allPendingTransfers = useMemo(() => {
+    return initiatedTransfers.filter(t => t.status === 'pending');
+  }, [initiatedTransfers]);
+
+  const paginatedAllPending = useMemo(() => {
+    return visibleAllPendingRows === 'all' ? allPendingTransfers : allPendingTransfers.slice(0, visibleAllPendingRows);
+  }, [allPendingTransfers, visibleAllPendingRows]);
+
   const paginatedLogs = useMemo(() => {
     let filtered = initiatedTransfers;
     if (date?.from) {
-        const from = date.from;
-        const to = date.to || from;
+        const from = startOfDay(date.from);
+        const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
         filtered = filtered.filter(t => {
             const transferDate = new Date(t.date);
             return transferDate >= from && transferDate <= to;
@@ -773,9 +775,9 @@ export default function StockControlPage() {
                 </TabsTrigger>
                 <TabsTrigger value="pending-transfers" className="relative">
                     <Hourglass className="mr-2 h-4 w-4" /> All Pending
-                    {initiatedTransfers.filter(t => t.status === 'pending').length > 0 && (
+                    {allPendingTransfers.length > 0 && (
                         <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
-                            {initiatedTransfers.filter(t => t.status === 'pending').length}
+                            {allPendingTransfers.length}
                         </Badge>
                     )}
                 </TabsTrigger>
@@ -984,7 +986,7 @@ export default function StockControlPage() {
                             {isLoading ? (
                                 <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
                             ) : (
-                                initiatedTransfers.filter(t => t.status === 'pending').map(transfer => (
+                                paginatedAllPending.map((transfer) => (
                                     <TableRow key={transfer.id}>
                                         <TableCell>{transfer.date ? format(new Date(transfer.date), 'PPpp') : 'N/A'}</TableCell>
                                         <TableCell>{transfer.from_staff_name}</TableCell>
@@ -994,7 +996,7 @@ export default function StockControlPage() {
                                     </TableRow>
                                 ))
                             )}
-                             { !isLoading && initiatedTransfers.filter(t => t.status === 'pending').length === 0 && (
+                             { !isLoading && paginatedAllPending.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={5} className="h-24 text-center">No pending transfers found.</TableCell>
                                 </TableRow>
@@ -1002,6 +1004,9 @@ export default function StockControlPage() {
                         </TableBody>
                     </Table>
                 </CardContent>
+                <CardFooter>
+                  <PaginationControls visibleRows={visibleAllPendingRows} setVisibleRows={setVisibleAllPendingRows} totalRows={allPendingTransfers.length} />
+                </CardFooter>
               </Card>
           </TabsContent>
       </Tabs>
@@ -1081,7 +1086,7 @@ export default function StockControlPage() {
                         ))
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">No stock movements recorded yet.</TableCell>
+                            <TableCell colSpan={5} className="h-24 text-center">No stock movements recorded for this period.</TableCell>
                         </TableRow>
                     )}
                 </TableBody>
