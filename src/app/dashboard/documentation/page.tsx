@@ -114,7 +114,7 @@ const documentation: Record<string, React.ReactNode> = {
             <Accordion type="single" collapsible className="w-full">
                 <AccordionItem value="deliveries">
                     <AccordionTrigger>Deliveries</AccordionTrigger>
-                    <AccordionContent>This is your main page. Here you will see "Active Runs" assigned to you by a manager or storekeeper. Review the items and notes before heading out. Once completed, the run will move to the "Completed Runs" tab.</AccordionContent>
+                    <AccordionContent>This is your main page. Here you will see "Active Runs" assigned to you by a manager or storekeeper. Review the items and notes before heading out. Once a run is active, you can manage customer sales and payments from the run details page. Completed runs will also appear here.</AccordionContent>
                 </AccordionItem>
                  <AccordionItem value="communication">
                     <AccordionTrigger>Communication</AccordionTrigger>
@@ -123,6 +123,11 @@ const documentation: Record<string, React.ReactNode> = {
             </Accordion>
         </>
     ),
+    'Driver': (
+        <>
+           <p className="mb-4">The Driver role is currently not in use. Functionality for this role will be defined at a later time.</p>
+       </>
+   ),
      Baker: (
          <>
             <p className="mb-4">As a Baker, your focus is on production and managing ingredients.</p>
@@ -194,5 +199,3 @@ export default function DocumentationPage() {
     </div>
   );
 }
-
-    

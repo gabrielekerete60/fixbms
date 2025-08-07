@@ -325,7 +325,7 @@ export default function StaffManagementPage() {
         const roles = new Set(staffList.map(s => s.role));
         const defaultRoles = [
             'Manager', 'Supervisor', 'Accountant', 'Chief Baker', 'Baker', 'Bakery Assistant', 
-            'Storekeeper', 'Showroom Staff', 'Driver', 'Cleaner', 'Chief Security', 'Security'
+            'Storekeeper', 'Showroom Staff', 'Delivery Staff', 'Cleaner', 'Chief Security', 'Security', 'Driver'
         ];
         defaultRoles.forEach(r => roles.add(r));
         return Array.from(roles).filter(r => r !== 'Developer').sort();
