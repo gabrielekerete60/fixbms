@@ -73,8 +73,12 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   useEffect(() => {
+    // Only set the open menu based on pathname if it's not already open.
+    // This prevents the menu from snapping shut when navigating between sublinks.
     const activeMenu = navLinks.find(link => link.sublinks?.some((sub:any) => pathname.startsWith(sub.href)));
-    setOpenMenu(activeMenu?.label || null);
+    if (activeMenu && openMenu !== activeMenu.label) {
+      setOpenMenu(activeMenu.label);
+    }
   }, [pathname, navLinks]);
   
   return (
@@ -89,7 +93,6 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
             >
             <CollapsibleTrigger 
               className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary [&[data-state=open]>svg:last-child]:rotate-90"
-              onClick={() => setOpenMenu(openMenu === link.label ? null : link.label)}
             >
               <div className="flex items-center gap-3">
                 <link.icon className="h-4 w-4" />
@@ -102,8 +105,8 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
                 <ChevronRight className="h-4 w-4 transition-transform" />
               </div>
             </CollapsibleTrigger>
-            <CollapsibleContent className="overflow-hidden text-sm data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-              <div className="ml-7 flex flex-col gap-1 border-l pl-3 py-1">
+            <CollapsibleContent className="overflow-hidden text-sm">
+                <div className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down ml-7 flex flex-col gap-1 border-l pl-3 py-1">
                 {link.sublinks.map((sublink: any) => (
                    <Link 
                       key={sublink.label} 
