@@ -328,12 +328,16 @@ function POSPageContent() {
         };
     });
 
+    const staffDoc = await getDoc(doc(db, "staff", selectedStaffId));
+    const staffName = staffDoc.exists() ? staffDoc.data().name : 'Unknown';
+
     const saleData = {
         items: itemsWithCost,
         total,
         paymentMethod: method,
         customerName: customerName || 'Walk-in',
         staffId: selectedStaffId,
+        staffName: staffName,
     };
     
     const result = await handlePosSale(saleData);
@@ -375,17 +379,18 @@ function POSPageContent() {
             amount: Math.round(total * 100),
             ref: initResult.reference,
             onSuccess: async (transaction) => {
+                setPaymentStatus('processing'); // Keep it processing during verification
                 const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
                 if (verifyResult.success && verifyResult.orderId) {
                     toast({ title: "Payment Successful", description: "Order has been verified and completed." });
                     handleSaleMade(verifyResult.orderId);
+                    setPaymentStatus('success');
                 } else {
                     toast({ variant: "destructive", title: "Verification Failed", description: verifyResult.error || "Could not verify payment. Please contact support." });
                     setPaymentStatus('failed');
                 }
             },
             onClose: () => {
-                setIsCheckoutOpen(false); // Close the method selection dialog
                 if (paymentStatus !== 'success') {
                     toast({ variant: "destructive", title: "Payment Cancelled", description: "The payment window was closed." });
                     setPaymentStatus('cancelled');
