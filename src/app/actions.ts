@@ -2660,3 +2660,127 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         return { success: false, error: "Failed to finalize the order after payment verification." };
     }
 }
+
+// ------ STOCK APPROVAL WORKFLOW ------
+export async function requestStockIncrease(data: { ingredientId: string; quantity: number; supplierId: string }, user: { staff_id: string; name: string }) {
+    try {
+        const { ingredientId, quantity, supplierId } = data;
+        const ingredientDoc = await getDoc(doc(db, 'ingredients', ingredientId));
+        const supplierDoc = await getDoc(doc(db, 'suppliers', supplierId));
+
+        if (!ingredientDoc.exists() || !supplierDoc.exists()) {
+            return { success: false, error: "Invalid ingredient or supplier." };
+        }
+
+        const newRequestRef = doc(collection(db, 'supply_requests'));
+        await setDoc(newRequestRef, {
+            ...data,
+            ingredientName: ingredientDoc.data().name,
+            supplierName: supplierDoc.data().name,
+            requesterId: user.staff_id,
+            requesterName: user.name,
+            status: 'pending',
+            requestDate: serverTimestamp()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error requesting stock increase:", error);
+        return { success: false, error: "Failed to create stock request." };
+    }
+}
+
+export type SupplyRequest = {
+    id: string;
+    ingredientId: string;
+    ingredientName: string;
+    quantity: number;
+    supplierId: string;
+    supplierName: string;
+    requesterId: string;
+    requesterName: string;
+    status: 'pending' | 'approved' | 'declined';
+    requestDate: Timestamp;
+    costPerUnit?: number;
+    totalCost?: number;
+};
+
+export async function getPendingSupplyRequests(): Promise<SupplyRequest[]> {
+    const q = query(collection(db, 'supply_requests'), where('status', '==', 'pending'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupplyRequest));
+}
+
+export async function approveStockIncrease(requestId: string, costPerUnit: number, totalCost: number, user: { staff_id: string, name: string }) {
+     try {
+        const requestRef = doc(db, 'supply_requests', requestId);
+
+        await runTransaction(db, async (transaction) => {
+            const requestDoc = await transaction.get(requestRef);
+            if (!requestDoc.exists() || requestDoc.data().status !== 'pending') {
+                throw new Error("Request not found or already processed.");
+            }
+            const requestData = requestDoc.data() as SupplyRequest;
+
+            // Update request to approved
+            transaction.update(requestRef, {
+                status: 'approved',
+                costPerUnit: costPerUnit,
+                totalCost: totalCost,
+                approverId: user.staff_id,
+                approverName: user.name,
+                approvedDate: serverTimestamp()
+            });
+
+            // Update ingredient stock
+            const ingredientRef = doc(db, 'ingredients', requestData.ingredientId);
+            transaction.update(ingredientRef, { stock: increment(requestData.quantity) });
+            
+            // Update supplier balance
+            const supplierRef = doc(db, 'suppliers', requestData.supplierId);
+            transaction.update(supplierRef, { amountOwed: increment(totalCost) });
+            
+            // Log as direct cost
+            const directCostRef = doc(collection(db, 'directCosts'));
+            transaction.set(directCostRef, {
+                description: `Purchase of ${requestData.ingredientName} from ${requestData.supplierName}`,
+                category: 'Ingredients',
+                quantity: requestData.quantity,
+                total: totalCost,
+                date: serverTimestamp()
+            });
+            
+            // Log in ingredient stock logs
+            const stockLogRef = doc(collection(db, 'ingredient_stock_logs'));
+            transaction.set(stockLogRef, {
+                ingredientId: requestData.ingredientId,
+                ingredientName: requestData.ingredientName,
+                change: requestData.quantity,
+                reason: `Purchase from ${requestData.supplierName} (Approved)`,
+                date: serverTimestamp(),
+                staffName: user.name,
+                logRefId: requestId,
+            });
+
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error approving stock increase:", error);
+        return { success: false, error: (error as Error).message };
+    }
+}
+
+export async function declineStockIncrease(requestId: string, user: { staff_id: string, name: string }) {
+    try {
+        const requestRef = doc(db, 'supply_requests', requestId);
+        await updateDoc(requestRef, {
+            status: 'declined',
+            approverId: user.staff_id,
+            approverName: user.name,
+            approvedDate: serverTimestamp()
+        });
+        return { success: true };
+    } catch(error) {
+         console.error("Error declining stock increase:", error);
+        return { success: false, error: "Failed to decline request." };
+    }
+}
