@@ -355,21 +355,18 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
     try {
         const now = new Date();
         let startOfPeriod: Date;
-        let endOfPeriod: Date;
+        let endOfPeriod: Date = endOfDay(now);
 
         switch (filter) {
             case 'daily':
                 startOfPeriod = startOfDay(now);
-                endOfPeriod = endOfDay(now);
                 break;
             case 'weekly':
                 startOfPeriod = startOfWeek(now, { weekStartsOn: 1 });
-                endOfPeriod = endOfWeek(now, { weekStartsOn: 1 });
                 break;
             case 'monthly':
             default:
                 startOfPeriod = startOfMonth(now);
-                endOfPeriod = endOfMonth(now);
                 break;
             case 'yearly':
                 startOfPeriod = dateFnsStartOfYear(now);
@@ -924,9 +921,26 @@ export async function getIndirectCosts() {
     });
 }
 
-export async function getClosingStocks() {
-    const snapshot = await getDocs(query(collection(db, "closingStocks")));
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+export async function getClosingStocks(category?: 'products' | 'ingredients') {
+    const collections = [];
+    if (category === 'products' || !category) {
+        collections.push(getDocs(collection(db, "products")).then(snap => 
+            snap.docs.map(doc => ({ 
+                name: doc.data().name, 
+                value: (doc.data().stock || 0) * (doc.data().costPrice || 0)
+            }))
+        ));
+    }
+    if (category === 'ingredients' || !category) {
+        collections.push(getDocs(collection(db, "ingredients")).then(snap => 
+            snap.docs.map(doc => ({ 
+                name: doc.data().name, 
+                value: (doc.data().stock || 0) * (doc.data().costPerUnit || 0)
+            }))
+        ));
+    }
+    const results = await Promise.all(collections);
+    return results.flat();
 }
 
 export async function getDiscountRecords() {
@@ -1004,7 +1018,7 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
         const [
             salesSnapshot,
             directCostsSnapshot,
-            closingStocksSnapshot,
+            closingStocks,
             indirectCostsSnapshot,
             wagesSnapshot,
             wasteLogsSnapshot,
@@ -1012,7 +1026,7 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
         ] = await Promise.all([
             getDocs(query(collection(db, "sales"), ...dateFilters)),
             getDocs(query(collection(db, "directCosts"), ...dateFilters)),
-            getDocs(collection(db, "closingStocks")), // Not filtered by date
+            getClosingStocks(), // Not filtered by date
             getDocs(query(collection(db, "indirectCosts"), ...dateFilters)),
             getDocs(query(collection(db, "wages"), ...dateFilters, orderBy("date", "desc"))),
             getDocs(query(collection(db, "waste_logs"), ...dateFilters)),
@@ -1026,12 +1040,12 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
         const openingStock = 848626; 
         const carriageInward = 7500; 
         
-        const closingStock = closingStocksSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+        const closingStockValue = closingStocks.reduce((sum, item) => sum + (item.value || 0), 0);
         const costOfGoodsAvailable = openingStock + purchases + carriageInward;
-        const cogs = costOfGoodsAvailable - closingStock;
+        const cogs = costOfGoodsAvailable - closingStockValue;
         const grossProfit = sales - cogs;
 
-        // P&L Expenses Calculations
+        // P&L Expenses Calculations (only from indirect costs now)
         const expenses: { [key: string]: number } = {};
         const expenseDetails = {
             Utilities: 0,
@@ -1043,29 +1057,10 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
             const data = doc.data();
             const amount = data.amount || 0;
             const category = data.category || 'Other';
-
             expenses[category] = (expenses[category] || 0) + amount;
-
-            const opExMapping: { [key: string]: keyof typeof expenseDetails } = {
-                'Diesel': 'Utilities', 'Petrol': 'Utilities', 'Gas': 'Utilities', 'Electricity': 'Utilities', 'Water': 'Utilities',
-                'Repairs': 'Operations', 'Production': 'Operations', 'Promotion': 'Operations', 'Transport': 'Operations', 'Purchases': 'Operations',
-            };
-            const mappedCategory = opExMapping[category];
-            if (mappedCategory) {
-                expenseDetails[mappedCategory] += amount;
-            }
         });
-
-        expenseDetails.Wages = wagesSnapshot.docs.reduce((sum, doc) => sum + (doc.data().netPay || 0), 0);
-        expenses['Salary'] = expenseDetails.Wages;
         
-        const totalWasteCost = wasteLogsSnapshot.length * 500; 
-        expenses['Bad and Damage'] = totalWasteCost;
-        
-        expenses['Discount Allowed'] = discountsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
-
         const totalExpenses = Object.values(expenses).reduce((sum, value) => sum + value, 0);
-        
         const netProfit = grossProfit - totalExpenses;
 
         return {
@@ -1074,11 +1069,11 @@ export async function getProfitAndLossStatement(dateRange?: { from: Date, to: Da
             purchases,
             carriageInward,
             costOfGoodsAvailable,
-            closingStock,
+            closingStock: closingStockValue,
             cogs,
             grossProfit,
             expenses,
-            expenseDetails,
+            expenseDetails, // This seems to be unused now, but keeping for structure
             totalExpenses,
             netProfit
         };
@@ -1145,6 +1140,7 @@ export async function getStaffList() {
 type PayrollData = {
     staffId: string;
     staffName: string;
+    role: string;
     basePay: number;
     additions: number;
     deductions: {
@@ -1161,23 +1157,25 @@ export async function processPayroll(payrollData: PayrollData[], period: string)
     try {
         const batch = writeBatch(db);
 
-        let totalPayrollCost = 0;
+        const bakerRoles = ['Chief Baker', 'Baker', 'Bakery Assistant'];
 
         payrollData.forEach(data => {
             const wageRef = doc(collection(db, 'wages'));
             batch.set(wageRef, { ...data, date: serverTimestamp() });
-            totalPayrollCost += data.netPay;
+            
+            const expenseCollection = bakerRoles.includes(data.role) ? 'directCosts' : 'indirectCosts';
+            const expenseRef = doc(collection(db, expenseCollection));
+
+            batch.set(expenseRef, {
+                description: `Salary for ${data.staffName} (${period})`,
+                category: 'Salary',
+                amount: data.netPay, // Log net pay as the expense
+                quantity: 1, // for directCosts schema
+                total: data.netPay, // for directCosts schema
+                date: serverTimestamp()
+            });
         });
         
-        // Create a single expense entry for the entire payroll run
-        const expenseRef = doc(collection(db, 'indirectCosts'));
-        batch.set(expenseRef, {
-            description: `Payroll for ${period}`,
-            category: 'Salary',
-            amount: totalPayrollCost,
-            date: serverTimestamp()
-        });
-
         await batch.commit();
         return { success: true };
     } catch (error) {
@@ -1291,7 +1289,7 @@ export async function handleLogPayment(supplierId: string, amount: number): Prom
         batch.update(supplierRef, { amountPaid: increment(amount) });
 
         // 2. Add a corresponding expense record
-        const expenseRef = doc(collection(db, "expenses"));
+        const expenseRef = doc(collection(db, "indirectCosts"));
         const supplierDoc = await getDoc(supplierRef);
         const supplierName = supplierDoc.exists() ? supplierDoc.data().name : 'Unknown Supplier';
         batch.set(expenseRef, {
@@ -1938,7 +1936,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
         
         await runTransaction(db, async (transaction) => {
             const batchDoc = await transaction.get(batchRef);
-            if (!batchDoc.exists() || batchDoc.data.status !== 'pending_approval') {
+            if (!batchDoc.exists() || batchDoc.data()?.status !== 'pending_approval') {
                 throw new Error("Batch is not pending approval.");
             }
 
@@ -1950,7 +1948,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
             for (let i = 0; i < ingredientDocs.length; i++) {
                 const ingDoc = ingredientDocs[i];
                 const reqIng = ingredients[i];
-                if (!ingDoc.exists() || ingDoc.data().stock < reqIng.quantity) {
+                if (!ingDoc.exists() || (ingDoc.data()?.stock || 0) < reqIng.quantity) {
                     throw new Error(`Not enough stock for ${reqIng.ingredientName}. Required: ${reqIng.quantity}, Available: ${ingDoc.data()?.stock || 0}`);
                 }
             }
@@ -1959,7 +1957,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
             for (let i = 0; i < ingredientDocs.length; i++) {
                 const ingDoc = ingredientDocs[i];
                 const reqIng = ingredients[i];
-                const currentStock = ingDoc.data().stock;
+                const currentStock = ingDoc.data()?.stock || 0;
 
                 ingredientsWithStock.push({
                     ...reqIng,
@@ -2326,6 +2324,7 @@ type PosSaleData = {
     customerName: string;
     paymentMethod: 'Cash' | 'POS' | 'Paystack';
     staffId: string;
+    staffName: string;
     total: number;
 }
 export async function handlePosSale(data: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
@@ -2368,6 +2367,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                 paymentMethod: data.paymentMethod,
                 date: Timestamp.now(),
                 staffId: data.staffId,
+                staffName: data.staffName,
                 status: 'Completed',
             };
             transaction.set(newOrderRef, orderData);
@@ -2625,11 +2625,15 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
             return { success: false, error: 'Transaction metadata is missing or corrupt.'}
         }
 
+        const staffDoc = await getDoc(doc(db, "staff", metadata.staff_id));
+        const staffName = staffDoc.exists() ? staffDoc.data().name : "Unknown";
+
         const posSaleData: PosSaleData = {
             items: metadata.cart, // cart now contains costPrice
             customerName: metadata.customer_name,
             paymentMethod: 'Paystack',
             staffId: metadata.staff_id,
+            staffName: staffName,
             total: verificationData.data.amount / 100,
         };
         

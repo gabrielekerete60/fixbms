@@ -7,7 +7,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Send, Eye } from 'lucide-react';
+import { Loader2, Send, Eye, BellDot, CheckCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { postAnnouncement, submitReport, Announcement as AnnouncementType, getReports, Report, updateReportStatus, getStaffList } from '@/app/actions';
@@ -42,15 +42,6 @@ function PaginationControls({
     setVisibleRows: (val: number | 'all') => void,
     totalRows: number
 }) {
-    const [inputValue, setInputValue] = useState<string | number>('');
-
-    const handleApplyInput = () => {
-        const num = Number(inputValue);
-        if (!isNaN(num) && num > 0) {
-            setVisibleRows(num);
-        }
-    };
-
     return (
         <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
             <span>Show:</span>
@@ -58,17 +49,6 @@ function PaginationControls({
             <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
             <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
             <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
-            <div className="flex items-center gap-2">
-                <Input 
-                    type="number" 
-                    className="h-9 w-20"
-                    placeholder="Custom"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleApplyInput()}
-                />
-                 <Button size="sm" onClick={handleApplyInput}>Apply</Button>
-            </div>
         </div>
     )
 }
@@ -374,6 +354,7 @@ export default function CommunicationPage() {
     const [user, setUser] = useState<User | null>(null);
     const [activeTab, setActiveTab] = useState("announcements");
     const [notificationCounts, setNotificationCounts] = useState({ unreadAnnouncements: 0, actionableReports: 0 });
+    const [hasUnread, setHasUnread] = useState(false);
 
 
     useEffect(() => {
@@ -395,14 +376,12 @@ export default function CommunicationPage() {
             const lastReadTimestamp = localStorage.getItem('lastReadAnnouncement');
             if (!lastReadTimestamp) {
                 setNotificationCounts(prev => ({...prev, unreadAnnouncements: snapshot.size }));
+                 if (snapshot.size > 0) setHasUnread(true);
             } else {
                 const lastReadDate = new Date(lastReadTimestamp);
                 const newCount = data.filter(doc => doc.timestamp && doc.timestamp.toDate() > lastReadDate).length;
                 setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
-            }
-            if (activeTab === "announcements") {
-                localStorage.setItem('lastReadAnnouncement', new Date().toISOString());
-                window.dispatchEvent(new Event('announcementsRead'));
+                if (newCount > 0) setHasUnread(true);
             }
 
             if (isLoading) setIsLoading(false);
@@ -422,11 +401,12 @@ export default function CommunicationPage() {
             unsubAnnouncements();
             unsubReports();
         };
-    }, [toast, isLoading, activeTab]);
+    }, [toast, isLoading]);
 
     const handleTabChange = (value: string) => {
         if (value === 'announcements') {
             localStorage.setItem('lastReadAnnouncement', new Date().toISOString());
+            setHasUnread(false);
             window.dispatchEvent(new Event('announcementsRead'));
         }
         setActiveTab(value);
@@ -446,6 +426,13 @@ export default function CommunicationPage() {
         }
         setIsPosting(false);
     };
+
+    const handleMarkAllRead = () => {
+        localStorage.setItem('lastReadAnnouncement', new Date().toISOString());
+        setHasUnread(false);
+        window.dispatchEvent(new Event('announcementsRead'));
+        toast({ title: 'Messages Marked as Read' });
+    }
 
     const canPostAnnouncements = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer';
     const canViewReports = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer';
@@ -471,9 +458,16 @@ export default function CommunicationPage() {
                 </TabsList>
                 <TabsContent value="announcements" className="mt-4">
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Team Announcements</CardTitle>
-                            <CardDescription>Updates and messages from management.</CardDescription>
+                        <CardHeader className="flex flex-row justify-between items-center">
+                            <div>
+                                <CardTitle>Team Announcements</CardTitle>
+                                <CardDescription>Updates and messages from management.</CardDescription>
+                            </div>
+                            {hasUnread && (
+                                <Button variant="outline" onClick={handleMarkAllRead}>
+                                    <CheckCheck className="mr-2 h-4 w-4"/> Mark All as Read
+                                </Button>
+                            )}
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="space-y-4 h-96 overflow-y-auto p-4 border rounded-md">

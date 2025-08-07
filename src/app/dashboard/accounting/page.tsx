@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle, MessageSquareQuote } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle, MessageSquareQuote, CheckCircle, PackageSearch, Banknote } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, startOfYear } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement, getAccountSummary } from '@/app/actions';
@@ -36,6 +36,7 @@ import { collection, onSnapshot, query, where, orderBy, Timestamp } from 'fireba
 import { db } from '@/lib/firebase';
 import { Progress } from '@/components/ui/progress';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 // --- Helper Functions & Type Definitions ---
@@ -45,7 +46,7 @@ type AccountSummary = Record<string, number>;
 type DebtRecord = { id: string; date: string; description: string; debit: number; credit: number; };
 type DirectCost = { id: string; date: string; description: string; category: string; quantity: number; total: number; };
 type IndirectCost = { id: string; date: string; description: string; category: string; amount: number; };
-type ClosingStock = { id: string; item: string; remainingStock: string; amount: number; };
+type ClosingStock = { name: string; value: number; };
 type DiscountRecord = { id: string; bread_type: string; amount: number };
 type Wage = { id: string; date: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
 type Sale = { id: string; date: string; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; };
@@ -71,15 +72,6 @@ function PaginationControls({
     setVisibleRows: (val: number | 'all') => void,
     totalRows: number
 }) {
-    const [inputValue, setInputValue] = useState<string | number>('');
-
-    const handleApplyInput = () => {
-        const num = Number(inputValue);
-        if (!isNaN(num) && num > 0) {
-            setVisibleRows(num);
-        }
-    };
-
     return (
         <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
             <span>Show:</span>
@@ -1072,7 +1064,7 @@ function SalesRecordsTab() {
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [isLoading]);
 
     const filteredRecords = useMemo(() => {
         if (!date?.from) return records;
@@ -1273,12 +1265,13 @@ function ClosingStockTab() {
     const [isLoading, setIsLoading] = useState(true);
     const [date, setDate] = useState<DateRange | undefined>();
     const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
+    const [stockFilter, setStockFilter] = useState<'all' | 'products' | 'ingredients'>('all');
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
             const [csData, wasteData, discountData, debtData] = await Promise.all([
-                getClosingStocks(),
+                getClosingStocks(stockFilter === 'all' ? undefined : stockFilter),
                 getWasteLogs(),
                 getDiscountRecords(),
                 getDebtRecords()
@@ -1292,7 +1285,7 @@ function ClosingStockTab() {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [stockFilter]);
 
     useEffect(() => {
         fetchData();
@@ -1327,7 +1320,7 @@ function ClosingStockTab() {
     }, [filteredLoanAccount, visibleRows]);
 
 
-    const totalClosingStock = useMemo(() => closingStock.reduce((sum, item) => sum + (item.amount || 0), 0), [closingStock]);
+    const totalClosingStock = useMemo(() => closingStock.reduce((sum, item) => sum + (item.value || 0), 0), [closingStock]);
     const totalDiscounts = useMemo(() => discounts.reduce((sum, item) => sum + (item.amount || 0), 0), [discounts]);
     const totalLoanDebit = useMemo(() => paginatedLoanAccount.reduce((sum, item) => sum + (item.debit || 0), 0), [paginatedLoanAccount]);
     
@@ -1335,8 +1328,7 @@ function ClosingStockTab() {
 
     return (
         <div className="space-y-6">
-             <div className="flex justify-between items-center">
-                 <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={Math.max(filteredBadBread.length, filteredLoanAccount.length)} />
+             <div className="flex justify-end items-center gap-4">
                 <Popover>
                     <PopoverTrigger asChild>
                     <Button id="date" variant={"outline"} className={cn("w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
@@ -1351,15 +1343,27 @@ function ClosingStockTab() {
             </div>
             <div className="grid md:grid-cols-2 gap-6">
                 <Card>
-                    <CardHeader>
-                        <CardTitle>Closing Stock</CardTitle>
-                        <CardDescription>Value of inventory at the end of the accounting period.</CardDescription>
+                    <CardHeader className="flex flex-row justify-between items-center">
+                        <div>
+                            <CardTitle>Closing Stock</CardTitle>
+                            <CardDescription>Value of inventory at the end of the accounting period.</CardDescription>
+                        </div>
+                         <Select value={stockFilter} onValueChange={(val) => setStockFilter(val as any)}>
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Filter by type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Stock</SelectItem>
+                                <SelectItem value="products">Products</SelectItem>
+                                <SelectItem value="ingredients">Ingredients</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </CardHeader>
                     <CardContent>
                         <Table>
-                            <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Remaining Stock</TableHead><TableHead className="text-right">Amount (₦)</TableHead></TableRow></TableHeader>
-                            <TableBody>{closingStock.map(r => <TableRow key={r.id}><TableCell>{r.item}</TableCell><TableCell>{r.remainingStock}</TableCell><TableCell className="text-right">{formatCurrency(r.amount)}</TableCell></TableRow>)}</TableBody>
-                            <TableFooter><TableRow><TableCell colSpan={2} className="font-bold text-right">Total Closing Stock</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalClosingStock)}</TableCell></TableRow></TableFooter>
+                            <TableHeader><TableRow><TableHead>Item</TableHead><TableHead className="text-right">Amount (₦)</TableHead></TableRow></TableHeader>
+                            <TableBody>{closingStock.map(r => <TableRow key={r.name}><TableCell>{r.name}</TableCell><TableCell className="text-right">{formatCurrency(r.value)}</TableCell></TableRow>)}</TableBody>
+                            <TableFooter><TableRow><TableCell className="font-bold text-right">Total Closing Stock</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalClosingStock)}</TableCell></TableRow></TableFooter>
                         </Table>
                     </CardContent>
                 </Card>
@@ -1375,6 +1379,9 @@ function ClosingStockTab() {
                             <TableFooter><TableRow><TableCell colSpan={2} className="font-bold text-right">Total Loan</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalLoanDebit)}</TableCell></TableRow></TableFooter>
                         </Table>
                     </CardContent>
+                     <CardFooter>
+                        <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredLoanAccount.length} />
+                    </CardFooter>
                 </Card>
             </div>
 
@@ -1390,6 +1397,9 @@ function ClosingStockTab() {
                             <TableBody>{paginatedBadBread.map(r => <TableRow key={r.id}><TableCell>{r.productName}</TableCell><TableCell className="text-right">{r.quantity}</TableCell></TableRow>)}</TableBody>
                         </Table>
                     </CardContent>
+                     <CardFooter>
+                        <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredBadBread.length} />
+                    </CardFooter>
                 </Card>
 
                 <Card>
@@ -1700,14 +1710,18 @@ function BusinessHealthTab() {
 }
 
 export default function AccountingPage() {
-  const [notificationCounts, setNotificationCounts] = useState({ payments: 0 });
+  const [notificationCounts, setNotificationCounts] = useState({ payments: 0, approvals: 0 });
 
   useEffect(() => {
-    const q = query(collection(db, "payment_confirmations"), where('status', '==', 'pending'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        setNotificationCounts({ payments: snapshot.size });
+    const qPayments = query(collection(db, "payment_confirmations"), where('status', '==', 'pending'));
+    const unsubPayments = onSnapshot(qPayments, (snapshot) => {
+        setNotificationCounts(prev => ({...prev, payments: snapshot.size }));
     });
-    return () => unsubscribe();
+    
+    // Add listener for supply approvals
+    // This will be implemented when the approval system is built
+
+    return () => unsubPayments();
   }, [])
 
   return (
@@ -1726,6 +1740,10 @@ export default function AccountingPage() {
                     {notificationCounts.payments > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.payments}</Badge>}
                 </TabsTrigger>
                 <TabsTrigger value="assets-wages">Assets &amp; Wages</TabsTrigger>
+                 <TabsTrigger value="approvals" className="relative">
+                    Approvals
+                    {notificationCounts.approvals > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.approvals}</Badge>}
+                </TabsTrigger>
             </TabsList>
         </div>
 
@@ -1775,9 +1793,18 @@ export default function AccountingPage() {
                 <TabsContent value="wages"><WagesTab /></TabsContent>
             </Tabs>
         </TabsContent>
+        <TabsContent value="approvals">
+          <Card>
+            <CardHeader>
+                <CardTitle>Supply & Cost Approvals</CardTitle>
+                <CardDescription>Review and approve stock increase requests from the storekeeper.</CardDescription>
+            </CardHeader>
+             <CardContent className="flex items-center justify-center h-64 text-muted-foreground">
+                <p>Approval functionality coming soon.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
-
-    
