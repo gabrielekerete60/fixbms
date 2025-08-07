@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -48,7 +49,7 @@ type IndirectCost = { id: string; date: string; description: string; category: s
 type ClosingStock = { name: string; value: number; };
 type DiscountRecord = { id: string; bread_type: string; amount: number };
 type Wage = { id: string; date: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
-type Sale = { id: string; date: string; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; };
+type Sale = { id: string; date: string; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; staffName?: string; };
 type DrinkSaleSummary = { productId: string; productName: string; quantitySold: number; totalRevenue: number; costPrice: number, stock: number };
 
 const chartConfig = {
@@ -466,9 +467,9 @@ function DebtorsCreditorsTab() {
         });
     }, [debtLedger, date]);
 
-    const paginatedCreditors = useMemo(() => visibleCreditorRows === 'all' ? creditors : creditors.slice(0, visibleCreditorRows), [creditors, visibleCreditorRows]);
-    const paginatedDebtors = useMemo(() => visibleDebtorRows === 'all' ? debtors : debtors.slice(0, visibleDebtorRows), [debtors, visibleDebtorRows]);
-    const paginatedLedger = useMemo(() => visibleLedgerRows === 'all' ? filteredLedger : filteredLedger.slice(0, visibleLedgerRows), [filteredLedger, visibleLedgerRows]);
+    const paginatedCreditors = useMemo(() => (visibleCreditorRows === 'all' ? creditors : creditors.slice(0, visibleCreditorRows)), [creditors, visibleCreditorRows]);
+    const paginatedDebtors = useMemo(() => (visibleDebtorRows === 'all' ? debtors : debtors.slice(0, visibleDebtorRows)), [debtors, visibleDebtorRows]);
+    const paginatedLedger = useMemo(() => (visibleLedgerRows === 'all' ? filteredLedger : filteredLedger.slice(0, visibleLedgerRows)), [filteredLedger, visibleLedgerRows]);
     
     const { debitTotal, creditTotal } = useMemo(() => {
         const debit = filteredLedger.reduce((sum, item) => sum + (item.debit || 0), 0);
@@ -501,6 +502,7 @@ function DebtorsCreditorsTab() {
                                     </TableRow>
                                 ))}
                             </TableBody>
+                        </Table>
                         </div>
                     </CardContent>
                     <CardFooter>
@@ -1106,11 +1108,11 @@ function SalesRecordsTab() {
             <CardContent>
                 <div className="overflow-x-auto">
                     <Table>
-                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Cash</TableHead><TableHead className="text-right">Transfer</TableHead><TableHead className="text-right">POS</TableHead><TableHead className="text-right">Credit Sales</TableHead><TableHead className="text-right">Shortage</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
-                        <TableBody>{paginatedRecords.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell className="text-right">{formatCurrency(r.cash)}</TableCell><TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell><TableCell className="text-right">{formatCurrency(r.pos)}</TableCell><TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell><TableCell className="text-right">{formatCurrency(r.shortage)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell></TableRow>)}</TableBody>
+                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Staff</TableHead><TableHead className="text-right">Cash</TableHead><TableHead className="text-right">Transfer</TableHead><TableHead className="text-right">POS</TableHead><TableHead className="text-right">Credit Sales</TableHead><TableHead className="text-right">Shortage</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
+                        <TableBody>{paginatedRecords.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell>{r.staffName || 'N/A'}</TableCell><TableCell className="text-right">{formatCurrency(r.cash)}</TableCell><TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell><TableCell className="text-right">{formatCurrency(r.pos)}</TableCell><TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell><TableCell className="text-right">{formatCurrency(r.shortage)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell></TableRow>)}</TableBody>
                         <TableFooter>
                             <TableRow>
-                                <TableCell colSpan={7} className="font-bold text-right">Grand Total</TableCell>
+                                <TableCell colSpan={8} className="font-bold text-right">Grand Total</TableCell>
                                 <TableCell className="font-bold text-right">{formatCurrency(grandTotal)}</TableCell>
                             </TableRow>
                         </TableFooter>
@@ -1378,7 +1380,7 @@ function ClosingStockTab() {
                         </Table>
                     </CardContent>
                      <CardFooter>
-                        <PaginationControls visibleRows={visibleRows} setVisibleRows={VisibleRows} totalRows={filteredLoanAccount.length} />
+                        <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredLoanAccount.length} />
                     </CardFooter>
                 </Card>
             </div>
@@ -1973,3 +1975,5 @@ export default function AccountingPage() {
     </div>
   );
 }
+
+    
