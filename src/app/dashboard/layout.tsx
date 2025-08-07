@@ -75,7 +75,7 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
     <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
       {navLinks.map((link) => 
         link.sublinks ? (
-           <Collapsible key={link.label} className="grid gap-1" defaultOpen={link.sublinks.some(sub => pathname.startsWith(sub.href))}>
+           <Collapsible key={link.label} className="grid gap-1" open={link.sublinks.some(sub => pathname.startsWith(sub.href))}>
             <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary [&[data-state=open]>svg:last-child]:rotate-90">
               <div className="flex items-center gap-3">
                 <link.icon className="h-4 w-4" />
