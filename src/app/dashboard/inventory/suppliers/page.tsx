@@ -52,6 +52,7 @@ import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { addDirectCost } from "@/app/actions";
 
 type User = {
     name: string;
@@ -346,6 +347,14 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
             // 4. Update supplier amount owed
             const supplierRef = doc(db, 'suppliers', supplier.id);
             batch.update(supplierRef, { amountOwed: increment(logData.totalCost) });
+            
+            // 5. Add to Direct Costs
+            await addDirectCost({
+                description: `Purchase of ${logData.ingredientName} from ${supplier.name}`,
+                category: 'Ingredients',
+                quantity: logData.quantity,
+                total: logData.totalCost,
+            })
 
             await batch.commit();
 

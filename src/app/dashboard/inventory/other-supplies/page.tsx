@@ -49,10 +49,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { addIndirectCost } from "@/app/actions";
 
 
 type OtherSupply = {
@@ -164,6 +165,102 @@ function SupplyDialog({
     );
 }
 
+function IncreaseSupplyDialog({ supplies, onStockIncreased }: { supplies: OtherSupply[], onStockIncreased: () => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [selectedSupplyId, setSelectedSupplyId] = useState('');
+    const [quantity, setQuantity] = useState<number | ''>('');
+    const [totalCost, setTotalCost] = useState<number | ''>('');
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSave = async () => {
+        if (!selectedSupplyId || !quantity || !totalCost) {
+            toast({ variant: 'destructive', title: 'Error', description: 'All fields are required.' });
+            return;
+        }
+
+        setIsLoading(true);
+        const supply = supplies.find(s => s.id === selectedSupplyId);
+        if (!supply) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Selected supply not found.' });
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const batch = writeBatch(db);
+
+            // 1. Update stock for the supply
+            const supplyRef = doc(db, 'other_supplies', selectedSupplyId);
+            batch.update(supplyRef, { stock: increment(Number(quantity)) });
+
+            // 2. Add an indirect cost entry
+            await addIndirectCost({
+                description: `Purchase of ${supply.name}`,
+                category: supply.category,
+                amount: Number(totalCost),
+            });
+            
+            await batch.commit();
+
+            toast({ title: 'Success', description: 'Stock updated and cost logged.' });
+            setSelectedSupplyId('');
+            setQuantity('');
+            setTotalCost('');
+            onStockIncreased();
+            setIsOpen(false);
+        } catch (error) {
+            console.error("Error increasing supply stock:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to update stock.' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Increase Supply Stock
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Increase Other Supply Stock</DialogTitle>
+                    <DialogDescription>Record a purchase of a non-ingredient supply item.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label>Supply Item</Label>
+                        <Select value={selectedSupplyId} onValueChange={setSelectedSupplyId}>
+                            <SelectTrigger><SelectValue placeholder="Select an item" /></SelectTrigger>
+                            <SelectContent>
+                                {supplies.map(s => <SelectItem key={s.id} value={s.id}>{s.name} (In Stock: {s.stock})</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="quantity">Quantity Added</Label>
+                            <Input id="quantity" type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="total-cost">Total Cost (₦)</Label>
+                            <Input id="total-cost" type="number" value={totalCost} onChange={(e) => setTotalCost(Number(e.target.value))} />
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSave} disabled={isLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Save and Update Stock
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function OtherSuppliesPage() {
     const { toast } = useToast();
@@ -246,9 +343,7 @@ export default function OtherSuppliesPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold font-headline">Other Supplies</h1>
                 <div className="flex items-center gap-2">
-                    <Button onClick={openAddDialog}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add Supply
-                    </Button>
+                    <IncreaseSupplyDialog supplies={supplies} onStockIncreased={fetchSupplies} />
                 </div>
             </div>
 
