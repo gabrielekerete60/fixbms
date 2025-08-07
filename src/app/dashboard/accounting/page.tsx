@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -12,7 +11,7 @@ import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Label } from "@/components/ui/label";
 import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
@@ -28,7 +27,7 @@ import {
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Separator } from '@/components/ui/separator';
@@ -502,7 +501,6 @@ function DebtorsCreditorsTab() {
                                     </TableRow>
                                 ))}
                             </TableBody>
-                        </Table>
                         </div>
                     </CardContent>
                     <CardFooter>
@@ -1380,7 +1378,7 @@ function ClosingStockTab() {
                         </Table>
                     </CardContent>
                      <CardFooter>
-                        <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredLoanAccount.length} />
+                        <PaginationControls visibleRows={visibleRows} setVisibleRows={VisibleRows} totalRows={filteredLoanAccount.length} />
                     </CardFooter>
                 </Card>
             </div>
@@ -1709,20 +1707,195 @@ function BusinessHealthTab() {
     );
 }
 
+function ApprovalsTab({ user, notificationBadge }: { user: { staff_id: string, name: string }, notificationBadge?: React.ReactNode }) {
+    const { toast } = useToast();
+    const [requests, setRequests] = useState<SupplyRequest[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [actioningId, setActioningId] = useState<string | null>(null);
+    const [costPerUnit, setCostPerUnit] = useState<number | string>('');
+    const [totalCost, setTotalCost] = useState<number | string>('');
+    const [selectedRequest, setSelectedRequest] = useState<SupplyRequest | null>(null);
+
+    const fetchRequests = useCallback(() => {
+        setIsLoading(true);
+        getPendingSupplyRequests().then(data => {
+            setRequests(data);
+        }).catch(err => {
+            console.error(err);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch supply requests.' });
+        }).finally(() => {
+            setIsLoading(false);
+        });
+    }, [toast]);
+
+    useEffect(() => {
+        fetchRequests();
+    }, [fetchRequests]);
+    
+    useEffect(() => {
+        if (selectedRequest && costPerUnit) {
+            setTotalCost(Number(costPerUnit) * selectedRequest.quantity);
+        } else {
+            setTotalCost('');
+        }
+    }, [costPerUnit, selectedRequest])
+
+    const handleApprove = async () => {
+        if (!selectedRequest || !costPerUnit || !totalCost) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fill in cost details.' });
+            return;
+        }
+        setActioningId(selectedRequest.id);
+        const result = await approveStockIncrease(selectedRequest.id, Number(costPerUnit), Number(totalCost), user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Stock request approved.' });
+            fetchRequests();
+            setSelectedRequest(null);
+            setCostPerUnit('');
+            setTotalCost('');
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setActioningId(null);
+    };
+
+    const handleDecline = async (requestId: string) => {
+        setActioningId(requestId);
+        const result = await declineStockIncrease(requestId, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Request declined.' });
+            fetchRequests();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setActioningId(null);
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <CardTitle>Supply &amp; Cost Approvals</CardTitle>
+                        {notificationBadge}
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={fetchRequests} disabled={isLoading}>
+                        <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
+                    </Button>
+                </div>
+                <CardDescription>Review and approve stock increase requests from the storekeeper.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Requester</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead className="text-right">Quantity</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {isLoading ? (
+                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                        ) : requests.length === 0 ? (
+                             <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending supply requests.</TableCell></TableRow>
+                        ) : (
+                            requests.map(req => (
+                                <TableRow key={req.id}>
+                                    <TableCell>{format(req.requestDate.toDate(), 'PPP')}</TableCell>
+                                    <TableCell>{req.requesterName}</TableCell>
+                                    <TableCell>{req.ingredientName}</TableCell>
+                                    <TableCell className="text-right">{req.quantity}</TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex gap-2 justify-end">
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="destructive" size="sm" disabled={!!actioningId}>Decline</Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDecline(req.id)}>Decline</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                            <Button size="sm" onClick={() => setSelectedRequest(req)}>Approve</Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+
+            <Dialog open={!!selectedRequest} onOpenChange={() => setSelectedRequest(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Approve: {selectedRequest?.quantity}x {selectedRequest?.ingredientName}</DialogTitle>
+                        <DialogDescription>
+                            Enter the cost details for this supply from {selectedRequest?.supplierName}. This action will update inventory and financial records.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-2 gap-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Cost per Unit (₦)</Label>
+                            <Input type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Total Cost (₦)</Label>
+                            <Input type="number" value={totalCost} onChange={(e) => setTotalCost(e.target.value)} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setSelectedRequest(null)}>Cancel</Button>
+                        <Button onClick={handleApprove} disabled={actioningId === selectedRequest?.id}>
+                             {actioningId === selectedRequest?.id && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            Approve
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </Card>
+    );
+}
+
+
 export default function AccountingPage() {
   const [notificationCounts, setNotificationCounts] = useState({ payments: 0, approvals: 0 });
+  const [user, setUser] = useState<{staff_id: string; name: string} | null>(null);
 
   useEffect(() => {
+    const userStr = localStorage.getItem('loggedInUser');
+    if (userStr) {
+        setUser(JSON.parse(userStr));
+    }
+
     const qPayments = query(collection(db, "payment_confirmations"), where('status', '==', 'pending'));
     const unsubPayments = onSnapshot(qPayments, (snapshot) => {
         setNotificationCounts(prev => ({...prev, payments: snapshot.size }));
     });
     
-    // Add listener for supply approvals
-    // This will be implemented when the approval system is built
+    const qApprovals = query(collection(db, "supply_requests"), where('status', '==', 'pending'));
+    const unsubApprovals = onSnapshot(qApprovals, (snapshot) => {
+        setNotificationCounts(prev => ({...prev, approvals: snapshot.size }));
+    });
 
-    return () => unsubPayments();
+    return () => {
+      unsubPayments();
+      unsubApprovals();
+    }
   }, [])
+
+  if (!user) {
+    return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -1794,15 +1967,7 @@ export default function AccountingPage() {
             </Tabs>
         </TabsContent>
         <TabsContent value="approvals">
-          <Card>
-            <CardHeader>
-                <CardTitle>Supply & Cost Approvals</CardTitle>
-                <CardDescription>Review and approve stock increase requests from the storekeeper.</CardDescription>
-            </CardHeader>
-             <CardContent className="flex items-center justify-center h-64 text-muted-foreground">
-                <p>Approval functionality coming soon.</p>
-            </CardContent>
-          </Card>
+          <ApprovalsTab user={user} notificationBadge={null} />
         </TabsContent>
       </Tabs>
     </div>

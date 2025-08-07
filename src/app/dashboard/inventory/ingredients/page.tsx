@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -20,7 +19,7 @@ import {
   TableFooter
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, ChevronsUp, Calendar as CalendarIcon, ArrowDown, ArrowUp, Eye } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, ChevronsUp, Calendar as CalendarIcon, ArrowDown, ArrowUp, Eye, FileUp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,7 +57,7 @@ import { format, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRange } from "react-day-picker";
-import { getIngredientStockLogs, IngredientStockLog, ProductionBatch, getProductionBatch, getSupplyLog, SupplyLog } from "@/app/actions";
+import { getIngredientStockLogs, IngredientStockLog, ProductionBatch, getProductionBatch, getSupplyLog, SupplyLog, requestStockIncrease } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
@@ -195,85 +194,41 @@ function IngredientDialog({
     );
 }
 
-function IncreaseStockDialog({ isOpen, onOpenChange, onStockUpdated, ingredients, suppliers, user }: { isOpen: boolean, onOpenChange: (open: boolean) => void, onStockUpdated: () => void, ingredients: Ingredient[], suppliers: Supplier[], user: User | null }) {
+function RequestStockDialog({ isOpen, onOpenChange, ingredients, suppliers, user }: { isOpen: boolean, onOpenChange: (open: boolean) => void, ingredients: Ingredient[], suppliers: Supplier[], user: User | null }) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
     const [ingredientId, setIngredientId] = useState('');
     const [supplierId, setSupplierId] = useState('');
     const [quantity, setQuantity] = useState<number | string>('');
-    const [costPerUnit, setCostPerUnit] = useState<number | string>('');
-
-    const selectedIngredient = useMemo(() => ingredients.find(i => i.id === ingredientId), [ingredientId, ingredients]);
-    const selectedSupplier = useMemo(() => suppliers.find(s => s.id === supplierId), [supplierId, suppliers]);
-
-    useEffect(() => {
-        if(selectedIngredient) {
-            setCostPerUnit(selectedIngredient.costPerUnit || '');
-        }
-    }, [selectedIngredient]);
 
     const handleSubmit = async () => {
-        if (!user || !selectedIngredient || !selectedSupplier || !quantity || !costPerUnit) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please fill all fields.' });
+        if (!user || !ingredientId || !supplierId || !quantity || Number(quantity) <= 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please select an ingredient, supplier, and enter a valid quantity.' });
             return;
         }
-
         setIsLoading(true);
-        const totalCost = Number(quantity) * Number(costPerUnit);
-        
-        try {
-            const batch = writeBatch(db);
-
-            const logRef = doc(collection(db, 'supply_logs'));
-            batch.set(logRef, {
-                supplierId: selectedSupplier.id,
-                supplierName: selectedSupplier.name,
-                ingredientId: selectedIngredient.id,
-                ingredientName: selectedIngredient.name,
-                quantity: Number(quantity),
-                unit: selectedIngredient.unit,
-                costPerUnit: Number(costPerUnit),
-                totalCost,
-                date: serverTimestamp(),
-                staffName: user.name,
-                staffId: user.staff_id,
-            });
-
-            const ingredientRef = doc(db, 'ingredients', selectedIngredient.id);
-            batch.update(ingredientRef, { stock: increment(Number(quantity)) });
-
-            const supplierRef = doc(db, 'suppliers', selectedSupplier.id);
-            batch.update(supplierRef, { amountOwed: increment(totalCost) });
-            
-            const ingredientStockLogRef = doc(collection(db, 'ingredient_stock_logs'));
-            batch.set(ingredientStockLogRef, {
-                ingredientId: selectedIngredient.id,
-                ingredientName: selectedIngredient.name,
-                change: Number(quantity),
-                reason: `Purchase from ${selectedSupplier.name}`,
-                date: serverTimestamp(),
-                staffName: user.name,
-                logRefId: logRef.id,
-            });
-
-            await batch.commit();
-            toast({ title: 'Success', description: 'Stock updated successfully.' });
+        const result = await requestStockIncrease({ ingredientId, supplierId, quantity: Number(quantity) }, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Stock request sent to accountant for approval.' });
+            setIngredientId(''); setSupplierId(''); setQuantity('');
             onOpenChange(false);
-            setIngredientId(''); setSupplierId(''); setQuantity(''); setCostPerUnit('');
-        } catch (error) {
-            console.error("Error increasing stock:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to update stock.' });
-        } finally {
-            setIsLoading(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-    }
+        setIsLoading(false);
+    };
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogTrigger asChild>
+                <Button variant="outline">
+                    <FileUp className="mr-2 h-4 w-4" /> Request Stock Increase
+                </Button>
+            </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Increase Ingredient Stock</DialogTitle>
-                    <DialogDescription>Record a new delivery of ingredients from a supplier. This will update inventory and the supplier's balance.</DialogDescription>
+                    <DialogTitle>Request Ingredient Stock Increase</DialogTitle>
+                    <DialogDescription>Request a new delivery of ingredients. This will be sent to the accountant for cost approval before stock is updated.</DialogDescription>
                 </DialogHeader>
                  <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
@@ -298,22 +253,16 @@ function IncreaseStockDialog({ isOpen, onOpenChange, onStockUpdated, ingredients
                             </SelectContent>
                         </Select>
                     </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                            <Label>Quantity Received</Label>
-                            <Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-                        </div>
-                         <div className="grid gap-2">
-                            <Label>Cost Per Unit (₦)</Label>
-                            <Input type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(e.target.value)} />
-                        </div>
+                     <div className="grid gap-2">
+                        <Label>Quantity Received</Label>
+                        <Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
                     </div>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
                     <Button onClick={handleSubmit} disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Save Log & Update Stock
+                        Send Request
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -399,7 +348,7 @@ export default function IngredientsPage() {
     const [editingIngredient, setEditingIngredient] = useState<Partial<Ingredient> | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [ingredientToDelete, setIngredientToDelete] = useState<Ingredient | null>(null);
-    const [isIncreaseStockOpen, setIsIncreaseStockOpen] = useState(false);
+    const [isRequestStockOpen, setIsRequestStockOpen] = useState(false);
     const [date, setDate] = useState<DateRange | undefined>();
 
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -519,15 +468,14 @@ export default function IngredientsPage() {
     }, [stockLogs, date]);
 
     const canViewCosts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
+    const isStorekeeper = user?.role === 'Storekeeper';
 
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold font-headline">Ingredients</h1>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => setIsIncreaseStockOpen(true)}>
-                        <ChevronsUp className="mr-2 h-4 w-4" /> Increase Stock
-                    </Button>
+                    {isStorekeeper && <RequestStockDialog isOpen={isRequestStockOpen} onOpenChange={setIsRequestStockOpen} ingredients={ingredients} suppliers={suppliers} user={user}/>}
                     <Button onClick={openAddDialog}>
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Ingredient
                     </Button>
@@ -539,14 +487,6 @@ export default function IngredientsPage() {
                 onOpenChange={setIsDialogOpen}
                 onSave={handleSaveIngredient}
                 ingredient={editingIngredient}
-            />
-            <IncreaseStockDialog
-                isOpen={isIncreaseStockOpen}
-                onOpenChange={setIsIncreaseStockOpen}
-                onStockUpdated={() => {}}
-                ingredients={ingredients}
-                suppliers={suppliers}
-                user={user}
             />
              <LogDetailsDialog 
                 isOpen={isDetailsOpen}
