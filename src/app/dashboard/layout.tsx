@@ -70,12 +70,23 @@ type User = {
 
 function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[], pathname: string, notificationCounts: Record<string, number> }) {
   const { toast } = useToast();
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+
+  useEffect(() => {
+    const activeMenu = navLinks.find(link => link.sublinks?.some((sub:any) => pathname.startsWith(sub.href)));
+    setOpenMenu(activeMenu?.label || null);
+  }, [pathname, navLinks]);
   
   return (
     <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
       {navLinks.map((link) => 
         link.sublinks ? (
-           <Collapsible key={link.label} className="grid gap-1" open={link.sublinks.some(sub => pathname.startsWith(sub.href))}>
+           <Collapsible 
+              key={link.label} 
+              className="grid gap-1"
+              open={openMenu === link.label}
+              onOpenChange={(isOpen) => setOpenMenu(isOpen ? link.label : null)}
+            >
             <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary [&[data-state=open]>svg:last-child]:rotate-90">
               <div className="flex items-center gap-3">
                 <link.icon className="h-4 w-4" />
@@ -120,6 +131,8 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
                 if (link.disabled) {
                     e.preventDefault();
                     toast({ variant: 'destructive', title: 'Feature Not Available', description: 'This feature is currently under construction.' });
+                } else {
+                  setOpenMenu(null);
                 }
             }}
             className={cn(
