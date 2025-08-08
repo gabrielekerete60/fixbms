@@ -104,11 +104,11 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
               <div className="flex items-center gap-3">
                 <link.icon className="h-4 w-4" />
                 {link.label}
+                 {link.notificationKey && notificationCounts[link.notificationKey] > 0 && (
+                    <Badge variant="destructive" className="ml-2">{notificationCounts[link.notificationKey]}</Badge>
+                )}
               </div>
               <div className="flex items-center gap-2">
-                {link.notificationKey && notificationCounts[link.notificationKey] > 0 && (
-                    <Badge variant="destructive" className="h-5 w-5 flex items-center justify-center rounded-full p-0">{notificationCounts[link.notificationKey]}</Badge>
-                )}
                 <ChevronRight className="h-4 w-4 transition-transform" />
               </div>
             </CollapsibleTrigger>
@@ -190,6 +190,7 @@ export default function DashboardLayout({
       newReports: 0,
       inProgressReports: 0,
       unreadAnnouncements: 0,
+      pendingApprovals: 0,
   });
   
   const applyTheme = useCallback((theme: string | undefined) => {
@@ -294,6 +295,11 @@ export default function DashboardLayout({
     const inProgressReportsQuery = query(collection(db, 'reports'), where('status', '==', 'in_progress'));
     const unsubInProgress = onSnapshot(inProgressReportsQuery, (snap) => setNotificationCounts(prev => ({...prev, inProgressReports: snap.size })));
 
+    const qApprovals = query(collection(db, "supply_requests"), where('status', '==', 'pending'));
+    const unsubApprovals = onSnapshot(qApprovals, (snapshot) => {
+        setNotificationCounts(prev => ({...prev, pendingApprovals: snapshot.size }));
+    });
+
 
     // Announcement listener
     const announcementsQuery = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
@@ -322,6 +328,7 @@ export default function DashboardLayout({
         unsubReports();
         unsubAnnouncements();
         unsubInProgress();
+        unsubApprovals();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
   }, [user?.staff_id, handleLogout, applyTheme]);
@@ -432,13 +439,15 @@ export default function DashboardLayout({
     const canViewReports = user && ['Manager', 'Supervisor', 'Developer'].includes(user.role);
     const stockControlCount = notificationCounts.pendingTransfers + (canApproveBatches ? notificationCounts.pendingBatches : 0);
     const reportsCount = canViewReports ? notificationCounts.newReports + notificationCounts.inProgressReports : 0;
+    const accountingCount = notificationCounts.pendingPayments + notificationCounts.pendingApprovals;
       
       return {
           stockControl: stockControlCount,
           pendingBatches: notificationCounts.pendingBatches,
           inventory: stockControlCount,
-          accounting: notificationCounts.pendingPayments,
+          accounting: accountingCount,
           payments: notificationCounts.pendingPayments,
+          approvals: notificationCounts.pendingApprovals,
           communication: reportsCount + notificationCounts.unreadAnnouncements,
       }
   }, [notificationCounts, user]);

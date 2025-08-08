@@ -2004,10 +2004,7 @@ export default function AccountingPage() {
                 <TabsTrigger value="business-health">Business Health</TabsTrigger>
                 <TabsTrigger value="expenses">Expenses</TabsTrigger>
                 <TabsTrigger value="sales">Sales</TabsTrigger>
-                <TabsTrigger value="debt-payments" className="relative">
-                    Debt &amp; Payments
-                    {notificationCounts.payments > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.payments}</Badge>}
-                </TabsTrigger>
+                <TabsTrigger value="debt-payments">Debt &amp; Payments</TabsTrigger>
                 <TabsTrigger value="assets-wages">Assets &amp; Wages</TabsTrigger>
                  <TabsTrigger value="approvals" className="relative">
                     Stock Approvals
