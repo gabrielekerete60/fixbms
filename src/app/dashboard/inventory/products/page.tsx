@@ -464,6 +464,13 @@ export default function ProductsPage() {
     setActiveTab('logs');
   }
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    if (value === 'products') {
+        setViewingLogsFor(null);
+    }
+  }
+
   const categories = useMemo(() => ['All', ...new Set(products.map(p => p.category))], [products]);
 
   const canViewFinancials = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer' || user?.role === 'Accountant';
@@ -491,7 +498,7 @@ export default function ProductsPage() {
             categories={categories}
         />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="logs">
@@ -584,10 +591,10 @@ export default function ProductsPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onSelect={() => setEditingProduct(product)}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => handleViewLogs(product)}>View Logs</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={(e) => {e.stopPropagation(); setEditingProduct(product);}}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={(e) => {e.stopPropagation(); handleViewLogs(product)}}>View Logs</DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive" onSelect={() => setProductToDelete(product)}>
+                                <DropdownMenuItem className="text-destructive" onSelect={(e) => {e.stopPropagation(); setProductToDelete(product)}}>
                                     Delete
                                 </DropdownMenuItem>
                                 </DropdownMenuContent>
