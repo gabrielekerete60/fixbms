@@ -73,14 +73,16 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   useEffect(() => {
-    // Only set the open menu based on pathname if it's not already open.
-    // This prevents the menu from snapping shut when navigating between sublinks.
     const activeMenu = navLinks.find(link => link.sublinks?.some((sub:any) => pathname.startsWith(sub.href)));
-    if (activeMenu && openMenu !== activeMenu.label) {
+    if (activeMenu) {
       setOpenMenu(activeMenu.label);
     }
   }, [pathname, navLinks]);
   
+  const handleTriggerClick = (label: string) => {
+    setOpenMenu(prevMenu => prevMenu === label ? null : label);
+  };
+
   return (
     <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
       {navLinks.map((link) => 
@@ -89,9 +91,14 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
               key={link.label} 
               className="grid gap-1"
               open={openMenu === link.label}
-              onOpenChange={(isOpen) => setOpenMenu(isOpen ? link.label : null)}
+              onOpenChange={(isOpen) => {
+                if (!isOpen && openMenu === link.label) {
+                  setOpenMenu(null);
+                }
+              }}
             >
             <CollapsibleTrigger 
+              onClick={() => handleTriggerClick(link.label)}
               className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary [&[data-state=open]>svg:last-child]:rotate-90"
             >
               <div className="flex items-center gap-3">
@@ -106,7 +113,7 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
               </div>
             </CollapsibleTrigger>
             <CollapsibleContent className="overflow-hidden text-sm">
-                <div className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down ml-7 flex flex-col gap-1 border-l pl-3 py-1">
+              <div className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down ml-7 flex flex-col gap-1 border-l pl-3 py-1">
                 {link.sublinks.map((sublink: any) => (
                    <Link 
                       key={sublink.label} 
