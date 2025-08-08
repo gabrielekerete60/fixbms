@@ -371,7 +371,7 @@ export default function DashboardLayout({
   const navLinks = useMemo(() => {
     const allLinks = [
       { href: "/dashboard", icon: Home, label: "Dashboard", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
-      { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Supervisor', 'Showroom Staff', 'Developer'] },
+      { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Developer'] },
       {
         icon: Inbox, label: "Orders", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Accountant', 'Developer'], sublinks: [
           { href: "/dashboard/orders/regular", label: "Regular Orders" },
@@ -462,29 +462,32 @@ export default function DashboardLayout({
     return <div className="flex justify-center items-center h-screen w-screen"><Loader2 className="h-16 w-16 animate-spin"/></div>;
   }
   
-  const SidebarFooter = () => (
-    <div className="mt-auto p-4 border-t shrink-0">
-        <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
-            <span><Clock className="inline h-4 w-4 mr-1" />{time}</span>
-            <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut} disabled={isClocking}>
-                {isClocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>)}
-                {isClocking ? 'Loading...' : (isClockedIn ? 'Clock Out' : 'Clock In')}
-            </Button>
-        </div>
-        <Card>
-        <CardContent className="p-2 flex items-center gap-2">
-            <Avatar>
-            <AvatarImage src="https://placehold.co/40x40.png" alt={user.name} data-ai-hint="profile person" />
-            <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-            </Avatar>
-            <div>
-                <p className='font-semibold text-sm'>{user.name}</p>
-                <p className='text-xs text-muted-foreground'>Role: {user.role}</p>
+  const SidebarFooter = () => {
+    if (!user) return null;
+    return (
+        <div className="mt-auto p-4 border-t shrink-0">
+            <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
+                <span><Clock className="inline h-4 w-4 mr-1" />{time}</span>
+                <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut} disabled={isClocking}>
+                    {isClocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>)}
+                    {isClocking ? 'Loading...' : (isClockedIn ? 'Clock Out' : 'Clock In')}
+                </Button>
             </div>
-        </CardContent>
-        </Card>
-    </div>
-  );
+            <Card>
+            <CardContent className="p-2 flex items-center gap-2">
+                <Avatar>
+                <AvatarImage src="https://placehold.co/40x40.png" alt={user.name} data-ai-hint="profile person" />
+                <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                </Avatar>
+                <div>
+                    <p className='font-semibold text-sm'>{user.name}</p>
+                    <p className='text-xs text-muted-foreground'>Role: {user.role}</p>
+                </div>
+            </CardContent>
+            </Card>
+        </div>
+    )
+  };
 
   return (
     <div className="grid h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -528,26 +531,28 @@ export default function DashboardLayout({
             </Sheet>
           <div className="w-full flex-1">
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="icon" className="rounded-full">
-                <CircleUser className="h-5 w-5" />
-                <span className="sr-only">Toggle user menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <Link href="/dashboard/settings" passHref>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
-              </Link>
-              <Link href="/dashboard/support" passHref>
-                <DropdownMenuItem disabled>Support</DropdownMenuItem>
-              </Link>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => handleLogout(undefined, "You have been successfully logged out.")}>Logout</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {user && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="icon" className="rounded-full">
+                  <CircleUser className="h-5 w-5" />
+                  <span className="sr-only">Toggle user menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <Link href="/dashboard/settings" passHref>
+                  <DropdownMenuItem>Settings</DropdownMenuItem>
+                </Link>
+                <Link href="/dashboard/support" passHref>
+                  <DropdownMenuItem disabled>Support</DropdownMenuItem>
+                </Link>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => handleLogout(undefined, "You have been successfully logged out.")}>Logout</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </header>
         <main className="flex-1 overflow-y-auto bg-background p-4 lg:p-6">
           <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
@@ -557,3 +562,5 @@ export default function DashboardLayout({
     </div>
   );
 }
+
+    

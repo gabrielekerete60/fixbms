@@ -303,6 +303,21 @@ const seedData = {
     { id: 'rep_3', subject: 'Leaky Faucet in Washroom', reportType: 'Maintenance', message: 'The faucet in the staff washroom has been dripping constantly for two days.', staffId: '700001', staffName: 'Nnamso George Walter', timestamp: daysAgo(1), status: 'resolved' },
     { id: 'rep_4', subject: 'Customer Complaint - Meat Pie', reportType: 'Complaint', message: 'A customer reported that the meat pie they bought yesterday was too salty. This was a verbal complaint made at the counter.', staffId: '500002', staffName: 'Mary Felix Ating', timestamp: daysAgo(1), status: 'new' },
   ],
+  cost_categories: [
+      { id: 'cat_1', name: 'Flour', type: 'direct' },
+      { id: 'cat_2', name: 'Sugar', type: 'direct' },
+      { id: 'cat_3', name: 'Yeast', type: 'direct' },
+      { id: 'cat_4', name: 'Diesel', type: 'indirect' },
+      { id: 'cat_5', name: 'Repairs', type: 'indirect' },
+      { id: 'cat_6', name: 'Gas', type: 'indirect' },
+      { id: 'cat_7', name: 'Promotion', type: 'indirect' },
+      { id: 'cat_8', name: 'Transport', type: 'indirect' },
+      { id: 'cat_9', name: 'Production', type: 'indirect' },
+      { id: 'cat_10', name: 'Water', type: 'indirect' },
+      { id: 'cat_11', name: 'Purchases', type: 'indirect' },
+      { id: 'cat_12', name: 'Electricity', type: 'indirect' },
+      { id: 'cat_13', name: 'Salary', type: 'indirect' },
+  ]
 };
 
 // Calculate net pay for seeded wages
@@ -409,7 +424,7 @@ export async function clearDatabase(): Promise<ActionResult> {
     const allKnownCollections = [
       ...Object.keys(seedData),
       "expenses", "payment_confirmations", "ingredient_stock_logs", 
-      "supply_logs", "production_logs", "temp_orders", "settings", "drinkSales",
+      "supply_logs", "production_logs", "temp_orders", "settings",
       "supply_requests"
     ];
     const collectionsToClear = [...new Set(allKnownCollections)]; // Remove duplicates
@@ -451,24 +466,23 @@ export async function seedEmptyData(): Promise<ActionResult> {
     await clearDatabase();
     
     const batch = writeBatch(db);
-    
-    const allCollections = Object.keys(seedData);
-    for (const collectionName of allCollections) {
-        if (collectionName !== 'staff') {
-            const placeholderRef = doc(collection(db, collectionName), '__placeholder__');
-            batch.set(placeholderRef, { exists: true });
-            batch.delete(placeholderRef);
-        }
-    }
 
+    // Seed staff
     seedData.staff.forEach((staffMember) => {
       const docRef = doc(db, "staff", staffMember.staff_id);
       batch.set(docRef, staffMember);
     });
 
+    // Seed app settings
+    const settingsRef = doc(db, 'settings', 'app_config');
+    batch.set(settingsRef, {
+        storeAddress: "123 Bakery Lane, Uyo, Akwa Ibom",
+        staffIdLength: 6
+    });
+
     await batch.commit();
 
-    console.log("Database seeded with only staff successfully.");
+    console.log("Database seeded with only staff and default settings successfully.");
     return { success: true };
   } catch (error) {
     console.error("Error seeding empty data:", error);
@@ -483,3 +497,6 @@ type ActionResult = {
 };
 
 
+
+
+    
