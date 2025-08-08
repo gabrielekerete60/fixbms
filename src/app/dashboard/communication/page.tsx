@@ -397,12 +397,12 @@ export default function CommunicationPage() {
 
             const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${parsedUser.staff_id}`);
             const newCount = data.filter(doc => {
-                // Don't count your own messages as new
-                if (doc.data().staffId === parsedUser.staff_id) {
+                if (doc.staffId === parsedUser.staff_id) {
                     return false;
                 }
-                if (!lastReadTimestamp) return true; // If never read, all are new
-                return doc.data().timestamp.toDate() > new Date(lastReadTimestamp);
+                if (!lastReadTimestamp) return true;
+                if (!doc.timestamp) return true; // Treat docs without timestamp as new
+                return doc.timestamp.toDate() > new Date(lastReadTimestamp);
             }).length;
             
             setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
