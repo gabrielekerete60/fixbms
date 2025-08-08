@@ -93,7 +93,7 @@ type StorekeeperDashboardStats = {
     totalInventoryValue: number;
     lowStockIngredients: number;
     productCategories: number;
-    mostAvailableIngredients: { name: string, stock: number }[];
+    mostAvailableIngredients: { name: string, stock: number, unit: string }[];
 };
 
 type ShowroomDashboardStats = {
@@ -455,7 +455,7 @@ function StorekeeperDashboard({ user }: { user: User }) {
         const mostAvailable = ingredientsList
             .sort((a,b) => (b.stock || 0) - (a.stock || 0))
             .slice(0, 5)
-            .map(ing => ({ name: ing.name, stock: ing.stock || 0 }));
+            .map(ing => ({ name: ing.name, stock: ing.stock || 0, unit: ing.unit || '' }));
 
         setStats(prev => ({ ...prev, lowStockIngredients: lowStockCount, mostAvailableIngredients: mostAvailable }));
     });
@@ -541,7 +541,10 @@ function StorekeeperDashboard({ user }: { user: User }) {
                 <XAxis dataKey="stock" type="number" hide />
                 <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent indicator="dot" />}
+                    content={<ChartTooltipContent 
+                        indicator="dot" 
+                        formatter={(value, name, props) => `${value.toLocaleString()} ${props.payload.unit}`}
+                    />}
                 />
                 <Bar dataKey="stock" fill="var(--color-stock)" radius={4} />
                 </BarChart>
