@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
@@ -218,10 +219,10 @@ function PaginationControls({
     setVisibleRows: (val: number | 'all') => void,
     totalRows: number
 }) {
-    const [inputValue, setInputValue] = useState<string | number>('');
+    const [inputValue, setInputValue] = useState<string>('');
 
-    const handleApplyInput = () => {
-        const num = Number(inputValue);
+    const handleApply = () => {
+        const num = parseInt(inputValue, 10);
         if (!isNaN(num) && num > 0) {
             setVisibleRows(num);
         }
@@ -234,6 +235,17 @@ function PaginationControls({
             <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
             <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
             <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
+            <div className="flex items-center gap-1">
+                <Input 
+                    type="number" 
+                    className="h-8 w-16" 
+                    placeholder="Custom"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleApply()}
+                />
+                <Button size="sm" onClick={handleApply}>Apply</Button>
+            </div>
         </div>
     )
 }
@@ -723,7 +735,7 @@ export default function RegularOrdersPage() {
                     <div className="text-xs text-muted-foreground">
                         Showing <strong>{paginatedOrders.length}</strong> of <strong>{filteredOrders.length}</strong> orders.
                     </div>
-                    <PaginationControls visibleRows={visibleRows === 'all' ? filteredOrders.length : visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredOrders.length} />
+                    <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredOrders.length} />
                 </CardFooter>
             </Card>
         </Tabs>

@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle, MessageSquareQuote, CheckCircle, PackageSearch, Banknote, PlusCircle, Trash2, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear as dateFnsEndOfYear } from 'date-fns';
-import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement, getAccountSummary, SupplyRequest, getPendingSupplyRequests, approveStockIncrease, declineStockIncrease } from '@/app/actions';
+import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement, getAccountSummary, SupplyRequest, getPendingSupplyRequests, approveStockIncrease, declineStockIncrease, handlePaymentConfirmation } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
@@ -74,6 +74,15 @@ function PaginationControls({
     setVisibleRows: (val: number | 'all') => void,
     totalRows: number
 }) {
+    const [inputValue, setInputValue] = useState<string>('');
+
+    const handleApply = () => {
+        const num = parseInt(inputValue, 10);
+        if (!isNaN(num) && num > 0) {
+            setVisibleRows(num);
+        }
+    };
+    
     return (
         <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
             <span>Show:</span>
@@ -81,6 +90,17 @@ function PaginationControls({
             <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
             <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
             <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
+            <div className="flex items-center gap-1">
+                <Input 
+                    type="number" 
+                    className="h-8 w-16" 
+                    placeholder="Custom"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleApply()}
+                />
+                <Button size="sm" onClick={handleApply}>Apply</Button>
+            </div>
         </div>
     )
 }
@@ -2104,7 +2124,3 @@ export default function AccountingPage() {
     </div>
   );
 }
-
-    
-
-    
