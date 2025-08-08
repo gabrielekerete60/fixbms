@@ -771,6 +771,7 @@ function DirectCostsTab({ categories }: { categories: CostCategory[] }) {
         return visibleRows === 'all' ? filteredCosts : filteredCosts.slice(0, visibleRows);
     }, [filteredCosts, visibleRows]);
 
+
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
     return (
@@ -790,7 +791,7 @@ function DirectCostsTab({ categories }: { categories: CostCategory[] }) {
                     <Card key={name}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">{name}</CardTitle>
-                        </Header>
+                        </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{formatCurrency(total)}</div>
                         </CardContent>
@@ -937,7 +938,7 @@ function IndirectCostsTab({ categories }: { categories: CostCategory[] }) {
                     <Card key={name}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">{name}</CardTitle>
-                        </Header>
+                        </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{formatCurrency(amount)}</div>
                         </CardContent>
@@ -1847,7 +1848,7 @@ function ApprovalsTab({ user, notificationBadge }: { user: { staff_id: string, n
             <CardHeader>
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex items-center gap-2">
-                        <CardTitle>Supply & Cost Approvals</CardTitle>
+                        <CardTitle>Supply &amp; Cost Approvals</CardTitle>
                         {notificationBadge}
                     </div>
                     <Button variant="ghost" size="sm" onClick={fetchRequests} disabled={isLoading}>
@@ -2075,3 +2076,4 @@ export default function AccountingPage() {
     </div>
   );
 }
+
