@@ -317,7 +317,11 @@ export default function DashboardLayout({
     const handleAnnouncementsRead = () => {
         setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
     }
+    const handleReportsRead = () => {
+        setNotificationCounts(prev => ({...prev, newReports: 0, inProgressReports: 0 }));
+    }
     window.addEventListener('announcementsRead', handleAnnouncementsRead);
+    window.addEventListener('reportsRead', handleReportsRead);
 
     return () => {
         clearInterval(timer);
@@ -330,6 +334,7 @@ export default function DashboardLayout({
         unsubInProgress();
         unsubApprovals();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
+        window.removeEventListener('reportsRead', handleReportsRead);
     };
   }, [user?.staff_id, handleLogout, applyTheme]);
   
