@@ -41,6 +41,8 @@ const staffData = [
     { staff_id: '400001', name: 'Victory Peter Ekerete', email: 'victory.ekerete@example.com', password: 'StorekeeperPass1!', role: 'Storekeeper', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "PALMPAY", account_number: "9126459437", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '500002', name: 'Mary Felix Ating', email: 'mary.ating@example.com', password: 'StaffPass2!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "8071929362", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '600001', name: 'Edet Edet Nyong', email: 'edet.nyong@example.com', password: 'DriverPass1!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "Access Bank", account_number: "0736691040", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '600002', name: 'Okon Bassey', email: 'okon.bassey@example.com', password: 'DriverPass2!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "GTBank", account_number: "1234567890", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '600003', name: 'Imaobong Akpan', email: 'ima.akpan@example.com', password: 'DriverPass3!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "Zenith Bank", account_number: "0987654321", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '700001', name: 'Nnamso George Walter', email: 'nnamso.walter@example.com', password: 'CleanerPass1!', role: 'Cleaner', is_active: false, pay_type: 'Salary', pay_rate: 30000, bank_name: "Unity Bank", account_number: "0059218669", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '800001', name: 'Benog Security Services', email: 'benog.security@example.com', password: 'SecurityPass1!', role: 'Chief Security', is_active: true, pay_type: 'Salary', pay_rate: 20000, bank_name: "U.B.A", account_number: "2288605641", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '800002', name: 'Nsikak Udo Essiet', email: 'nsikak.essiet@example.com', password: 'SecurityPass2!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "U.B.A", account_number: "2304484777", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
@@ -75,6 +77,8 @@ const recipesData = [
        ]
     },
 ];
+
+const deliveryStaff = staffData.filter(s => s.role === 'Delivery Staff');
 
 const seedData = {
   products: productsData,
@@ -131,22 +135,26 @@ const seedData = {
       }
   }),
   transfers: Array.from({ length: 200 }, (_, i) => {
-      const isForMary = i % 4 === 0; // Reduce Mary's transfers to 1/4 of the previous rate
-      const toStaffId = isForMary ? "500002" : "600001";
-      const toStaffName = isForMary ? "Mary Felix Ating" : "Edet Edet Nyong";
+      const isSalesRun = Math.random() > 0.25; 
+      const toStaff = isSalesRun 
+          ? deliveryStaff[i % deliveryStaff.length] 
+          : staffData.find(s => s.role === 'Showroom Staff');
+
+      if (!toStaff) return null;
+
       return {
         id: `trans_${i + 1}`,
         from_staff_id: "400001", // Storekeeper
         from_staff_name: "Victory Peter Ekerete",
-        to_staff_id: toStaffId, 
-        to_staff_name: toStaffName,
+        to_staff_id: toStaff.staff_id, 
+        to_staff_name: toStaff.name,
         items: [{ productId: `prod_${(i % 10) + 1}`, productName: productsData[i % 10].name, quantity: Math.floor(Math.random() * 20) + 10 }],
         date: generateRandomDate(0, 730),
         status: Math.random() > 0.1 ? 'pending' : 'completed',
-        is_sales_run: !isForMary,
+        is_sales_run: isSalesRun,
         totalCollected: 0
     }
-  }),
+  }).filter(Boolean),
   production_batches: Array.from({ length: 100 }, (_, i) => ({
       id: `batch_${i + 1}`,
       recipeId: `rec_${(i % 2) + 1}`,
@@ -472,3 +480,4 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
+
