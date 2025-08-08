@@ -311,7 +311,9 @@ export default function DashboardLayout({
                 return false;
             }
             if (!lastReadTimestamp) return true; // If never read, all are new
-            return doc.data().timestamp.toDate() > new Date(lastReadTimestamp);
+            const timestamp = doc.data().timestamp;
+            if (!timestamp) return true;
+            return timestamp.toDate() > new Date(lastReadTimestamp);
         }).length;
         setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
     });
@@ -367,7 +369,7 @@ export default function DashboardLayout({
   const navLinks = useMemo(() => {
     const allLinks = [
       { href: "/dashboard", icon: Home, label: "Dashboard", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
-      { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Developer'] },
+      { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Supervisor', 'Showroom Staff', 'Developer'] },
       {
         icon: Inbox, label: "Orders", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Accountant', 'Developer'], sublinks: [
           { href: "/dashboard/orders/regular", label: "Regular Orders" },
@@ -439,9 +441,8 @@ export default function DashboardLayout({
 
   const combinedNotificationCounts = useMemo(() => {
     const canApproveBatches = user && ['Manager', 'Developer', 'Storekeeper'].includes(user.role);
-    const canViewReports = user && ['Manager', 'Supervisor', 'Developer'].includes(user.role);
+    
     const stockControlCount = notificationCounts.pendingTransfers + (canApproveBatches ? notificationCounts.pendingBatches : 0);
-    const reportsCount = canViewReports ? notificationCounts.newReports + notificationCounts.inProgressReports : 0;
     const accountingCount = notificationCounts.pendingPayments + notificationCounts.pendingApprovals;
       
       return {
@@ -451,7 +452,7 @@ export default function DashboardLayout({
           accounting: accountingCount,
           payments: notificationCounts.pendingPayments,
           approvals: notificationCounts.pendingApprovals,
-          communication: reportsCount + notificationCounts.unreadAnnouncements,
+          communication: notificationCounts.newReports + notificationCounts.inProgressReports + notificationCounts.unreadAnnouncements,
       }
   }, [notificationCounts, user]);
 

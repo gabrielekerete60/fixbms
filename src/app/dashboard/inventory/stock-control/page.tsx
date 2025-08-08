@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -449,6 +450,7 @@ export default function StockControlPage() {
   const [myWasteLogs, setMyWasteLogs] = useState<WasteLog[]>([]);
   
   const [date, setDate] = useState<DateRange | undefined>();
+  const [allPendingDate, setAllPendingDate] = useState<DateRange | undefined>();
   
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingBatches, setIsLoadingBatches] = useState(true);
@@ -648,8 +650,17 @@ export default function StockControlPage() {
   }, [completedTransfers, visibleHistoryRows]);
 
   const allPendingTransfers = useMemo(() => {
-    return initiatedTransfers.filter(t => t.status === 'pending');
-  }, [initiatedTransfers]);
+    let filtered = initiatedTransfers.filter(t => t.status === 'pending');
+    if (allPendingDate?.from) {
+        const from = startOfDay(allPendingDate.from);
+        const to = allPendingDate.to ? endOfDay(allPendingDate.to) : endOfDay(allPendingDate.from);
+        filtered = filtered.filter(t => {
+            const transferDate = new Date(t.date);
+            return transferDate >= from && transferDate <= to;
+        })
+    }
+    return filtered;
+  }, [initiatedTransfers, allPendingDate]);
 
   const paginatedAllPending = useMemo(() => {
     return visibleAllPendingRows === 'all' ? allPendingTransfers : allPendingTransfers.slice(0, visibleAllPendingRows);
@@ -804,28 +815,34 @@ export default function StockControlPage() {
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
       </div>
-      <Tabs defaultValue="initiate-transfer">
+      <Tabs defaultValue={userRole === 'Manager' ? 'pending-transfers' : 'initiate-transfer'}>
         <div className="overflow-x-auto pb-2">
             <TabsList>
-                <TabsTrigger value="initiate-transfer">
-                    <Send className="mr-2 h-4 w-4" /> Initiate Transfer
-                </TabsTrigger>
-                <TabsTrigger value="batch-approvals" className="relative">
-                    <Wrench className="mr-2 h-4 w-4" /> Batch Approvals
-                    {pendingBatches.length > 0 && (
-                        <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
-                            {pendingBatches.length}
-                        </Badge>
-                    )}
-                </TabsTrigger>
-                <TabsTrigger value="production-transfers" className="relative">
-                    <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
-                    {productionTransfers.length > 0 && (
-                        <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
-                            {productionTransfers.length}
-                        </Badge>
-                    )}
-                </TabsTrigger>
+                {userRole !== 'Manager' && 
+                    <TabsTrigger value="initiate-transfer">
+                        <Send className="mr-2 h-4 w-4" /> Initiate Transfer
+                    </TabsTrigger>
+                }
+                 {userRole !== 'Manager' && 
+                    <TabsTrigger value="batch-approvals" className="relative">
+                        <Wrench className="mr-2 h-4 w-4" /> Batch Approvals
+                        {pendingBatches.length > 0 && (
+                            <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                                {pendingBatches.length}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
+                }
+                 {userRole !== 'Manager' && 
+                    <TabsTrigger value="production-transfers" className="relative">
+                        <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
+                        {productionTransfers.length > 0 && (
+                            <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                                {productionTransfers.length}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
+                }
                 <TabsTrigger value="pending-transfers" className="relative">
                     <Hourglass className="mr-2 h-4 w-4" /> All Pending
                     {allPendingTransfers.length > 0 && (
@@ -1021,8 +1038,13 @@ export default function StockControlPage() {
           <TabsContent value="pending-transfers">
               <Card>
                 <CardHeader>
-                    <CardTitle>All Pending Transfers</CardTitle>
-                    <CardDescription>A log of all transfers awaiting acknowledgement across the system.</CardDescription>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle>All Pending Transfers</CardTitle>
+                            <CardDescription>A log of all transfers awaiting acknowledgement across the system.</CardDescription>
+                        </div>
+                        <DateRangeFilter date={allPendingDate} setDate={setAllPendingDate}/>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <Table>
