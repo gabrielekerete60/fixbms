@@ -379,11 +379,13 @@ export default function CommunicationPage() {
 
     useEffect(() => {
         const storedUser = localStorage.getItem('loggedInUser');
-        if (storedUser) {
-            setUser(JSON.parse(storedUser));
-        } else {
-             if (isLoading) setIsLoading(false);
+        if (!storedUser) {
+            if (isLoading) setIsLoading(false);
+            return;
         }
+        
+        const parsedUser: User = JSON.parse(storedUser);
+        setUser(parsedUser);
 
         const qAnnouncements = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
         const unsubAnnouncements = onSnapshot(qAnnouncements, (snapshot) => {
@@ -393,7 +395,7 @@ export default function CommunicationPage() {
             });
             setAnnouncements(data);
 
-            const lastReadTimestamp = localStorage.getItem('lastReadAnnouncement');
+            const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${parsedUser.staff_id}`);
             const newCount = lastReadTimestamp
                 ? data.filter(doc => doc.timestamp && doc.timestamp.toDate() > new Date(lastReadTimestamp)).length
                 : data.length;
@@ -420,8 +422,8 @@ export default function CommunicationPage() {
     }, [toast, isLoading]);
 
     const handleTabChange = (value: string) => {
-        if (value === 'announcements') {
-            localStorage.setItem('lastReadAnnouncement', new Date().toISOString());
+        if (value === 'announcements' && user) {
+            localStorage.setItem(`lastReadAnnouncement_${user.staff_id}`, new Date().toISOString());
             setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
             window.dispatchEvent(new Event('announcementsRead'));
         }
@@ -447,7 +449,8 @@ export default function CommunicationPage() {
     };
 
     const handleMarkAllRead = () => {
-        localStorage.setItem('lastReadAnnouncement', new Date().toISOString());
+        if (!user) return;
+        localStorage.setItem(`lastReadAnnouncement_${user.staff_id}`, new Date().toISOString());
         setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
         window.dispatchEvent(new Event('announcementsRead'));
         toast({ title: 'Messages Marked as Read' });

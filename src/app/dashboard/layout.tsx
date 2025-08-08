@@ -304,7 +304,7 @@ export default function DashboardLayout({
     // Announcement listener
     const announcementsQuery = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
     const unsubAnnouncements = onSnapshot(announcementsQuery, (snap) => {
-        const lastReadTimestamp = localStorage.getItem('lastReadAnnouncement');
+        const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${user.staff_id}`);
         if (!lastReadTimestamp) {
             setNotificationCounts(prev => ({...prev, unreadAnnouncements: snap.size }));
         } else {
