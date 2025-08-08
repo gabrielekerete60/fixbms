@@ -227,7 +227,7 @@ function PaginationControls({
             setVisibleRows(num);
         }
     };
-
+    
     return (
         <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
             <span>Show:</span>
@@ -312,8 +312,13 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                     </TableRow>
                 ) : (
                     orders.map((order) => (
-                        <TableRow key={order.id} data-state={selectedOrders.includes(order.id) ? "selected" : undefined}>
-                            <TableCell>
+                        <TableRow 
+                            key={order.id} 
+                            data-state={selectedOrders.includes(order.id) ? "selected" : undefined}
+                            onClick={() => setViewingOrder(order)}
+                            className="cursor-pointer"
+                        >
+                            <TableCell onClick={(e) => e.stopPropagation()}>
                                 <Checkbox
                                     checked={selectedOrders.includes(order.id)}
                                     onCheckedChange={(checked) => onSelectOne(order.id, checked as boolean)}
@@ -336,7 +341,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                                 </Badge>
                             </TableCell>
                             <TableCell className="text-right">₦{order.total.toFixed(2)}</TableCell>
-                            <TableCell className="text-center">
+                            <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-8 w-8 p-0">
