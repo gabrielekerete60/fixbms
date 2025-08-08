@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Search } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Search, ArrowLeft } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,12 +47,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, query, where, orderBy, increment, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch, query, where, orderBy, increment, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { addDirectCost } from "@/app/actions";
+import { format } from "date-fns";
 
 type User = {
     name: string;
@@ -88,8 +89,24 @@ type SupplyLog = {
     unit: string;
     costPerUnit: number;
     totalCost: number;
-    date: string;
+    date: any; // Can be Timestamp or string
     invoiceNumber?: string;
+}
+
+type PaymentLog = {
+    id: string;
+    supplierId: string;
+    amount: number;
+    date: any; // Can be Timestamp or string
+    description: string;
+}
+
+type Transaction = {
+    date: Date;
+    description: string;
+    debit: number | null;
+    credit: number | null;
+    balance: number;
 }
 
 function SupplierDialog({
@@ -238,7 +255,7 @@ function SupplyLogDialog({
             unit: selectedIngredient?.unit || '',
             costPerUnit,
             totalCost,
-            date: new Date().toISOString(),
+            date: serverTimestamp(),
             invoiceNumber
         }, user);
         onOpenChange(false);
@@ -289,6 +306,8 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
     const { toast } = useToast();
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     const [supplyLogs, setSupplyLogs] = useState<SupplyLog[]>([]);
+    const [paymentLogs, setPaymentLogs] = useState<PaymentLog[]>([]);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -299,27 +318,77 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
             const ingredientSnapshot = await getDocs(ingredientsCollection);
             setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[]);
         };
-        
         fetchIngredients();
 
-        const logsQuery = query(collection(db, 'supply_logs'), where('supplierId', '==', supplier.id), orderBy('date', 'desc'));
-        const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
+        const supplyLogsQuery = query(collection(db, 'supply_logs'), where('supplierId', '==', supplier.id), orderBy('date', 'desc'));
+        const unsubSupplyLogs = onSnapshot(supplyLogsQuery, (snapshot) => {
             setSupplyLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupplyLog)));
-            if (isLoading) setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching logs:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not fetch supply logs." });
         });
 
-        return () => unsubscribe();
-    }, [supplier.id, toast, isLoading]);
+        const paymentsQuery = query(collection(db, 'indirectCosts'), where('category', '==', 'Creditor Payments'), where('description', '==', `Payment to supplier: ${supplier.name}`));
+        const unsubPaymentLogs = onSnapshot(paymentsQuery, (snapshot) => {
+            setPaymentLogs(snapshot.docs.map(doc => ({
+                id: doc.id,
+                supplierId: supplier.id,
+                amount: doc.data().amount,
+                date: doc.data().date,
+                description: doc.data().description,
+            } as PaymentLog)));
+        });
 
-    const filteredLogs = useMemo(() => {
-        return supplyLogs.filter(log => 
-            log.ingredientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            log.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+        return () => {
+            unsubSupplyLogs();
+            unsubPaymentLogs();
+        };
+    }, [supplier.id, supplier.name]);
+    
+    useEffect(() => {
+        const combinedLogs: any[] = [
+            ...supplyLogs.map(log => ({ ...log, type: 'supply', date: log.date?.toDate() || new Date(0) })),
+            ...paymentLogs.map(log => ({ ...log, type: 'payment', date: log.date?.toDate() || new Date(0) }))
+        ];
+        
+        combinedLogs.sort((a,b) => b.date - a.date);
+
+        let balance = supplier.amountOwed - supplier.amountPaid; // Start with current balance
+        const transactionsData: Transaction[] = [];
+
+        // We need to calculate running balance going forwards, so we reverse for calculation then reverse back
+        const reversedLogs = [...combinedLogs].reverse();
+        let runningBalance = 0; // Or fetch opening balance if available
+
+        const calculatedTransactions = reversedLogs.map(log => {
+             if (log.type === 'supply') {
+                runningBalance += log.totalCost;
+                return {
+                    date: log.date,
+                    description: `Supply: ${log.ingredientName}`,
+                    debit: log.totalCost,
+                    credit: null,
+                    balance: runningBalance,
+                }
+            } else { // payment
+                runningBalance -= log.amount;
+                return {
+                    date: log.date,
+                    description: 'Payment',
+                    debit: null,
+                    credit: log.amount,
+                    balance: runningBalance,
+                }
+            }
+        });
+        
+        setTransactions(calculatedTransactions.reverse());
+        if(isLoading) setIsLoading(false);
+    }, [supplyLogs, paymentLogs, supplier, isLoading]);
+
+
+    const filteredTransactions = useMemo(() => {
+        return transactions.filter(log => 
+            log.description.toLowerCase().includes(searchTerm.toLowerCase())
         );
-    }, [supplyLogs, searchTerm]);
+    }, [transactions, searchTerm]);
 
     const handleSaveLog = async (logData: Omit<SupplyLog, 'id' | 'supplierName'>, user: User) => {
         try {
@@ -329,26 +398,15 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
             const logRef = doc(collection(db, 'supply_logs'));
             batch.set(logRef, { ...logData, supplierName: supplier.name });
             
-            // 2. Create new ingredient stock log
-            const ingredientStockLogRef = doc(collection(db, 'ingredient_stock_logs'));
-            batch.set(ingredientStockLogRef, {
-                ingredientId: logData.ingredientId,
-                ingredientName: logData.ingredientName,
-                change: logData.quantity,
-                reason: `Purchase from ${supplier.name}`,
-                date: new Date().toISOString(),
-                staffName: user.name,
-            });
-
-            // 3. Update ingredient stock
+            // 2. Update ingredient stock
             const ingredientRef = doc(db, 'ingredients', logData.ingredientId);
             batch.update(ingredientRef, { stock: increment(logData.quantity) });
 
-            // 4. Update supplier amount owed
+            // 3. Update supplier amount owed
             const supplierRef = doc(db, 'suppliers', supplier.id);
             batch.update(supplierRef, { amountOwed: increment(logData.totalCost) });
             
-            // 5. Add to Direct Costs
+            // 4. Add to Direct Costs
             await addDirectCost({
                 description: `Purchase of ${logData.ingredientName} from ${supplier.name}`,
                 category: 'Ingredients',
@@ -359,7 +417,6 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
             await batch.commit();
 
             toast({ title: "Success", description: "Supply log saved and stock updated."});
-            onBack(); // Go back to the main list
         } catch(error) {
             console.error("Error saving supply log:", error);
             toast({ variant: "destructive", title: "Error", description: "Failed to save supply log." });
@@ -368,12 +425,26 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
     
     return (
         <div className="space-y-4">
-            <Button variant="outline" onClick={onBack}>&larr; Back to Suppliers</Button>
+            <Button variant="outline" onClick={onBack}><ArrowLeft className="mr-2 h-4 w-4"/>Back to Suppliers</Button>
             <Card>
                 <CardHeader>
                     <CardTitle>{supplier.name}</CardTitle>
                     <CardDescription>{supplier.contactPerson} - {supplier.phone}</CardDescription>
                 </CardHeader>
+                 <CardContent className="grid md:grid-cols-3 gap-4">
+                    <Card>
+                        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Billed</CardTitle></CardHeader>
+                        <CardContent><p className="text-2xl font-bold">₦{supplier.amountOwed.toLocaleString()}</p></CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Paid</CardTitle></CardHeader>
+                        <CardContent><p className="text-2xl font-bold text-green-500">₦{supplier.amountPaid.toLocaleString()}</p></CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Outstanding Balance</CardTitle></CardHeader>
+                        <CardContent><p className="text-2xl font-bold text-destructive">₦{(supplier.amountOwed - supplier.amountPaid).toLocaleString()}</p></CardContent>
+                    </Card>
+                </CardContent>
             </Card>
             
             <SupplyLogDialog 
@@ -385,74 +456,55 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
                 user={user}
             />
 
-            <Tabs defaultValue="logs">
-                 <div className="flex justify-between items-center">
-                    <TabsList>
-                        <TabsTrigger value="logs">Supply Log</TabsTrigger>
-                        <TabsTrigger value="details">Details</TabsTrigger>
-                    </TabsList>
-                     <Button onClick={() => setIsLogDialogOpen(true)}>
-                        <PlusCircle className="mr-2 h-4 w-4"/> Add Supply Log
-                    </Button>
-                </div>
-                <TabsContent value="logs">
-                    <Card>
-                        <CardHeader>
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <CardTitle>Supply Log</CardTitle>
-                                    <CardDescription>History of all supplies delivered by {supplier.name}.</CardDescription>
-                                </div>
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                                    <Input placeholder="Search logs..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                                </div>
+            <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle>Transaction History</CardTitle>
+                            <CardDescription>A complete log of all supplies and payments for {supplier.name}.</CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                <Input placeholder="Search logs..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Ingredient</TableHead>
-                                        <TableHead>Quantity</TableHead>
-                                        <TableHead>Total Cost</TableHead>
-                                        <TableHead>Invoice #</TableHead>
+                            <Button onClick={() => setIsLogDialogOpen(true)}>
+                                <PlusCircle className="mr-2 h-4 w-4"/> Add Supply Log
+                            </Button>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead className="text-right">Debit (Owed)</TableHead>
+                                <TableHead className="text-right">Credit (Paid)</TableHead>
+                                <TableHead className="text-right">Balance</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : filteredTransactions.length > 0 ? (
+                                filteredTransactions.map((log, index) => (
+                                    <TableRow key={index}>
+                                        <TableCell>{format(log.date, 'Pp')}</TableCell>
+                                        <TableCell>{log.description}</TableCell>
+                                        <TableCell className="text-right text-red-500">{log.debit ? `₦${log.debit.toLocaleString()}`: '-'}</TableCell>
+                                        <TableCell className="text-right text-green-500">{log.credit ? `₦${log.credit.toLocaleString()}` : '-'}</TableCell>
+                                        <TableCell className="text-right font-bold">₦{log.balance.toLocaleString()}</TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (
-                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                    ) : filteredLogs.length > 0 ? (
-                                        filteredLogs.map(log => (
-                                            <TableRow key={log.id}>
-                                                <TableCell>{new Date(log.date).toLocaleDateString()}</TableCell>
-                                                <TableCell>{log.ingredientName}</TableCell>
-                                                <TableCell>{log.quantity.toFixed(2)} {log.unit}</TableCell>
-                                                <TableCell>₦{log.totalCost.toFixed(2)}</TableCell>
-                                                <TableCell>{log.invoiceNumber || 'N/A'}</TableCell>
-                                            </TableRow>
-                                        ))
-                                    ) : (
-                                         <TableRow><TableCell colSpan={5} className="h-24 text-center">No supply logs found.</TableCell></TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="details">
-                     <Card>
-                        <CardHeader><CardTitle>Supplier Details</CardTitle></CardHeader>
-                        <CardContent className="space-y-2">
-                             <p><strong>Email:</strong> {supplier.email}</p>
-                             <p><strong>Address:</strong> {supplier.address}</p>
-                             <p><strong>Amount Owed:</strong> ₦{supplier.amountOwed.toFixed(2)}</p>
-                             <p><strong>Amount Paid:</strong> ₦{supplier.amountPaid.toFixed(2)}</p>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                                ))
+                            ) : (
+                                 <TableRow><TableCell colSpan={5} className="h-24 text-center">No transaction history found.</TableCell></TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
         </div>
     )
 }
