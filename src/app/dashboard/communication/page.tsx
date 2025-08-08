@@ -422,11 +422,6 @@ export default function CommunicationPage() {
     }, [toast, isLoading]);
 
     const handleTabChange = (value: string) => {
-        if (value === 'announcements' && user) {
-            localStorage.setItem(`lastReadAnnouncement_${user.staff_id}`, new Date().toISOString());
-            setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
-            window.dispatchEvent(new Event('announcementsRead'));
-        }
         if (value === 'view-reports') {
             window.dispatchEvent(new Event('reportsRead'));
         }
