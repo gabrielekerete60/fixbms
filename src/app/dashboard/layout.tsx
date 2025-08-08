@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import Link from 'next/link';
@@ -305,13 +306,15 @@ export default function DashboardLayout({
     const announcementsQuery = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
     const unsubAnnouncements = onSnapshot(announcementsQuery, (snap) => {
         const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${user.staff_id}`);
-        if (!lastReadTimestamp) {
-            setNotificationCounts(prev => ({...prev, unreadAnnouncements: snap.size }));
-        } else {
-            const lastReadDate = new Date(lastReadTimestamp);
-            const newCount = snap.docs.filter(doc => doc.data().timestamp.toDate() > lastReadDate).length;
-            setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
-        }
+        const newCount = snap.docs.filter(doc => {
+            // Don't count your own messages as new
+            if (doc.data().staffId === user.staff_id) {
+                return false;
+            }
+            if (!lastReadTimestamp) return true; // If never read, all are new
+            return doc.data().timestamp.toDate() > new Date(lastReadTimestamp);
+        }).length;
+        setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
     });
 
     const handleAnnouncementsRead = () => {

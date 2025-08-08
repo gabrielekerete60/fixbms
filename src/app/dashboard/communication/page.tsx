@@ -396,9 +396,14 @@ export default function CommunicationPage() {
             setAnnouncements(data);
 
             const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${parsedUser.staff_id}`);
-            const newCount = lastReadTimestamp
-                ? data.filter(doc => doc.timestamp && doc.timestamp.toDate() > new Date(lastReadTimestamp)).length
-                : data.length;
+            const newCount = data.filter(doc => {
+                // Don't count your own messages as new
+                if (doc.data().staffId === parsedUser.staff_id) {
+                    return false;
+                }
+                if (!lastReadTimestamp) return true; // If never read, all are new
+                return doc.data().timestamp.toDate() > new Date(lastReadTimestamp);
+            }).length;
             
             setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
 
@@ -453,6 +458,19 @@ export default function CommunicationPage() {
 
     const canPostAnnouncements = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer';
     const canViewReports = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer';
+    
+    // Derived state to show the mark as read button
+    const showMarkAsRead = useMemo(() => {
+        if (!user) return false;
+        const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${user.staff_id}`);
+        // If there's no timestamp, and there are messages from others, show it.
+        if (!lastReadTimestamp) {
+            return announcements.some(a => a.staffId !== user.staff_id);
+        }
+        // If there is a timestamp, check for newer messages from others.
+        const lastReadDate = new Date(lastReadTimestamp);
+        return announcements.some(a => a.staffId !== user.staff_id && a.timestamp && a.timestamp.toDate() > lastReadDate);
+    }, [user, announcements]);
 
 
     return (
@@ -480,7 +498,7 @@ export default function CommunicationPage() {
                                 <CardTitle>Team Announcements</CardTitle>
                                 <CardDescription>Updates and messages from management.</CardDescription>
                             </div>
-                            {notificationCounts.unreadAnnouncements > 0 && (
+                            {showMarkAsRead && (
                                 <Button variant="outline" onClick={handleMarkAllRead}>
                                     <CheckCheck className="mr-2 h-4 w-4"/> Mark All as Read
                                 </Button>
