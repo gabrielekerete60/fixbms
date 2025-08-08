@@ -468,7 +468,7 @@ export async function seedEmptyData(): Promise<ActionResult> {
     const batch = writeBatch(db);
 
     // Seed staff
-    seedData.staff.forEach((staffMember) => {
+    staffData.forEach((staffMember) => {
       const docRef = doc(db, "staff", staffMember.staff_id);
       batch.set(docRef, staffMember);
     });
