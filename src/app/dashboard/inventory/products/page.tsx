@@ -193,7 +193,7 @@ function ProductDialog({ product, onSave, onOpenChange, categories, user }: { pr
                     <div className="grid grid-cols-2 gap-4">
                          <div className="grid gap-2">
                             <Label htmlFor="stock">Stock</Label>
-                            <Input id="stock" type="number" value={stock} onChange={(e) => setStock(parseInt(e.target.value))} disabled={isAccountant}/>
+                            <Input id="stock" type="number" value={stock} onChange={(e) => setStock(parseInt(e.target.value))} disabled={true}/>
                          </div>
                          <div className="grid gap-2">
                             <Label htmlFor="unit">Unit</Label>
@@ -380,11 +380,11 @@ export default function ProductsPage() {
   const handleSaveProduct = async (productData: Omit<Product, 'id'>) => {
     try {
         if (editingProduct && editingProduct.id) {
-            const productRef = doc(db, "products", editingProduct.id);
-            await updateDoc(productRef, productData);
+            const { stock, ...updateData } = productData;
+            await updateDoc(doc(db, "products", editingProduct.id), updateData);
             toast({ title: "Success", description: "Product updated successfully." });
         } else {
-            await addDoc(collection(db, "products"), productData);
+            await addDoc(collection(db, "products"), { ...productData, stock: 0 });
             toast({ title: "Success", description: "Product created successfully." });
         }
     } catch (error) {

@@ -395,8 +395,7 @@ export default function IngredientsPage() {
     const handleSaveIngredient = async (ingredientData: Partial<Omit<Ingredient, 'id' | 'stock'>>) => {
         try {
             if (editingIngredient && editingIngredient.id) {
-                const ref = doc(db, "ingredients", editingIngredient.id);
-                await updateDoc(ref, ingredientData);
+                await updateDoc(doc(db, "ingredients", editingIngredient.id), ingredientData);
                 toast({ title: "Success", description: "Ingredient updated successfully." });
             } else {
                 const dataToSave = { ...ingredientData, stock: 0 }; // New ingredients start with 0 stock

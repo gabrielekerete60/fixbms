@@ -131,7 +131,7 @@ function SupplyDialog({
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="stock" className="text-right">Stock</Label>
-                        <Input id="stock" type="number" value={stock} onChange={(e) => setStock(parseFloat(e.target.value))} className="col-span-3" />
+                        <Input id="stock" type="number" value={stock} className="col-span-3" disabled />
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="unit" className="text-right">Unit</Label>
@@ -297,11 +297,11 @@ export default function OtherSuppliesPage() {
     const handleSaveSupply = async (supplyData: Omit<OtherSupply, 'id'>) => {
         try {
             if (editingSupply && editingSupply.id) {
-                const ref = doc(db, "other_supplies", editingSupply.id);
-                await updateDoc(ref, supplyData);
+                const { stock, ...updateData } = supplyData;
+                await updateDoc(doc(db, "other_supplies", editingSupply.id), updateData);
                 toast({ title: "Success", description: "Supply updated successfully." });
             } else {
-                await addDoc(collection(db, "other_supplies"), supplyData);
+                await addDoc(collection(db, "other_supplies"), { ...supplyData, stock: 0 });
                 toast({ title: "Success", description: "Supply created successfully." });
             }
             fetchSupplies();
