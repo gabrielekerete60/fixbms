@@ -5,13 +5,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle, MessageSquareQuote, CheckCircle, PackageSearch, Banknote } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle, MessageSquareQuote, CheckCircle, PackageSearch, Banknote, PlusCircle, Trash2, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear as dateFnsEndOfYear } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement, getAccountSummary, SupplyRequest, getPendingSupplyRequests, approveStockIncrease, declineStockIncrease } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { Input } from '@/components/ui/input';
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from '@/components/ui/badge';
 import {
@@ -32,7 +32,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Separator } from '@/components/ui/separator';
-import { collection, onSnapshot, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, Timestamp, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Progress } from '@/components/ui/progress';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -42,6 +42,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 // --- Helper Functions & Type Definitions ---
 const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+type CostCategory = { id: string; name: string; type: 'direct' | 'indirect' };
 type AccountSummary = Record<string, number>;
 type DebtRecord = { id: string; date: string; description: string; debit: number; credit: number; };
 type DirectCost = { id: string; date: string; description: string; category: string; quantity: number; total: number; };
@@ -84,8 +85,86 @@ function PaginationControls({
 }
 
 // --- DIALOGS FOR ADDING DATA ---
+function ManageCategoriesDialog({ categories, onAdd, onDelete }: { categories: CostCategory[], onAdd: (name: string, type: 'direct' | 'indirect') => void, onDelete: (id: string) => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [newCategoryType, setNewCategoryType] = useState<'direct' | 'indirect'>('indirect');
+    
+    const directCategories = categories.filter(c => c.type === 'direct');
+    const indirectCategories = categories.filter(c => c.type === 'indirect');
 
-function AddDirectCostDialog({ onCostAdded }: { onCostAdded: () => void }) {
+    const handleAdd = () => {
+        if (newCategoryName.trim()) {
+            onAdd(newCategoryName, newCategoryType);
+            setNewCategoryName('');
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm" variant="outline"><Settings2 className="mr-2 h-4 w-4" /> Manage Categories</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Manage Cost Categories</DialogTitle>
+                    <DialogDescription>Add or remove categories for your expense logs.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto">
+                    {/* New Category Form */}
+                    <div className="md:col-span-2 space-y-2 p-4 border rounded-md">
+                        <h4 className="font-medium">Add New Category</h4>
+                        <div className="flex gap-2">
+                             <Input 
+                                placeholder="e.g., Utilities" 
+                                value={newCategoryName}
+                                onChange={(e) => setNewCategoryName(e.target.value)}
+                            />
+                            <Select value={newCategoryType} onValueChange={(val: any) => setNewCategoryType(val)}>
+                                <SelectTrigger className="w-[150px]">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="indirect">Indirect</SelectItem>
+                                    <SelectItem value="direct">Direct</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Button onClick={handleAdd} size="icon"><PlusCircle className="h-4 w-4"/></Button>
+                        </div>
+                    </div>
+                     {/* Category Lists */}
+                    <div className="space-y-2">
+                        <h4 className="font-medium">Indirect Categories</h4>
+                         <div className="space-y-2">
+                            {indirectCategories.map(cat => (
+                                <div key={cat.id} className="flex items-center justify-between p-2 bg-muted rounded-md">
+                                    <span>{cat.name}</span>
+                                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onDelete(cat.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                     <div className="space-y-2">
+                        <h4 className="font-medium">Direct Categories</h4>
+                         <div className="space-y-2">
+                            {directCategories.map(cat => (
+                                <div key={cat.id} className="flex items-center justify-between p-2 bg-muted rounded-md">
+                                    <span>{cat.name}</span>
+                                     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onDelete(cat.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                 <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Done</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function AddDirectCostDialog({ onCostAdded, categories }: { onCostAdded: () => void, categories: CostCategory[] }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -124,7 +203,15 @@ function AddDirectCostDialog({ onCostAdded }: { onCostAdded: () => void }) {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2"><Label>Description</Label><Input value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Bag of Flour" /></div>
-                    <div className="grid gap-2"><Label>Category</Label><Input value={category} onChange={e => setCategory(e.target.value)} placeholder="e.g. Flour" /></div>
+                     <div className="grid gap-2">
+                        <Label>Category</Label>
+                        <Select value={category} onValueChange={setCategory}>
+                            <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
+                            <SelectContent>
+                                {categories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2"><Label>Quantity</Label><Input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} /></div>
                         <div className="grid gap-2"><Label>Total Cost (₦)</Label><Input type="number" value={total} onChange={e => setTotal(e.target.value)} /></div>
@@ -139,7 +226,7 @@ function AddDirectCostDialog({ onCostAdded }: { onCostAdded: () => void }) {
     );
 }
 
-function AddIndirectCostDialog({ onCostAdded }: { onCostAdded: () => void }) {
+function AddIndirectCostDialog({ onCostAdded, categories }: { onCostAdded: () => void, categories: CostCategory[] }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -177,7 +264,15 @@ function AddIndirectCostDialog({ onCostAdded }: { onCostAdded: () => void }) {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2"><Label>Description</Label><Input value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Diesel for Generator" /></div>
-                    <div className="grid gap-2"><Label>Category</Label><Input value={category} onChange={e => setCategory(e.target.value)} placeholder="e.g. Utilities" /></div>
+                     <div className="grid gap-2">
+                        <Label>Category</Label>
+                        <Select value={category} onValueChange={setCategory}>
+                            <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
+                            <SelectContent>
+                                {categories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
                     <div className="grid gap-2"><Label>Amount (₦)</Label><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} /></div>
                 </div>
                 <DialogFooter>
@@ -597,7 +692,7 @@ function DebtorsCreditorsTab() {
     );
 }
 
-function DirectCostsTab() {
+function DirectCostsTab({ categories }: { categories: CostCategory[] }) {
     const [costs, setCosts] = useState<DirectCost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -688,7 +783,7 @@ function DirectCostsTab() {
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
-                            <AddDirectCostDialog onCostAdded={fetchCosts} />
+                            <AddDirectCostDialog onCostAdded={fetchCosts} categories={categories} />
                             <Popover>
                                 <PopoverTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button></PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="end">
@@ -749,7 +844,7 @@ function DirectCostsTab() {
     );
 }
 
-function IndirectCostsTab() {
+function IndirectCostsTab({ categories }: { categories: CostCategory[] }) {
     const [costs, setCosts] = useState<IndirectCost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -840,7 +935,7 @@ function IndirectCostsTab() {
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
-                            <AddIndirectCostDialog onCostAdded={fetchCosts} />
+                            <AddIndirectCostDialog onCostAdded={fetchCosts} categories={categories} />
                              <Popover>
                                 <PopoverTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button></PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="end"><Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/></PopoverContent>
@@ -1348,7 +1443,7 @@ function ClosingStockTab() {
                             <CardTitle>Closing Stock</CardTitle>
                             <CardDescription>Value of inventory at the end of the accounting period.</CardDescription>
                         </div>
-                         <Select value={stockFilter} onValueChange={(val) => setStockFilter(val as any)}>
+                         <Select value={stockFilter} onValueChange={(val: any) => setStockFilter(val)}>
                             <SelectTrigger className="w-[180px]">
                                 <SelectValue placeholder="Filter by type" />
                             </SelectTrigger>
@@ -1871,6 +1966,8 @@ function ApprovalsTab({ user, notificationBadge }: { user: { staff_id: string, n
 
 export default function AccountingPage() {
   const [notificationCounts, setNotificationCounts] = useState({ payments: 0, approvals: 0 });
+  const [costCategories, setCostCategories] = useState<CostCategory[]>([]);
+  const { toast } = useToast();
   const [user, setUser] = useState<{staff_id: string; name: string} | null>(null);
 
   useEffect(() => {
@@ -1878,6 +1975,10 @@ export default function AccountingPage() {
     if (userStr) {
         setUser(JSON.parse(userStr));
     }
+
+    const unsubCategories = onSnapshot(collection(db, "cost_categories"), (snapshot) => {
+        setCostCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CostCategory)));
+    });
 
     const qPayments = query(collection(db, "payment_confirmations"), where('status', '==', 'pending'));
     const unsubPayments = onSnapshot(qPayments, (snapshot) => {
@@ -1892,8 +1993,26 @@ export default function AccountingPage() {
     return () => {
       unsubPayments();
       unsubApprovals();
+      unsubCategories();
     }
   }, [])
+  
+    const handleAddCategory = async (name: string, type: 'direct' | 'indirect') => {
+        if (costCategories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+            toast({ variant: 'destructive', title: 'Error', description: 'This category already exists.'});
+            return;
+        }
+        await addDoc(collection(db, "cost_categories"), { name, type });
+        toast({ title: 'Success', description: 'Category added.' });
+    };
+
+    const handleDeleteCategory = async (id: string) => {
+        await deleteDoc(doc(db, "cost_categories", id));
+        toast({ title: 'Success', description: 'Category removed.' });
+    };
+    
+    const directCategories = costCategories.filter(c => c.type === 'direct');
+    const indirectCategories = costCategories.filter(c => c.type === 'indirect');
 
   if (!user) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
@@ -1927,12 +2046,19 @@ export default function AccountingPage() {
         <TabsContent value="business-health"><BusinessHealthTab /></TabsContent>
         <TabsContent value="expenses">
             <Tabs defaultValue="indirect" className="space-y-4">
-                <TabsList>
-                    <TabsTrigger value="indirect">Indirect Costs</TabsTrigger>
-                    <TabsTrigger value="direct">Direct Costs</TabsTrigger>
-                </TabsList>
-                <TabsContent value="indirect"><IndirectCostsTab /></TabsContent>
-                <TabsContent value="direct"><DirectCostsTab /></TabsContent>
+                <div className="flex justify-between items-center">
+                    <TabsList>
+                        <TabsTrigger value="indirect">Indirect Costs</TabsTrigger>
+                        <TabsTrigger value="direct">Direct Costs</TabsTrigger>
+                    </TabsList>
+                    <ManageCategoriesDialog 
+                        categories={costCategories}
+                        onAdd={handleAddCategory}
+                        onDelete={handleDeleteCategory}
+                    />
+                </div>
+                <TabsContent value="indirect"><IndirectCostsTab categories={indirectCategories} /></TabsContent>
+                <TabsContent value="direct"><DirectCostsTab categories={directCategories} /></TabsContent>
             </Tabs>
         </TabsContent>
         <TabsContent value="sales">
@@ -1975,5 +2101,7 @@ export default function AccountingPage() {
     </div>
   );
 }
+
+    
 
     
