@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -789,7 +790,7 @@ function DirectCostsTab({ categories }: { categories: CostCategory[] }) {
                     <Card key={name}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">{name}</CardTitle>
-                        </CardHeader>
+                        </Header>
                         <CardContent>
                             <div className="text-2xl font-bold">{formatCurrency(total)}</div>
                         </CardContent>
@@ -936,7 +937,7 @@ function IndirectCostsTab({ categories }: { categories: CostCategory[] }) {
                     <Card key={name}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">{name}</CardTitle>
-                        </CardHeader>
+                        </Header>
                         <CardContent>
                             <div className="text-2xl font-bold">{formatCurrency(amount)}</div>
                         </CardContent>
@@ -1846,7 +1847,7 @@ function ApprovalsTab({ user, notificationBadge }: { user: { staff_id: string, n
             <CardHeader>
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex items-center gap-2">
-                        <CardTitle>Supply &amp; Cost Approvals</CardTitle>
+                        <CardTitle>Supply & Cost Approvals</CardTitle>
                         {notificationBadge}
                     </div>
                     <Button variant="ghost" size="sm" onClick={fetchRequests} disabled={isLoading}>
@@ -2008,7 +2009,7 @@ export default function AccountingPage() {
                 </TabsTrigger>
                 <TabsTrigger value="assets-wages">Assets &amp; Wages</TabsTrigger>
                  <TabsTrigger value="approvals" className="relative">
-                    Approvals
+                    Stock Approvals
                     {notificationCounts.approvals > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.approvals}</Badge>}
                 </TabsTrigger>
             </TabsList>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -95,7 +96,7 @@ function IngredientDialog({
   onSave: (data: Partial<Omit<Ingredient, 'id' | 'stock'>>) => void;
   ingredient: Partial<Ingredient> | null;
 }) {
-    const { toast } } from "@/hooks/use-toast";
+    const { toast } = useToast();
     const [name, setName] = useState("");
     const [unit, setUnit] = useState("");
     const [costPerUnit, setCostPerUnit] = useState(0);

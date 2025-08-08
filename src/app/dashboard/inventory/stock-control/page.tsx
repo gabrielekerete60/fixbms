@@ -417,8 +417,6 @@ export default function StockControlPage() {
   const [myWasteLogs, setMyWasteLogs] = useState<WasteLog[]>([]);
   
   const [date, setDate] = useState<DateRange | undefined>();
-  const [tempDate, setTempDate] = useState<DateRange | undefined>();
-  const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
   
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingBatches, setIsLoadingBatches] = useState(true);
@@ -625,11 +623,6 @@ export default function StockControlPage() {
     return visibleAllPendingRows === 'all' ? allPendingTransfers : allPendingTransfers.slice(0, visibleAllPendingRows);
   }, [allPendingTransfers, visibleAllPendingRows]);
   
-  const handleDateApply = () => {
-    setDate(tempDate);
-    setIsDatePopoverOpen(false);
-  }
-
   const paginatedLogs = useMemo(() => {
     let filtered = initiatedTransfers;
     if (date?.from) {
@@ -785,7 +778,7 @@ export default function StockControlPage() {
                 <TabsTrigger value="initiate-transfer">
                     <Send className="mr-2 h-4 w-4" /> Initiate Transfer
                 </TabsTrigger>
-                <TabsTrigger value="prod-requests" className="relative">
+                <TabsTrigger value="batch-approvals" className="relative">
                     <Wrench className="mr-2 h-4 w-4" /> Batch Approvals
                     {pendingBatches.length > 0 && (
                         <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
@@ -925,7 +918,7 @@ export default function StockControlPage() {
             </CardContent>
         </Card>
         </TabsContent>
-         <TabsContent value="prod-requests">
+         <TabsContent value="batch-approvals">
              <Card>
                 <CardHeader>
                     <CardTitle>Pending Batch Approvals</CardTitle>
@@ -1046,45 +1039,7 @@ export default function StockControlPage() {
                     <CardTitle>My Initiated Transfers Log</CardTitle>
                     <CardDescription>A log of transfers you have initiated.</CardDescription>
                 </div>
-                <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
-                    <PopoverTrigger asChild>
-                    <Button
-                        id="date"
-                        variant={"outline"}
-                        className={cn(
-                        "w-full sm:w-[260px] justify-start text-left font-normal",
-                        !date && "text-muted-foreground"
-                        )}
-                    >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date?.from ? (
-                        date.to ? (
-                            <>
-                            {format(date.from, "LLL dd, y")} -{" "}
-                            {format(date.to, "LLL dd, y")}
-                            </>
-                        ) : (
-                            format(date.from, "LLL dd, y")
-                        )
-                        ) : (
-                        <span>Pick a date range</span>
-                        )}
-                    </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                    <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={tempDate?.from}
-                        selected={tempDate}
-                        onSelect={setTempDate}
-                        numberOfMonths={2}
-                    />
-                     <div className="p-2 border-t flex justify-end">
-                        <Button onClick={handleDateApply}>Apply</Button>
-                    </div>
-                    </PopoverContent>
-                </Popover>
+                <DateRangeFilter date={date} setDate={setDate} />
             </div>
         </CardHeader>
         <CardContent>

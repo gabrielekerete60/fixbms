@@ -1,3 +1,4 @@
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -2709,7 +2710,7 @@ export async function getPendingSupplyRequests(): Promise<SupplyRequest[]> {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupplyRequest));
 }
 
-export async function approveStockIncrease(requestId: string, costPerUnit: number, totalCost: number, user: { staff_id: string, name: string }) {
+export async function approveStockIncrease(requestId: string, costPerUnit: number, totalCost: number, user: { staff_id: string; name: string }) {
      try {
         const requestRef = doc(db, 'supply_requests', requestId);
 
