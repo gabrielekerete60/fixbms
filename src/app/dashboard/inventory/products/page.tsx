@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, FileUp, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, FileUp, Loader2, ArrowLeft } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,7 +55,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -65,6 +65,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { format } from "date-fns";
 
 type Product = {
   id: string;
@@ -84,6 +85,14 @@ type User = {
   role: string;
   staff_id: string;
 };
+
+type LogEntry = {
+    date: Date;
+    type: 'Transfer Out' | 'Production Return' | 'Manual Update' | 'Sale' | 'Waste';
+    quantityChange: number;
+    details: string;
+    staff?: string;
+}
 
 const getStatusBadge = (stock: number, threshold?: number) => {
   const lowStock = threshold || 20;
@@ -226,14 +235,117 @@ function ExportDialog({ children, onExport }: { children: React.ReactNode, onExp
   )
 }
 
+function ProductLogs({ product }: { product: Product }) {
+    const [logs, setLogs] = useState<LogEntry[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchLogs = async () => {
+            setIsLoading(true);
+            const allLogs: LogEntry[] = [];
+            
+            // 1. Fetch transfers
+            const transfersQuery = query(collection(db, 'transfers'), where('items', 'array-contains-any', [{productId: product.id}]));
+            const transfersSnap = await getDocs(transfersQuery);
+            transfersSnap.forEach(doc => {
+                const data = doc.data();
+                const item = data.items.find((i: any) => i.productId === product.id);
+                if (item) {
+                     if (data.notes?.startsWith('Return from production batch')) {
+                         allLogs.push({
+                            date: data.date.toDate(),
+                            type: 'Production Return',
+                            quantityChange: item.quantity,
+                            details: `From Batch ${data.notes.split(' ').pop()}`,
+                            staff: data.from_staff_name
+                        });
+                     } else {
+                         allLogs.push({
+                            date: data.date.toDate(),
+                            type: 'Transfer Out',
+                            quantityChange: -item.quantity,
+                            details: `To ${data.to_staff_name}`,
+                            staff: data.from_staff_name
+                        });
+                     }
+                }
+            });
+
+            // 2. Fetch Waste Logs
+            const wasteQuery = query(collection(db, 'waste_logs'), where('productId', '==', product.id));
+            const wasteSnap = await getDocs(wasteQuery);
+            wasteSnap.forEach(doc => {
+                const data = doc.data();
+                allLogs.push({
+                    date: data.date.toDate(),
+                    type: 'Waste',
+                    quantityChange: -data.quantity,
+                    details: `Reason: ${data.reason}`,
+                    staff: data.staffName
+                })
+            });
+
+            // Note: Sales are deducted from personal_stock, not main inventory directly.
+            // A more complex system would trace stock back, but for now we focus on main inventory movements.
+
+            setLogs(allLogs.sort((a, b) => b.date.getTime() - a.date.getTime()));
+            setIsLoading(false);
+        }
+        fetchLogs();
+    }, [product]);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Product Logs: {product.name}</CardTitle>
+                <CardDescription>A complete audit trail of stock movements for this product.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="flex items-center justify-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Quantity</TableHead>
+                                <TableHead>Details</TableHead>
+                                <TableHead>Staff</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {logs.length === 0 ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No logs found for this product.</TableCell></TableRow>
+                            ) : logs.map((log, index) => (
+                                <TableRow key={index}>
+                                    <TableCell>{format(log.date, 'Pp')}</TableCell>
+                                    <TableCell><Badge variant={log.quantityChange > 0 ? 'default' : 'secondary'}>{log.type}</Badge></TableCell>
+                                    <TableCell className={log.quantityChange > 0 ? 'text-green-500' : 'text-destructive'}>
+                                        {log.quantityChange > 0 ? `+${log.quantityChange}` : log.quantityChange}
+                                    </TableCell>
+                                    <TableCell>{log.details}</TableCell>
+                                    <TableCell>{log.staff || 'N/A'}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                )}
+            </CardContent>
+        </Card>
+    )
+}
+
 export default function ProductsPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState("products");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [viewingLogsFor, setViewingLogsFor] = useState<Product | null>(null);
+  const [activeStockTab, setActiveStockTab] = useState("all");
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -295,11 +407,11 @@ export default function ProductsPage() {
 
   const { productsWithFinancials, grandTotalValue, grandTotalProfit } = useMemo(() => {
     const filtered = products.filter(p => {
-        if (activeTab === 'all') return true;
+        if (activeStockTab === 'all') return true;
         const threshold = p.lowStockThreshold || 20;
-        if (activeTab === 'in-stock') return p.stock >= threshold;
-        if (activeTab === 'low-stock') return p.stock > 0 && p.stock < threshold;
-        if (activeTab === 'out-of-stock') return p.stock === 0;
+        if (activeStockTab === 'in-stock') return p.stock >= threshold;
+        if (activeStockTab === 'low-stock') return p.stock > 0 && p.stock < threshold;
+        if (activeStockTab === 'out-of-stock') return p.stock === 0;
         return true;
     });
 
@@ -328,7 +440,7 @@ export default function ProductsPage() {
     });
 
     return { productsWithFinancials, grandTotalValue, grandTotalProfit };
-  }, [products, activeTab]);
+  }, [products, activeStockTab]);
   
   const handleExport = () => {
     const headers = ["ID", "Name", "Category", "Cost Price", "Selling Price", "Profit Per Item", "Stock", "Unit", "Total Value", "Total Profit"];
@@ -346,9 +458,14 @@ export default function ProductsPage() {
     toast({ title: "Success", description: "Product data exported." });
   };
 
+  const handleViewLogs = (product: Product) => {
+    setViewingLogsFor(product);
+    setActiveTab('logs');
+  }
+
   const categories = useMemo(() => ['All', ...new Set(products.map(p => p.category))], [products]);
 
-  const canViewFinancials = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer';
+  const canViewFinancials = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer' || user?.role === 'Accountant';
 
   return (
     <div className="flex flex-col gap-4">
@@ -373,16 +490,18 @@ export default function ProductsPage() {
             categories={categories}
         />
 
-      <Tabs defaultValue="products">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="products">Products</TabsTrigger>
-          <TabsTrigger value="logs">Product Logs</TabsTrigger>
+          <TabsTrigger value="logs">
+            Product Logs {viewingLogsFor && `- ${viewingLogsFor.name}`}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="products" className="mt-4">
           <Card>
             <CardHeader>
               <div className="overflow-x-auto pb-2">
-                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <Tabs value={activeStockTab} onValueChange={setActiveStockTab}>
                   <TabsList>
                     <TabsTrigger value="all">All</TabsTrigger>
                     <TabsTrigger value="in-stock">In Stock</TabsTrigger>
@@ -457,7 +576,7 @@ export default function ProductsPage() {
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem onSelect={() => setEditingProduct(product)}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem>View Logs</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => handleViewLogs(product)}>View Logs</DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem className="text-destructive" onSelect={() => setProductToDelete(product)}>
                                     Delete
@@ -491,15 +610,19 @@ export default function ProductsPage() {
           </Card>
         </TabsContent>
          <TabsContent value="logs">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Product Logs</CardTitle>
-                    <CardDescription>This feature is coming soon.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex items-center justify-center h-64 text-muted-foreground">
-                    <p>Product activity logs will be displayed here.</p>
-                </CardContent>
-            </Card>
+            {viewingLogsFor ? (
+                <ProductLogs product={viewingLogsFor} />
+            ) : (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Product Logs</CardTitle>
+                        <CardDescription>Select a product to view its history.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex items-center justify-center h-64 text-muted-foreground">
+                        <p>Go to the "Products" tab and click "View Logs" on an item to see its history here.</p>
+                    </CardContent>
+                </Card>
+            )}
         </TabsContent>
       </Tabs>
       <AlertDialog open={productToDelete !== null} onOpenChange={(open) => !open && setProductToDelete(null)}>
