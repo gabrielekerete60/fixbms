@@ -427,9 +427,6 @@ export default function CommunicationPage() {
     }, [toast, isLoading]);
 
     const handleTabChange = (value: string) => {
-        if (value === 'view-reports') {
-            window.dispatchEvent(new Event('reportsRead'));
-        }
         setActiveTab(value);
     }
 

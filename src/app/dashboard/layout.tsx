@@ -307,7 +307,6 @@ export default function DashboardLayout({
     const unsubAnnouncements = onSnapshot(announcementsQuery, (snap) => {
         const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${user.staff_id}`);
         const newCount = snap.docs.filter(doc => {
-            // Don't count your own messages as new
             if (doc.data().staffId === user.staff_id) {
                 return false;
             }
@@ -320,11 +319,8 @@ export default function DashboardLayout({
     const handleAnnouncementsRead = () => {
         setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
     }
-    const handleReportsRead = () => {
-        setNotificationCounts(prev => ({...prev, newReports: 0, inProgressReports: 0 }));
-    }
+    
     window.addEventListener('announcementsRead', handleAnnouncementsRead);
-    window.addEventListener('reportsRead', handleReportsRead);
 
     return () => {
         clearInterval(timer);
@@ -337,7 +333,6 @@ export default function DashboardLayout({
         unsubInProgress();
         unsubApprovals();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
-        window.removeEventListener('reportsRead', handleReportsRead);
     };
   }, [user?.staff_id, handleLogout, applyTheme]);
   
