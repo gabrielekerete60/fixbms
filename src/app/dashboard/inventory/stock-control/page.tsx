@@ -137,6 +137,38 @@ function PaginationControls({
     )
 }
 
+function DateRangeFilter({ date, setDate, align = 'end' }: { date: DateRange | undefined, setDate: (date: DateRange | undefined) => void, align?: "start" | "center" | "end" }) {
+    const [tempDate, setTempDate] = useState<DateRange | undefined>(date);
+    const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => {
+        setTempDate(date);
+    }, [date]);
+
+    const handleApply = () => {
+        setDate(tempDate);
+        setIsOpen(false);
+    }
+
+    return (
+         <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <PopoverTrigger asChild>
+                <Button id="date" variant={"outline"} className={cn("w-full sm:w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Filter by date range</span>)}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align={align}>
+                <Calendar initialFocus mode="range" defaultMonth={tempDate?.from} selected={tempDate} onSelect={setTempDate} numberOfMonths={2}/>
+                <div className="p-2 border-t flex justify-end">
+                    <Button onClick={handleApply}>Apply</Button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    )
+}
+
+
 function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[], onApproval: () => void }) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
