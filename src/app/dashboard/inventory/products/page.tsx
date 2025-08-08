@@ -346,6 +346,7 @@ export default function ProductsPage() {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [viewingLogsFor, setViewingLogsFor] = useState<Product | null>(null);
   const [activeStockTab, setActiveStockTab] = useState("all");
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -537,7 +538,15 @@ export default function ProductsPage() {
                     </TableRow>
                   ) : productsWithFinancials.length > 0 ? (
                     productsWithFinancials.map((product) => (
-                      <TableRow key={product.id} onClick={() => setEditingProduct(product)} className="cursor-pointer">
+                      <TableRow 
+                        key={product.id} 
+                        onClick={() => {
+                          if (!menuOpenId) {
+                            setEditingProduct(product);
+                          }
+                        }}
+                        className="cursor-pointer"
+                      >
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
                             <Image
@@ -562,8 +571,8 @@ export default function ProductsPage() {
                           </TableCell>
                         }
                         <TableCell>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu onOpenChange={(open) => setMenuOpenId(open ? product.id : null)}>
+                                <DropdownMenuTrigger asChild>
                                 <Button
                                     aria-haspopup="true"
                                     size="icon"
@@ -575,10 +584,10 @@ export default function ProductsPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onSelect={(e) => { e.stopPropagation(); setEditingProduct(product); }}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={(e) => { e.stopPropagation(); handleViewLogs(product); }}>View Logs</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setEditingProduct(product)}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => handleViewLogs(product)}>View Logs</DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive" onSelect={(e) => { e.stopPropagation(); setProductToDelete(product); }}>
+                                <DropdownMenuItem className="text-destructive" onSelect={() => setProductToDelete(product)}>
                                     Delete
                                 </DropdownMenuItem>
                                 </DropdownMenuContent>
