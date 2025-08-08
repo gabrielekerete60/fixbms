@@ -37,16 +37,16 @@ export default function LoginPage() {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
       router.push('/dashboard');
+    } else {
+        // Fetch app settings for staff ID length
+        const fetchSettings = async () => {
+            const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
+            if (settingsDoc.exists()) {
+                setStaffIdLength(settingsDoc.data().staffIdLength || 6);
+            }
+        };
+        fetchSettings();
     }
-    
-    // Fetch app settings for staff ID length
-    const fetchSettings = async () => {
-        const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
-        if (settingsDoc.exists()) {
-            setStaffIdLength(settingsDoc.data().staffIdLength || 6);
-        }
-    };
-    fetchSettings();
 
   }, [router]);
 

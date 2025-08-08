@@ -181,6 +181,7 @@ export default function DashboardLayout({
   const { toast } = useToast();
   const [time, setTime] = useState('');
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [attendanceId, setAttendanceId] = useState<string | null>(null);
   const [isClocking, setIsClocking] = useState(true);
@@ -221,6 +222,7 @@ export default function DashboardLayout({
     } else {
       router.push('/');
     }
+    setIsLoading(false);
   }, [router, applyTheme]);
 
 
@@ -456,7 +458,7 @@ export default function DashboardLayout({
       }
   }, [notificationCounts, user]);
 
-  if (!user) {
+  if (isLoading) {
     return <div className="flex justify-center items-center h-screen w-screen"><Loader2 className="h-16 w-16 animate-spin"/></div>;
   }
   
