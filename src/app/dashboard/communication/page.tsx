@@ -375,7 +375,6 @@ export default function CommunicationPage() {
     const [user, setUser] = useState<User | null>(null);
     const [activeTab, setActiveTab] = useState("announcements");
     const [notificationCounts, setNotificationCounts] = useState({ unreadAnnouncements: 0, actionableReports: 0 });
-    const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
 
 
     useEffect(() => {
@@ -400,7 +399,6 @@ export default function CommunicationPage() {
                 : data.length;
             
             setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
-            setHasUnreadAnnouncements(newCount > 0);
 
             if (isLoading) setIsLoading(false);
         }, (error) => {
@@ -424,7 +422,7 @@ export default function CommunicationPage() {
     const handleTabChange = (value: string) => {
         if (value === 'announcements') {
             localStorage.setItem('lastReadAnnouncement', new Date().toISOString());
-            setHasUnreadAnnouncements(false);
+            setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
             window.dispatchEvent(new Event('announcementsRead'));
         }
         if (value === 'view-reports') {
@@ -450,7 +448,7 @@ export default function CommunicationPage() {
 
     const handleMarkAllRead = () => {
         localStorage.setItem('lastReadAnnouncement', new Date().toISOString());
-        setHasUnreadAnnouncements(false);
+        setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
         window.dispatchEvent(new Event('announcementsRead'));
         toast({ title: 'Messages Marked as Read' });
     }
@@ -484,7 +482,7 @@ export default function CommunicationPage() {
                                 <CardTitle>Team Announcements</CardTitle>
                                 <CardDescription>Updates and messages from management.</CardDescription>
                             </div>
-                            {hasUnreadAnnouncements && (
+                            {notificationCounts.unreadAnnouncements > 0 && (
                                 <Button variant="outline" onClick={handleMarkAllRead}>
                                     <CheckCheck className="mr-2 h-4 w-4"/> Mark All as Read
                                 </Button>
