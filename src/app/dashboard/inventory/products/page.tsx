@@ -418,7 +418,7 @@ export default function ProductsPage() {
                     </TableRow>
                   ) : productsWithFinancials.length > 0 ? (
                     productsWithFinancials.map((product) => (
-                      <TableRow key={product.id}>
+                      <TableRow key={product.id} onClick={() => setEditingProduct(product)} className="cursor-pointer">
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
                             <Image
@@ -444,7 +444,7 @@ export default function ProductsPage() {
                         }
                         <TableCell>
                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
+                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                 <Button
                                     aria-haspopup="true"
                                     size="icon"

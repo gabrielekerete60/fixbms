@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -530,7 +531,7 @@ export default function IngredientsPage() {
                                         </TableRow>
                                     ) : ingredientsWithTotal.length > 0 ? (
                                         ingredientsWithTotal.map(ingredient => (
-                                            <TableRow key={ingredient.id}>
+                                            <TableRow key={ingredient.id} onClick={() => openEditDialog(ingredient)} className="cursor-pointer">
                                                 <TableCell className="font-medium">
                                                     {ingredient.name}
                                                     {(ingredient.stock < (ingredient.lowStockThreshold || 10)) && ingredient.stock > 0 && 
@@ -546,7 +547,7 @@ export default function IngredientsPage() {
                                                 <TableCell>{ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
                                                 <TableCell>
                                                     <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
+                                                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                                             <Button aria-haspopup="true" size="icon" variant="ghost">
                                                                 <MoreHorizontal className="h-4 w-4" />
                                                                 <span className="sr-only">Toggle menu</span>
