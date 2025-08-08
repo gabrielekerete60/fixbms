@@ -63,6 +63,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { getStaffList } from "@/app/actions";
 
 type CartItem = {
   id: string;
@@ -80,6 +81,7 @@ type CompletedOrder = {
   date: Timestamp;
   paymentMethod: 'POS' | 'Cash' | 'Paystack' | 'Credit';
   customerName?: string;
+  staffId?: string;
   staffName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
 }
@@ -88,6 +90,11 @@ type User = {
     name: string;
     role: string;
 };
+
+type StaffMember = {
+    id: string;
+    name: string;
+}
 
 const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -436,11 +443,13 @@ export default function RegularOrdersPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [allOrders, setAllOrders] = useState<CompletedOrder[]>([]);
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
+  const [staffFilter, setStaffFilter] = useState('all');
   const [storeAddress, setStoreAddress] = useState<string | undefined>();
   const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
@@ -474,6 +483,9 @@ export default function RegularOrdersPage() {
           const today = new Date();
           setDate({ from: startOfDay(today), to: endOfDay(today) });
       }
+
+      const staff = await getStaffList();
+      setStaffList(staff);
     };
     
     fetchUserAndSettings();
@@ -502,9 +514,10 @@ export default function RegularOrdersPage() {
       const dateMatch = !date?.from || (orderDate >= date.from && (!date.to || orderDate <= date.to));
       const searchMatch = !searchTerm || order.id.toLowerCase().includes(searchTerm.toLowerCase()) || order.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
       const paymentMatch = paymentMethodFilter === 'all' || order.paymentMethod === paymentMethodFilter;
-      return dateMatch && searchMatch && paymentMatch;
+      const staffMatch = staffFilter === 'all' || order.staffId === staffFilter;
+      return dateMatch && searchMatch && paymentMatch && staffMatch;
     });
-  }, [allOrders, date, searchTerm, paymentMethodFilter]);
+  }, [allOrders, date, searchTerm, paymentMethodFilter, staffFilter]);
   
   const grandTotal = useMemo(() => {
     return filteredOrders.reduce((sum, order) => sum + order.total, 0);
@@ -605,7 +618,7 @@ export default function RegularOrdersPage() {
             </div>
             <Card>
                 <CardHeader>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-start gap-4">
+                    <div className="flex flex-wrap items-center justify-start gap-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                             <Input placeholder="Search by Order ID or customer..." className="pl-10 w-full sm:w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -658,6 +671,15 @@ export default function RegularOrdersPage() {
                                 <SelectItem value="POS">POS</SelectItem>
                                 <SelectItem value="Paystack">Transfer</SelectItem>
                                 <SelectItem value="Credit">Credit</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Select value={staffFilter} onValueChange={setStaffFilter}>
+                            <SelectTrigger className="w-full sm:w-[180px]">
+                                <SelectValue placeholder="Filter by staff" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Staff</SelectItem>
+                                {staffList.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
