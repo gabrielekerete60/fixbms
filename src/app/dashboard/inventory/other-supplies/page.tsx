@@ -55,6 +55,8 @@ import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { addIndirectCost } from "@/app/actions";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 
 type OtherSupply = {
@@ -64,7 +66,20 @@ type OtherSupply = {
   unit: string;
   costPerUnit: number;
   category: string;
+  lowStockThreshold?: number;
 };
+
+const getStatusBadge = (stock: number, threshold?: number) => {
+  const lowStock = threshold || 10;
+  if (stock === 0) {
+    return <Badge variant="destructive">Out of Stock</Badge>;
+  }
+  if (stock < lowStock) {
+    return <Badge variant="secondary">Low Stock</Badge>;
+  }
+  return <Badge variant="outline">In Stock</Badge>;
+};
+
 
 function SupplyDialog({
   isOpen,
@@ -79,24 +94,25 @@ function SupplyDialog({
 }) {
     const { toast } = useToast();
     const [name, setName] = useState("");
-    const [stock, setStock] = useState(0);
     const [unit, setUnit] = useState("");
     const [costPerUnit, setCostPerUnit] = useState(0);
     const [category, setCategory] = useState("Packaging");
+    const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(10);
+
 
     useEffect(() => {
         if (supply) {
             setName(supply.name || "");
-            setStock(supply.stock || 0);
             setUnit(supply.unit || "");
             setCostPerUnit(supply.costPerUnit || 0);
             setCategory(supply.category || "Packaging");
+            setLowStockThreshold(supply.lowStockThreshold || 10);
         } else {
             setName("");
-            setStock(0);
             setUnit("");
             setCostPerUnit(0);
             setCategory("Packaging");
+            setLowStockThreshold(10);
         }
     }, [supply]);
 
@@ -107,10 +123,11 @@ function SupplyDialog({
         }
         onSave({ 
             name, 
-            stock: Number(stock), 
+            stock: supply?.stock || 0,
             unit, 
             costPerUnit: Number(costPerUnit), 
-            category
+            category,
+            lowStockThreshold: Number(lowStockThreshold),
         });
         onOpenChange(false);
     };
@@ -129,10 +146,6 @@ function SupplyDialog({
                         <Label htmlFor="name" className="text-right">Name</Label>
                         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="stock" className="text-right">Stock</Label>
-                        <Input id="stock" type="number" value={stock} className="col-span-3" disabled />
-                    </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="unit" className="text-right">Unit</Label>
                         <Input id="unit" placeholder="e.g., pcs, L, rolls" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" />
@@ -140,6 +153,10 @@ function SupplyDialog({
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="costPerUnit" className="text-right">Cost/Unit (₦)</Label>
                         <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" />
+                    </div>
+                     <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="low-stock" className="text-right">Low Stock Threshold</Label>
+                        <Input id="low-stock" type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} className="col-span-3" />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="category" className="text-right">Category</Label>
@@ -270,6 +287,7 @@ export default function OtherSuppliesPage() {
     const [editingSupply, setEditingSupply] = useState<Partial<OtherSupply> | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [supplyToDelete, setSupplyToDelete] = useState<OtherSupply | null>(null);
+    const [activeStockTab, setActiveStockTab] = useState("all");
 
     const fetchSupplies = useCallback(async () => {
         setIsLoading(true);
@@ -335,9 +353,20 @@ export default function OtherSuppliesPage() {
         setIsDialogOpen(true);
     };
     
+    const filteredSupplies = useMemo(() => {
+        return supplies.filter(s => {
+            if (activeStockTab === 'all') return true;
+            const threshold = s.lowStockThreshold || 10;
+            if (activeStockTab === 'in-stock') return s.stock >= threshold;
+            if (activeStockTab === 'low-stock') return s.stock > 0 && s.stock < threshold;
+            if (activeStockTab === 'out-of-stock') return s.stock === 0;
+            return true;
+        });
+    }, [supplies, activeStockTab]);
+
     const grandTotalCost = useMemo(() => {
-        return supplies.reduce((acc, supply) => acc + (supply.stock * supply.costPerUnit), 0);
-    }, [supplies]);
+        return filteredSupplies.reduce((acc, supply) => acc + (supply.stock * supply.costPerUnit), 0);
+    }, [filteredSupplies]);
 
     return (
         <div className="flex flex-col gap-4">
@@ -345,6 +374,9 @@ export default function OtherSuppliesPage() {
                 <h1 className="text-2xl font-bold font-headline">Other Supplies</h1>
                 <div className="flex items-center gap-2">
                     <IncreaseSupplyDialog supplies={supplies} onStockIncreased={fetchSupplies} />
+                     <Button onClick={openAddDialog} variant="outline">
+                        Manage Supply Types
+                    </Button>
                 </div>
             </div>
 
@@ -357,10 +389,16 @@ export default function OtherSuppliesPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Manage Other Supplies</CardTitle>
-                    <CardDescription>
-                        A list of all non-ingredient supplies for your bakery.
-                    </CardDescription>
+                     <div className="overflow-x-auto pb-2">
+                        <Tabs value={activeStockTab} onValueChange={setActiveStockTab}>
+                        <TabsList>
+                            <TabsTrigger value="all">All</TabsTrigger>
+                            <TabsTrigger value="in-stock">In Stock</TabsTrigger>
+                            <TabsTrigger value="low-stock">Low Stock</TabsTrigger>
+                            <TabsTrigger value="out-of-stock">Out of Stock</TabsTrigger>
+                        </TabsList>
+                        </Tabs>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -368,6 +406,7 @@ export default function OtherSuppliesPage() {
                             <TableRow>
                                 <TableHead>Supply Name</TableHead>
                                 <TableHead>Category</TableHead>
+                                <TableHead>Status</TableHead>
                                 <TableHead>Stock</TableHead>
                                 <TableHead>Cost/Unit</TableHead>
                                 <TableHead>Total Cost</TableHead>
@@ -377,15 +416,16 @@ export default function OtherSuppliesPage() {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center">
+                                    <TableCell colSpan={7} className="h-24 text-center">
                                         <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                                     </TableCell>
                                 </TableRow>
-                            ) : supplies.length > 0 ? (
-                                supplies.map(supply => (
+                            ) : filteredSupplies.length > 0 ? (
+                                filteredSupplies.map(supply => (
                                     <TableRow key={supply.id}>
                                         <TableCell className="font-medium">{supply.name}</TableCell>
                                         <TableCell>{supply.category}</TableCell>
+                                        <TableCell>{getStatusBadge(supply.stock, supply.lowStockThreshold)}</TableCell>
                                         <TableCell>{supply.stock.toFixed(2)} {supply.unit}</TableCell>
                                         <TableCell>₦{supply.costPerUnit.toFixed(2)}</TableCell>
                                         <TableCell>₦{(supply.stock * supply.costPerUnit).toFixed(2)}</TableCell>
@@ -409,7 +449,7 @@ export default function OtherSuppliesPage() {
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center">
+                                    <TableCell colSpan={7} className="h-24 text-center">
                                         No supplies found.
                                     </TableCell>
                                 </TableRow>
@@ -417,7 +457,7 @@ export default function OtherSuppliesPage() {
                         </TableBody>
                          <TableFooter>
                             <TableRow>
-                                <TableCell colSpan={4} className="font-bold text-right">Grand Total</TableCell>
+                                <TableCell colSpan={5} className="font-bold text-right">Grand Total</TableCell>
                                 <TableCell className="font-bold">₦{grandTotalCost.toFixed(2)}</TableCell>
                                 <TableCell></TableCell>
                             </TableRow>
@@ -442,6 +482,5 @@ export default function OtherSuppliesPage() {
             </AlertDialog>
         </div>
     );
-}
 
     
