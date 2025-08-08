@@ -1876,7 +1876,7 @@ function ApprovalsTab({ user, notificationBadge }: { user: { staff_id: string, n
                         ) : (
                             requests.map(req => (
                                 <TableRow key={req.id}>
-                                    <TableCell>{format(req.requestDate.toDate(), 'PPP')}</TableCell>
+                                    <TableCell>{req.requestDate && typeof req.requestDate.toDate === 'function' ? format(req.requestDate.toDate(), 'PPP') : 'Invalid Date'}</TableCell>
                                     <TableCell>{req.requesterName}</TableCell>
                                     <TableCell>{req.ingredientName}</TableCell>
                                     <TableCell className="text-right">{req.quantity}</TableCell>
