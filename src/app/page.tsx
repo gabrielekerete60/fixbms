@@ -31,22 +31,30 @@ export default function LoginPage() {
   const [staffIdLength, setStaffIdLength] = useState(6); // Default length
   const router = useRouter();
   const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    // Check if user is already logged in on this browser
+    // This effect runs only on the client, after the component has mounted.
+    // This prevents hydration errors by ensuring server and initial client render match.
+    setIsClient(true);
+
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser) {
       router.push('/dashboard');
-    } else {
-        // Fetch app settings for staff ID length
-        const fetchSettings = async () => {
-            const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
-            if (settingsDoc.exists()) {
-                setStaffIdLength(settingsDoc.data().staffIdLength || 6);
-            }
-        };
-        fetchSettings();
+      return; // Early exit if user is already logged in
     }
+
+    const fetchSettings = async () => {
+      try {
+        const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
+        if (settingsDoc.exists()) {
+          setStaffIdLength(settingsDoc.data().staffIdLength || 6);
+        }
+      } catch (error) {
+        console.error("Failed to fetch app settings:", error);
+      }
+    };
+    fetchSettings();
 
   }, [router]);
 
@@ -201,6 +209,15 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
   )
+  
+  if (!isClient) {
+    // Render a loading state on the server and initial client render
+    return (
+        <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background transition-colors duration-500">
