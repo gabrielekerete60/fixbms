@@ -114,12 +114,14 @@ function SupplierDialog({
   isOpen,
   onOpenChange,
   onSave,
-  supplier
+  supplier,
+  user
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: Omit<Supplier, 'id'>) => void;
   supplier: Partial<Supplier> | null;
+  user: User | null;
 }) {
     const { toast } = useToast();
     const [name, setName] = useState("");
@@ -129,6 +131,8 @@ function SupplierDialog({
     const [address, setAddress] = useState("");
     const [amountOwed, setAmountOwed] = useState(0);
     const [amountPaid, setAmountPaid] = useState(0);
+
+    const isStorekeeper = user?.role === 'Storekeeper';
 
     useEffect(() => {
         if (supplier) {
@@ -191,11 +195,11 @@ function SupplierDialog({
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="amountOwed" className="text-right">Amount Owed (₦)</Label>
-                        <Input id="amountOwed" type="number" value={amountOwed} onChange={(e) => setAmountOwed(Number(e.target.value))} className="col-span-3" />
+                        <Input id="amountOwed" type="number" value={amountOwed} onChange={(e) => setAmountOwed(Number(e.target.value))} className="col-span-3" disabled={isStorekeeper} />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="amountPaid" className="text-right">Amount Paid (₦)</Label>
-                        <Input id="amountPaid" type="number" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} className="col-span-3" />
+                        <Input id="amountPaid" type="number" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} className="col-span-3" disabled={isStorekeeper} />
                     </div>
                 </div>
                 <DialogFooter>
@@ -622,6 +626,7 @@ export default function SuppliersPage() {
                 onOpenChange={setIsDialogOpen}
                 onSave={handleSaveSupplier}
                 supplier={editingSupplier}
+                user={user}
             />
 
             <Card>
