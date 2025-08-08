@@ -22,14 +22,16 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, FileUp, Loader2, ArrowLeft } from "lucide-react";
+import { MoreHorizontal, PlusCircle, FileUp, Loader2, ArrowLeft, ArrowDownUp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-  DropdownMenuSeparator
+  DropdownMenuSeparator,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem
 } from "@/components/ui/dropdown-menu";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -349,6 +351,7 @@ export default function ProductsPage() {
   const [viewingLogsFor, setViewingLogsFor] = useState<Product | null>(null);
   const [activeStockTab, setActiveStockTab] = useState("all");
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [sort, setSort] = useState("name_asc");
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -409,7 +412,7 @@ export default function ProductsPage() {
   };
 
   const { productsWithFinancials, grandTotalValue, grandTotalProfit } = useMemo(() => {
-    const filtered = products.filter(p => {
+    let filtered = products.filter(p => {
         if (activeStockTab === 'all') return true;
         const threshold = p.lowStockThreshold || 20;
         if (activeStockTab === 'in-stock') return p.stock >= threshold;
@@ -441,9 +444,23 @@ export default function ProductsPage() {
         totalProfit
       };
     });
+    
+    productsWithFinancials.sort((a, b) => {
+        switch (sort) {
+            case "name_asc": return a.name.localeCompare(b.name);
+            case "name_desc": return b.name.localeCompare(a.name);
+            case "price_asc": return a.price - b.price;
+            case "price_desc": return b.price - a.price;
+            case "stock_asc": return a.stock - b.stock;
+            case "stock_desc": return b.stock - a.stock;
+            case "profit_asc": return a.totalProfit - b.totalProfit;
+            case "profit_desc": return b.totalProfit - a.totalProfit;
+            default: return 0;
+        }
+    });
 
     return { productsWithFinancials, grandTotalValue, grandTotalProfit };
-  }, [products, activeStockTab]);
+  }, [products, activeStockTab, sort]);
   
   const handleExport = () => {
     const headers = ["ID", "Name", "Category", "Cost Price", "Selling Price", "Profit Per Item", "Stock", "Unit", "Total Value", "Total Profit"];
@@ -512,7 +529,7 @@ export default function ProductsPage() {
         </TabsList>
         <TabsContent value="products" className="mt-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="overflow-x-auto pb-2">
                 <Tabs value={activeStockTab} onValueChange={setActiveStockTab}>
                   <TabsList>
@@ -523,6 +540,33 @@ export default function ProductsPage() {
                   </TabsList>
                 </Tabs>
               </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline">
+                        <ArrowDownUp className="mr-2 h-4 w-4" />
+                        Sort By
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuRadioGroup value={sort} onValueChange={setSort}>
+                        <DropdownMenuRadioItem value="name_asc">Name (A-Z)</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="name_desc">Name (Z-A)</DropdownMenuRadioItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuRadioItem value="price_desc">Price (High-Low)</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="price_asc">Price (Low-High)</DropdownMenuRadioItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuRadioItem value="stock_desc">Stock (High-Low)</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="stock_asc">Stock (Low-High)</DropdownMenuRadioItem>
+                         {canViewFinancials && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuRadioItem value="profit_desc">Total Profit (High-Low)</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="profit_asc">Total Profit (Low-High)</DropdownMenuRadioItem>
+                            </>
+                         )}
+                    </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto">
