@@ -54,6 +54,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { addDirectCost } from "@/app/actions";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 type User = {
     name: string;
@@ -599,6 +600,7 @@ export default function SuppliersPage() {
     }, [suppliers]);
     
     const canManageSuppliers = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
+    const isStorekeeper = user?.role === 'Storekeeper';
 
     if (selectedSupplier) {
         return <SupplierDetail supplier={selectedSupplier} onBack={() => setSelectedSupplier(null)} user={user} />;
@@ -636,30 +638,36 @@ export default function SuppliersPage() {
                                 <TableHead>Name</TableHead>
                                 <TableHead>Contact Person</TableHead>
                                 <TableHead>Phone</TableHead>
-                                <TableHead>Amount Owed</TableHead>
-                                <TableHead>Amount Paid</TableHead>
-                                <TableHead>Amount Remaining</TableHead>
+                                {!isStorekeeper && <TableHead>Amount Owed</TableHead>}
+                                {!isStorekeeper && <TableHead>Amount Paid</TableHead>}
+                                {!isStorekeeper && <TableHead>Amount Remaining</TableHead>}
                                 <TableHead><span className="sr-only">Actions</span></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-24 text-center">
+                                    <TableCell colSpan={isStorekeeper ? 4 : 7} className="h-24 text-center">
                                         <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                                     </TableCell>
                                 </TableRow>
                             ) : suppliersWithBalance.length > 0 ? (
                                 suppliersWithBalance.map(supplier => (
-                                    <TableRow key={supplier.id} className="cursor-pointer" onClick={() => setSelectedSupplier(supplier)}>
+                                    <TableRow 
+                                        key={supplier.id} 
+                                        className={cn(isStorekeeper ? "" : "cursor-pointer")}
+                                        onClick={() => !isStorekeeper && setSelectedSupplier(supplier)}
+                                    >
                                         <TableCell className="font-medium">{supplier.name}</TableCell>
                                         <TableCell>{supplier.contactPerson}</TableCell>
                                         <TableCell>{supplier.phone}</TableCell>
-                                        <TableCell>₦{supplier.amountOwed.toFixed(2)}</TableCell>
-                                        <TableCell>₦{supplier.amountPaid.toFixed(2)}</TableCell>
-                                        <TableCell className={supplier.amountRemaining > 0 ? 'text-destructive' : 'text-green-600'}>
-                                            ₦{supplier.amountRemaining.toFixed(2)}
-                                        </TableCell>
+                                        {!isStorekeeper && <TableCell>₦{supplier.amountOwed.toFixed(2)}</TableCell>}
+                                        {!isStorekeeper && <TableCell>₦{supplier.amountPaid.toFixed(2)}</TableCell>}
+                                        {!isStorekeeper && 
+                                            <TableCell className={supplier.amountRemaining > 0 ? 'text-destructive' : 'text-green-600'}>
+                                                ₦{supplier.amountRemaining.toFixed(2)}
+                                            </TableCell>
+                                        }
                                         <TableCell>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -684,7 +692,7 @@ export default function SuppliersPage() {
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-24 text-center">
+                                    <TableCell colSpan={isStorekeeper ? 4 : 7} className="h-24 text-center">
                                         No suppliers found.
                                     </TableCell>
                                 </TableRow>
