@@ -469,43 +469,64 @@ export default function RegularOrdersPage() {
   };
 
   useEffect(() => {
-    const fetchUserAndSettings = async () => {
-      const userStr = localStorage.getItem('loggedInUser');
-      const currentUser: User | null = userStr ? JSON.parse(userStr) : null;
-      setUser(currentUser);
-      
-      const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
-      if (settingsDoc.exists()) {
-          setStoreAddress(settingsDoc.data().storeAddress);
-      }
+    const fetchInitialData = async () => {
+        try {
+            const userStr = localStorage.getItem('loggedInUser');
+            const currentUser: User | null = userStr ? JSON.parse(userStr) : null;
+            setUser(currentUser);
+            
+            if(currentUser?.role === 'Showroom Staff') {
+                const today = new Date();
+                setDate({ from: startOfDay(today), to: endOfDay(today) });
+            }
 
-      if(currentUser?.role === 'Showroom Staff') {
-          const today = new Date();
-          setDate({ from: startOfDay(today), to: endOfDay(today) });
-      }
+            const [settingsDoc, staffListData] = await Promise.all([
+                getDoc(doc(db, 'settings', 'app_config')),
+                getStaffList()
+            ]);
 
-      const staff = await getStaffList();
-      setStaffList(staff);
+            if (settingsDoc.exists()) {
+                setStoreAddress(settingsDoc.data().storeAddress);
+            }
+            setStaffList(staffListData);
+
+            const ordersQuery = query(collection(db, "orders"), orderBy("date", "desc"));
+            const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+                const staffMap = new Map(staffListData.map(s => [s.id, s.name]));
+                const ordersList = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        staffName: staffMap.get(data.staffId) || data.staffName || 'N/A' 
+                    } as CompletedOrder;
+                });
+                setAllOrders(ordersList);
+                if (isLoading) setIsLoading(false);
+            }, (error) => {
+                console.error("Error fetching orders:", error);
+                toast({
+                  variant: "destructive",
+                  title: "Error",
+                  description: "Could not fetch orders from the database.",
+                });
+                if (isLoading) setIsLoading(false);
+            });
+
+            return () => unsubscribe();
+        } catch (error) {
+            console.error("Initialization failed:", error);
+            setIsLoading(false);
+        }
     };
     
-    fetchUserAndSettings();
+    const unsubscribePromise = fetchInitialData();
 
-    const ordersQuery = query(collection(db, "orders"), orderBy("date", "desc"));
-    const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
-        const ordersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CompletedOrder[];
-        setAllOrders(ordersList);
-        if (isLoading) setIsLoading(false);
-    }, (error) => {
-        console.error("Error fetching orders:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Could not fetch orders from the database.",
+    return () => {
+        unsubscribePromise.then(unsub => {
+            if (unsub) unsub();
         });
-        if (isLoading) setIsLoading(false);
-    });
-    
-    return () => unsubscribe();
+    };
   }, [toast, isLoading]);
 
   const filteredOrders = useMemo(() => {
