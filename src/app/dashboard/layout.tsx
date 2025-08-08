@@ -113,29 +113,29 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
               </div>
             </CollapsibleTrigger>
             <CollapsibleContent className="overflow-hidden text-sm">
-              <div className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down ml-7 flex flex-col gap-1 border-l pl-3 py-1">
-                {link.sublinks.map((sublink: any) => (
-                   <Link 
-                      key={sublink.label} 
-                      href={sublink.disabled ? '#' : sublink.href}
-                      onClick={(e) => {
-                        if (sublink.disabled) {
-                          e.preventDefault();
-                          toast({ variant: 'destructive', title: 'Feature Not Available', description: 'This feature is currently under construction.' });
-                        }
-                      }}
-                      className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary relative",
-                          !sublink.disabled && pathname === sublink.href && "bg-muted text-primary",
-                          sublink.disabled && "cursor-not-allowed opacity-50"
-                          )}>
-                      {sublink.label}
-                       {sublink.notificationKey && notificationCounts[sublink.notificationKey] > 0 && (
-                          <Badge variant="destructive" className="ml-auto h-5 w-5 flex items-center justify-center rounded-full p-0">{notificationCounts[sublink.notificationKey]}</Badge>
-                      )}
-                  </Link>
-                ))}
-              </div>
+                <div className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down ml-7 flex flex-col gap-1 border-l pl-3 py-1">
+                    {link.sublinks.map((sublink: any) => (
+                    <Link 
+                        key={sublink.label} 
+                        href={sublink.disabled ? '#' : sublink.href}
+                        onClick={(e) => {
+                            if (sublink.disabled) {
+                            e.preventDefault();
+                            toast({ variant: 'destructive', title: 'Feature Not Available', description: 'This feature is currently under construction.' });
+                            }
+                        }}
+                        className={cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary relative",
+                            !sublink.disabled && pathname === sublink.href && "bg-muted text-primary",
+                            sublink.disabled && "cursor-not-allowed opacity-50"
+                            )}>
+                        {sublink.label}
+                        {sublink.notificationKey && notificationCounts[sublink.notificationKey] > 0 && (
+                            <Badge variant="destructive" className="ml-auto h-5 w-5 flex items-center justify-center rounded-full p-0">{notificationCounts[sublink.notificationKey]}</Badge>
+                        )}
+                    </Link>
+                    ))}
+                </div>
             </CollapsibleContent>
           </Collapsible>
         ) : (
