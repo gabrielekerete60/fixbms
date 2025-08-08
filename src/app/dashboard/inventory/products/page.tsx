@@ -575,10 +575,10 @@ export default function ProductsPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onSelect={() => setEditingProduct(product)}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => handleViewLogs(product)}>View Logs</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditingProduct(product)}}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleViewLogs(product)}}>View Logs</DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive" onSelect={() => setProductToDelete(product)}>
+                                <DropdownMenuItem className="text-destructive" onSelect={(e) => { e.preventDefault(); setProductToDelete(product)}}>
                                     Delete
                                 </DropdownMenuItem>
                                 </DropdownMenuContent>
