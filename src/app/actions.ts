@@ -2699,7 +2699,7 @@ export type SupplyRequest = {
     requesterId: string;
     requesterName: string;
     status: 'pending' | 'approved' | 'declined';
-    requestDate: Timestamp;
+    requestDate: string; // Changed to string
     costPerUnit?: number;
     totalCost?: number;
 };
@@ -2707,7 +2707,15 @@ export type SupplyRequest = {
 export async function getPendingSupplyRequests(): Promise<SupplyRequest[]> {
     const q = query(collection(db, 'supply_requests'), where('status', '==', 'pending'));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupplyRequest));
+    return snapshot.docs.map(d => {
+        const data = d.data();
+        const requestDate = data.requestDate as Timestamp;
+        return { 
+            id: d.id, 
+            ...data,
+            requestDate: requestDate.toDate().toISOString(),
+        } as SupplyRequest;
+    });
 }
 
 export async function approveStockIncrease(requestId: string, costPerUnit: number, totalCost: number, user: { staff_id: string; name: string }) {
