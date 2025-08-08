@@ -343,9 +343,15 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
     }, [supplier.id, supplier.name]);
     
     useEffect(() => {
+        const getDate = (log: any) => {
+            if (log.date?.toDate) return log.date.toDate();
+            if (typeof log.date === 'string') return new Date(log.date);
+            return new Date(0);
+        }
+
         const combinedLogs: any[] = [
-            ...supplyLogs.map(log => ({ ...log, type: 'supply', date: log.date?.toDate() || new Date(0) })),
-            ...paymentLogs.map(log => ({ ...log, type: 'payment', date: log.date?.toDate() || new Date(0) }))
+            ...supplyLogs.map(log => ({ ...log, type: 'supply', date: getDate(log) })),
+            ...paymentLogs.map(log => ({ ...log, type: 'payment', date: getDate(log) }))
         ];
         
         combinedLogs.sort((a,b) => b.date - a.date);

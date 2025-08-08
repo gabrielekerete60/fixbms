@@ -1296,7 +1296,7 @@ export async function handleLogPayment(supplierId: string, amount: number): Prom
             category: "Creditor Payments",
             description: `Payment to supplier: ${supplierName}`,
             amount: amount,
-            date: new Date().toISOString()
+            date: serverTimestamp()
         });
         
         await batch.commit();
