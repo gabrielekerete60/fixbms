@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -11,8 +12,8 @@ import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, startO
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement, getAccountSummary, SupplyRequest, getPendingSupplyRequests, approveStockIncrease, declineStockIncrease } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
@@ -1680,14 +1681,14 @@ function BusinessHealthTab() {
                     </PopoverContent>
                 </Popover>
             </div>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="md:col-span-1">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                <Card className="flex flex-col h-full">
                     <CardHeader>
                         <CardTitle>OPEX Breakdown</CardTitle>
                         <CardDescription>Operating expenses for the selected period.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-2">
-                        <Accordion type="single" collapsible defaultValue="cogs">
+                    <CardContent className="space-y-2 flex-grow">
+                        <Accordion type="single" collapsible defaultValue="cogs" className="w-full">
                             <AccordionItem value="cogs">
                                 <AccordionTrigger>
                                     <div className="flex justify-between w-full pr-4"><span>COGS (Cost of Goods Sold)</span><span className="font-semibold">{formatCurrency(cogs)}</span></div>
@@ -1735,13 +1736,15 @@ function BusinessHealthTab() {
                                 </AccordionTrigger>
                             </AccordionItem>
                         </Accordion>
-                        <div className="pt-2 border-t mt-2 flex justify-between font-bold text-lg">
+                    </CardContent>
+                    <CardFooter>
+                         <div className="pt-2 border-t mt-2 flex justify-between font-bold text-lg w-full">
                             <span>GRAND TOTAL OPEX:</span>
                             <span>{formatCurrency(totalOpex)}</span>
                         </div>
-                    </CardContent>
+                    </CardFooter>
                 </Card>
-                <div className="md:col-span-2 space-y-6">
+                <div className="space-y-6">
                     <Card>
                         <CardHeader>
                             <CardTitle>Ratio Profiling with Revenue</CardTitle>
