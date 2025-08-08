@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -96,7 +95,7 @@ function IngredientDialog({
   onSave: (data: Partial<Omit<Ingredient, 'id' | 'stock'>>) => void;
   ingredient: Partial<Ingredient> | null;
 }) {
-    const { toast } = useToast();
+    const { toast } } from "@/hooks/use-toast";
     const [name, setName] = useState("");
     const [unit, setUnit] = useState("");
     const [costPerUnit, setCostPerUnit] = useState(0);
@@ -350,7 +349,10 @@ export default function IngredientsPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [ingredientToDelete, setIngredientToDelete] = useState<Ingredient | null>(null);
     const [isRequestStockOpen, setIsRequestStockOpen] = useState(false);
+    
     const [date, setDate] = useState<DateRange | undefined>();
+    const [tempDate, setTempDate] = useState<DateRange | undefined>();
+    const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
 
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [selectedLog, setSelectedLog] = useState<IngredientStockLog | null>(null);
@@ -467,6 +469,11 @@ export default function IngredientsPage() {
             return logDate >= fromDate && logDate <= toDate;
         });
     }, [stockLogs, date]);
+
+    const handleDateApply = () => {
+        setDate(tempDate);
+        setIsDatePopoverOpen(false);
+    }
 
     const canViewCosts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
     const isStorekeeper = user?.role === 'Storekeeper';
@@ -592,7 +599,7 @@ export default function IngredientsPage() {
                                     <CardTitle>Ingredient Stock Logs</CardTitle>
                                     <CardDescription>A history of all stock movements.</CardDescription>
                                 </div>
-                                 <Popover>
+                                 <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
                                     <PopoverTrigger asChild>
                                     <Button
                                         id="date"
@@ -621,11 +628,14 @@ export default function IngredientsPage() {
                                     <Calendar
                                         initialFocus
                                         mode="range"
-                                        defaultMonth={date?.from}
-                                        selected={date}
-                                        onSelect={setDate}
+                                        defaultMonth={tempDate?.from}
+                                        selected={tempDate}
+                                        onSelect={setTempDate}
                                         numberOfMonths={2}
                                     />
+                                    <div className="p-2 border-t flex justify-end">
+                                        <Button onClick={handleDateApply}>Apply</Button>
+                                    </div>
                                     </PopoverContent>
                                 </Popover>
                             </div>

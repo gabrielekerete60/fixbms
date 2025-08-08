@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -57,6 +56,8 @@ export default function AttendancePage() {
   const [weeklyData, setWeeklyData] = useState<WeeklyAttendance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [date, setDate] = useState<DateRange | undefined>();
+  const [tempDate, setTempDate] = useState<DateRange | undefined>();
+  const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -155,6 +156,11 @@ export default function AttendancePage() {
         return logDate >= from && logDate <= to;
     });
   }, [allAttendance, date]);
+  
+  const handleDateApply = () => {
+    setDate(tempDate);
+    setIsDatePopoverOpen(false);
+  }
 
   useEffect(() => {
     fetchAttendance();
@@ -282,7 +288,7 @@ export default function AttendancePage() {
                                <CardTitle>Attendance Log</CardTitle>
                                <CardDescription>A complete history of all clock-in and clock-out events.</CardDescription>
                             </div>
-                             <Popover>
+                             <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
                                 <PopoverTrigger asChild>
                                 <Button
                                     id="date"
@@ -311,11 +317,14 @@ export default function AttendancePage() {
                                 <Calendar
                                     initialFocus
                                     mode="range"
-                                    defaultMonth={date?.from}
-                                    selected={date}
-                                    onSelect={setDate}
+                                    defaultMonth={tempDate?.from}
+                                    selected={tempDate}
+                                    onSelect={setTempDate}
                                     numberOfMonths={2}
                                 />
+                                 <div className="p-2 border-t flex justify-end">
+                                    <Button onClick={handleDateApply}>Apply</Button>
+                                </div>
                                 </PopoverContent>
                             </Popover>
                         </div>

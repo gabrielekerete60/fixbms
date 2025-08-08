@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
@@ -464,6 +462,8 @@ export default function RegularOrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [date, setDate] = useState<DateRange | undefined>();
+  const [tempDate, setTempDate] = useState<DateRange | undefined>();
+  const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
   const [staffFilter, setStaffFilter] = useState('all');
@@ -582,6 +582,11 @@ export default function RegularOrdersPage() {
       setSelectedOrders([]);
     }
   }
+  
+  const handleDateApply = () => {
+    setDate(tempDate);
+    setIsDatePopoverOpen(false);
+  }
 
   const handleExport = (options: { dateRange?: DateRange, status: string }) => {
     let ordersToExport = allOrders;
@@ -662,7 +667,7 @@ export default function RegularOrdersPage() {
                             <Input placeholder="Search by Order ID or customer..." className="pl-10 w-full sm:w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                         </div>
                         {!isShowroomStaff && (
-                        <Popover>
+                        <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
                             <PopoverTrigger asChild>
                             <Button
                                 id="date"
@@ -691,11 +696,14 @@ export default function RegularOrdersPage() {
                             <Calendar
                                 initialFocus
                                 mode="range"
-                                defaultMonth={date?.from}
-                                selected={date}
-                                onSelect={setDate}
+                                defaultMonth={tempDate?.from}
+                                selected={tempDate}
+                                onSelect={setTempDate}
                                 numberOfMonths={2}
                             />
+                            <div className="p-2 border-t flex justify-end">
+                                <Button onClick={handleDateApply}>Apply</Button>
+                            </div>
                             </PopoverContent>
                         </Popover>
                         )}

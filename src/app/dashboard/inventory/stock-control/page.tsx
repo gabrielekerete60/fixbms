@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -416,7 +415,11 @@ export default function StockControlPage() {
   const [pendingBatches, setPendingBatches] = useState<ProductionBatch[]>([]);
   const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([]);
   const [myWasteLogs, setMyWasteLogs] = useState<WasteLog[]>([]);
+  
   const [date, setDate] = useState<DateRange | undefined>();
+  const [tempDate, setTempDate] = useState<DateRange | undefined>();
+  const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
+  
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingBatches, setIsLoadingBatches] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -621,6 +624,11 @@ export default function StockControlPage() {
   const paginatedAllPending = useMemo(() => {
     return visibleAllPendingRows === 'all' ? allPendingTransfers : allPendingTransfers.slice(0, visibleAllPendingRows);
   }, [allPendingTransfers, visibleAllPendingRows]);
+  
+  const handleDateApply = () => {
+    setDate(tempDate);
+    setIsDatePopoverOpen(false);
+  }
 
   const paginatedLogs = useMemo(() => {
     let filtered = initiatedTransfers;
@@ -1038,7 +1046,7 @@ export default function StockControlPage() {
                     <CardTitle>My Initiated Transfers Log</CardTitle>
                     <CardDescription>A log of transfers you have initiated.</CardDescription>
                 </div>
-                <Popover>
+                <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
                     <PopoverTrigger asChild>
                     <Button
                         id="date"
@@ -1067,11 +1075,14 @@ export default function StockControlPage() {
                     <Calendar
                         initialFocus
                         mode="range"
-                        defaultMonth={date?.from}
-                        selected={date}
-                        onSelect={setDate}
+                        defaultMonth={tempDate?.from}
+                        selected={tempDate}
+                        onSelect={setTempDate}
                         numberOfMonths={2}
                     />
+                     <div className="p-2 border-t flex justify-end">
+                        <Button onClick={handleDateApply}>Apply</Button>
+                    </div>
                     </PopoverContent>
                 </Popover>
             </div>

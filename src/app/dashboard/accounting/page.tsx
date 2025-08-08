@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -358,6 +356,38 @@ function LogPaymentDialog({ creditor, onPaymentLogged }: { creditor: Creditor, o
     )
 }
 
+function DateRangeFilter({ date, setDate, align = 'end' }: { date: DateRange | undefined, setDate: (date: DateRange | undefined) => void, align?: "start" | "center" | "end" }) {
+    const [tempDate, setTempDate] = useState<DateRange | undefined>(date);
+    const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => {
+        setTempDate(date);
+    }, [date]);
+
+    const handleApply = () => {
+        setDate(tempDate);
+        setIsOpen(false);
+    }
+
+    return (
+         <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <PopoverTrigger asChild>
+                <Button id="date" variant={"outline"} className={cn("w-full sm:w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Filter by date range</span>)}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align={align}>
+                <Calendar initialFocus mode="range" defaultMonth={tempDate?.from} selected={tempDate} onSelect={setTempDate} numberOfMonths={2}/>
+                <div className="p-2 border-t flex justify-end">
+                    <Button onClick={handleApply}>Apply</Button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    )
+}
+
+
 // --- Tab Components ---
 
 function SummaryTab() {
@@ -397,17 +427,7 @@ function SummaryTab() {
                         <CardTitle>Summary of Account</CardTitle>
                         <CardDescription>A top-level overview of key financial accounts.</CardDescription>
                     </div>
-                     <Popover>
-                        <PopoverTrigger asChild>
-                            <Button id="date" variant={"outline"} className={cn("w-full sm:w-auto min-w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Filter by date range</span>)}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                            <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
-                        </PopoverContent>
-                    </Popover>
+                     <DateRangeFilter date={date} setDate={setDate} />
                 </div>
             </CardHeader>
             <CardContent>
@@ -486,17 +506,7 @@ function FinancialsTab() {
                         <CardTitle>Trading, Profit &amp; Loss Statement</CardTitle>
                         <CardDescription>For the period ending {date?.to ? format(date.to, 'PPP') : format(new Date(), 'PPP')}</CardDescription>
                     </div>
-                     <Popover>
-                        <PopoverTrigger asChild>
-                        <Button id="date" variant={"outline"} className={cn("w-full sm:w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
-                        </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
-                        </PopoverContent>
-                    </Popover>
+                     <DateRangeFilter date={date} setDate={setDate} />
                 </div>
             </CardHeader>
             <CardContent>
@@ -661,12 +671,7 @@ function DebtorsCreditorsTab() {
                             <CardTitle>Debtor/Creditor Ledger</CardTitle>
                             <CardDescription>A summary ledger of debits and credits from the accounting period.</CardDescription>
                         </div>
-                         <Popover>
-                            <PopoverTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button></PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="end">
-                                <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
-                            </PopoverContent>
-                        </Popover>
+                         <DateRangeFilter date={date} setDate={setDate} />
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -805,12 +810,7 @@ function DirectCostsTab({ categories }: { categories: CostCategory[] }) {
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
                             <AddDirectCostDialog onCostAdded={fetchCosts} categories={categories} />
-                            <Popover>
-                                <PopoverTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button></PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="end">
-                                    <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
-                                </PopoverContent>
-                            </Popover>
+                            <DateRangeFilter date={date} setDate={setDate} />
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -957,10 +957,7 @@ function IndirectCostsTab({ categories }: { categories: CostCategory[] }) {
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
                             <AddIndirectCostDialog onCostAdded={fetchCosts} categories={categories} />
-                             <Popover>
-                                <PopoverTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button></PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="end"><Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/></PopoverContent>
-                            </Popover>
+                            <DateRangeFilter date={date} setDate={setDate} />
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -1208,17 +1205,7 @@ function SalesRecordsTab() {
                         <CardTitle>Daily Sales Records</CardTitle>
                         <CardDescription>A log of all daily sales transactions.</CardDescription>
                     </div>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                        <Button id="date" variant={"outline"} className={cn("w-full md:w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
-                        </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
-                        </PopoverContent>
-                    </Popover>
+                    <DateRangeFilter date={date} setDate={setDate} />
                 </div>
             </CardHeader>
             <CardContent>
@@ -1315,14 +1302,7 @@ function DrinkSalesTab() {
                             onChange={e => setSalesMargin(Number(e.target.value))}
                             className="w-20"
                         />
-                         <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="end">
-                                <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
-                            </PopoverContent>
-                        </Popover>
+                         <DateRangeFilter date={date} setDate={setDate} />
                     </div>
                 </div>
             </CardHeader>
@@ -1445,17 +1425,7 @@ function ClosingStockTab() {
     return (
         <div className="space-y-6">
              <div className="flex justify-end items-center gap-4">
-                <Popover>
-                    <PopoverTrigger asChild>
-                    <Button id="date" variant={"outline"} className={cn("w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
-                    </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                    <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
-                    </PopoverContent>
-                </Popover>
+                <DateRangeFilter date={date} setDate={setDate} />
             </div>
             <div className="grid md:grid-cols-2 gap-6">
                 <Card>
@@ -1582,17 +1552,7 @@ function WagesTab() {
                         <CardTitle>Wages &amp; Salaries</CardTitle>
                         <CardDescription>Monthly staff emolument records.</CardDescription>
                     </div>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                        <Button id="date" variant={"outline"} className={cn("w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
-                        </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
-                        </PopoverContent>
-                    </Popover>
+                    <DateRangeFilter date={date} setDate={setDate} />
                 </div>
             </CardHeader>
             <CardContent>
@@ -1689,17 +1649,7 @@ function BusinessHealthTab() {
     return (
         <div className="space-y-6">
             <div className="flex justify-end">
-                <Popover>
-                    <PopoverTrigger asChild>
-                    <Button id="date" variant={"outline"} className={cn("w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
-                    </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                    <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
-                    </PopoverContent>
-                </Popover>
+                <DateRangeFilter date={date} setDate={setDate} />
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                 <Card className="flex flex-col h-full">

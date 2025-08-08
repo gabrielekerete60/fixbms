@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -78,6 +77,8 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
     const [filterDriver, setFilterDriver] = useState('all');
     const [sort, setSort] = useState('date_desc');
     const [date, setDate] = useState<DateRange | undefined>({ from: subDays(new Date(), 6), to: new Date() });
+    const [tempDate, setTempDate] = useState<DateRange | undefined>(date);
+    const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
 
     const drivers = useMemo(() => {
         const driverSet = new Set(allRuns.map(run => run.to_staff_name).filter(Boolean));
@@ -129,6 +130,11 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
         return dailySales;
 
     }, [filteredAndSortedRuns, date]);
+    
+    const handleDateApply = () => {
+        setDate(tempDate);
+        setIsDatePopoverOpen(false);
+    }
 
     return (
         <div className="flex flex-col gap-4">
@@ -162,7 +168,7 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                  <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Date Range</CardTitle>
-                         <Popover>
+                         <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
                             <PopoverTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="h-4 w-4 text-muted-foreground"/></Button>
                             </PopoverTrigger>
@@ -170,11 +176,14 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                                 <Calendar
                                     initialFocus
                                     mode="range"
-                                    defaultMonth={date?.from}
-                                    selected={date}
-                                    onSelect={setDate}
+                                    defaultMonth={tempDate?.from}
+                                    selected={tempDate}
+                                    onSelect={setTempDate}
                                     numberOfMonths={2}
                                 />
+                                <div className="p-2 border-t flex justify-end">
+                                    <Button onClick={handleDateApply}>Apply</Button>
+                                </div>
                             </PopoverContent>
                         </Popover>
                     </CardHeader>
@@ -202,7 +211,7 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                   <CardTitle>Sales Run Performance</CardTitle>
                   <CardDescription>Revenue from sales runs in the selected period.</CardDescription>
                 </div>
-                 <Popover>
+                 <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
                     <PopoverTrigger asChild>
                         <Button variant="ghost" size="icon" className="ml-auto h-8 w-8"><MoreVertical className="h-4 w-4"/></Button>
                     </PopoverTrigger>
@@ -210,11 +219,14 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                         <Calendar
                             initialFocus
                             mode="range"
-                            defaultMonth={date?.from}
-                            selected={date}
-                            onSelect={setDate}
+                            defaultMonth={tempDate?.from}
+                            selected={tempDate}
+                            onSelect={setTempDate}
                             numberOfMonths={2}
                         />
+                         <div className="p-2 border-t flex justify-end">
+                            <Button onClick={handleDateApply}>Apply</Button>
+                        </div>
                     </PopoverContent>
                 </Popover>
               </CardHeader>
