@@ -106,7 +106,7 @@ const getStatusBadge = (stock: number, threshold?: number) => {
 };
 
 
-function ProductDialog({ product, onSave, onOpenChange, categories }: { product: Product | null, onSave: (p: Omit<Product, 'id'>) => void, onOpenChange: (open: boolean) => void, categories: string[] }) {
+function ProductDialog({ product, onSave, onOpenChange, categories, user }: { product: Product | null, onSave: (p: Omit<Product, 'id'>) => void, onOpenChange: (open: boolean) => void, categories: string[], user: User | null }) {
     const [name, setName] = useState("");
     const [category, setCategory] = useState("");
     const [costPrice, setCostPrice] = useState(0);
@@ -114,6 +114,8 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
     const [stock, setStock] = useState(0);
     const [unit, setUnit] = useState("");
     const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(20);
+    
+    const isAccountant = user?.role === 'Accountant';
 
     const handleSubmit = () => {
         const newProductData = {
@@ -165,11 +167,11 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
                 <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="name" className="text-right">Name</Label>
-                        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
+                        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" disabled={isAccountant} />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="category" className="text-right">Category</Label>
-                        <Select value={category} onValueChange={setCategory}>
+                        <Select value={category} onValueChange={setCategory} disabled={isAccountant}>
                             <SelectTrigger className="col-span-3">
                                 <SelectValue placeholder="Select a category" />
                             </SelectTrigger>
@@ -191,16 +193,16 @@ function ProductDialog({ product, onSave, onOpenChange, categories }: { product:
                     <div className="grid grid-cols-2 gap-4">
                          <div className="grid gap-2">
                             <Label htmlFor="stock">Stock</Label>
-                            <Input id="stock" type="number" value={stock} onChange={(e) => setStock(parseInt(e.target.value))} />
+                            <Input id="stock" type="number" value={stock} onChange={(e) => setStock(parseInt(e.target.value))} disabled={isAccountant}/>
                          </div>
                          <div className="grid gap-2">
                             <Label htmlFor="unit">Unit</Label>
-                            <Input id="unit" placeholder="e.g., loaf, pcs" value={unit} onChange={(e) => setUnit(e.target.value)} />
+                            <Input id="unit" placeholder="e.g., loaf, pcs" value={unit} onChange={(e) => setUnit(e.target.value)} disabled={isAccountant}/>
                          </div>
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="low-stock">Low Stock Threshold</Label>
-                        <Input id="low-stock" type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} />
+                        <Input id="low-stock" type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} disabled={isAccountant}/>
                         <p className="text-xs text-muted-foreground px-1">Get a 'Low Stock' warning when inventory falls below this number.</p>
                     </div>
                 </div>
@@ -472,7 +474,7 @@ export default function ProductsPage() {
   }
 
   const categories = useMemo(() => ['All', ...new Set(products.map(p => p.category))], [products]);
-
+  const canManageProducts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
   const canViewFinancials = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer' || user?.role === 'Accountant';
 
   return (
@@ -486,9 +488,11 @@ export default function ProductsPage() {
                 Export
             </Button>
            </ExportDialog>
-          <Button onClick={() => setEditingProduct({} as Product)}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Product
-          </Button>
+          {canManageProducts && (
+            <Button onClick={() => setEditingProduct({} as Product)}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Product
+            </Button>
+          )}
         </div>
       </div>
        <ProductDialog 
@@ -496,6 +500,7 @@ export default function ProductsPage() {
             onSave={handleSaveProduct}
             onOpenChange={() => setEditingProduct(null)}
             categories={categories}
+            user={user}
         />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
@@ -593,10 +598,14 @@ export default function ProductsPage() {
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem onSelect={(e) => {e.stopPropagation(); setEditingProduct(product);}}>Edit</DropdownMenuItem>
                                 <DropdownMenuItem onSelect={(e) => {e.stopPropagation(); handleViewLogs(product)}}>View Logs</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive" onSelect={(e) => {e.stopPropagation(); setProductToDelete(product)}}>
-                                    Delete
-                                </DropdownMenuItem>
+                                {canManageProducts && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem className="text-destructive" onSelect={(e) => {e.stopPropagation(); setProductToDelete(product)}}>
+                                        Delete
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </TableCell>

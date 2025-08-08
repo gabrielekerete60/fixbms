@@ -477,8 +477,9 @@ export default function IngredientsPage() {
         setIsDatePopoverOpen(false);
     }
 
-    const canViewCosts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
+    const canManageIngredients = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
     const isStorekeeper = user?.role === 'Storekeeper';
+    const canViewCosts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
 
     return (
         <div className="flex flex-col gap-4">
@@ -486,9 +487,11 @@ export default function IngredientsPage() {
                 <h1 className="text-2xl font-bold font-headline">Ingredients</h1>
                 <div className="flex items-center gap-2">
                     {isStorekeeper && <RequestStockDialog isOpen={isRequestStockOpen} onOpenChange={setIsRequestStockOpen} ingredients={ingredients} suppliers={suppliers} user={user}/>}
-                    <Button onClick={openAddDialog}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add Ingredient
-                    </Button>
+                    {canManageIngredients && (
+                        <Button onClick={openAddDialog}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add Ingredient
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -540,7 +543,7 @@ export default function IngredientsPage() {
                                         </TableRow>
                                     ) : ingredientsWithTotal.length > 0 ? (
                                         ingredientsWithTotal.map(ingredient => (
-                                            <TableRow key={ingredient.id} onClick={() => openEditDialog(ingredient)} className="cursor-pointer">
+                                            <TableRow key={ingredient.id} className={canManageIngredients ? "cursor-pointer" : ""} onClick={() => canManageIngredients && openEditDialog(ingredient)}>
                                                 <TableCell className="font-medium">
                                                     {ingredient.name}
                                                     {(ingredient.stock < (ingredient.lowStockThreshold || 10)) && ingredient.stock > 0 && 
@@ -555,6 +558,7 @@ export default function IngredientsPage() {
                                                 {canViewCosts && <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>}
                                                 <TableCell>{ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
                                                 <TableCell>
+                                                   {canManageIngredients && (
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                                             <Button aria-haspopup="true" size="icon" variant="ghost">
@@ -569,6 +573,7 @@ export default function IngredientsPage() {
                                                             <DropdownMenuItem className="text-destructive" onSelect={() => setIngredientToDelete(ingredient)}>Delete</DropdownMenuItem>
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
+                                                   )}
                                                 </TableCell>
                                             </TableRow>
                                         ))

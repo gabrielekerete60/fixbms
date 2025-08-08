@@ -311,6 +311,8 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
     const [isLoading, setIsLoading] = useState(true);
     const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    
+    const canManageSupplies = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
 
     useEffect(() => {
         const fetchIngredients = async () => {
@@ -325,7 +327,7 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
             setSupplyLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupplyLog)));
         });
 
-        const paymentsQuery = query(collection(db, 'indirectCosts'), where('category', '==', 'Creditor Payments'), where('description', '==', `Payment to supplier: ${supplier.name}`));
+        const paymentsQuery = query(collection(db, 'indirectCosts'), where('category', '==', 'Creditor Payments'), where('description', '==', `Payment to supplier: ${supplier.name}`), orderBy('date', 'desc'));
         const unsubPaymentLogs = onSnapshot(paymentsQuery, (snapshot) => {
             setPaymentLogs(snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -344,7 +346,8 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
     
     useEffect(() => {
         const getDate = (log: any) => {
-            if (log.date?.toDate) return log.date.toDate();
+            if (!log.date) return new Date(0);
+            if (log.date.toDate) return log.date.toDate();
             if (typeof log.date === 'string') return new Date(log.date);
             return new Date(0);
         }
@@ -453,14 +456,16 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
                 </CardContent>
             </Card>
             
-            <SupplyLogDialog 
-                isOpen={isLogDialogOpen}
-                onOpenChange={setIsLogDialogOpen}
-                onSave={handleSaveLog}
-                supplier={supplier}
-                ingredients={ingredients}
-                user={user}
-            />
+            {canManageSupplies && (
+              <SupplyLogDialog 
+                  isOpen={isLogDialogOpen}
+                  onOpenChange={setIsLogDialogOpen}
+                  onSave={handleSaveLog}
+                  supplier={supplier}
+                  ingredients={ingredients}
+                  user={user}
+              />
+            )}
 
             <Card>
                 <CardHeader>
@@ -474,9 +479,11 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                 <Input placeholder="Search logs..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
-                            <Button onClick={() => setIsLogDialogOpen(true)}>
-                                <PlusCircle className="mr-2 h-4 w-4"/> Add Supply Log
-                            </Button>
+                            {canManageSupplies && (
+                              <Button onClick={() => setIsLogDialogOpen(true)}>
+                                  <PlusCircle className="mr-2 h-4 w-4"/> Add Supply Log
+                              </Button>
+                            )}
                         </div>
                     </div>
                 </CardHeader>
@@ -590,6 +597,8 @@ export default function SuppliersPage() {
             amountRemaining: s.amountOwed - s.amountPaid,
         }));
     }, [suppliers]);
+    
+    const canManageSuppliers = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
 
     if (selectedSupplier) {
         return <SupplierDetail supplier={selectedSupplier} onBack={() => setSelectedSupplier(null)} user={user} />;
@@ -599,9 +608,11 @@ export default function SuppliersPage() {
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold font-headline">Suppliers</h1>
-                <Button onClick={openAddDialog}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Supplier
-                </Button>
+                {canManageSuppliers && (
+                  <Button onClick={openAddDialog}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Supplier
+                  </Button>
+                )}
             </div>
 
             <SupplierDialog
@@ -659,9 +670,13 @@ export default function SuppliersPage() {
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                    <DropdownMenuItem onSelect={() => openEditDialog(supplier)}>Edit</DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem className="text-destructive" onSelect={() => setSupplierToDelete(supplier)}>Delete</DropdownMenuItem>
+                                                    {canManageSuppliers && (
+                                                      <>
+                                                        <DropdownMenuItem onSelect={() => openEditDialog(supplier)}>Edit</DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setSupplierToDelete(supplier)}>Delete</DropdownMenuItem>
+                                                      </>
+                                                    )}
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </TableCell>
