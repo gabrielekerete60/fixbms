@@ -343,6 +343,7 @@ export async function verifySeedPassword(password: string): Promise<ActionResult
 }
 
 async function batchCommit(data: any[], collectionName: string) {
+    const BATCH_SIZE = 500;
     let batch = writeBatch(db);
     let count = 0;
     for (const item of data) {
@@ -363,14 +364,14 @@ async function batchCommit(data: any[], collectionName: string) {
 
         batch.set(docRef, itemWithTimestamps);
         count++;
-        if (count % 400 === 0) {
+        if (count % BATCH_SIZE === 0) {
             console.log(`Committing batch of ${count} for ${collectionName}...`);
             await batch.commit();
             batch = writeBatch(db);
         }
     }
-    if (count % 400 !== 0) {
-        console.log(`Committing final batch of ${count % 400} for ${collectionName}...`);
+    if (count % BATCH_SIZE !== 0) {
+        console.log(`Committing final batch of ${count % BATCH_SIZE} for ${collectionName}...`);
         await batch.commit();
     }
 }
@@ -397,6 +398,7 @@ export async function seedDatabase(): Promise<ActionResult> {
 async function clearSubcollections(collectionPath: string) {
     const mainCollectionSnapshot = await getDocs(collection(db, collectionPath));
     for (const mainDoc of mainCollectionSnapshot.docs) {
+        const BATCH_SIZE = 500;
         let batch = writeBatch(db);
         let count = 0;
         if (collectionPath === 'staff') {
@@ -405,13 +407,13 @@ async function clearSubcollections(collectionPath: string) {
             for (const subDoc of subCollectionSnapshot.docs) {
                 batch.delete(subDoc.ref);
                 count++;
-                if (count % 400 === 0) {
+                if (count % BATCH_SIZE === 0) {
                     await batch.commit();
                     batch = writeBatch(db);
                 }
             }
         }
-        if (count % 400 !== 0 && count > 0) {
+        if (count % BATCH_SIZE !== 0 && count > 0) {
             await batch.commit();
         }
     }
@@ -432,21 +434,23 @@ export async function clearDatabase(): Promise<ActionResult> {
     await clearSubcollections('staff');
 
     for (const collectionName of collectionsToClear) {
+      console.log(`Starting to clear collection: ${collectionName}...`);
       const querySnapshot = await getDocs(collection(db, collectionName));
+      const BATCH_SIZE = 500;
       let batch = writeBatch(db);
       let count = 0;
       for (const doc of querySnapshot.docs) {
         batch.delete(doc.ref);
         count++;
-        if (count % 400 === 0) {
+        if (count % BATCH_SIZE === 0) {
             await batch.commit();
             batch = writeBatch(db);
         }
       }
-      if (count > 0 && count % 400 !== 0) {
+      if (count > 0 && count % BATCH_SIZE !== 0) {
          await batch.commit();
       }
-      console.log(`Cleared collection: ${collectionName}`);
+      console.log(`Cleared ${count} documents from collection: ${collectionName}`);
     }
 
     console.log("Database cleared successfully.");
