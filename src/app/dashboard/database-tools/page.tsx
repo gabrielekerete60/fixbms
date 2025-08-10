@@ -4,6 +4,8 @@
 import { useState, useTransition } from "react";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { 
     clearCollection,
@@ -42,6 +44,18 @@ export default function DatabaseToolsPage() {
   const [isPending, startTransition] = useTransition();
   const [currentlySeeding, setCurrentlySeeding] = useState<string | null>(null);
   const { toast } = useToast();
+  const [isVerified, setIsVerified] = useState(false);
+  const [password, setPassword] = useState('');
+
+  const handleVerification = () => {
+    if (password === 'password123') {
+        setIsVerified(true);
+        toast({ title: "Access Granted", description: "Database tools unlocked." });
+    } else {
+        toast({ variant: "destructive", title: "Access Denied", description: "Incorrect password." });
+    }
+  };
+
 
   const handleSeedAction = (actionName: string, actionFn: () => Promise<{ success: boolean; error?: string }>) => {
     setCurrentlySeeding(actionName);
@@ -84,6 +98,35 @@ export default function DatabaseToolsPage() {
     { name: "Operational Data", action: seedOperationalData },
     { name: "Communication Data", action: seedCommunicationData },
   ];
+  
+  if (!isVerified) {
+    return (
+        <Card className="w-full max-w-md">
+            <CardHeader>
+                <CardTitle>Verification Required</CardTitle>
+                <CardDescription>Enter the password to access the database tools.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="db-password">Password</Label>
+                    <Input 
+                        id="db-password" 
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleVerification()}
+                    />
+                </div>
+            </CardContent>
+            <CardFooter className="flex justify-between">
+                <Button variant="outline" asChild>
+                    <Link href="/dashboard">Cancel</Link>
+                </Button>
+                <Button onClick={handleVerification}>Verify</Button>
+            </CardFooter>
+        </Card>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
