@@ -1,195 +1,191 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+  
     // --- HELPER FUNCTIONS ---
     function isSignedIn() {
       return request.auth != null;
     }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role;
+    }
 
-    function getUserData(userId) {
-      return get(/databases/$(database)/documents/staff/$(userId)).data;
+    function hasRole(allowedRoles) {
+      return isSignedIn() && getUserRole() in allowedRoles;
     }
     
-    function hasRole(roles) {
-      let userRole = getUserData(request.auth.uid).role;
-      return isSignedIn() && userRole in roles;
-    }
-
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-    
-    // --- Role Definitions ---
-    function isAdmin() {
-      return hasRole(['Manager', 'Developer', 'Supervisor']);
-    }
-    
-    function isAccountant() {
-      return hasRole(['Manager', 'Developer', 'Accountant']);
-    }
-    
-    function isStorekeeper() {
-       return hasRole(['Manager', 'Developer', 'Storekeeper']);
-    }
-    
-    // --- COLLECTION RULES ---
 
-    // SETTINGS: Public read for login page, admin write
-    match /settings/{settingId} {
-      allow read;
-      allow write: if isAdmin();
+    // --- DEFAULT RULE ---
+    // By default, deny all reads and writes.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // --- SETTINGS (Public Read) ---
+    match /settings/app_config {
+      allow read: if true;
+      allow write: if hasRole(['Manager', 'Developer']);
     }
 
-    // STAFF: Users can read/update their own non-critical data. Admins can manage all.
-    match /staff/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isAdmin();
-      allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['password', 'theme'])) || isAdmin();
-      allow delete: if isAdmin();
+    // --- STAFF ---
+    match /staff/{staffId} {
+      // Admins can manage all staff
+      allow read, write: if hasRole(['Manager', 'Developer', 'Supervisor']);
+      
+      // Staff can read their own data and update specific fields
+      allow get: if isSignedIn();
+      allow update: if isOwner(staffId) 
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['password', 'theme', 'lastLogin']);
     }
     
-    // ATTENDANCE: Users can only create their own records. Admins can read all.
-    match /attendance/{attendanceId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn() && request.resource.data.staff_id == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.staff_id == request.auth.uid; // for clock-out
-      allow delete: if isAdmin();
-    }
-
-    // INVENTORY (Products, Ingredients, Recipes, Suppliers, Other Supplies)
+    // --- INVENTORY (Products, Ingredients, Suppliers, Recipes, Other Supplies) ---
     match /products/{productId} {
       allow read: if isSignedIn();
-      // Only admins and storekeepers can create/delete products or update non-financial info
-      allow create, delete: if isStorekeeper();
-      allow update: if (isAccountant() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['costPrice', 'price'])) || isStorekeeper();
+      // Only Admins and Storekeepers can create/delete products
+      allow create, delete: if hasRole(['Manager', 'Developer', 'Storekeeper']);
+      // Admins/Storekeepers can update anything. Accountants can only update financial data.
+      allow update: if hasRole(['Manager', 'Developer', 'Storekeeper']) || 
+                     (hasRole(['Accountant']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['costPrice']));
     }
     
     match /ingredients/{ingredientId} {
         allow read: if isSignedIn();
-        // Accountants update cost, storekeepers manage everything else
-        allow create, delete: if isStorekeeper();
-        allow update: if (isAccountant() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['costPerUnit'])) || isStorekeeper();
-    }
-    
-    match /other_supplies/{supplyId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isStorekeeper();
-    }
-
-    match /recipes/{recipeId} {
-        allow read: if isSignedIn();
-        allow create, update, delete: if hasRole(['Manager', 'Developer', 'Chief Baker']);
+        // Only Admins/Storekeepers can manage ingredients
+        allow write: if hasRole(['Manager', 'Developer', 'Storekeeper']);
     }
     
     match /suppliers/{supplierId} {
         allow read: if isSignedIn();
-        allow create, delete: if isStorekeeper();
-        allow update: if isAccountant() || isStorekeeper();
+        // Admins, Storekeepers, and Accountants can manage suppliers.
+        allow write: if hasRole(['Manager', 'Developer', 'Storekeeper', 'Accountant']);
     }
 
-    // PRODUCTION WORKFLOW
+    match /recipes/{recipeId} {
+        allow read: if isSignedIn();
+        // Only Admins can manage recipes
+        allow write: if hasRole(['Manager', 'Developer']);
+    }
+    
+    match /other_supplies/{supplyId} {
+        allow read: if isSignedIn();
+        // Admins & Storekeepers can manage other supplies
+        allow write: if hasRole(['Manager', 'Developer', 'Storekeeper']);
+    }
+    
+    // ---OPERATIONAL DATA (Production, Transfers, Waste) ---
     match /production_batches/{batchId} {
       allow read: if isSignedIn();
-      allow create: if hasRole(['Baker', 'Chief Baker']); // Bakers request
-      allow update: if (
-        (isStorekeeper() && resource.data.status == 'pending_approval') || // Storekeeper approves
-        (hasRole(['Baker', 'Chief Baker']) && resource.data.status == 'in_production') // Baker completes
-      );
-      allow delete: if isAdmin();
+      // Bakers/Admins can create
+      allow create: if hasRole(['Baker', 'Chief Baker', 'Manager', 'Developer']);
+      // Storekeepers/Admins approve (update to 'in_production'/'declined')
+      // Bakers complete (update to 'completed')
+      allow update: if (hasRole(['Manager', 'Developer', 'Storekeeper']) && request.resource.data.status != resource.data.status && resource.data.status == 'pending_approval') ||
+                     (hasRole(['Baker', 'Chief Baker']) && request.resource.data.status == 'completed' && resource.data.status == 'in_production');
     }
     
-    match /supply_requests/{requestId} {
-      allow read: if isAccountant() || isStorekeeper();
-      allow create: if isStorekeeper();
-      allow update: if isAccountant() && resource.data.status == 'pending'; // Accountant approves/declines
-      allow delete: if isAdmin();
-    }
-
-    // LOGS (Append-only for most users)
-    match /waste_logs/{logId} {
-      allow read: if hasRole(['Manager', 'Developer', 'Supervisor']);
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
-    }
-
-    match /production_logs/{logId} {
-      allow read: if hasRole(['Manager', 'Developer', 'Supervisor', 'Storekeeper', 'Chief Baker']);
-      allow create: if isSignedIn();
-      allow update, delete: if false; // Logs should be immutable
-    }
-
-    match /ingredient_stock_logs/{logId} {
-        allow read: if hasRole(['Manager', 'Developer', 'Supervisor', 'Storekeeper', 'Accountant']);
-        allow create: if isSignedIn();
-        allow update, delete: if false;
-    }
-    
-    // OPERATIONAL DATA (Transfers, Orders)
     match /transfers/{transferId} {
       allow read: if isSignedIn();
-      allow create: if isStorekeeper();
-      allow update: if isSignedIn() && request.resource.data.to_staff_id == request.auth.uid && resource.data.status == 'pending'; // Recipient acknowledges
-      allow delete: if isAdmin();
+      // Storekeepers/Admins initiate transfers
+      allow create: if hasRole(['Manager', 'Developer', 'Storekeeper']);
+      // The assigned staff member acknowledges
+      allow update: if isSignedIn() && request.resource.data.to_staff_id == request.auth.uid;
+    }
+    
+    match /waste_logs/{logId} {
+      // Anyone can report waste (create) from their own stock
+      allow create: if isSignedIn();
+      // Only Admins can read all waste logs
+      allow read, delete: if hasRole(['Manager', 'Developer']);
     }
 
-    match /orders/{orderId} {
-      allow read: if hasRole(['Manager', 'Developer', 'Supervisor', 'Showroom Staff', 'Accountant']);
-      allow create: if hasRole(['Showroom Staff', 'Delivery Staff']); // Only sales staff can create orders
-      allow update, delete: if isAdmin();
-    }
-    
-    // COMMUNICATION
-    match /announcements/{announcementId} {
+    // --- CUSTOMERS & ORDERS ---
+    match /customers/{customerId} {
       allow read: if isSignedIn();
-      allow create: if hasRole(['Manager', 'Developer', 'Supervisor']);
-      allow delete: if isAdmin();
+      // Admins and Showroom staff can manage customers
+      allow write: if hasRole(['Manager', 'Developer', 'Supervisor', 'Showroom Staff']);
     }
     
-    match /reports/{reportId} {
-      allow read: if hasRole(['Manager', 'Developer', 'Supervisor']);
-      allow create: if isSignedIn();
-      allow update: if hasRole(['Manager', 'Developer', 'Supervisor']);
-      allow delete: if isAdmin();
+    match /orders/{orderId} {
+      allow read: if isSignedIn();
+      // Showroom/Delivery staff can create orders, Admins can manage
+      allow create: if hasRole(['Showroom Staff', 'Delivery Staff']);
+      allow update, delete: if hasRole(['Manager', 'Developer', 'Supervisor']);
     }
     
-    // FINANCIALS & PAYMENTS
-    match /payment_confirmations/{confirmationId} {
-        allow read: if isAccountant();
-        allow create: if hasRole(['Delivery Staff']);
-        allow update: if isAccountant() && resource.data.status == 'pending';
-        allow delete: if isAdmin();
+    // --- FINANCIALS (Sales, Costs, Payments, etc.)
+    match /sales/{saleId} {
+        // Only Accountants and Admins can manage sales records
+        allow read, write: if hasRole(['Manager', 'Developer', 'Accountant']);
     }
 
     match /directCosts/{costId} {
-        allow read, write: if isAccountant();
-    }
-    
-    match /indirectCosts/{costId} {
-        allow read, write: if isAccountant();
-    }
-    
-    match /wages/{wageId} {
-      allow read, write: if isAccountant();
+        allow read, write: if hasRole(['Manager', 'Developer', 'Accountant']);
     }
 
-    match /sales/{saleId} {
-      allow read, write: if isAccountant();
+    match /indirectCosts/{costId} {
+        allow read, write: if hasRole(['Manager', 'Developer', 'Accountant']);
+    }
+
+    match /wages/{wageId} {
+        allow read, write: if hasRole(['Manager', 'Developer', 'Accountant']);
     }
     
-    match /debt/{debtId} {
-       allow read, write: if isAccountant();
+    match /payment_confirmations/{confirmationId} {
+      allow read: if isSignedIn();
+      // Delivery staff can create, Admins/Accountants can update (approve/decline)
+      allow create: if hasRole(['Delivery Staff']);
+      allow update: if hasRole(['Manager', 'Developer', 'Accountant']);
+      allow delete: if hasRole(['Manager', 'Developer']); // Rule to fix the issue
     }
     
-    match /discount_records/{recordId} {
-      allow read, write: if isAccountant();
+    match /supply_requests/{requestId} {
+      allow read: if isSignedIn();
+      // Storekeepers create, Admins/Accountants approve/decline
+      allow create: if hasRole(['Storekeeper']);
+      allow update: if hasRole(['Manager', 'Developer', 'Accountant']);
+    }
+
+    // --- LOGS & COMMUNICATION ---
+    match /attendance/{attendanceId} {
+        allow read: if isSignedIn();
+        // A user can only create/update their own attendance
+        allow create, update: if isSignedIn() && request.resource.data.staff_id == request.auth.uid;
     }
     
-    match /cost_categories/{categoryId} {
-      allow read: if isAccountant();
-      allow write: if isAdmin();
-    }
+     match /ingredient_stock_logs/{logId} {
+        allow read: if hasRole(['Manager', 'Developer', 'Storekeeper', 'Accountant']);
+     }
+     
+     match /production_logs/{logId} {
+        allow read: if isSignedIn();
+     }
+     
+     match /announcements/{announcementId} {
+        allow read: if isSignedIn();
+        allow create: if hasRole(['Manager', 'Developer', 'Supervisor']);
+     }
+     
+     match /reports/{reportId} {
+        allow create: if isSignedIn();
+        allow read, update: if hasRole(['Manager', 'Developer', 'Supervisor']);
+     }
+     
+     match /cost_categories/{categoryId} {
+        allow read: if isSignedIn();
+        allow write: if hasRole(['Manager', 'Developer', 'Accountant']);
+     }
+
+     // --- DEVELOPER ONLY (For Seeding/Clearing) ---
+     match /promotions/{promoId} { allow write: if hasRole(['Developer']); }
+     match /debt/{debtId} { allow write: if hasRole(['Developer']); }
+     match /closingStocks/{stockId} { allow write: if hasRole(['Developer']); }
+     match /discount_records/{recordId} { allow write: if hasRole(['Developer']); }
+
   }
 }
