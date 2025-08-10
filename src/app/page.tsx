@@ -163,7 +163,7 @@ export default function LoginPage() {
           </Button>
           <p className="text-xs text-center text-muted-foreground">
             Need to manage the database?{" "}
-            <Link href="/dashboard/database-tools" className="underline hover:text-primary transition-colors">
+            <Link href="/database-tools" className="underline hover:text-primary transition-colors">
               Go to Database Tools
             </Link>
           </p>
