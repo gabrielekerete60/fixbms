@@ -264,7 +264,7 @@ export async function seedFinancialRecords(): Promise<ActionResult> {
     try {
         await batchCommit(wagesData, "wages");
         await batchCommit([
-            { id: 'dr_1', bread_type: 'Round Loaf', amount: 58000 }, { id: 'dr_2', bread_type: 'Family Loaf', amount: 1200 }, { id: 'dr_3', bread_type: 'Short Loaf', amount: 4700 }, { id: 'dr_4', bread_type: 'Burger', amount: 1000 }, { id: 'dr_5', bread_type: 'Jumbo', amount: 300 }, { id: 'dr_6', bread_type: 'Mini Bite', amount: 550 }, { id: 'dr_7', bread_type: 'Big Bite', amount: 600 },
+            { id: 'dr_1', bread_type: 'Round Loaf', amount: 58000 }, { id: 'dr_2', bread_type: 'Family Loaf', amount: 1200 }, { id: 'dr_3', bread_type: 'Short Loaf', amount: 4700 }, { id: 'dr_4', bread_type: 'Burger', amount: 1000 }, { id: 'dr_5', bread_type: 'Jumbo', amount: 300 }, { id: 'dr_6', name: 'Mini Bite', amount: 550 }, { id: 'dr_7', name: 'Big Bite', amount: 600 },
         ], "discount_records");
         await batchCommit([
              { date: daysAgo(28), description: 'Generator Fuel', category: 'Diesel', amount: 150000 }, { date: daysAgo(20), description: 'Oven Repair', category: 'Repairs', amount: 258500 }, { date: daysAgo(15), description: 'Baking gas refill', category: 'Gas', amount: 80000 }, { date: daysAgo(12), description: 'Packaging Promo', category: 'Promotion', amount: 11000 }, { date: daysAgo(10), description: 'Van Fuel', category: 'Transport', amount: 21900 }, { date: daysAgo(8), description: 'Factory Production materials', category: 'Production', amount: 253230 }, { date: daysAgo(5), description: 'Water Bill', category: 'Water', amount: 15000 }, { date: daysAgo(3), description: 'Misc purchases', category: 'Purchases', amount: 31500 }, { date: daysAgo(1), description: 'PHCN Bill', category: 'Electricity', amount: 45000 },
@@ -281,6 +281,26 @@ export async function seedFinancialRecords(): Promise<ActionResult> {
 
 export async function seedOperationalData(): Promise<ActionResult> {
      try {
+        const nonDeveloperStaff = staffData.filter(s => s.role !== 'Developer');
+        const attendanceData = Array.from({ length: 20 }, (_, i) => {
+            const staffMember = nonDeveloperStaff[i % nonDeveloperStaff.length];
+            const clockInDate = generateRandomDate(1, 30);
+            const clockInTimestamp = clockInDate.toDate();
+            clockInTimestamp.setHours(Math.floor(Math.random() * 2) + 8); // Clock in between 8-9 AM
+            
+            const clockOutTimestamp = new Date(clockInTimestamp.getTime());
+            clockOutTimestamp.setHours(clockInTimestamp.getHours() + Math.floor(Math.random() * 4) + 5); // Work 5-8 hours
+            
+            return {
+                id: `att_${i + 1}`,
+                staff_id: staffMember.staff_id,
+                clock_in_time: Timestamp.fromDate(clockInTimestamp),
+                clock_out_time: Math.random() > 0.1 ? Timestamp.fromDate(clockOutTimestamp) : null, // 10% chance to be currently clocked in
+                date: format(clockInTimestamp, 'yyyy-MM-dd')
+            };
+        });
+        await batchCommit(attendanceData, "attendance");
+
         await batchCommit(Array.from({ length: 10 }, (_, i) => {
             const product = productsData[Math.floor(Math.random() * productsData.length)];
             const quantity = Math.floor(Math.random() * 5) + 1;
@@ -288,7 +308,7 @@ export async function seedOperationalData(): Promise<ActionResult> {
                 id: `ord_${i + 1}`, items: [{ productId: product.id, name: product.name, price: product.price, quantity, costPrice: product.costPrice }], total: product.price * quantity, date: generateRandomDate(0, 30), paymentMethod: Math.random() > 0.5 ? 'Card' : 'Cash', customerName: `Customer ${Math.floor(Math.random() * 10) + 1}`, customerId: `cust_${Math.floor(Math.random() * 10) + 1}`, status: 'Completed', staffId: '500002', staffName: 'Mary Felix Ating'
             }
         }), "orders");
-        // Attendance seeding removed as per user request
+        
         await batchCommit(Array.from({ length: 10 }, (_, i) => ({ id: `waste_${i + 1}`, productId: `prod_${(i % 10) + 1}`, productName: productsData[i % 10].name, productCategory: productsData[i % 10].category, quantity: Math.floor(Math.random() * 5) + 1, reason: ['Spoiled', 'Damaged', 'Burnt', 'Error'][i % 4], notes: 'Generated seed data', date: generateRandomDate(0, 30), staffId: `500002`, staffName: `Mary Felix Ating` })), "waste_logs");
         await batchCommit(Array.from({ length: 10 }, (_, i) => ({ id: `batch_${i + 1}`, recipeId: `rec_${(i % 2) + 1}`, recipeName: recipesData[i % 2].name, productId: recipesData[i % 2].productId, productName: recipesData[i % 2].productName, requestedById: '300001', requestedByName: 'MR Bassey OFFIONG', quantityToProduce: Math.floor(Math.random() * 50) + 20, status: i < 2 ? 'pending_approval' : (i < 4 ? 'in_production' : 'completed'), createdAt: generateRandomDate(0, 30), approvedAt: generateRandomDate(0, 30), successfullyProduced: Math.floor(Math.random() * 45) + 15, wasted: Math.floor(Math.random() * 5), ingredients: recipesData[i % 2].ingredients })), "production_batches");
         return { success: true };
