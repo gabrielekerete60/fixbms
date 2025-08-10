@@ -147,7 +147,7 @@ export default function DatabaseToolsPage() {
         <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold font-headline">Database Tools</h1>
             <Button variant="outline" asChild>
-                <Link href="/"><ArrowLeft className="mr-2 h-4 w-4"/> Back to Login</Link>
+                <Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4"/> Back to Dashboard</Link>
             </Button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
