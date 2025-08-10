@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { 
     clearCollection,
-    verifySeedPassword,
     seedUsersAndConfig,
     seedProductsAndIngredients,
     seedCustomersAndSuppliers,
@@ -15,7 +14,7 @@ import {
     seedOperationalData,
     seedCommunicationData,
 } from "@/app/seed/actions";
-import { Loader2, KeyRound, DatabaseZap, Trash2, ArrowLeft } from "lucide-react";
+import { Loader2, DatabaseZap, Trash2, ArrowLeft } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,8 +26,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const collectionsToClear = [
@@ -43,30 +40,8 @@ const collectionsToClear = [
 
 export default function DatabaseToolsPage() {
   const [isPending, startTransition] = useTransition();
-  const [isVerifying, startVerification] = useTransition();
-  const [password, setPassword] = useState("");
-  const [isVerified, setIsVerified] = useState(false);
   const [currentlySeeding, setCurrentlySeeding] = useState<string | null>(null);
   const { toast } = useToast();
-  
-  const handleVerify = () => {
-    startVerification(async () => {
-      const result = await verifySeedPassword(password);
-      if (result.success) {
-        setIsVerified(true);
-        toast({
-          title: "Verified!",
-          description: "You can now use the database tools.",
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.error || "Invalid password.",
-        });
-      }
-    });
-  }
 
   const handleSeedAction = (actionName: string, actionFn: () => Promise<{ success: boolean; error?: string }>) => {
     setCurrentlySeeding(actionName);
@@ -109,40 +84,6 @@ export default function DatabaseToolsPage() {
     { name: "Operational Data", action: seedOperationalData },
     { name: "Communication Data", action: seedCommunicationData },
   ];
-
-  if (!isVerified) {
-    return (
-      <div className="flex justify-center items-center h-full">
-        <Card className="w-full max-w-md">
-            <CardHeader>
-                <CardTitle>Enter Admin Password</CardTitle>
-                <CardDescription>You need an admin password to access these tools.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="seed-password">Admin Password</Label>
-                    <div className="relative">
-                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                        <Input 
-                            id="seed-password" 
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Enter seed password"
-                            className="pl-10"
-                            onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
-                        />
-                    </div>
-                </div>
-                <Button onClick={handleVerify} disabled={isVerifying || !password} className="w-full font-headline">
-                    {isVerifying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Verify
-                </Button>
-            </CardContent>
-        </Card>
-      </div>
-    )
-  }
 
   return (
     <div className="flex flex-col gap-6">
