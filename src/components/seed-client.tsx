@@ -5,7 +5,16 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { clearDatabase, seedDatabase, verifySeedPassword, seedEmptyData } from "@/app/seed/actions";
+import { 
+    clearDatabase,
+    verifySeedPassword,
+    seedUsersAndConfig,
+    seedProductsAndIngredients,
+    seedCustomersAndSuppliers,
+    seedFinancialRecords,
+    seedOperationalData,
+    seedCommunicationData
+} from "@/app/seed/actions";
 import { Loader2, KeyRound } from "lucide-react";
 import {
   AlertDialog,
@@ -16,16 +25,21 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+type SeedAction = {
+    name: string;
+    action: () => Promise<{ success: boolean; error?: string }>;
+};
 
 export function SeedClient() {
   const [isPending, startTransition] = useTransition();
   const [isVerifying, startVerification] = useTransition();
   const [password, setPassword] = useState("");
   const [isVerified, setIsVerified] = useState(false);
+  const [currentlySeeding, setCurrentlySeeding] = useState<string | null>(null);
   const { toast } = useToast();
   
   const handleVerify = () => {
@@ -47,59 +61,34 @@ export function SeedClient() {
     });
   }
 
-  const handleSeed = () => {
+  const handleSeedAction = (actionName: string, actionFn: () => Promise<{ success: boolean; error?: string }>) => {
+    setCurrentlySeeding(actionName);
     startTransition(async () => {
-      const result = await seedDatabase();
+      const result = await actionFn();
       if (result.success) {
         toast({
           title: "Success!",
-          description: "Database has been seeded with initial data.",
+          description: `${actionName} completed successfully.`,
         });
       } else {
         toast({
           variant: "destructive",
           title: "Error",
-          description: result.error || "An unknown error occurred.",
+          description: result.error || `An error occurred during ${actionName}.`,
         });
       }
+      setCurrentlySeeding(null);
     });
   };
 
-  const handleClear = () => {
-    startTransition(async () => {
-      const result = await clearDatabase();
-      if (result.success) {
-        toast({
-          title: "Success!",
-          description: "Database has been cleared.",
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.error || "An unknown error occurred.",
-        });
-      }
-    });
-  };
-
-  const handleSeedEmpty = () => {
-    startTransition(async () => {
-      const result = await seedEmptyData();
-      if (result.success) {
-        toast({
-          title: "Success!",
-          description: "Empty collections with only staff data have been created.",
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.error || "An unknown error occurred.",
-        });
-      }
-    });
-  };
+  const seedActions: SeedAction[] = [
+    { name: "Users & Config", action: seedUsersAndConfig },
+    { name: "Products & Recipes", action: seedProductsAndIngredients },
+    { name: "Customers & Suppliers", action: seedCustomersAndSuppliers },
+    { name: "Financial Records", action: seedFinancialRecords },
+    { name: "Operational Data (Orders etc.)", action: seedOperationalData },
+    { name: "Communication (Announcements etc.)", action: seedCommunicationData },
+  ];
 
   if (!isVerified) {
     return (
@@ -129,70 +118,50 @@ export function SeedClient() {
 
   return (
     <div className="flex flex-col space-y-4">
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="secondary" disabled={isPending} className="w-full font-headline">
-            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Seed Full Demo Data
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-headline">Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription className="font-body">
-              This will add initial data to all collections. Existing data with the same IDs may be overwritten.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSeed}>Continue</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <div className="space-y-2">
+        <h3 className="font-semibold">Incremental Seeding</h3>
+        <p className="text-sm text-muted-foreground">Seed data in smaller chunks to avoid server timeouts.</p>
+        <div className="grid grid-cols-2 gap-2">
+            {seedActions.map(({ name, action }) => (
+                <Button 
+                    key={name}
+                    variant="secondary" 
+                    onClick={() => handleSeedAction(name, action)}
+                    disabled={isPending}
+                    className="text-xs h-12"
+                >
+                    {currentlySeeding === name ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Seed {name}
+                </Button>
+            ))}
+        </div>
+      </div>
 
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="outline" disabled={isPending} className="w-full font-headline">
-            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Seed Empty (Users Only)
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-headline">Seed empty structure?</AlertDialogTitle>
-            <AlertDialogDescription className="font-body">
-              This will clear the database, then create all collections with only staff data. Useful for a clean production setup.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSeedEmpty}>Continue</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="destructive" disabled={isPending} className="w-full font-headline">
-             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Clear Database
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-headline">Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription className="font-body">
-              This action cannot be undone. This will permanently delete all data from the database.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleClear} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Yes, clear database
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <div className="space-y-2">
+        <h3 className="font-semibold">Database Management</h3>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" disabled={isPending} className="w-full font-headline">
+              {currentlySeeding === "clear" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Clear Entire Database
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-headline">Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription className="font-body">
+                This action cannot be undone. This will permanently delete all data from all collections in the database.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handleSeedAction("clear", clearDatabase)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Yes, clear database
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 }
