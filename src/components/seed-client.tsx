@@ -25,6 +25,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -86,8 +87,8 @@ export function SeedClient() {
     { name: "Products & Recipes", action: seedProductsAndIngredients },
     { name: "Customers & Suppliers", action: seedCustomersAndSuppliers },
     { name: "Financial Records", action: seedFinancialRecords },
-    { name: "Operational Data (Orders etc.)", action: seedOperationalData },
-    { name: "Communication (Announcements etc.)", action: seedCommunicationData },
+    { name: "Operational Data", action: seedOperationalData },
+    { name: "Communication Data", action: seedCommunicationData },
   ];
 
   if (!isVerified) {
