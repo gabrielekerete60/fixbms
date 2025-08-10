@@ -1,97 +1,158 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // By default, deny all reads and writes
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Get the user's role from the staff collection
+    function getRole() {
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role;
+    }
+
+    function hasRole(allowedRoles) {
+      return isSignedIn() && getRole() in allowedRoles;
+    }
+
+    // Check if the user is the owner of their own document (e.g., their own staff profile)
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- Admin Roles ---
+    function isAdmin() {
+      return hasRole(['Manager', 'Developer', 'Supervisor']);
+    }
+
+    // --- Default Deny ---
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Allow public read for app configuration needed on login page.
-    // Only authenticated users can write to settings.
+    // --- Collection Rules ---
+
+    // Settings can be read by anyone (for login page), but only written by admins.
     match /settings/app_config {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
-    // Allow any authenticated user to read/write to these collections.
-    // This is a secure default for an internal tool where all users are trusted staff.
-    match /staff/{userId} {
-      allow read, write: if request.auth != null;
-    }
-
-    match /products/{productId} {
-      allow read, write: if request.auth != null;
+    // Staff collection: Admins can manage all. Users can only read/update their own profile.
+    match /staff/{staffId} {
+      allow read: if isSignedIn(); // All staff can read other staff profiles (for names, etc.)
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || isOwner(staffId);
     }
     
-    match /ingredients/{ingredientId} {
-      allow read, write: if request.auth != null;
-    }
-
-    match /recipes/{recipeId} {
-      allow read, write: if request.auth != null;
-    }
-
-    match /suppliers/{supplierId} {
-      allow read, write: if request.auth != null;
-    }
-
-    match /customers/{customerId} {
-      allow read, write: if request.auth != null;
-    }
-
-    match /orders/{orderId} {
-      allow read, write: if request.auth != null;
-    }
-
-    match /transfers/{transferId} {
-      allow read, write: if request.auth != null;
-    }
-
-    match /production_batches/{batchId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    match /waste_logs/{logId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    match /attendance/{attendanceId} {
-      allow read, write: if request.auth != null;
-    }
-
-    match /announcements/{announcementId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    match /reports/{reportId} {
-      allow read, write: if request.auth != null;
-    }
-
-    match /payment_confirmations/{confirmationId} {
-        allow read, write: if request.auth != null;
-    }
-    
-    match /sales/{saleId} {
-        allow read, write: if request.auth != null;
-    }
-    
-    match /directCosts/{costId} {
-        allow read, write: if request.auth != null;
-    }
-
-    match /indirectCosts/{costId} {
-        allow read, write: if request.auth != null;
-    }
-    
-    match /wages/{wageId} {
-        allow read, write: if request.auth != null;
-    }
-    
-    // Subcollections
+    // Personal stock is a subcollection of staff
     match /staff/{staffId}/personal_stock/{stockId} {
-        allow read, write: if request.auth != null;
+        allow read, write: if isOwner(staffId);
+    }
+
+    // Announcements: Admins can post, everyone can read.
+    match /announcements/{announcementId} {
+        allow read: if isSignedIn();
+        allow create: if hasRole(['Manager', 'Developer', 'Supervisor']);
+        allow update, delete: if false; // Nobody can edit/delete announcements
+    }
+
+    // Attendance: Users can create their own. Admins can read all.
+    match /attendance/{attendanceId} {
+        allow read: if isAdmin();
+        allow create: if isOwner(request.resource.data.staff_id);
+        allow update: if isOwner(resource.data.staff_id); // Allow user to clock out
+    }
+    
+    // Customers: Admins can manage. Other staff can create (e.g., from POS).
+    match /customers/{customerId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isAdmin();
+    }
+    
+    // Financial Collections: Only accessible by Admins and Accountants
+    match /directCosts/{costId} {
+        allow read, write: if hasRole(['Manager', 'Developer', 'Accountant']);
+    }
+    match /indirectCosts/{costId} {
+        allow read, write: if hasRole(['Manager', 'Developer', 'Accountant']);
+    }
+    match /sales/{saleId} {
+        allow read, write: if hasRole(['Manager', 'Developer', 'Accountant']);
+    }
+     match /wages/{wageId} {
+        allow read, write: if hasRole(['Manager', 'Developer', 'Accountant']);
+    }
+     match /debt/{debtId} {
+        allow read, write: if hasRole(['Manager', 'Developer', 'Accountant']);
+    }
+
+    // Inventory & Production: Storekeepers, Bakers, and Admins have write access. Others can read.
+    match /ingredients/{ingredientId} {
+        allow read: if isSignedIn();
+        allow write: if hasRole(['Manager', 'Developer', 'Storekeeper', 'Baker']);
+    }
+    match /products/{productId} {
+        allow read: if isSignedIn();
+        allow write: if hasRole(['Manager', 'Developer', 'Storekeeper', 'Accountant']);
+    }
+    match /recipes/{recipeId} {
+        allow read: if isSignedIn();
+        allow write: if hasRole(['Manager', 'Developer', 'Storekeeper', 'Baker']);
+    }
+    match /suppliers/{supplierId} {
+        allow read: if isSignedIn();
+        allow write: if hasRole(['Manager', 'Developer', 'Storekeeper', 'Accountant']);
+    }
+     match /production_batches/{batchId} {
+        allow read: if isSignedIn();
+        allow write: if hasRole(['Manager', 'Developer', 'Storekeeper', 'Baker']);
+    }
+
+    // Orders can be created by sales staff, read by most, but only updated/deleted by admins.
+    match /orders/{orderId} {
+        allow read: if isSignedIn();
+        allow create: if hasRole(['Showroom Staff', 'Delivery Staff', 'Manager', 'Developer', 'Supervisor']);
+        allow update, delete: if isAdmin();
+    }
+    
+    // Transfers can be created by storekeepers/admins. The recipient can update (to accept).
+    match /transfers/{transferId} {
+        allow read: if isSignedIn();
+        allow create: if hasRole(['Manager', 'Developer', 'Storekeeper']);
+        allow update: if isOwner(resource.data.to_staff_id); // Allow the recipient to update the status
+        allow delete: if isAdmin();
+    }
+
+    // Reports can be created by anyone, but only read/updated by admins.
+    match /reports/{reportId} {
+        allow create: if isSignedIn();
+        allow read, update: if isAdmin();
+        allow delete: if false;
+    }
+    
+    // Waste logs can be created by staff, read by admins.
+    match /waste_logs/{logId} {
+        allow create: if isSignedIn();
+        allow read: if hasRole(['Manager', 'Developer', 'Supervisor', 'Storekeeper']);
+        allow update, delete: if false;
+    }
+
+    // Payment Confirmations: Drivers create them, Accountants/Admins process them.
+    match /payment_confirmations/{confirmationId} {
+        allow create: if hasRole(['Delivery Staff']);
+        allow read, update: if hasRole(['Manager', 'Developer', 'Accountant']);
+    }
+    
+    // Supply Requests: Storekeepers create, Accountants/Admins approve.
+    match /supply_requests/{requestId} {
+        allow create: if hasRole(['Storekeeper']);
+        allow read: if hasRole(['Storekeeper', 'Accountant', 'Manager', 'Developer']);
+        allow update: if hasRole(['Accountant', 'Manager', 'Developer']); // for approval
     }
   }
 }
