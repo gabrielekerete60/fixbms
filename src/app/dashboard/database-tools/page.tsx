@@ -13,7 +13,6 @@ import {
     seedFinancialRecords,
     seedOperationalData,
     seedCommunicationData,
-    collectionsToClear,
 } from "@/app/seed/actions";
 import { Loader2, KeyRound, DatabaseZap, Trash2 } from "lucide-react";
 import {
@@ -36,6 +35,17 @@ type SeedAction = {
     name: string;
     action: () => Promise<{ success: boolean; error?: string }>;
 };
+
+const collectionsToClear = [
+    "products", "staff", "recipes", "promotions", "suppliers", 
+    "ingredients", "other_supplies", "customers", "orders", "transfers", 
+    "production_batches", "waste_logs", "attendance", "sales", "debt", 
+    "directCosts", "indirectCosts", "wages", "closingStocks", 
+    "discount_records", "announcements", "reports", "cost_categories",
+    "payment_confirmations", "supply_requests", "ingredient_stock_logs",
+    "production_logs", "settings"
+];
+
 
 export default function DatabaseToolsPage() {
   const [isPending, startTransition] = useTransition();

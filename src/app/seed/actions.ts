@@ -161,16 +161,6 @@ async function batchCommit(data: any[], collectionName: string): Promise<ActionR
     }
 }
 
-export const collectionsToClear = [
-    "products", "staff", "recipes", "promotions", "suppliers", 
-    "ingredients", "other_supplies", "customers", "orders", "transfers", 
-    "production_batches", "waste_logs", "attendance", "sales", "debt", 
-    "directCosts", "indirectCosts", "wages", "closingStocks", 
-    "discount_records", "announcements", "reports", "cost_categories",
-    "payment_confirmations", "supply_requests", "ingredient_stock_logs",
-    "production_logs", "settings"
-];
-
 export async function clearCollection(collectionName: string): Promise<ActionResult> {
     const BATCH_SIZE = 500;
     try {
