@@ -127,7 +127,7 @@ export async function verifySeedPassword(password: string): Promise<ActionResult
 }
 
 async function batchCommit(data: any[], collectionName: string): Promise<ActionResult> {
-    const BATCH_SIZE = 400;
+    const BATCH_SIZE = 500;
     try {
         for (let i = 0; i < data.length; i += BATCH_SIZE) {
             const batch = writeBatch(db);
@@ -161,35 +161,24 @@ async function batchCommit(data: any[], collectionName: string): Promise<ActionR
     }
 }
 
-async function clearCollection(collectionPath: string) {
-    const BATCH_SIZE = 400;
-    try {
-        const q = collection(db, collectionPath);
-        const snapshot = await getDocs(q);
-        
-        if (snapshot.empty) {
-            console.log(`Collection ${collectionPath} is already empty.`);
-            return;
-        }
-        
-        for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
-            const batch = writeBatch(db);
-            const chunk = snapshot.docs.slice(i, i + BATCH_SIZE);
-            chunk.forEach(doc => {
-                batch.delete(doc.ref);
-            });
-            await batch.commit();
-        }
-        console.log(`Cleared ${snapshot.size} documents from ${collectionPath}`);
+async function clearCollection(collectionPath: string): Promise<void> {
+  const BATCH_SIZE = 500;
+  const q = collection(db, collectionPath);
+  const snapshot = await getDocs(q);
 
-    } catch(error: any) {
-        // It's okay if a collection doesn't exist, we just warn and continue.
-        if (error.code === 'permission-denied' || error.message.includes('permission-denied')) {
-             console.warn(`Could not clear collection ${collectionPath}. It may not exist or permissions are insufficient.`);
-        } else {
-            throw error; // Re-throw other errors
-        }
-    }
+  if (snapshot.empty) {
+    return;
+  }
+
+  const batches = [];
+  for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
+    const batch = writeBatch(db);
+    snapshot.docs.slice(i, i + BATCH_SIZE).forEach((doc) => batch.delete(doc.ref));
+    batches.push(batch.commit());
+  }
+
+  await Promise.all(batches);
+  console.log(`Cleared ${snapshot.size} documents from ${collectionPath}`);
 }
 
 export async function clearDatabase(): Promise<ActionResult> {
@@ -203,21 +192,18 @@ export async function clearDatabase(): Promise<ActionResult> {
         "directCosts", "indirectCosts", "wages", "closingStocks", 
         "discount_records", "announcements", "reports", "cost_categories",
         "payment_confirmations", "supply_requests", "ingredient_stock_logs",
-        "production_logs"
+        "production_logs", "settings"
     ];
 
     for (const colName of collectionsToClear) {
-        if (colName === 'staff') {
-            const staffSnapshot = await getDocs(collection(db, colName));
-            for (const staffDoc of staffSnapshot.docs) {
-                await clearCollection(`staff/${staffDoc.id}/personal_stock`);
-            }
+        try {
+            console.log(`Clearing collection: ${colName}`);
+            await clearCollection(colName);
+        } catch (error) {
+            console.warn(`Could not clear collection ${colName}. It may not exist or permissions are insufficient. Continuing...`, error);
         }
-        await clearCollection(colName);
     }
     
-    await clearCollection("settings");
-
     console.log("Database cleared successfully.");
     return { success: true };
   } catch (error) {
@@ -257,6 +243,9 @@ export async function seedProductsAndIngredients(): Promise<ActionResult> {
             { id: "cat_1", name: 'Flour', type: 'direct' },
             { id: 'cat_2', name: 'Sugar', type: 'direct' },
             { id: 'cat_3', name: 'Yeast', type: 'direct' },
+            { id: 'cat_4', name: 'Utilities', type: 'indirect' },
+            { id: 'cat_5', name: 'Maintenance', type: 'indirect' },
+            { id: 'cat_6', name: 'Salary', type: 'indirect' },
         ], "cost_categories");
         return { success: true };
     } catch(e) { return { success: false, error: (e as Error).message } }
@@ -327,3 +316,5 @@ export async function seedCommunicationData(): Promise<ActionResult> {
         return { success: true };
     } catch(e) { return { success: false, error: (e as Error).message } }
 }
+
+    
