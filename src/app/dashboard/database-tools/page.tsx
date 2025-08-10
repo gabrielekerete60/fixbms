@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState } from "react";
@@ -16,8 +15,8 @@ import {
     seedFinancialRecords,
     seedOperationalData,
     seedCommunicationData,
-    clearAllData,
-    seedFullData
+    seedFullData,
+    clearMultipleCollections,
 } from "@/app/seed/actions";
 import { Loader2, DatabaseZap, Trash2, ArrowLeft } from "lucide-react";
 import {
@@ -33,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 
 
 const collectionsToClear = [
@@ -49,6 +49,7 @@ const collectionsToClear = [
 export default function DatabaseToolsPage() {
   const [isPending, startTransition] = useState(false);
   const [currentlySeeding, setCurrentlySeeding] = useState<string | null>(null);
+  const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
   const { toast } = useToast();
   const [isVerified, setIsVerified] = useState(false);
   const [password, setPassword] = useState('');
@@ -61,7 +62,6 @@ export default function DatabaseToolsPage() {
         toast({ variant: "destructive", title: "Access Denied", description: "Incorrect password." });
     }
   };
-
 
   const handleSeedAction = (actionName: string, actionFn: () => Promise<{ success: boolean; error?: string }>) => {
     setCurrentlySeeding(actionName);
@@ -83,20 +83,35 @@ export default function DatabaseToolsPage() {
       startTransition(false);
     });
   };
-
-  const handleClearCollection = (collectionName: string) => {
-    setCurrentlySeeding(collectionName);
+  
+  const handleClearMultiple = async () => {
+    if (selectedCollections.length === 0) return;
+    setCurrentlySeeding('clear_multiple');
     startTransition(true);
-    clearCollection(collectionName).then(result => {
-        if (result.success) {
-            toast({ title: "Success!", description: `Collection "${collectionName}" cleared.`});
-        } else {
-            toast({ variant: "destructive", title: "Error", description: result.error });
+
+    const result = await clearMultipleCollections(selectedCollections);
+    
+    if (result.success) {
+        toast({ title: "Success!", description: `Cleared collections: ${result.cleared?.join(', ')}`});
+        if (result.errors && result.errors.length > 0) {
+             toast({ variant: "destructive", title: "Some collections failed", description: `Failed to clear: ${result.errors.join(', ')}`});
         }
-        setCurrentlySeeding(null);
-        startTransition(false);
-    });
-  }
+    } else {
+         toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred."});
+    }
+
+    setSelectedCollections([]);
+    setCurrentlySeeding(null);
+    startTransition(false);
+  };
+  
+  const handleToggleCollection = (collectionName: string) => {
+    setSelectedCollections(prev => 
+        prev.includes(collectionName)
+            ? prev.filter(name => name !== collectionName)
+            : [...prev, collectionName]
+    );
+  };
   
   if (!isVerified) {
     return (
@@ -216,55 +231,46 @@ export default function DatabaseToolsPage() {
                     <CardDescription>These actions are irreversible. Proceed with caution.</CardDescription>
                 </CardHeader>
                  <CardContent className="space-y-4">
+                    <h4 className="font-semibold text-sm">Clear Individual Collections</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                       {collectionsToClear.map(name => (
+                         <div key={name} className="flex items-center gap-2 p-2 border rounded-md">
+                           <Checkbox 
+                             id={`check-${name}`} 
+                             checked={selectedCollections.includes(name)}
+                             onCheckedChange={() => handleToggleCollection(name)}
+                             disabled={isPending}
+                           />
+                           <label htmlFor={`check-${name}`} className="text-sm font-medium">{name}</label>
+                         </div>
+                       ))}
+                    </div>
+                 </CardContent>
+                 <CardFooter>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="destructive" className="w-full" disabled={isPending}>
-                                {currentlySeeding === "clear_all" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                                Clear All Database Data
+                             <Button 
+                                variant="destructive" 
+                                disabled={isPending || selectedCollections.length === 0}
+                             >
+                                {currentlySeeding === "clear_multiple" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                Clear ({selectedCollections.length}) Selected
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    This will permanently delete all data from all collections. This action cannot be undone.
+                                    This will permanently delete all data from the selected collections: {selectedCollections.join(', ')}. This action cannot be undone.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleSeedAction("clear_all", clearAllData)} className="bg-destructive hover:bg-destructive/90">Yes, Clear Everything</AlertDialogAction>
+                                <AlertDialogAction onClick={handleClearMultiple} className="bg-destructive hover:bg-destructive/90">Yes, Clear Selected</AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
-                    
-                    <Separator className="my-4" />
-
-                    <h4 className="font-semibold text-sm">Clear Individual Collections</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                       {collectionsToClear.map(name => (
-                         <AlertDialog key={name}>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="outline" size="sm" className="h-auto py-3 text-xs" disabled={isPending}>
-                                    {currentlySeeding === name ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                                    {name}
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Clear "{name}" collection?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This will permanently delete all documents in the "{name}" collection. This action cannot be undone.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleClearCollection(name)} className="bg-destructive hover:bg-destructive/90">Yes, Clear</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                         </AlertDialog>
-                       ))}
-                    </div>
-                 </CardContent>
+                 </CardFooter>
             </Card>
         </div>
     </div>

@@ -110,6 +110,8 @@ const wagesData = staffData.filter(s => s.role !== 'Developer').map(s => {
 type ActionResult = {
   success: boolean;
   error?: string;
+  cleared?: string[];
+  errors?: string[];
 };
 
 export async function verifySeedPassword(password: string): Promise<ActionResult> {
@@ -187,6 +189,23 @@ export async function clearCollection(collectionName: string): Promise<ActionRes
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         return { success: false, error: `Failed to clear ${collectionName}: ${errorMessage}` };
     }
+}
+
+export async function clearMultipleCollections(collectionNames: string[]): Promise<ActionResult> {
+    const cleared: string[] = [];
+    const errors: string[] = [];
+    for (const name of collectionNames) {
+        const result = await clearCollection(name);
+        if (result.success) {
+            cleared.push(name);
+        } else {
+            errors.push(name);
+        }
+    }
+    if (errors.length > 0) {
+        return { success: false, cleared, errors };
+    }
+    return { success: true, cleared };
 }
 
 // --- INDIVIDUAL SEEDING FUNCTIONS ---
@@ -291,4 +310,57 @@ export async function seedCommunicationData(): Promise<ActionResult> {
         ], "reports");
         return { success: true };
     } catch(e) { return { success: false, error: (e as Error).message } }
+}
+
+export async function clearAllData(): Promise<ActionResult> {
+    const allCollections = [
+        "products", "staff", "recipes", "promotions", "suppliers", 
+        "ingredients", "other_supplies", "customers", "orders", "transfers", 
+        "production_batches", "waste_logs", "attendance", "sales", "debt", 
+        "directCosts", "indirectCosts", "wages", "closingStocks", 
+        "discount_records", "announcements", "reports", "cost_categories",
+        "payment_confirmations", "supply_requests", "ingredient_stock_logs",
+        "production_logs", "settings"
+    ];
+    let allSucceeded = true;
+    let finalError = "";
+
+    for (const collectionName of allCollections) {
+        const result = await clearCollection(collectionName);
+        if (!result.success) {
+            allSucceeded = false;
+            finalError = result.error || `Failed to clear ${collectionName}`;
+            break; 
+        }
+    }
+    if (allSucceeded) {
+        return { success: true };
+    }
+    return { success: false, error: finalError };
+}
+
+export async function seedFullData(): Promise<ActionResult> {
+    const seedFunctions = [
+        seedUsersAndConfig,
+        seedProductsAndIngredients,
+        seedCustomersAndSuppliers,
+        seedFinancialRecords,
+        seedOperationalData,
+        seedCommunicationData
+    ];
+     let allSucceeded = true;
+     let finalError = "";
+
+     for (const seedFn of seedFunctions) {
+        const result = await seedFn();
+        if (!result.success) {
+            allSucceeded = false;
+            finalError = result.error || 'An unknown seeding error occurred.';
+            break;
+        }
+     }
+      if (allSucceeded) {
+        return { success: true };
+    }
+    return { success: false, error: finalError };
 }
