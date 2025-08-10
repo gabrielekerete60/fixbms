@@ -248,7 +248,7 @@ export async function seedProductsAndIngredients(): Promise<ActionResult> {
 
 export async function seedCustomersAndSuppliers(): Promise<ActionResult> {
      try {
-        await batchCommit(Array.from({ length: 50 }, (_, i) => ({
+        await batchCommit(Array.from({ length: 10 }, (_, i) => ({
             id: `cust_${i + 1}`, name: `Customer ${i + 1}`, phone: `080${10000000 + i}`, email: `customer${i + 1}@example.com`, address: `${i + 1} Main St, City`, joinedDate: daysAgo(Math.floor(Math.random() * 730)), totalSpent: Math.floor(Math.random() * 200000), amountOwed: Math.random() > 0.7 ? Math.floor(Math.random() * 10000) : 0, amountPaid: Math.floor(Math.random() * 50000),
         })), "customers");
         await batchCommit([
@@ -281,16 +281,16 @@ export async function seedFinancialRecords(): Promise<ActionResult> {
 
 export async function seedOperationalData(): Promise<ActionResult> {
      try {
-        await batchCommit(Array.from({ length: 1500 }, (_, i) => {
+        await batchCommit(Array.from({ length: 10 }, (_, i) => {
             const product = productsData[Math.floor(Math.random() * productsData.length)];
             const quantity = Math.floor(Math.random() * 5) + 1;
             return {
-                id: `ord_${i + 1}`, items: [{ productId: product.id, name: product.name, price: product.price, quantity, costPrice: product.costPrice }], total: product.price * quantity, date: generateRandomDate(0, 730), paymentMethod: Math.random() > 0.5 ? 'Card' : 'Cash', customerName: `Customer ${Math.floor(Math.random() * 50) + 1}`, customerId: `cust_${Math.floor(Math.random() * 50) + 1}`, status: 'Completed', staffId: '500002', staffName: 'Mary Felix Ating'
+                id: `ord_${i + 1}`, items: [{ productId: product.id, name: product.name, price: product.price, quantity, costPrice: product.costPrice }], total: product.price * quantity, date: generateRandomDate(0, 30), paymentMethod: Math.random() > 0.5 ? 'Card' : 'Cash', customerName: `Customer ${Math.floor(Math.random() * 10) + 1}`, customerId: `cust_${Math.floor(Math.random() * 10) + 1}`, status: 'Completed', staffId: '500002', staffName: 'Mary Felix Ating'
             }
         }), "orders");
-        await batchCommit(staffData.flatMap(s => Array.from({ length: 450 }, (_, i) => { if (Math.random() < 0.2) return null; const clockIn = daysAgo(i); clockIn.toDate().setHours(8 + Math.floor(Math.random()*2), Math.floor(Math.random()*60)); const clockOut = Timestamp.fromMillis(clockIn.toMillis() + ( (8 + Math.random()) * 60 * 60 * 1000)); return { id: `att_${s.staff_id}_${i}`, staff_id: s.staff_id, clock_in_time: clockIn, clock_out_time: clockOut, date: clockIn.toDate().toISOString().split('T')[0] } }).filter(Boolean)), "attendance");
-        await batchCommit(Array.from({ length: 300 }, (_, i) => ({ id: `waste_${i + 1}`, productId: `prod_${(i % 10) + 1}`, productName: productsData[i % 10].name, productCategory: productsData[i % 10].category, quantity: Math.floor(Math.random() * 5) + 1, reason: ['Spoiled', 'Damaged', 'Burnt', 'Error'][i % 4], notes: 'Generated seed data', date: generateRandomDate(0, 730), staffId: `500002`, staffName: `Mary Felix Ating` })), "waste_logs");
-        await batchCommit(Array.from({ length: 100 }, (_, i) => ({ id: `batch_${i + 1}`, recipeId: `rec_${(i % 2) + 1}`, recipeName: recipesData[i % 2].name, productId: recipesData[i % 2].productId, productName: recipesData[i % 2].productName, requestedById: '300001', requestedByName: 'MR Bassey OFFIONG', quantityToProduce: Math.floor(Math.random() * 50) + 20, status: i < 5 ? 'pending_approval' : (i < 15 ? 'in_production' : 'completed'), createdAt: generateRandomDate(0, 730), approvedAt: generateRandomDate(0, 730), successfullyProduced: Math.floor(Math.random() * 45) + 15, wasted: Math.floor(Math.random() * 5), ingredients: recipesData[i % 2].ingredients })), "production_batches");
+        // Attendance seeding removed as per user request
+        await batchCommit(Array.from({ length: 10 }, (_, i) => ({ id: `waste_${i + 1}`, productId: `prod_${(i % 10) + 1}`, productName: productsData[i % 10].name, productCategory: productsData[i % 10].category, quantity: Math.floor(Math.random() * 5) + 1, reason: ['Spoiled', 'Damaged', 'Burnt', 'Error'][i % 4], notes: 'Generated seed data', date: generateRandomDate(0, 30), staffId: `500002`, staffName: `Mary Felix Ating` })), "waste_logs");
+        await batchCommit(Array.from({ length: 10 }, (_, i) => ({ id: `batch_${i + 1}`, recipeId: `rec_${(i % 2) + 1}`, recipeName: recipesData[i % 2].name, productId: recipesData[i % 2].productId, productName: recipesData[i % 2].productName, requestedById: '300001', requestedByName: 'MR Bassey OFFIONG', quantityToProduce: Math.floor(Math.random() * 50) + 20, status: i < 2 ? 'pending_approval' : (i < 4 ? 'in_production' : 'completed'), createdAt: generateRandomDate(0, 30), approvedAt: generateRandomDate(0, 30), successfullyProduced: Math.floor(Math.random() * 45) + 15, wasted: Math.floor(Math.random() * 5), ingredients: recipesData[i % 2].ingredients })), "production_batches");
         return { success: true };
     } catch(e) { return { success: false, error: (e as Error).message } }
 }
