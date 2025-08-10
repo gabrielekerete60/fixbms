@@ -343,7 +343,7 @@ export async function verifySeedPassword(password: string): Promise<ActionResult
 }
 
 async function batchCommit(data: any[], collectionName: string) {
-    const BATCH_SIZE = 500;
+    const BATCH_SIZE = 400; // Using a slightly smaller batch size for safety
     for (let i = 0; i < data.length; i += BATCH_SIZE) {
         const batch = writeBatch(db);
         const chunk = data.slice(i, i + BATCH_SIZE);
@@ -365,7 +365,7 @@ async function batchCommit(data: any[], collectionName: string) {
 
             batch.set(docRef, itemWithTimestamps);
         }
-        console.log(`Committing batch of ${chunk.length} for ${collectionName}...`);
+        console.log(`Committing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(data.length / BATCH_SIZE)} for ${collectionName}...`);
         await batch.commit();
     }
 }
@@ -375,6 +375,7 @@ export async function seedDatabase(): Promise<ActionResult> {
     console.log("Attempting to seed database...");
     for (const [collectionName, data] of Object.entries(seedData)) {
       if (Array.isArray(data)) {
+        console.log(`Seeding collection: ${collectionName}...`);
         await batchCommit(data, collectionName);
       }
     }
@@ -389,9 +390,9 @@ export async function seedDatabase(): Promise<ActionResult> {
 }
 
 async function clearCollection(collectionPath: string) {
-    const BATCH_SIZE = 500;
-    const q = collection(db, collectionPath);
+    const BATCH_SIZE = 400;
     try {
+        const q = collection(db, collectionPath);
         const snapshot = await getDocs(q);
         
         if (snapshot.empty) {
@@ -425,7 +426,7 @@ export async function clearDatabase(): Promise<ActionResult> {
         "directCosts", "indirectCosts", "wages", "closingStocks", 
         "discount_records", "announcements", "reports", "cost_categories",
         "payment_confirmations", "supply_requests", "ingredient_stock_logs",
-        "production_logs", "settings"
+        "production_logs"
     ];
 
     for (const colName of collectionsToClear) {
@@ -438,6 +439,9 @@ export async function clearDatabase(): Promise<ActionResult> {
         }
         await clearCollection(colName);
     }
+    
+    // Clear settings separately as it's not in the main list
+    await clearCollection("settings");
 
     console.log("Database cleared successfully.");
     return { success: true };
