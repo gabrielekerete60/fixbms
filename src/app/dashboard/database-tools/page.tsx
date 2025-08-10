@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 
 const collectionsToClear = [
     "products", "staff", "recipes", "promotions", "suppliers", 
@@ -41,7 +41,7 @@ const collectionsToClear = [
 ];
 
 export default function DatabaseToolsPage() {
-  const [isPending, startTransition] = useTransition();
+  const [isPending, startTransition] = useState(false);
   const [currentlySeeding, setCurrentlySeeding] = useState<string | null>(null);
   const { toast } = useToast();
   const [isVerified, setIsVerified] = useState(false);
@@ -59,8 +59,8 @@ export default function DatabaseToolsPage() {
 
   const handleSeedAction = (actionName: string, actionFn: () => Promise<{ success: boolean; error?: string }>) => {
     setCurrentlySeeding(actionName);
-    startTransition(async () => {
-      const result = await actionFn();
+    startTransition(true);
+    actionFn().then(result => {
       if (result.success) {
         toast({
           title: "Success!",
@@ -74,30 +74,23 @@ export default function DatabaseToolsPage() {
         });
       }
       setCurrentlySeeding(null);
+      startTransition(false);
     });
   };
 
   const handleClearCollection = (collectionName: string) => {
     setCurrentlySeeding(collectionName);
-    startTransition(async () => {
-        const result = await clearCollection(collectionName);
+    startTransition(true);
+    clearCollection(collectionName).then(result => {
         if (result.success) {
             toast({ title: "Success!", description: `Collection "${collectionName}" cleared.`});
         } else {
             toast({ variant: "destructive", title: "Error", description: result.error });
         }
         setCurrentlySeeding(null);
+        startTransition(false);
     });
   }
-
-  const seedActions = [
-    { name: "Users & Config", action: seedUsersAndConfig },
-    { name: "Products & Recipes", action: seedProductsAndIngredients },
-    { name: "Customers & Suppliers", action: seedCustomersAndSuppliers },
-    { name: "Financial Records", action: seedFinancialRecords },
-    { name: "Operational Data", action: seedOperationalData },
-    { name: "Communication Data", action: seedCommunicationData },
-  ];
   
   if (!isVerified) {
     return (
@@ -143,18 +136,60 @@ export default function DatabaseToolsPage() {
                     <CardDescription>Seed data in smaller chunks to avoid server timeouts.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-2">
-                     {seedActions.map(({ name, action }) => (
-                        <Button 
-                            key={name}
-                            variant="secondary" 
-                            onClick={() => handleSeedAction(name, action)}
-                            disabled={isPending}
-                            className="text-xs h-12"
-                        >
-                            {currentlySeeding === name ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
-                            Seed {name}
-                        </Button>
-                    ))}
+                     <Button 
+                        variant="secondary" 
+                        onClick={() => handleSeedAction("Users & Config", seedUsersAndConfig)}
+                        disabled={isPending}
+                        className="text-xs h-12"
+                    >
+                        {currentlySeeding === "Users & Config" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                        Seed Users & Config
+                    </Button>
+                    <Button 
+                        variant="secondary" 
+                        onClick={() => handleSeedAction("Products & Recipes", seedProductsAndIngredients)}
+                        disabled={isPending}
+                        className="text-xs h-12"
+                    >
+                        {currentlySeeding === "Products & Recipes" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                        Seed Products & Recipes
+                    </Button>
+                     <Button 
+                        variant="secondary" 
+                        onClick={() => handleSeedAction("Customers & Suppliers", seedCustomersAndSuppliers)}
+                        disabled={isPending}
+                        className="text-xs h-12"
+                    >
+                        {currentlySeeding === "Customers & Suppliers" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                        Seed Customers & Suppliers
+                    </Button>
+                     <Button 
+                        variant="secondary" 
+                        onClick={() => handleSeedAction("Financial Records", seedFinancialRecords)}
+                        disabled={isPending}
+                        className="text-xs h-12"
+                    >
+                        {currentlySeeding === "Financial Records" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                        Seed Financial Records
+                    </Button>
+                      <Button 
+                        variant="secondary" 
+                        onClick={() => handleSeedAction("Operational Data", seedOperationalData)}
+                        disabled={isPending}
+                        className="text-xs h-12"
+                    >
+                        {currentlySeeding === "Operational Data" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                        Seed Operational Data
+                    </Button>
+                     <Button 
+                        variant="secondary" 
+                        onClick={() => handleSeedAction("Communication Data", seedCommunicationData)}
+                        disabled={isPending}
+                        className="text-xs h-12"
+                    >
+                        {currentlySeeding === "Communication Data" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                        Seed Communication Data
+                    </Button>
                 </CardContent>
             </Card>
             <Card>
