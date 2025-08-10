@@ -2,7 +2,7 @@
 "use server";
 
 import { db } from "@/lib/firebase";
-import { collection, getDocs, writeBatch, doc, Timestamp, listCollections } from "firebase/firestore";
+import { collection, getDocs, writeBatch, doc, Timestamp } from "firebase/firestore";
 import { format } from "date-fns";
 
 // Helper to create timestamps for recent days
@@ -344,34 +344,28 @@ export async function verifySeedPassword(password: string): Promise<ActionResult
 
 async function batchCommit(data: any[], collectionName: string) {
     const BATCH_SIZE = 500;
-    let batch = writeBatch(db);
-    let count = 0;
-    for (const item of data) {
-        let docRef;
-        const id = item.id || item.staff_id;
-        if (id) {
-            docRef = doc(db, collectionName, id);
-        } else {
-            docRef = doc(collection(db, collectionName));
-        }
-        
-        const itemWithTimestamps = { ...item };
-        for (const key of Object.keys(itemWithTimestamps)) {
-             if (itemWithTimestamps[key] instanceof Date) {
-                itemWithTimestamps[key] = Timestamp.fromDate(itemWithTimestamps[key]);
+    for (let i = 0; i < data.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const chunk = data.slice(i, i + BATCH_SIZE);
+        for (const item of chunk) {
+            let docRef;
+            const id = item.id || item.staff_id;
+            if (id) {
+                docRef = doc(db, collectionName, id);
+            } else {
+                docRef = doc(collection(db, collectionName));
             }
-        }
+            
+            const itemWithTimestamps = { ...item };
+            for (const key of Object.keys(itemWithTimestamps)) {
+                 if (itemWithTimestamps[key] instanceof Date) {
+                    itemWithTimestamps[key] = Timestamp.fromDate(itemWithTimestamps[key]);
+                }
+            }
 
-        batch.set(docRef, itemWithTimestamps);
-        count++;
-        if (count % BATCH_SIZE === 0) {
-            console.log(`Committing batch of ${count} for ${collectionName}...`);
-            await batch.commit();
-            batch = writeBatch(db);
+            batch.set(docRef, itemWithTimestamps);
         }
-    }
-    if (count % BATCH_SIZE !== 0) {
-        console.log(`Committing final batch of ${count % BATCH_SIZE} for ${collectionName}...`);
+        console.log(`Committing batch of ${chunk.length} for ${collectionName}...`);
         await batch.commit();
     }
 }
@@ -397,44 +391,52 @@ export async function seedDatabase(): Promise<ActionResult> {
 async function clearCollection(collectionPath: string) {
     const BATCH_SIZE = 500;
     const q = collection(db, collectionPath);
-    const snapshot = await getDocs(q);
-    
-    if (snapshot.empty) {
-        return;
-    }
-    
-    let batch = writeBatch(db);
-    let count = 0;
-    snapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-        count++;
-        if (count % BATCH_SIZE === 0) {
-            batch.commit();
-            batch = writeBatch(db);
+    try {
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty) {
+            return;
         }
-    });
+        
+        for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
+            const batch = writeBatch(db);
+            const chunk = snapshot.docs.slice(i, i + BATCH_SIZE);
+            chunk.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+        }
+        console.log(`Cleared ${snapshot.size} documents from ${collectionPath}`);
 
-    if (count % BATCH_SIZE !== 0) {
-        await batch.commit();
+    } catch(error) {
+        console.warn(`Could not clear collection ${collectionPath}. It may not exist.`, error);
     }
-    console.log(`Cleared ${count} documents from ${collectionPath}`);
 }
 
 export async function clearDatabase(): Promise<ActionResult> {
   try {
     console.log("Attempting to clear database...");
     
-    const rootCollections = await listCollections(db);
-    
-    for (const colRef of rootCollections) {
+    // Hardcoded list of all collections
+    const collectionsToClear = [
+        "products", "staff", "recipes", "promotions", "suppliers", 
+        "ingredients", "other_supplies", "customers", "orders", "transfers", 
+        "production_batches", "waste_logs", "attendance", "sales", "debt", 
+        "directCosts", "indirectCosts", "wages", "closingStocks", 
+        "discount_records", "announcements", "reports", "cost_categories",
+        "payment_confirmations", "supply_requests", "ingredient_stock_logs",
+        "production_logs", "settings"
+    ];
+
+    for (const colName of collectionsToClear) {
         // Special handling for staff subcollections
-        if (colRef.id === 'staff') {
-            const staffSnapshot = await getDocs(colRef);
+        if (colName === 'staff') {
+            const staffSnapshot = await getDocs(collection(db, colName));
             for (const staffDoc of staffSnapshot.docs) {
                 await clearCollection(`staff/${staffDoc.id}/personal_stock`);
             }
         }
-        await clearCollection(colRef.id);
+        await clearCollection(colName);
     }
 
     console.log("Database cleared successfully.");
@@ -483,5 +485,3 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
-
-    
