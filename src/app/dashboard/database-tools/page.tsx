@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -14,7 +15,7 @@ import {
     seedOperationalData,
     seedCommunicationData,
 } from "@/app/seed/actions";
-import { Loader2, KeyRound, DatabaseZap, Trash2 } from "lucide-react";
+import { Loader2, KeyRound, DatabaseZap, Trash2, ArrowLeft } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,12 +30,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-
-type SeedAction = {
-    name: string;
-    action: () => Promise<{ success: boolean; error?: string }>;
-};
 
 const collectionsToClear = [
     "products", "staff", "recipes", "promotions", "suppliers", 
@@ -45,7 +40,6 @@ const collectionsToClear = [
     "payment_confirmations", "supply_requests", "ingredient_stock_logs",
     "production_logs", "settings"
 ];
-
 
 export default function DatabaseToolsPage() {
   const [isPending, startTransition] = useTransition();
@@ -107,7 +101,7 @@ export default function DatabaseToolsPage() {
     });
   }
 
-  const seedActions: SeedAction[] = [
+  const seedActions = [
     { name: "Users & Config", action: seedUsersAndConfig },
     { name: "Products & Recipes", action: seedProductsAndIngredients },
     { name: "Customers & Suppliers", action: seedCustomersAndSuppliers },
@@ -152,7 +146,12 @@ export default function DatabaseToolsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-        <h1 className="text-2xl font-bold font-headline">Database Tools</h1>
+        <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold font-headline">Database Tools</h1>
+            <Button variant="outline" asChild>
+                <Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4"/> Back to Dashboard</Link>
+            </Button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             <Card>
                 <CardHeader>
@@ -168,7 +167,7 @@ export default function DatabaseToolsPage() {
                             disabled={isPending}
                             className="text-xs h-12"
                         >
-                            {currentlySeeding === name ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            {currentlySeeding === name ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
                             Seed {name}
                         </Button>
                     ))}
