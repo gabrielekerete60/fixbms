@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState } from "react";
@@ -15,6 +16,8 @@ import {
     seedFinancialRecords,
     seedOperationalData,
     seedCommunicationData,
+    clearAllData,
+    seedFullData
 } from "@/app/seed/actions";
 import { Loader2, DatabaseZap, Trash2, ArrowLeft } from "lucide-react";
 import {
@@ -139,60 +142,70 @@ export default function DatabaseToolsPage() {
                     <CardDescription>Seed the database with demo data incrementally.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2">
+                    <Button 
+                        variant="secondary"
+                        onClick={() => handleSeedAction("Full Database", seedFullData)}
+                        disabled={isPending}
+                        className="w-full"
+                    >
+                        {currentlySeeding === "Full Database" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                        Seed Full Demo Data
+                    </Button>
+                    <Separator className="my-2" />
                      <div className="grid grid-cols-2 gap-2">
                         <Button 
-                            variant="secondary" 
+                            variant="outline" 
                             onClick={() => handleSeedAction("Users & Config", seedUsersAndConfig)}
                             disabled={isPending}
                             className="text-xs h-12"
                         >
                             {currentlySeeding === "Users & Config" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Seed Users & Config
+                            1. Seed Users & Config
                         </Button>
                         <Button 
-                            variant="secondary" 
+                            variant="outline" 
                             onClick={() => handleSeedAction("Products & Recipes", seedProductsAndIngredients)}
                             disabled={isPending}
                             className="text-xs h-12"
                         >
                             {currentlySeeding === "Products & Recipes" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Seed Products & Recipes
+                            2. Seed Products & Recipes
                         </Button>
                         <Button 
-                            variant="secondary" 
+                            variant="outline" 
                             onClick={() => handleSeedAction("Customers & Suppliers", seedCustomersAndSuppliers)}
                             disabled={isPending}
                             className="text-xs h-12"
                         >
                             {currentlySeeding === "Customers & Suppliers" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Seed Customers & Suppliers
+                            3. Seed Customers & Suppliers
                         </Button>
                         <Button 
-                            variant="secondary" 
+                            variant="outline" 
                             onClick={() => handleSeedAction("Financial Records", seedFinancialRecords)}
                             disabled={isPending}
                             className="text-xs h-12"
                         >
                             {currentlySeeding === "Financial Records" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Seed Financial Records
+                            4. Seed Financial Records
                         </Button>
                         <Button 
-                            variant="secondary" 
+                            variant="outline" 
                             onClick={() => handleSeedAction("Operational Data", seedOperationalData)}
                             disabled={isPending}
                             className="text-xs h-12"
                         >
                             {currentlySeeding === "Operational Data" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Seed Operational Data
+                            5. Seed Operational Data
                         </Button>
                         <Button 
-                            variant="secondary" 
+                            variant="outline" 
                             onClick={() => handleSeedAction("Communication Data", seedCommunicationData)}
                             disabled={isPending}
                             className="text-xs h-12"
                         >
                             {currentlySeeding === "Communication Data" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Seed Communication Data
+                            6. Seed Communication Data
                         </Button>
                     </div>
                 </CardContent>
@@ -200,9 +213,32 @@ export default function DatabaseToolsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="text-destructive">Danger Zone</CardTitle>
-                    <CardDescription>These actions are irreversible. Clear collections one by one.</CardDescription>
+                    <CardDescription>These actions are irreversible. Proceed with caution.</CardDescription>
                 </CardHeader>
                  <CardContent className="space-y-4">
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" className="w-full" disabled={isPending}>
+                                {currentlySeeding === "clear_all" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                Clear All Database Data
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will permanently delete all data from all collections. This action cannot be undone.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleSeedAction("clear_all", clearAllData)} className="bg-destructive hover:bg-destructive/90">Yes, Clear Everything</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                    
+                    <Separator className="my-4" />
+
                     <h4 className="font-semibold text-sm">Clear Individual Collections</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                        {collectionsToClear.map(name => (
