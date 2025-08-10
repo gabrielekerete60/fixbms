@@ -33,6 +33,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 
 
 const collectionsToClear = [
@@ -134,7 +135,7 @@ export default function DatabaseToolsPage() {
             </CardContent>
             <CardFooter className="flex justify-between">
                 <Button variant="outline" asChild>
-                    <Link href="/">Cancel</Link>
+                    <Link href="/dashboard">Cancel</Link>
                 </Button>
                 <Button onClick={handleVerification}>Verify</Button>
             </CardFooter>
@@ -225,14 +226,53 @@ export default function DatabaseToolsPage() {
                     </div>
                 </CardContent>
             </Card>
-            <Card>
+
+            {selectedCollections.length > 0 && (
+                <Card className="bg-destructive/10 border-destructive">
+                    <CardHeader>
+                        <CardTitle className="text-destructive">Staged for Deletion</CardTitle>
+                        <CardDescription className="text-destructive/80">
+                            The following collections will be permanently cleared.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                        {selectedCollections.map(name => (
+                            <Badge key={name} variant="destructive">{name}</Badge>
+                        ))}
+                    </CardContent>
+                    <CardFooter>
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" disabled={isPending}>
+                                    {currentlySeeding === "clear_multiple" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                    Clear ({selectedCollections.length}) Selected Collections
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will permanently delete all data from the selected collections: {selectedCollections.join(', ')}. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleClearMultiple} className="bg-destructive hover:bg-destructive/90">Yes, Clear Selected</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </CardFooter>
+                </Card>
+            )}
+
+            <Card className="md:col-span-2">
                 <CardHeader>
                     <CardTitle className="text-destructive">Danger Zone</CardTitle>
-                    <CardDescription>These actions are irreversible. Proceed with caution.</CardDescription>
+                    <CardDescription>Select collections to clear. Actions are irreversible.</CardDescription>
                 </CardHeader>
                  <CardContent className="space-y-4">
-                    <h4 className="font-semibold text-sm">Clear Individual Collections</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <h4 className="font-semibold text-sm">Select Collections to Clear</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                        {collectionsToClear.map(name => (
                          <div key={name} className="flex items-center gap-2 p-2 border rounded-md">
                            <Checkbox 
@@ -246,31 +286,6 @@ export default function DatabaseToolsPage() {
                        ))}
                     </div>
                  </CardContent>
-                 <CardFooter>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                             <Button 
-                                variant="destructive" 
-                                disabled={isPending || selectedCollections.length === 0}
-                             >
-                                {currentlySeeding === "clear_multiple" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                                Clear ({selectedCollections.length}) Selected
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This will permanently delete all data from the selected collections: {selectedCollections.join(', ')}. This action cannot be undone.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleClearMultiple} className="bg-destructive hover:bg-destructive/90">Yes, Clear Selected</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                 </CardFooter>
             </Card>
         </div>
     </div>
