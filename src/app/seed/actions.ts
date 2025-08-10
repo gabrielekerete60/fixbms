@@ -377,8 +377,8 @@ async function batchCommit(data: any[], collectionName: string) {
 }
 
 export async function seedDatabase(): Promise<ActionResult> {
-  console.log("Attempting to seed database...");
   try {
+    console.log("Attempting to seed database...");
     for (const [collectionName, data] of Object.entries(seedData)) {
       if (Array.isArray(data)) {
         await batchCommit(data, collectionName);
@@ -421,8 +421,8 @@ async function clearSubcollections(collectionPath: string) {
 
 
 export async function clearDatabase(): Promise<ActionResult> {
-  console.log("Attempting to clear database...");
   try {
+    console.log("Attempting to clear database...");
     const allKnownCollections = [
       ...Object.keys(seedData),
       "expenses", "payment_confirmations", "ingredient_stock_logs", 
@@ -455,8 +455,7 @@ export async function clearDatabase(): Promise<ActionResult> {
 
     console.log("Database cleared successfully.");
     return { success: true };
-  } catch (error)
- {
+  } catch (error) {
     console.error("Error clearing database:", error);
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
     return { success: false, error: `Failed to clear database: ${errorMessage}` };
@@ -465,8 +464,9 @@ export async function clearDatabase(): Promise<ActionResult> {
 
 
 export async function seedEmptyData(): Promise<ActionResult> {
-  console.log("Attempting to seed empty data with users...");
   try {
+    console.log("Attempting to seed empty data with users...");
+    // First, clear all existing data to ensure a clean slate
     await clearDatabase();
     
     const batch = writeBatch(db);
@@ -499,8 +499,5 @@ type ActionResult = {
   success: boolean;
   error?: string;
 };
-
-
-
 
     
