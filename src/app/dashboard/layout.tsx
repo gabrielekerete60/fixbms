@@ -26,6 +26,7 @@ import {
   Loader2,
   HelpingHand,
   MessageSquare,
+  Database,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -409,6 +410,7 @@ export default function DashboardLayout({
       { href: "/dashboard/communication", icon: MessageSquare, label: "Communication", notificationKey: "communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/documentation", icon: BookOpen, label: "Documentation", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/settings", icon: Settings, label: "Settings", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
+      { href: "/dashboard/database-tools", icon: Database, label: "Database Tools", roles: ['Developer'] },
     ];
 
     if (!user) return [];
@@ -562,5 +564,3 @@ export default function DashboardLayout({
     </div>
   );
 }
-
-    

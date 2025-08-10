@@ -1,10 +1,11 @@
 
+
 "use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, KeyRound, User, Pizza, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, Loader2, KeyRound, User, Pizza, ShieldCheck, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -161,9 +162,9 @@ export default function LoginPage() {
             Login
           </Button>
           <p className="text-xs text-center text-muted-foreground">
-            Need to set up the database?{" "}
-            <Link href="/seed" className="underline hover:text-primary transition-colors">
-              Continue to seed data
+            Need to manage the database?{" "}
+            <Link href="/dashboard/database-tools" className="underline hover:text-primary transition-colors">
+              Go to Database Tools
             </Link>
           </p>
         </CardFooter>

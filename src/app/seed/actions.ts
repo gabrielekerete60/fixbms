@@ -161,56 +161,42 @@ async function batchCommit(data: any[], collectionName: string): Promise<ActionR
     }
 }
 
-async function clearCollection(collectionPath: string): Promise<void> {
-  const BATCH_SIZE = 500;
-  const q = collection(db, collectionPath);
-  const snapshot = await getDocs(q);
+export const collectionsToClear = [
+    "products", "staff", "recipes", "promotions", "suppliers", 
+    "ingredients", "other_supplies", "customers", "orders", "transfers", 
+    "production_batches", "waste_logs", "attendance", "sales", "debt", 
+    "directCosts", "indirectCosts", "wages", "closingStocks", 
+    "discount_records", "announcements", "reports", "cost_categories",
+    "payment_confirmations", "supply_requests", "ingredient_stock_logs",
+    "production_logs", "settings"
+];
 
-  if (snapshot.empty) {
-    return;
-  }
+export async function clearCollection(collectionName: string): Promise<ActionResult> {
+    const BATCH_SIZE = 500;
+    try {
+        const q = collection(db, collectionName);
+        const snapshot = await getDocs(q);
 
-  const batches = [];
-  for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
-    const batch = writeBatch(db);
-    snapshot.docs.slice(i, i + BATCH_SIZE).forEach((doc) => batch.delete(doc.ref));
-    batches.push(batch.commit());
-  }
-
-  await Promise.all(batches);
-  console.log(`Cleared ${snapshot.size} documents from ${collectionPath}`);
-}
-
-export async function clearDatabase(): Promise<ActionResult> {
-  try {
-    console.log("Attempting to clear database...");
-    
-    const collectionsToClear = [
-        "products", "staff", "recipes", "promotions", "suppliers", 
-        "ingredients", "other_supplies", "customers", "orders", "transfers", 
-        "production_batches", "waste_logs", "attendance", "sales", "debt", 
-        "directCosts", "indirectCosts", "wages", "closingStocks", 
-        "discount_records", "announcements", "reports", "cost_categories",
-        "payment_confirmations", "supply_requests", "ingredient_stock_logs",
-        "production_logs", "settings"
-    ];
-
-    for (const colName of collectionsToClear) {
-        try {
-            console.log(`Clearing collection: ${colName}`);
-            await clearCollection(colName);
-        } catch (error) {
-            console.warn(`Could not clear collection ${colName}. It may not exist or permissions are insufficient. Continuing...`, error);
+        if (snapshot.empty) {
+            console.log(`Collection ${collectionName} is already empty.`);
+            return { success: true };
         }
+
+        const batches = [];
+        for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
+            const batch = writeBatch(db);
+            snapshot.docs.slice(i, i + BATCH_SIZE).forEach((doc) => batch.delete(doc.ref));
+            batches.push(batch.commit());
+        }
+
+        await Promise.all(batches);
+        console.log(`Cleared ${snapshot.size} documents from ${collectionName}`);
+        return { success: true };
+    } catch (error) {
+        console.error(`Error clearing collection ${collectionName}:`, error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+        return { success: false, error: `Failed to clear ${collectionName}: ${errorMessage}` };
     }
-    
-    console.log("Database cleared successfully.");
-    return { success: true };
-  } catch (error) {
-    console.error("Error clearing database:", error);
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-    return { success: false, error: `Failed to clear database: ${errorMessage}` };
-  }
 }
 
 // --- INDIVIDUAL SEEDING FUNCTIONS ---
@@ -316,5 +302,3 @@ export async function seedCommunicationData(): Promise<ActionResult> {
         return { success: true };
     } catch(e) { return { success: false, error: (e as Error).message } }
 }
-
-    
