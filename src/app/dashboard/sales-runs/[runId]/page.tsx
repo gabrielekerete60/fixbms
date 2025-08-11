@@ -20,7 +20,6 @@ import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
-import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
 
@@ -645,6 +644,52 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
     )
 }
 
+function CustomerOrdersDialog({ isOpen, onOpenChange, customer, orders }: { isOpen: boolean, onOpenChange: (open: boolean) => void, customer: RunCustomer | null, orders: CompletedOrder[] }) {
+    if (!customer) return null;
+
+    const customerOrders = orders.filter(order => order.customerName === customer.customerName);
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Order History for {customer.customerName}</DialogTitle>
+                    <DialogDescription>Showing all orders for this customer within this sales run.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 max-h-96 overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Items</TableHead>
+                                <TableHead>Payment</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {customerOrders.length > 0 ? customerOrders.map(order => (
+                                <TableRow key={order.id}>
+                                    <TableCell>{format(new Date(order.date), 'Pp')}</TableCell>
+                                    <TableCell>{order.items.reduce((sum, i) => sum + i.quantity, 0)}</TableCell>
+                                    <TableCell><Badge variant="secondary">{order.paymentMethod}</Badge></TableCell>
+                                    <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
+                                </TableRow>
+                            )) : (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="text-center h-24">No orders found for this customer.</TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+                <DialogFooter>
+                    <Button onClick={() => onOpenChange(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 function SalesRunDetails() {
     const { runId } = useParams();
     const router = useRouter();
@@ -655,6 +700,7 @@ function SalesRunDetails() {
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState<User | null>(null);
     const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
+    const [viewingCustomer, setViewingCustomer] = useState<RunCustomer | null>(null);
     const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
     const receiptRef = useRef<HTMLDivElement>(null);
     const [paymentConfirmations, setPaymentConfirmations] = useState<any[]>([]);
@@ -894,14 +940,14 @@ function SalesRunDetails() {
                                     {customers.map(customer => {
                                         const outstanding = customer.totalSold - customer.totalPaid;
                                         return (
-                                            <TableRow key={customer.customerId}>
+                                            <TableRow key={customer.customerId} onClick={() => setViewingCustomer(customer)} className="cursor-pointer">
                                                 <TableCell>{customer.customerName}</TableCell>
-                                                <TableCell className="text-right">₦{customer.totalSold.toLocaleString()}</TableCell>
-                                                <TableCell className="text-right">₦{(customer.totalPaid || 0).toLocaleString()}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(customer.totalSold)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(customer.totalPaid || 0)}</TableCell>
                                                 <TableCell className="text-right font-bold text-destructive">
-                                                    {outstanding > 0 ? `₦${outstanding.toLocaleString()}` : '-'}
+                                                    {outstanding > 0 ? formatCurrency(outstanding) : '-'}
                                                 </TableCell>
-                                                <TableCell className="text-right">
+                                                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                                     {outstanding > 0 && isRunActive && (
                                                         <RecordPaymentDialog customer={customer} run={run} user={user} />
                                                     )}
@@ -936,7 +982,7 @@ function SalesRunDetails() {
                                         <TableRow key={order.id} className="cursor-pointer" onClick={() => setViewingOrder(order)}>
                                             <TableCell>{format(new Date(order.date), 'PPP')}</TableCell>
                                             <TableCell>{order.customerName}</TableCell>
-                                            <TableCell className="text-right">₦{order.total.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
                                             <TableCell>{order.paymentMethod}</TableCell>
                                             <TableCell className="text-right"><Button variant="ghost" size="sm">View</Button></TableCell>
                                         </TableRow>
@@ -966,7 +1012,7 @@ function SalesRunDetails() {
                                         <TableRow key={order.id}>
                                             <TableCell>{order.date ? format(order.date.toDate(), 'PPP') : 'N/A'}</TableCell>
                                             <TableCell>{order.customerName}</TableCell>
-                                            <TableCell className="text-right">₦{order.amount.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(order.amount)}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -975,6 +1021,8 @@ function SalesRunDetails() {
                     </Card>
                 </TabsContent>
             </Tabs>
+            
+            <CustomerOrdersDialog isOpen={!!viewingCustomer} onOpenChange={() => setViewingCustomer(null)} customer={viewingCustomer} orders={orders} />
 
             <Dialog open={!!viewingOrder} onOpenChange={() => setViewingOrder(null)}>
                 <DialogContent>
@@ -999,5 +1047,3 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
-
-    
