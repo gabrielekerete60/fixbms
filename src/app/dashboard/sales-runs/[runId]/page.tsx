@@ -19,7 +19,7 @@ import { collection, getDocs, doc, Timestamp, onSnapshot, query, where, addDoc }
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
@@ -57,6 +57,8 @@ type User = {
     staff_id: string;
     email: string;
 };
+
+const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const handlePrint = (node: HTMLElement | null) => {
     if (!node) return;
@@ -114,8 +116,8 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
     const [address, setAddress] = useState('');
     
     const handleSave = async () => {
-        if (!name || !phone) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Customer name and phone are required.'});
+        if (!name || !phone || !email) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Customer name, phone, and email are required.'});
             return;
         }
         
@@ -157,8 +159,8 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
                         <Input id="create-customer-phone" value={phone} onChange={e => setPhone(e.target.value)} required />
                     </div>
                      <div className="space-y-2">
-                        <Label htmlFor="create-customer-email">Email (Optional)</Label>
-                        <Input id="create-customer-email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                        <Label htmlFor="create-customer-email">Email</Label>
+                        <Input id="create-customer-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="create-customer-address">Address (Optional)</Label>
@@ -920,5 +922,3 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
-
-    
