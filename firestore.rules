@@ -4,16 +4,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
   
     // ====================================================================
-    // ⚠️ DEVELOPMENT & SEEDING-ONLY RULES - INSECURE ⚠️
+    // ‼️ DEVELOPMENT-ONLY RULES - DATABASE IS OPEN ‼️
     // ====================================================================
-    // This ruleset allows ANYONE to read and write all data to your 
-    // database. This is required for the "Database Tools" page to seed
-    // data without needing user authentication.
+    // This ruleset allows ANYONE to read, write, and delete data from
+    // your database. It is intended ONLY for local development to allow
+    // tools like the database seeder to work without authentication.
     //
-    // 🛑 CRITICAL: BEFORE GOING TO PRODUCTION, you MUST replace these 
-    // rules with secure, role-based rules that protect your data.
-    // Failure to do so will leave your application open to anyone on
-    // the internet.
+    // 🛑 BEFORE GOING TO PRODUCTION, you MUST replace these rules with
+    // a secure ruleset that properly protects your data.
     // ====================================================================
 
     match /{document=**} {
