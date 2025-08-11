@@ -473,6 +473,7 @@ export default function StockControlPage() {
         }
         const currentUser = JSON.parse(userStr);
         setUser(currentUser);
+        setIsLoading(true);
 
         try {
             const staffQuery = query(collection(db, "staff"), where("role", "!=", "Developer"));
@@ -514,17 +515,48 @@ export default function StockControlPage() {
     };
 
   useEffect(() => {
-    setIsLoading(true);
     fetchPageData();
 
     setIsLoadingBatches(true);
-    const qPending = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
-    const unsubPending = onSnapshot(qPending, (snapshot) => {
-        setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate().toISOString() } as ProductionBatch)));
-        setIsLoadingBatches(false);
-    });
+    const userStr = localStorage.getItem('loggedInUser');
+    if (userStr) {
+        const currentUser = JSON.parse(userStr);
 
-    return () => unsubPending();
+        const qPendingTransfers = query(collection(db, "transfers"), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'));
+        const unsubTransfers = onSnapshot(qPendingTransfers, async (snapshot) => {
+            const transfers = await Promise.all(snapshot.docs.map(async (docSnap) => {
+                 const data = docSnap.data();
+                 let totalValue = 0;
+                 const itemsWithPrices = await Promise.all(
+                    (data.items || []).map(async (item: any) => {
+                        const productDoc = await getDoc(doc(db, 'products', item.productId));
+                        const price = productDoc.exists() ? productDoc.data().price : 0;
+                        totalValue += price * item.quantity;
+                        return { ...item, price };
+                    })
+                );
+                 return { 
+                    id: docSnap.id,
+                    ...data,
+                    items: itemsWithPrices,
+                    totalValue,
+                    date: (data.date as Timestamp).toDate().toISOString(),
+                 } as Transfer;
+            }));
+            setPendingTransfers(transfers);
+        });
+        
+        const qPendingBatches = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
+        const unsubBatches = onSnapshot(qPendingBatches, (snapshot) => {
+            setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate().toISOString() } as ProductionBatch)));
+            setIsLoadingBatches(false);
+        });
+
+        return () => {
+            unsubTransfers();
+            unsubBatches();
+        };
+    }
   }, []);
 
   const handleTransferToChange = (staffId: string) => {
@@ -1137,3 +1169,4 @@ export default function StockControlPage() {
     </div>
   );
 }
+
