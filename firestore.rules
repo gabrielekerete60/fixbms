@@ -1,73 +1,23 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+  
+    // ====================================================================
+    // ⚠️ DEVELOPMENT & SEEDING-ONLY RULES - INSECURE ⚠️
+    // ====================================================================
+    // This ruleset allows ANYONE to read and write all data to your 
+    // database. This is required for the "Database Tools" page to seed
+    // data without needing user authentication.
+    //
+    // 🛑 CRITICAL: BEFORE GOING TO PRODUCTION, you MUST replace these 
+    // rules with secure, role-based rules that protect your data.
+    // Failure to do so will leave your application open to anyone on
+    // the internet.
+    // ====================================================================
 
-    // --- HELPER FUNCTIONS ---
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    
-    // Checks the user's role from their authentication token.
-    // This is more secure and reliable than using get() in rules.
-    function hasRole(allowedRoles) {
-        return isSignedIn() && request.auth.token.role in allowedRoles;
-    }
-    
-    function isAdmin() {
-        return hasRole(['Manager', 'Developer']);
-    }
-
-    // --- DEFAULT RULE ---
-    // Deny all reads and writes by default.
     match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // --- COLLECTION-SPECIFIC RULES ---
-    
-    // Any authenticated user can read from any collection.
-    // This is suitable for an internal app where all users are trusted staff.
-    match /{collection}/{docId} {
-        allow read: if isSignedIn();
-    }
-    
-    // Any authenticated user can write to any collection EXCEPT 'staff'.
-    // This is a broad rule for an internal tool.
-    // In a more complex app, you would add more granular write rules per collection.
-    match /{collection}/{docId} {
-      allow write: if isSignedIn() && collection != "staff";
-    }
-
-    // --- SPECIALIZED RULES ---
-    
-    // Staff Collection Rules
-    match /staff/{staffId} {
-      // Any authenticated user can read staff list (e.g., for transfers).
-      allow read: if isSignedIn();
-      // Only Admins can create new staff.
-      allow create: if isAdmin();
-      // Users can only update their own password and theme. Admins can update any field.
-      allow update: if (isOwner(staffId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['password', 'theme', 'lastLogin'])) || isAdmin();
-      // Only Admins can delete staff.
-      allow delete: if isAdmin();
-    }
-    
-    // Personal stock is only writable by the owner.
-    match /staff/{staffId}/personal_stock/{docId} {
-        allow read, write: if isSignedIn() && isOwner(staffId);
-    }
-    
-    // The Database Tools page needs delete access for all collections.
-    // We grant this only to Admins. This rule overrides the general write rule.
-    match /{collection}/{docId} {
-        allow delete: if isAdmin();
-    }
-    
-    // Helper function to check if the user is the owner of a document.
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      allow read, write: if true;
     }
   }
 }
