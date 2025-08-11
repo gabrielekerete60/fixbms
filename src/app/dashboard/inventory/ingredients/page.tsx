@@ -106,7 +106,7 @@ function IngredientDialog({
     const [expiryDate, setExpiryDate] = useState<Date | undefined>();
     const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(10);
     
-    const canEditFinancials = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant' || user?.role === 'Storekeeper';
+    const canEditFinancials = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
 
     useEffect(() => {
         if (ingredient) {
@@ -157,10 +157,12 @@ function IngredientDialog({
                         <Label htmlFor="unit" className="text-right">Unit</Label>
                         <Input id="unit" placeholder="e.g., kg, L, pcs" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="costPerUnit" className="text-right">Cost/Unit (₦)</Label>
-                        <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" disabled={!canEditFinancials} />
-                    </div>
+                    {canEditFinancials && (
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="costPerUnit" className="text-right">Cost/Unit (₦)</Label>
+                            <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" />
+                        </div>
+                    )}
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="low-stock" className="text-right">Low Stock Threshold</Label>
                         <Input id="low-stock" type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} className="col-span-3" />
@@ -482,7 +484,7 @@ export default function IngredientsPage() {
 
     const canManageIngredients = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
     const isStorekeeper = user?.role === 'Storekeeper';
-    const canViewCosts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant' || user?.role === 'Storekeeper';
+    const canViewCosts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
 
     return (
         <div className="flex flex-col gap-4">
