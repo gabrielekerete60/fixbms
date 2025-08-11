@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -242,7 +242,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
 
         const itemInRun = remainingItems.find(p => p.productId === productId);
         if (itemInRun && newQuantity > itemInRun.quantity) {
-             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.quantity} units of ${itemInRun.name} available.`});
+             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.name} units of ${itemInRun.name} available.`});
              return;
         }
 
@@ -531,7 +531,7 @@ function SalesRunDetails() {
       }
     }, []);
 
-    const fetchRunDetails = async () => {
+    const fetchRunDetails = useCallback(async () => {
         setIsLoading(true);
         try {
             const runDetails = await getSalesRunDetails(runId as string);
@@ -583,7 +583,7 @@ function SalesRunDetails() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [runId, router, toast]);
 
     useEffect(() => {
         const performFetch = async () => {
@@ -597,7 +597,7 @@ function SalesRunDetails() {
                 if(unsub) unsub();
             });
         }
-    }, [runId, router, toast]);
+    }, [fetchRunDetails]);
     
     const totalSold = useMemo(() => customers.reduce((sum, cust) => sum + cust.totalSold, 0), [customers]);
     const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
@@ -643,7 +643,7 @@ function SalesRunDetails() {
          fetchRunDetails();
      }
     
-     const getRemainingItems = () => {
+     const getRemainingItems = useCallback(() => {
         if (!run || !run.items) return [];
 
         const soldQuantities: { [key: string]: number } = {};
@@ -665,9 +665,9 @@ function SalesRunDetails() {
                 quantity: remainingQuantity > 0 ? remainingQuantity : 0,
             };
         }).filter(item => item.quantity > 0);
-    };
+    }, [run, orders]);
 
-    const remainingItems = useMemo(getRemainingItems, [run, orders]);
+    const remainingItems = useMemo(getRemainingItems, [getRemainingItems]);
 
     if (isLoading || !run) {
         return (
@@ -892,3 +892,5 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
+
+    
