@@ -375,6 +375,7 @@ export default function CommunicationPage() {
     const [user, setUser] = useState<User | null>(null);
     const [activeTab, setActiveTab] = useState("announcements");
     const [notificationCounts, setNotificationCounts] = useState({ unreadAnnouncements: 0, actionableReports: 0 });
+    const [showMarkAsRead, setShowMarkAsRead] = useState(false);
 
 
     useEffect(() => {
@@ -386,6 +387,7 @@ export default function CommunicationPage() {
         
         const parsedUser: User = JSON.parse(storedUser);
         setUser(parsedUser);
+        const isManagerial = ['Manager', 'Developer', 'Supervisor'].includes(parsedUser.role);
 
         const qAnnouncements = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
         const unsubAnnouncements = onSnapshot(qAnnouncements, (snapshot) => {
@@ -397,15 +399,14 @@ export default function CommunicationPage() {
 
             const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${parsedUser.staff_id}`);
             const newCount = data.filter(doc => {
-                if (doc.staffId === parsedUser.staff_id) {
-                    return false;
-                }
+                if (doc.staffId === parsedUser.staff_id) return false;
                 if (!lastReadTimestamp) return true;
-                if (!doc.timestamp) return true; // Treat docs without timestamp as new
+                if (!doc.timestamp) return true;
                 return doc.timestamp.toDate() > new Date(lastReadTimestamp);
             }).length;
             
             setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
+            setShowMarkAsRead(newCount > 0);
 
             if (isLoading) setIsLoading(false);
         }, (error) => {
@@ -414,11 +415,13 @@ export default function CommunicationPage() {
             if (isLoading) setIsLoading(false);
         });
 
-        // Reports listener
-        const qReports = query(collection(db, 'reports'), where('status', 'in', ['new', 'in_progress']));
-        const unsubReports = onSnapshot(qReports, (snapshot) => {
-            setNotificationCounts(prev => ({...prev, actionableReports: snapshot.size }));
-        });
+        let unsubReports: () => void = () => {};
+        if (isManagerial) {
+            const qReports = query(collection(db, 'reports'), where('status', 'in', ['new', 'in_progress']));
+            unsubReports = onSnapshot(qReports, (snapshot) => {
+                setNotificationCounts(prev => ({...prev, actionableReports: snapshot.size }));
+            });
+        }
 
         return () => {
             unsubAnnouncements();
@@ -448,7 +451,7 @@ export default function CommunicationPage() {
     const handleMarkAllRead = () => {
         if (!user) return;
         localStorage.setItem(`lastReadAnnouncement_${user.staff_id}`, new Date().toISOString());
-        setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
+        setShowMarkAsRead(false);
         window.dispatchEvent(new Event('announcementsRead'));
         toast({ title: 'Messages Marked as Read' });
     }
@@ -456,18 +459,13 @@ export default function CommunicationPage() {
     const canPostAnnouncements = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer';
     const canViewReports = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer';
     
-    // Derived state to show the mark as read button
-    const showMarkAsRead = useMemo(() => {
-        if (!user) return false;
-        const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${user.staff_id}`);
-        // If there's no timestamp, and there are messages from others, show it.
-        if (!lastReadTimestamp) {
-            return announcements.some(a => a.staffId !== user.staff_id);
-        }
-        // If there is a timestamp, check for newer messages from others.
-        const lastReadDate = new Date(lastReadTimestamp);
-        return announcements.some(a => a.staffId !== user.staff_id && a.timestamp && a.timestamp.toDate() > lastReadDate);
-    }, [user, announcements]);
+    const combinedNotificationCount = useMemo(() => {
+        if (!user) return 0;
+        const isManagerial = ['Manager', 'Developer', 'Supervisor'].includes(user.role);
+        return isManagerial
+            ? notificationCounts.actionableReports + notificationCounts.unreadAnnouncements
+            : notificationCounts.unreadAnnouncements;
+    }, [user, notificationCounts]);
 
 
     return (
