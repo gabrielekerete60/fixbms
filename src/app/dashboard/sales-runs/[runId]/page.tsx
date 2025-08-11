@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -87,6 +88,7 @@ const handlePrint = (node: HTMLElement | null) => {
                         .flex { display: flex; }
                         .justify-between { justify-content: space-between; }
                         hr { border: 0; border-top: 1px dashed #d1d5db; margin: 1rem 0; }
+                        .page-break-before-always { page-break-before: always; }
                     </style>
                 </head>
                 <body>
@@ -645,48 +647,98 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
 }
 
 function CustomerOrdersDialog({ isOpen, onOpenChange, customer, orders }: { isOpen: boolean, onOpenChange: (open: boolean) => void, customer: RunCustomer | null, orders: CompletedOrder[] }) {
+    const receiptRef = useRef<HTMLDivElement>(null);
+    const [ordersToPrint, setOrdersToPrint] = useState<CompletedOrder[]>([]);
+    const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
+
+    const customerOrders = useMemo(() => {
+        if (!customer) return [];
+        return orders.filter(order => order.customerName === customer.customerName);
+    }, [customer, orders]);
+
+    useEffect(() => {
+        if (ordersToPrint.length > 0 && receiptRef.current) {
+            handlePrint(receiptRef.current);
+            setOrdersToPrint([]);
+        }
+    }, [ordersToPrint]);
+    
     if (!customer) return null;
 
-    const customerOrders = orders.filter(order => order.customerName === customer.customerName);
+    const handlePrintAll = () => {
+        setOrdersToPrint(customerOrders);
+    };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>Order History for {customer.customerName}</DialogTitle>
-                    <DialogDescription>Showing all orders for this customer within this sales run.</DialogDescription>
-                </DialogHeader>
-                <div className="py-4 max-h-96 overflow-y-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Items</TableHead>
-                                <TableHead>Payment</TableHead>
-                                <TableHead className="text-right">Total</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {customerOrders.length > 0 ? customerOrders.map(order => (
-                                <TableRow key={order.id}>
-                                    <TableCell>{format(new Date(order.date), 'Pp')}</TableCell>
-                                    <TableCell>{order.items.reduce((sum, i) => sum + i.quantity, 0)}</TableCell>
-                                    <TableCell><Badge variant="secondary">{order.paymentMethod}</Badge></TableCell>
-                                    <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
-                                </TableRow>
-                            )) : (
+        <>
+            <Dialog open={isOpen} onOpenChange={onOpenChange}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Order History for {customer.customerName}</DialogTitle>
+                        <DialogDescription>Showing all orders for this customer within this sales run.</DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 max-h-96 overflow-y-auto">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={4} className="text-center h-24">No orders found for this customer.</TableCell>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Items</TableHead>
+                                    <TableHead>Payment</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
                                 </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {customerOrders.length > 0 ? customerOrders.map(order => (
+                                    <TableRow key={order.id} onClick={() => setViewingOrder(order)} className="cursor-pointer">
+                                        <TableCell>{format(new Date(order.date), 'Pp')}</TableCell>
+                                        <TableCell>{order.items.reduce((sum, i) => sum + i.quantity, 0)}</TableCell>
+                                        <TableCell><Badge variant="secondary">{order.paymentMethod}</Badge></TableCell>
+                                        <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
+                                    </TableRow>
+                                )) : (
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="text-center h-24">No orders found for this customer.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                    <DialogFooter className="justify-between">
+                         <Button variant="outline" onClick={handlePrintAll} disabled={customerOrders.length === 0}>
+                            <Printer className="mr-2 h-4 w-4"/> Print Receipts
+                        </Button>
+                        <Button onClick={() => onOpenChange(false)}>Close</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!viewingOrder} onOpenChange={() => setViewingOrder(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Order Details</DialogTitle>
+                        <DialogDescription>
+                            Receipt for order {viewingOrder?.id.substring(0,8)}...
+                        </DialogDescription>
+                    </DialogHeader>
+                    {viewingOrder && <Receipt order={viewingOrder} />}
+                    <DialogFooter className="gap-2 sm:justify-end">
+                        <Button variant="outline" onClick={() => setViewingOrder(null)}>Close</Button>
+                        <Button onClick={() => handlePrint(receiptRef.current)}><Printer className="mr-2 h-4 w-4" />Print</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <div className="hidden">
+                <div ref={receiptRef}>
+                    {ordersToPrint.length > 0 && ordersToPrint.map((order, index) => (
+                        <div key={order.id} className={index > 0 ? "page-break-before-always" : ""}>
+                             <Receipt order={order} />
+                        </div>
+                    ))}
+                    {viewingOrder && <Receipt order={viewingOrder} />}
                 </div>
-                <DialogFooter>
-                    <Button onClick={() => onOpenChange(false)}>Close</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            </div>
+        </>
     )
 }
 
@@ -808,7 +860,7 @@ function SalesRunDetails() {
             <div className="flex items-center justify-between">
                 <Link href="/dashboard/deliveries" className="flex items-center gap-2 text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to Deliveries</Link>
                  <Button variant="ghost" size="sm" onClick={() => handlePrint(receiptRef.current)} disabled={!runComplete}>
-                    <Printer className={`mr-2 h-4 w-4`} /> Print
+                    <Printer className={`mr-2 h-4 w-4`} /> Print Run Summary
                 </Button>
             </div>
              <div ref={receiptRef} className="hidden">
@@ -1039,9 +1091,6 @@ function SalesRunDetails() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            <div className="hidden">
-                {viewingOrder && <Receipt ref={receiptRef} order={viewingOrder} />}
-            </div>
         </div>
     );
 }
