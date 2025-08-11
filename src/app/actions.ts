@@ -1816,8 +1816,7 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                     const productRef = doc(db, 'products', item.productId);
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
-            } else if (transfer.is_sales_run === false) {
-                // Regular stock transfer to staff, NOT a sales run
+            } else { // This is for both regular stock transfers and sales runs
                 // These reads must happen before any writes
                 const productRefs = transfer.items.map(item => doc(db, 'products', item.productId));
                 const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
@@ -1853,8 +1852,8 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             const newStatus = transfer.is_sales_run ? 'active' : 'completed';
             transaction.update(transferRef, { 
                 status: newStatus,
-                time_received: transferDoc.data().date, // Original creation time
-                time_completed: serverTimestamp() // Time of acknowledgement
+                time_received: serverTimestamp(),
+                time_completed: serverTimestamp() 
             });
         });
 
