@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -25,6 +26,8 @@ type User = {
     role: string;
     staff_id: string;
 };
+
+const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function EmptyState({ title, description }: { title: string, description: string }) {
     return (
@@ -61,9 +64,9 @@ function RunCard({ run }: { run: SalesRunType }) {
                     <Progress value={progress} />
                 </div>
                 <div className="text-sm space-y-1">
-                    <div className="flex justify-between"><span>Total Revenue:</span><span className="font-semibold">₦{run.totalRevenue.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span>Total Collected:</span><span className="font-semibold text-green-500">₦{run.totalCollected.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span>Total Outstanding:</span><span className="font-semibold text-destructive">₦{run.totalOutstanding.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span>Total Revenue:</span><span className="font-semibold">{formatCurrency(run.totalRevenue)}</span></div>
+                    <div className="flex justify-between"><span>Total Collected:</span><span className="font-semibold text-green-500">{formatCurrency(run.totalCollected)}</span></div>
+                    <div className="flex justify-between"><span>Total Outstanding:</span><span className="font-semibold text-destructive">{formatCurrency(run.totalOutstanding)}</span></div>
                 </div>
                 <Link href={`/dashboard/sales-runs/${run.id}`} passHref>
                     <Button className="w-full">Manage Run</Button>
@@ -153,7 +156,7 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                          <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">₦{totalOutstanding.toLocaleString()}</div>
+                        <div className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</div>
                     </CardContent>
                 </Card>
                 <Card>
@@ -282,8 +285,8 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                                         <TableCell>{format(new Date(run.date), 'PPP')}</TableCell>
                                         <TableCell><Badge variant={run.status === 'active' ? 'default' : 'secondary'}>{run.status}</Badge></TableCell>
                                         <TableCell>{run.items.reduce((sum, i) => sum + i.quantity, 0)}</TableCell>
-                                        <TableCell className="text-right">₦{run.totalRevenue.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right text-destructive font-semibold">₦{run.totalOutstanding.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(run.totalRevenue)}</TableCell>
+                                        <TableCell className="text-right text-destructive font-semibold">{formatCurrency(run.totalOutstanding)}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
