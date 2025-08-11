@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -6,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -40,7 +41,7 @@ type CompletedOrder = {
   items: OrderItem[];
   total: number;
   date: string;
-  paymentMethod: 'Card' | 'Cash' | 'Credit';
+  paymentMethod: 'Paystack' | 'Cash' | 'Credit';
   customerName?: string;
 }
 
@@ -185,7 +186,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
     // Form state
     const [selectedCustomerId, setSelectedCustomerId] = useState('walk-in');
     const [cart, setCart] = useState<OrderItem[]>([]);
-    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Card'>('Cash');
+    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Paystack'>('Cash');
     const [itemQuantities, setItemQuantities] = useState<Record<string, number | string>>({});
 
 
@@ -281,7 +282,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             total,
         };
 
-        if (paymentMethod === 'Card') {
+        if (paymentMethod === 'Paystack') {
             const customerEmail = selectedCustomer?.email || user.email;
             const paystackResult = await initializePaystackTransaction({
                 ...saleData,
@@ -306,7 +307,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                                 items: cart,
                                 total: total,
                                 date: new Date().toISOString(),
-                                paymentMethod: 'Card' as const,
+                                paymentMethod: 'Paystack' as const,
                                 customerName: customerName,
                             }
                             onSaleMade(completedOrder);
@@ -315,7 +316,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                             toast({ variant: 'destructive', title: 'Order processing failed', description: finalOrder.error });
                         }
                     },
-                    onCancel: () => {
+                    onClose: () => {
                         toast({ variant: 'destructive', title: 'Payment Cancelled' });
                     }
                 });
@@ -469,14 +470,14 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                          {/* Payment Options */}
                          <div className="space-y-2">
                             <Label>Payment Method</Label>
-                            <Select onValueChange={(value) => setPaymentMethod(value as 'Cash' | 'Credit' | 'Card')} defaultValue={paymentMethod}>
+                            <Select onValueChange={(value) => setPaymentMethod(value as 'Cash' | 'Credit' | 'Paystack')} defaultValue={paymentMethod}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select payment method" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Cash"><HandCoins className="mr-2 h-4 w-4"/> Cash</SelectItem>
-                                    <SelectItem value="Card"><CreditCard className="mr-2 h-4 w-4"/> Card</SelectItem>
-                                    <SelectItem value="Credit"><Wallet className="mr-2 h-4 w-4"/> Credit</SelectItem>
+                                    <SelectItem value="Paystack"><ArrowRightLeft className="mr-2 h-4 w-4"/> Pay with Paystack</SelectItem>
+                                    <SelectItem value="Credit" disabled={selectedCustomerId === 'walk-in'}><Wallet className="mr-2 h-4 w-4"/> Credit</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -805,12 +806,10 @@ function SalesRunDetails() {
                                 </TableBody>
                             </Table>
                         </CardContent>
-                        {!runComplete && (
-                            <CardFooter className="flex justify-end gap-2">
+                        <CardFooter className="flex justify-end gap-2">
                                 <Input type="number" placeholder="Enter amount" value={newDebtPaymentAmount} onChange={(e) => setNewDebtPaymentAmount(e.target.value)} />
                                 <Button onClick={handleRecordDebtPayment} disabled={isSettling}>{isSettling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Payment</Button>
-                            </CardFooter>
-                        )}
+                        </CardFooter>
                     </Card>
                 </TabsContent>
                  <TabsContent value="sales">
@@ -877,5 +876,3 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
-
-    

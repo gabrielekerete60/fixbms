@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -1876,7 +1877,7 @@ function ApprovalsTab({ user, notificationBadge }: { user: { staff_id: string, n
                         ) : (
                             requests.map(req => (
                                 <TableRow key={req.id}>
-                                    <TableCell>{req.requestDate && typeof req.requestDate.toDate === 'function' ? format(req.requestDate.toDate(), 'PPP') : 'Invalid Date'}</TableCell>
+                                    <TableCell>{format(new Date(req.requestDate), 'PPP')}</TableCell>
                                     <TableCell>{req.requesterName}</TableCell>
                                     <TableCell>{req.ingredientName}</TableCell>
                                     <TableCell className="text-right">{req.quantity}</TableCell>
@@ -2007,8 +2008,8 @@ export default function AccountingPage() {
                 <TabsTrigger value="debt-payments">Debt &amp; Payments</TabsTrigger>
                 <TabsTrigger value="assets-wages">Assets &amp; Wages</TabsTrigger>
                  <TabsTrigger value="approvals" className="relative">
-                    Stock Approvals
-                    {notificationCounts.approvals > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.approvals}</Badge>}
+                    Approvals
+                    {(notificationCounts.approvals + notificationCounts.payments) > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.approvals + notificationCounts.payments}</Badge>}
                 </TabsTrigger>
             </TabsList>
         </div>
@@ -2044,17 +2045,7 @@ export default function AccountingPage() {
             </Tabs>
         </TabsContent>
         <TabsContent value="debt-payments">
-            <Tabs defaultValue="debtors-creditors" className="space-y-4">
-                <TabsList>
-                    <TabsTrigger value="debtors-creditors">Debtors &amp; Creditors</TabsTrigger>
-                    <TabsTrigger value="payments" className="relative">
-                        Payments &amp; Requests
-                        {notificationCounts.payments > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.payments}</Badge>}
-                    </TabsTrigger>
-                </TabsList>
-                <TabsContent value="debtors-creditors"><DebtorsCreditorsTab /></TabsContent>
-                <TabsContent value="payments"><PaymentsRequestsTab notificationBadge={null} /></TabsContent>
-            </Tabs>
+            <DebtorsCreditorsTab />
         </TabsContent>
          <TabsContent value="assets-wages">
             <Tabs defaultValue="closing-stock" className="space-y-4">
@@ -2067,7 +2058,24 @@ export default function AccountingPage() {
             </Tabs>
         </TabsContent>
         <TabsContent value="approvals">
-          <ApprovalsTab user={user} notificationBadge={null} />
+            <Tabs defaultValue="stock-requests" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="stock-requests" className="relative">
+                        Stock Requests 
+                        {notificationCounts.approvals > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.approvals}</Badge>}
+                    </TabsTrigger>
+                    <TabsTrigger value="payment-requests" className="relative">
+                        Payment Requests
+                        {notificationCounts.payments > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.payments}</Badge>}
+                    </TabsTrigger>
+                </TabsList>
+                <TabsContent value="stock-requests">
+                    <ApprovalsTab user={user} notificationBadge={null} />
+                </TabsContent>
+                <TabsContent value="payment-requests">
+                    <PaymentsRequestsTab notificationBadge={null} />
+                </TabsContent>
+            </Tabs>
         </TabsContent>
       </Tabs>
     </div>

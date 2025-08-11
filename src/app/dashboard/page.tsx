@@ -41,7 +41,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RevenueChart } from '@/components/revenue-chart';
-import { checkForMissingIndexes, getDashboardStats, getStaffDashboardStats, getBakerDashboardStats } from '../actions';
+import { checkForMissingIndexes, getDashboardStats, getStaffDashboardStats, getBakerDashboardStats, getShowroomDashboardStats } from '../actions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -578,34 +578,35 @@ function ShowroomStaffDashboard({ user }: { user: User }) {
         where('date', '<=', Timestamp.fromDate(todayEnd))
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const productData: { [productId: string]: { name: string; quantity: number, total: number } } = {};
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
         
-        snapshot.docs.forEach(doc => {
+        let totalSales = 0;
+        const productCounts: { [productId: string]: { name: string; quantity: number, total: number } } = {};
+
+        snapshot.forEach(doc => {
             const order = doc.data();
+            totalSales += order.total || 0;
             if (Array.isArray(order.items)) {
                 order.items.forEach((item: any) => {
                     if (item.productId && item.name && typeof item.quantity === 'number') {
-                        if (!productData[item.productId]) {
-                            productData[item.productId] = { name: item.name, quantity: 0, total: 0 };
+                        if (!productCounts[item.productId]) {
+                            productCounts[item.productId] = { name: item.name, quantity: 0, total: 0 };
                         }
-                        productData[item.productId].quantity += item.quantity;
-                        productData[item.productId].total += (item.price * item.quantity);
+                        productCounts[item.productId].quantity += item.quantity;
+                        productCounts[item.productId].total += (item.price * item.quantity);
                     }
                 });
             }
         });
-
+        
         let topProduct: { name: string; quantity: number } | null = null;
-        if (Object.keys(productData).length > 0) {
-            topProduct = Object.values(productData).reduce((max, product) => max.quantity > product.quantity ? max : product);
+        if (Object.keys(productCounts).length > 0) {
+            topProduct = Object.values(productCounts).reduce((max, product) => max.quantity > product.quantity ? max : product);
         }
 
-        const topProductsChart = Object.values(productData)
+        const topProductsChart = Object.values(productCounts)
             .sort((a, b) => b.total - a.total)
             .slice(0, 5);
-
-        const totalSales = snapshot.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
         
         setStats({
             dailySales: totalSales,
