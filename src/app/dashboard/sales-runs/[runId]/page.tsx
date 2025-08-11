@@ -15,11 +15,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { collection, getDocs, doc, Timestamp, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, Timestamp, onSnapshot, query, where, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog";
 import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
@@ -149,20 +149,20 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                        <Label>Customer Name</Label>
-                        <Input value={name} onChange={e => setName(e.target.value)} />
+                        <Label htmlFor="create-customer-name">Customer Name</Label>
+                        <Input id="create-customer-name" value={name} onChange={e => setName(e.target.value)} required />
                     </div>
                      <div className="space-y-2">
-                        <Label>Phone Number</Label>
-                        <Input value={phone} onChange={e => setPhone(e.target.value)} />
+                        <Label htmlFor="create-customer-phone">Phone Number</Label>
+                        <Input id="create-customer-phone" value={phone} onChange={e => setPhone(e.target.value)} required />
                     </div>
                      <div className="space-y-2">
-                        <Label>Email (Optional)</Label>
-                        <Input type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                        <Label htmlFor="create-customer-email">Email (Optional)</Label>
+                        <Input id="create-customer-email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                        <Label>Address (Optional)</Label>
-                        <Input value={address} onChange={e => setAddress(e.target.value)} />
+                        <Label htmlFor="create-customer-address">Address (Optional)</Label>
+                        <Input id="create-customer-address" value={address} onChange={e => setAddress(e.target.value)} />
                     </div>
                 </div>
                 <DialogFooter>
@@ -608,20 +608,6 @@ function SalesRunDetails() {
       }
     }, []);
 
-    const fetchRunDetails = useCallback(async () => {
-        try {
-            const runDetails = await getSalesRunDetails(runId as string);
-            if (!runDetails) {
-                toast({ variant: 'destructive', title: 'Error', description: 'Run not found.' });
-                router.push('/dashboard');
-                return;
-            }
-            setRun(runDetails);
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch run details.' });
-        }
-    }, [runId, router, toast]);
-
     useEffect(() => {
         const runDocRef = doc(db, "transfers", runId as string);
         const unsubscribeRun = onSnapshot(runDocRef, async (docSnap) => {
@@ -666,7 +652,7 @@ function SalesRunDetails() {
             unsubscribeOrders();
             unsubscribePaymentConfirmations();
         };
-    }, [runId]);
+    }, [runId, isLoading]);
     
     const totalSold = useMemo(() => orders.reduce((sum, order) => sum + order.total, 0), [orders]);
     const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
@@ -934,3 +920,5 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
+
+    
