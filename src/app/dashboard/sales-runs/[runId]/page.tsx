@@ -892,5 +892,3 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
-
-    
