@@ -1410,17 +1410,17 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             if (!confirmationDoc.exists() || confirmationDoc.data().status !== 'pending') {
                 throw new Error("This confirmation has already been processed.");
             }
+            
             const confirmationData = confirmationDoc.data() as PaymentConfirmation;
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
             if (action === 'approve') {
-                const runRef = doc(db, 'transfers', confirmationData.runId);
+                const runId = confirmationData.runId;
+                const isFromSalesRun = runId && !runId.startsWith('pos-sale-');
+                
                 const newOrderRef = doc(collection(db, 'orders'));
-
-                // This logic handles both new sales and debt payments.
-                // A debt payment has an empty `items` array.
                 const orderData = {
-                    salesRunId: confirmationData.runId,
+                    salesRunId: runId,
                     customerId: confirmationData.customerId || (confirmationData.isDebtPayment ? 'multiple' : 'walk-in'),
                     customerName: confirmationData.customerName,
                     total: confirmationData.amount,
@@ -1431,28 +1431,39 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     items: confirmationData.items,
                     id: newOrderRef.id,
                 };
-                
                 transaction.set(newOrderRef, orderData);
                 
+                // If it's a debt payment for a customer, update their record
                 if (confirmationData.isDebtPayment && confirmationData.customerId) {
                     const customerRef = doc(db, 'customers', confirmationData.customerId);
                     transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                 }
 
-                // Decrement personal stock only if it's a new sale (has items)
+                // If it's from a sales run, update the run's collected amount
+                if (isFromSalesRun) {
+                    const runRef = doc(db, 'transfers', runId);
+                    transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+                }
+
+                // Decrement stock only if it's a new sale (has items)
                 if (confirmationData.items && confirmationData.items.length > 0) {
-                     for (const item of confirmationData.items) {
-                        const stockRef = doc(db, 'staff', confirmationData.driverId, 'personal_stock', item.productId);
+                    for (const item of confirmationData.items) {
+                        let stockRef;
+                        if (isFromSalesRun) {
+                            // Decrement from driver's personal stock
+                            stockRef = doc(db, 'staff', confirmationData.driverId, 'personal_stock', item.productId);
+                        } else {
+                            // Decrement from main product stock for POS sales
+                            stockRef = doc(db, 'products', item.productId);
+                        }
+                        
                         const stockDoc = await transaction.get(stockRef);
-                        if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
-                           throw new Error(`Not enough stock for ${item.name}.`);
+                        if (!stockDoc.exists() || (stockDoc.data().stock || 0) < item.quantity) {
+                            throw new Error(`Not enough stock for ${item.name}.`);
                         }
                         transaction.update(stockRef, { stock: increment(-item.quantity) });
                     }
                 }
-                
-                // Update the total collected on the sales run
-                transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
             }
 
             // Update the confirmation status regardless of action
