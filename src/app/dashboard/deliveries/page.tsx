@@ -20,6 +20,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
 
 type User = {
     name: string;
@@ -40,8 +43,25 @@ function EmptyState({ title, description }: { title: string, description: string
 }
 
 function RunCard({ run }: { run: SalesRunType }) {
+    const [soldItems, setSoldItems] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const q = query(collection(db, 'orders'), where('salesRunId', '==', run.id));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            let totalSold = 0;
+            snapshot.forEach(doc => {
+                const items = doc.data().items || [];
+                totalSold += items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+            });
+            setSoldItems(totalSold);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [run.id]);
+
     const totalItems = run.items.reduce((sum, item) => sum + item.quantity, 0);
-    const soldItems = 0; // Placeholder for now
     const progress = totalItems > 0 ? (soldItems / totalItems) * 100 : 0;
     
     return (
@@ -53,13 +73,13 @@ function RunCard({ run }: { run: SalesRunType }) {
                     </CardTitle>
                     <CardDescription>Driver: {run.to_staff_name}</CardDescription>
                 </div>
-                <Badge>Active</Badge>
+                <Badge>{run.status}</Badge>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div>
                     <div className="flex justify-between text-sm mb-1">
                         <span className="font-medium">Sales Progress</span>
-                        <span>{soldItems} / {totalItems} items</span>
+                         {isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : <span>{soldItems} / {totalItems} items</span>}
                     </div>
                     <Progress value={progress} />
                 </div>
