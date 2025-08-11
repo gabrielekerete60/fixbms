@@ -472,7 +472,9 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
 
         const personalStockQuery = collection(db, 'staff', staffId, 'personal_stock');
         const personalStockSnapshot = await getDocs(personalStockQuery);
-        const personalStockCount = personalStockSnapshot.docs.reduce((sum, doc) => sum + (doc.data().stock || 0), 0);
+        const personalStockCount = personalStockSnapshot.docs.reduce((sum, doc) => {
+            return sum + (doc.data().stock || 0);
+        }, 0);
 
         const pendingTransfersQuery = query(
             collection(db, 'transfers'),
