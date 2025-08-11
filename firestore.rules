@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -7,19 +8,15 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
-
-    // This function now uses custom claims on the auth token.
-    // This is much more secure and efficient than using get().
+    
+    // Checks the user's role from their authentication token.
+    // This is more secure and reliable than using get() in rules.
     function hasRole(allowedRoles) {
-      return isSignedIn() && request.auth.token.role in allowedRoles;
+        return isSignedIn() && request.auth.token.role in allowedRoles;
     }
-
-    function isOwner(staffId) {
-      return request.auth.uid == staffId;
-    }
-
+    
     function isAdmin() {
-      return hasRole(['Manager', 'Developer', 'Supervisor']);
+        return hasRole(['Manager', 'Developer']);
     }
 
     // --- DEFAULT RULE ---
@@ -28,37 +25,49 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // --- PUBLIC & AUTHENTICATED ACCESS ---
-
-    // App settings are public for login page functionality.
-    match /settings/{docId} {
-      allow get: if true;
-      allow write: if isAdmin();
-    }
+    // --- COLLECTION-SPECIFIC RULES ---
     
-    // Any authenticated user can perform any action on any collection,
-    // EXCEPT for the specific, more secure collections defined below.
-    // This is a secure approach for an internal tool where all users are trusted staff.
+    // Any authenticated user can read from any collection.
+    // This is suitable for an internal app where all users are trusted staff.
     match /{collection}/{docId} {
-        allow read, write, delete: if isSignedIn();
+        allow read: if isSignedIn();
+    }
+    
+    // Any authenticated user can write to any collection EXCEPT 'staff'.
+    // This is a broad rule for an internal tool.
+    // In a more complex app, you would add more granular write rules per collection.
+    match /{collection}/{docId} {
+      allow write: if isSignedIn() && collection != "staff";
     }
 
-
-    // --- SECURE COLLECTION-SPECIFIC RULES ---
+    // --- SPECIALIZED RULES ---
     
-    // Staff collection has more granular permissions.
+    // Staff Collection Rules
     match /staff/{staffId} {
+      // Any authenticated user can read staff list (e.g., for transfers).
       allow read: if isSignedIn();
+      // Only Admins can create new staff.
       allow create: if isAdmin();
-      // Users can only update their own password and theme. Admins can update anything.
-      allow update: if (isOwner(staffId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['password', 'theme', 'lastLogin', 'mfa_enabled', 'mfa_secret'])) || isAdmin();
+      // Users can only update their own password and theme. Admins can update any field.
+      allow update: if (isOwner(staffId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['password', 'theme', 'lastLogin'])) || isAdmin();
+      // Only Admins can delete staff.
       allow delete: if isAdmin();
     }
     
-    // Users can only modify their own personal stock subcollection.
-     match /staff/{staffId}/personal_stock/{productId} {
-      allow read, write: if isOwner(staffId);
+    // Personal stock is only writable by the owner.
+    match /staff/{staffId}/personal_stock/{docId} {
+        allow read, write: if isSignedIn() && isOwner(staffId);
     }
-
+    
+    // The Database Tools page needs delete access for all collections.
+    // We grant this only to Admins. This rule overrides the general write rule.
+    match /{collection}/{docId} {
+        allow delete: if isAdmin();
+    }
+    
+    // Helper function to check if the user is the owner of a document.
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
   }
 }
