@@ -74,12 +74,26 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "clock_in_time",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "clock_out_time",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "staff_id",
           "order": "ASCENDING"
         },
         {
           "fieldPath": "clock_in_time",
-          "order": "ASCENDING"
+          "order": "DESCENDING"
         }
       ]
     },
