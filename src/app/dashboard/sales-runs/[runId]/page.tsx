@@ -42,7 +42,10 @@ type CompletedOrder = {
   date: Date;
   paymentMethod: 'Paystack' | 'Cash' | 'Credit';
   customerName?: string;
-}
+  subtotal: number;
+  tax: number;
+  status: string;
+};
 
 type RunCustomer = {
     customerId: string;
@@ -106,6 +109,55 @@ const handlePrint = (node: HTMLElement | null) => {
         printWindow.document.close();
     }
 };
+
+const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
+  return (
+    <div ref={ref} className="p-2">
+      <div className="text-center mb-4">
+          <h2 className="font-headline text-xl text-center">BMS</h2>
+          <p className="text-center text-sm">Sale Receipt</p>
+          {storeAddress && <p className="text-center text-xs text-muted-foreground">{storeAddress}</p>}
+        </div>
+        <div className="py-2 space-y-2 text-xs">
+            <div className="space-y-1">
+                <p><strong>Order ID:</strong> {order.id.substring(0, 12)}...</p>
+                <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
+                <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
+                <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
+            </div>
+            <Separator className="my-2" />
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead className="h-auto p-1 text-xs">Item</TableHead>
+                    <TableHead className="text-center h-auto p-1 text-xs">Qty</TableHead>
+                    <TableHead className="text-right h-auto p-1 text-xs">Amount</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {order.items.map((item, index) => (
+                    <TableRow key={item.productId || index}>
+                        <TableCell className="p-1 text-xs">{item.name}</TableCell>
+                        <TableCell className="text-center p-1 text-xs">{item.quantity}</TableCell>
+                        <TableCell className="text-right p-1 text-xs">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
+                    </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+                <Separator className="my-2"/>
+                <div className="w-full space-y-1 pr-1">
+                <div className="flex justify-between font-bold text-base mt-1">
+                    <span>Total</span>
+                    <span>₦{order.total.toFixed(2)}</span>
+                </div>
+            </div>
+            <Separator className="my-2"/>
+            <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
+        </div>
+    </div>
+  );
+});
+Receipt.displayName = 'Receipt';
 
 function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreated: (customer: Customer) => void, children: React.ReactNode }) {
     const { toast } = useToast();
@@ -316,6 +368,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                                 date: new Date(),
                                 paymentMethod: 'Paystack' as const,
                                 customerName: customerName,
+                                subtotal: 0, tax: 0, status: 'Completed'
                             }
                             onSaleMade(completedOrder);
                             setIsOpen(false);
@@ -346,6 +399,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 date: new Date(),
                 paymentMethod: 'Credit',
                 customerName: customerName,
+                subtotal: 0, tax: 0, status: 'Completed'
             });
             setIsOpen(false);
         } else {
@@ -381,6 +435,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 date: new Date(),
                 paymentMethod: 'Cash' as const,
                 customerName: customerName,
+                subtotal: 0, tax: 0, status: 'Pending'
             }
             onSaleMade(completedOrder);
             setIsOpen(false);
@@ -503,7 +558,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                         <AlertDialogHeader>
                             <AlertDialogTitle>Confirm Cash Payment</AlertDialogTitle>
                             <AlertDialogDescription>
-                                Are you sure you want to record this sale as a cash payment?
+                                Are you sure you want to record this sale as a cash payment? This will be sent for accountant approval.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -599,6 +654,7 @@ function SalesRunDetails() {
     const [customers, setCustomers] = useState<RunCustomer[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState<User | null>(null);
+    const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
     const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
     const receiptRef = useRef<HTMLDivElement>(null);
     const [paymentConfirmations, setPaymentConfirmations] = useState<any[]>([]);
@@ -872,15 +928,17 @@ function SalesRunDetails() {
                                         <TableHead>Customer</TableHead>
                                         <TableHead className="text-right">Total</TableHead>
                                         <TableHead>Payment Method</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {orders.map(order => (
-                                        <TableRow key={order.id}>
+                                        <TableRow key={order.id} className="cursor-pointer" onClick={() => setViewingOrder(order)}>
                                             <TableCell>{format(new Date(order.date), 'PPP')}</TableCell>
                                             <TableCell>{order.customerName}</TableCell>
                                             <TableCell className="text-right">₦{order.total.toLocaleString()}</TableCell>
                                             <TableCell>{order.paymentMethod}</TableCell>
+                                            <TableCell className="text-right"><Button variant="ghost" size="sm">View</Button></TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -917,6 +975,25 @@ function SalesRunDetails() {
                     </Card>
                 </TabsContent>
             </Tabs>
+
+            <Dialog open={!!viewingOrder} onOpenChange={() => setViewingOrder(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Order Details</DialogTitle>
+                        <DialogDescription>
+                            Receipt for order {viewingOrder?.id.substring(0,8)}...
+                        </DialogDescription>
+                    </DialogHeader>
+                    {viewingOrder && <Receipt order={viewingOrder} />}
+                    <DialogFooter className="gap-2 sm:justify-end">
+                        <Button variant="outline" onClick={() => setViewingOrder(null)}>Close</Button>
+                        <Button onClick={() => handlePrint(receiptRef.current)}><Printer className="mr-2 h-4 w-4" />Print</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <div className="hidden">
+                {viewingOrder && <Receipt ref={receiptRef} order={viewingOrder} />}
+            </div>
         </div>
     );
 }
