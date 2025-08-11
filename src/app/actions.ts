@@ -1767,17 +1767,12 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(docSnap => {
             const data = docSnap.data();
-            const plainData: { [key: string]: any } = {};
-            for (const key in data) {
-                if (data[key] instanceof Timestamp) {
-                    plainData[key] = data[key].toDate().toISOString();
-                } else {
-                    plainData[key] = data[key];
-                }
-            }
             return {
                 id: docSnap.id,
-                ...plainData
+                ...data,
+                date: (data.date as Timestamp).toDate().toISOString(),
+                time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
+                time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
             } as Transfer;
         });
     } catch (error: any) {
@@ -1856,7 +1851,7 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             transaction.update(transferRef, { 
                 status: newStatus,
                 time_received: serverTimestamp(),
-                time_completed: serverTimestamp() 
+                time_completed: transfer.is_sales_run ? null : serverTimestamp() 
             });
         });
 
@@ -2155,22 +2150,22 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
           })
         );
         
-        const plainData: { [key: string]: any } = {};
-        for (const key in data) {
-            if (data[key] instanceof Timestamp) {
-                plainData[key] = data[key].toDate().toISOString();
-            } else {
-                plainData[key] = data[key];
-            }
-        }
-
         return {
             id: runDoc.id,
-            ...plainData,
+            date: (data.date as Timestamp).toDate().toISOString(),
+            status: data.status,
             items: itemsWithPrices,
+            notes: data.notes,
+            from_staff_name: data.from_staff_name,
+            from_staff_id: data.from_staff_id,
+            to_staff_name: data.to_staff_name,
+            to_staff_id: data.to_staff_id,
             totalRevenue,
             totalCollected: data.totalCollected || 0,
             totalOutstanding: totalRevenue - (data.totalCollected || 0),
+            time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
+            time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
+            is_sales_run: data.is_sales_run,
         } as SalesRun;
 
     } catch (error) {
@@ -2260,7 +2255,7 @@ type SaleData = {
     items: { productId: string; quantity: number; price: number, name: string }[];
     customerId: string;
     customerName: string;
-    paymentMethod: 'Cash' | 'Credit' | 'Card' | 'Paystack';
+    paymentMethod: 'Cash' | 'Credit' | 'Paystack';
     staffId: string;
     total: number;
 }
@@ -2300,7 +2295,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       }
 
       // Logic for different payment methods
-      if (data.paymentMethod === 'Cash' || data.paymentMethod === 'Card') {
+      if (data.paymentMethod === 'Cash') {
         const confirmationRef = doc(collection(db, 'payment_confirmations'));
         transaction.set(confirmationRef, {
           runId: data.runId,
