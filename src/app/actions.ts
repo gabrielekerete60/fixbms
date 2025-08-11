@@ -2153,10 +2153,18 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
           })
         );
         
+        const plainData: { [key: string]: any } = {};
+        for (const key in data) {
+            if (data[key] instanceof Timestamp) {
+                plainData[key] = data[key].toDate().toISOString();
+            } else {
+                plainData[key] = data[key];
+            }
+        }
+
         return {
             id: runDoc.id,
-            ...data,
-            date: (data.date as Timestamp).toDate().toISOString(),
+            ...plainData,
             items: itemsWithPrices,
             totalRevenue,
             totalCollected: data.totalCollected || 0,
@@ -2812,5 +2820,6 @@ export async function declineStockIncrease(requestId: string, user: { staff_id: 
         return { success: false, error: "Failed to decline request." };
     }
 }
+
 
 
