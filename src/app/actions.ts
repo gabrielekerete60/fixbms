@@ -470,10 +470,10 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         const now = new Date();
         const startOfCurrentMonth = startOfMonth(now);
 
-        // 1. Get personal stock count
+        // 1. Get personal stock count from the subcollection
         const personalStockQuery = collection(db, 'staff', staffId, 'personal_stock');
         const personalStockSnapshot = await getDocs(personalStockQuery);
-        const personalStockCount = personalStockSnapshot.docs.reduce((sum, doc) => sum + doc.data().stock, 0);
+        const personalStockCount = personalStockSnapshot.docs.reduce((sum, doc) => sum + (doc.data().stock || 0), 0);
 
         // 2. Get pending transfers count
         const pendingTransfersQuery = query(
@@ -508,6 +508,7 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         };
     }
 }
+
 
 export type BakerDashboardStats = {
     activeBatches: number;

@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -226,6 +225,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             if (existing) {
                 return prev.map(p => p.productId === item.productId ? { ...p, quantity: p.quantity + quantityToAdd } : p);
             }
+            // Ensure the price is included when adding a new item
             return [...prev, { productId: item.productId, price: item.price, name: item.productName, quantity: quantityToAdd }];
         });
         // Reset input for that item
@@ -244,7 +244,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
 
         const itemInRun = remainingItems.find(p => p.productId === productId);
         if (itemInRun && newQuantity > itemInRun.quantity) {
-             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.quantity} units of ${itemInRun.name} available.`});
+             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.name} units of ${itemInRun.name} available.`});
              return;
         }
 
@@ -669,9 +669,13 @@ function SalesRunDetails() {
 
     const remainingItems = useMemo(() => getRemainingItems(), [run, orders]);
 
-    if (isLoading || !run) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-
-
+    if (isLoading || !run) {
+        return (
+            <div className="flex justify-center items-center h-48">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+        );
+    }
     const runComplete = runStatus === 'completed';
 
     return (
@@ -889,5 +893,4 @@ function SalesRunDetails() {
 
 export default SalesRunDetails;
 
-
-
+    
