@@ -20,7 +20,7 @@ import { collection, getDocs, doc, addDoc, Timestamp, onSnapshot } from 'firebas
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
@@ -816,12 +816,10 @@ function SalesRunDetails() {
                                 </TableBody>
                             </Table>
                         </CardContent>
-                         {!runComplete && (
-                            <CardFooter className="flex justify-end gap-2">
+                         <CardFooter className="flex justify-end gap-2">
                                     <Input type="number" placeholder="Enter amount" value={newDebtPaymentAmount} onChange={(e) => setNewDebtPaymentAmount(e.target.value)} />
                                     <Button onClick={handleRecordDebtPayment} disabled={isSettling}>{isSettling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Payment</Button>
                             </CardFooter>
-                         )}
                     </Card>
                 </TabsContent>
                  <TabsContent value="sales">
@@ -888,5 +886,4 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
-
 
