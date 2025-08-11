@@ -480,33 +480,30 @@ export default function StockControlPage() {
             setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
 
             const userRole = currentUser.role;
-            if (userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper' || userRole === 'Delivery Staff') {
+            if (userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper') {
                 const productsSnapshot = await getDocs(collection(db, "products"));
                 setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
-                const ingredientsSnapshot = await getDocs(collection(db, "ingredients"));
-                setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock })));
-                
-                const allTransfersQuery = query(collection(db, "transfers"), orderBy("date", "desc"));
-                const transfersSnapshot = await getDocs(allTransfersQuery);
-                setInitiatedTransfers(transfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
-
-            } else {
-                const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
+            } else if (userRole === 'Delivery Staff') {
+                 const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
                 const personalStockSnapshot = await getDocs(personalStockQuery);
                 setProducts(personalStockSnapshot.docs.map(doc => ({ id: doc.data().productId, name: doc.data().productName, stock: doc.data().stock })));
             }
             
-            const [pendingData, completedData, wasteData, prodTransfers] = await Promise.all([
+             const [pendingData, completedData, wasteData, prodTransfers, ingredientsSnapshot, initiatedTransfersSnapshot] = await Promise.all([
                 getPendingTransfersForStaff(currentUser.staff_id),
                 getCompletedTransfersForStaff(currentUser.staff_id),
                 getWasteLogsForStaff(currentUser.staff_id),
-                getProductionTransfers()
+                getProductionTransfers(),
+                getDocs(collection(db, "ingredients")),
+                getDocs(query(collection(db, "transfers"), orderBy("date", "desc")))
             ]);
+
             setPendingTransfers(pendingData);
             setCompletedTransfers(completedData);
             setMyWasteLogs(wasteData);
             setProductionTransfers(prodTransfers);
-
+            setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock })));
+            setInitiatedTransfers(initiatedTransfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
 
         } catch (error) {
             console.error("Error fetching data:", error);
