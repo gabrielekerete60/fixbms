@@ -19,7 +19,7 @@ import { collection, getDocs, doc, addDoc, Timestamp, onSnapshot } from 'firebas
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog";
 import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
@@ -531,7 +531,6 @@ function SalesRunDetails() {
     }, []);
 
     const fetchRunDetails = useCallback(async () => {
-        if (isLoading) return; // Prevent re-fetching while already loading
         setIsLoading(true);
         try {
             const runDetails = await getSalesRunDetails(runId as string);
@@ -553,7 +552,7 @@ function SalesRunDetails() {
         } finally {
             setIsLoading(false);
         }
-    }, [runId, router, toast, isLoading]);
+    }, [runId, router, toast]);
 
     useEffect(() => {
         fetchRunDetails();
@@ -587,7 +586,7 @@ function SalesRunDetails() {
             unsubscribe();
             unsubscribePaymentConfirmations();
         };
-    }, [runId]);
+    }, [runId, fetchRunDetails]);
     
     const totalSold = useMemo(() => orders.reduce((sum, order) => sum + order.total, 0), [orders]);
     const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
