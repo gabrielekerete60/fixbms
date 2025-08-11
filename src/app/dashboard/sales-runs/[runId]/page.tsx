@@ -19,7 +19,7 @@ import { collection, getDocs, doc, addDoc, Timestamp, onSnapshot } from 'firebas
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
@@ -242,7 +242,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
 
         const itemInRun = remainingItems.find(p => p.productId === productId);
         if (itemInRun && newQuantity > itemInRun.quantity) {
-             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.name} units of ${itemInRun.name} available.`});
+             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.quantity} units of ${itemInRun.name} available.`});
              return;
         }
 
@@ -549,12 +549,13 @@ function SalesRunDetails() {
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch run details.' });
         } finally {
-            setIsLoading(false);
+            if (isLoading) {
+              setIsLoading(false);
+            }
         }
-    }, [runId, router, toast]);
+    }, [runId, router, toast, isLoading]);
 
     useEffect(() => {
-        setIsLoading(true);
         fetchRunDetails();
         
         const salesRunDoc = doc(db, "transfers", runId as string);
@@ -882,5 +883,3 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
-
-    
