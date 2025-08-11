@@ -642,6 +642,8 @@ export type SalesRun = {
     totalRevenue: number;
     totalCollected: number;
     totalOutstanding: number;
+    time_received?: string | null;
+    time_completed?: string | null;
 };
 
 type SalesRunResult = {
@@ -663,7 +665,6 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
 
         const runs = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
             const data = transferDoc.data();
-            const date = data.date as Timestamp;
 
             let totalRevenue = 0;
             const itemsWithPrices = await Promise.all(
@@ -678,7 +679,9 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
             return {
                 id: transferDoc.id,
                 ...data,
-                date: date.toDate().toISOString(),
+                date: (data.date as Timestamp).toDate().toISOString(),
+                time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
+                time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
                 items: itemsWithPrices,
                 totalRevenue,
                 totalCollected: data.totalCollected || 0,
@@ -1679,8 +1682,8 @@ export type Transfer = {
   totalValue?: number;
   is_sales_run?: boolean;
   notes?: string;
-  time_received?: string;
-  time_completed?: string;
+  time_received?: string | null;
+  time_completed?: string | null;
 };
 
 
@@ -1764,20 +1767,17 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(docSnap => {
             const data = docSnap.data();
+            const plainData: { [key: string]: any } = {};
+            for (const key in data) {
+                if (data[key] instanceof Timestamp) {
+                    plainData[key] = data[key].toDate().toISOString();
+                } else {
+                    plainData[key] = data[key];
+                }
+            }
             return {
                 id: docSnap.id,
-                from_staff_id: data.from_staff_id,
-                from_staff_name: data.from_staff_name,
-                to_staff_id: data.to_staff_id,
-                to_staff_name: data.to_staff_name,
-                items: data.items,
-                date: (data.date as Timestamp)?.toDate().toISOString(),
-                status: data.status,
-                totalValue: data.totalValue || 0,
-                is_sales_run: data.is_sales_run || false,
-                notes: data.notes || '',
-                time_received: (data.time_received as Timestamp)?.toDate().toISOString() || null,
-                time_completed: (data.time_completed as Timestamp)?.toDate().toISOString() || null,
+                ...plainData
             } as Transfer;
         });
     } catch (error: any) {
