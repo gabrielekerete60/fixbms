@@ -58,7 +58,7 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -339,16 +339,20 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
             return;
         }
 
-        if (selectedProduct && Number(quantity) > selectedProduct.stock) {
-            toast({ variant: 'destructive', title: 'Error', description: `Cannot report more waste than available stock (${selectedProduct.stock}).` });
+        const productStock = selectedProduct?.stock || 0;
+
+        if (Number(quantity) > productStock) {
+            toast({ variant: 'destructive', title: 'Error', description: `Cannot report more waste than available stock (${productStock}).` });
             return;
         }
 
         setIsSubmitting(true);
+        const productCategory = (await getDoc(doc(db, 'products', productId))).data()?.category || 'Unknown';
+        
         const result = await handleReportWaste({
             productId,
             productName: selectedProduct?.name || 'Unknown Product',
-            productCategory: 'Unknown', // This should be ideally fetched with product data
+            productCategory,
             quantity: Number(quantity),
             reason,
             notes
@@ -476,7 +480,7 @@ export default function StockControlPage() {
             setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
 
             const userRole = currentUser.role;
-            if (userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper') {
+            if (userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper' || userRole === 'Delivery Staff') {
                 const productsSnapshot = await getDocs(collection(db, "products"));
                 setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
                 const ingredientsSnapshot = await getDocs(collection(db, "ingredients"));
@@ -1136,4 +1140,3 @@ export default function StockControlPage() {
     </div>
   );
 }
-
