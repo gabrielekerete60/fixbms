@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -489,9 +489,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                         </DialogFooter>
                     </div>
                 </div>
-            </DialogContent>
-
-               <AlertDialog open={isCashConfirmOpen} onOpenChange={setIsCashConfirmOpen}>
+                <AlertDialog open={isCashConfirmOpen} onOpenChange={setIsCashConfirmOpen}>
                     <AlertDialogContent>
                         <AlertDialogHeader>
                             <AlertDialogTitle>Confirm Cash Payment</AlertDialogTitle>
@@ -505,6 +503,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
+            </DialogContent>
         </Dialog>
     );
 }
@@ -532,11 +531,14 @@ function SalesRunDetails() {
     }, []);
 
     const fetchRunDetails = useCallback(async () => {
+        if (isLoading) return; // Prevent re-fetching while already loading
         setIsLoading(true);
         try {
             const runDetails = await getSalesRunDetails(runId as string);
             if (runDetails) {
                 setRun(runDetails);
+                const orderDetails = await getOrdersForRun(runId as string);
+                setOrders(orderDetails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: 'Run not found.' });
                 router.push('/dashboard');
@@ -546,60 +548,48 @@ function SalesRunDetails() {
             const customerDetails = await getCustomersForRun(runId as string);
             setCustomers(customerDetails);
 
-            const orderDetails = await getOrdersForRun(runId as string);
-             setOrders(orderDetails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-
-            const salesRunDoc = doc(db, "transfers", runId as string);
-            const unsubscribe = onSnapshot(salesRunDoc, (doc) => {
-                if (doc.exists()) {
-                     const plainData: { [key: string]: any } = {};
-                    const data = doc.data();
-                    for (const key in data) {
-                        if (data[key] instanceof Timestamp) {
-                            plainData[key] = (data[key] as Timestamp).toDate().toISOString();
-                        } else {
-                            plainData[key] = data[key];
-                        }
-                    }
-                    setRun(prevRun => ({ ...prevRun, ...plainData } as SalesRun));
-                }
-            });
-
-            // Subscribe to cash payment confirmation requests
-            const paymentConfirmationCollection = collection(db, 'payment_confirmations');
-            const unsubscribePaymentConfirmations = onSnapshot(paymentConfirmationCollection, (snapshot) => {
-                const payments = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                    .filter(payment => payment.runId === runId && payment.status === 'pending')
-                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                setPaymentConfirmations(payments);
-            });
-            
-            return () => {
-                unsubscribe();
-                unsubscribePaymentConfirmations();
-            };
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch run details.' });
         } finally {
             setIsLoading(false);
         }
-    }, [runId, router, toast]);
+    }, [runId, router, toast, isLoading]);
 
     useEffect(() => {
-        const performFetch = async () => {
-            const unsub = await fetchRunDetails();
-            return unsub;
-        };
-        const unsubPromise = performFetch();
+        fetchRunDetails();
+        
+        const salesRunDoc = doc(db, "transfers", runId as string);
+        const unsubscribe = onSnapshot(salesRunDoc, (doc) => {
+            if (doc.exists()) {
+                 const plainData: { [key: string]: any } = {};
+                const data = doc.data();
+                for (const key in data) {
+                    if (data[key] instanceof Timestamp) {
+                        plainData[key] = (data[key] as Timestamp).toDate().toISOString();
+                    } else {
+                        plainData[key] = data[key];
+                    }
+                }
+                setRun(prevRun => ({ ...prevRun, ...plainData } as SalesRun));
+            }
+        });
+
+        // Subscribe to cash payment confirmation requests
+        const paymentConfirmationCollection = collection(db, 'payment_confirmations');
+        const unsubscribePaymentConfirmations = onSnapshot(paymentConfirmationCollection, (snapshot) => {
+            const payments = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(payment => payment.runId === runId && payment.status === 'pending')
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setPaymentConfirmations(payments);
+        });
         
         return () => {
-            unsubPromise.then(unsub => {
-                if(unsub) unsub();
-            });
-        }
-    }, [fetchRunDetails]);
+            unsubscribe();
+            unsubscribePaymentConfirmations();
+        };
+    }, [runId]);
     
-    const totalSold = useMemo(() => customers.reduce((sum, cust) => sum + cust.totalSold, 0), [customers]);
+    const totalSold = useMemo(() => orders.reduce((sum, order) => sum + order.total, 0), [orders]);
     const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
     const runStatus = useMemo(() => run?.status || 'inactive', [run]);
     
@@ -893,5 +883,3 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
-
-    
