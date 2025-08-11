@@ -240,15 +240,31 @@ function StaffDashboard({ user }: { user: User }) {
   useEffect(() => {
     if (!user.staff_id) return;
     
-    const fetchStats = async () => {
-        setIsLoading(true);
-        const data = await getStaffDashboardStats(user.staff_id);
-        setStats(data);
-        setIsLoading(false);
-    }
-    fetchStats();
+    // Use onSnapshot for real-time updates
+    const qPending = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'pending'));
+    const unsubPending = onSnapshot(qPending, (snapshot) => {
+        setStats(prev => ({...prev!, pendingTransfersCount: snapshot.size}));
+    });
 
-  }, [user.staff_id]);
+    const qWaste = query(collection(db, 'waste_logs'), where('staffId', '==', user.staff_id), where('date', '>=', Timestamp.fromDate(startOfMonth(new Date()))));
+    const unsubWaste = onSnapshot(qWaste, (snapshot) => {
+         setStats(prev => ({...prev!, monthlyWasteReports: snapshot.size}));
+    });
+    
+    const qStock = collection(db, 'staff', user.staff_id, 'personal_stock');
+    const unsubStock = onSnapshot(qStock, (snapshot) => {
+        const stockCount = snapshot.docs.reduce((sum, doc) => sum + (doc.data().stock || 0), 0);
+        setStats(prev => ({...prev!, personalStockCount: stockCount}));
+        if(isLoading) setIsLoading(false);
+    });
+
+    return () => {
+      unsubPending();
+      unsubWaste();
+      unsubStock();
+    };
+
+  }, [user.staff_id, isLoading]);
   
   if (isLoading || !stats) {
     return (
@@ -272,7 +288,7 @@ function StaffDashboard({ user }: { user: User }) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.personalStockCount || 0}</div>
-              <p className="text-xs text-muted-foreground">Total product units in your inventory.</p>
+              <p className="text-xs text-muted-foreground">Remaining unsold product units.</p>
             </CardContent>
           </Card>
         </Link>

@@ -470,12 +470,14 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         const now = new Date();
         const startOfCurrentMonth = startOfMonth(now);
 
+        // Calculate personal stock count
         const personalStockQuery = collection(db, 'staff', staffId, 'personal_stock');
         const personalStockSnapshot = await getDocs(personalStockQuery);
         const personalStockCount = personalStockSnapshot.docs.reduce((sum, doc) => {
             return sum + (doc.data().stock || 0);
         }, 0);
 
+        // Calculate pending transfers
         const pendingTransfersQuery = query(
             collection(db, 'transfers'),
             where('to_staff_id', '==', staffId),
@@ -484,6 +486,7 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         const pendingTransfersSnapshot = await getDocs(pendingTransfersQuery);
         const pendingTransfersCount = pendingTransfersSnapshot.size;
 
+        // Calculate waste reports for the month
         const wasteLogsQuery = query(
             collection(db, 'waste_logs'),
             where('staffId', '==', staffId),
