@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -782,9 +781,9 @@ export default function StockControlPage() {
                                             </TableCell>
                                             <TableCell><Badge>{t.status}</Badge></TableCell>
                                             <TableCell className="text-right">
-                                                {t.is_sales_run && t.status === 'completed' && (
+                                                {t.is_sales_run && t.status === 'active' && (
                                                     <Button variant="outline" size="sm" asChild>
-                                                        <Link href={`/dashboard/sales-runs/${t.id}`}><Eye className="mr-2 h-4 w-4"/>View Details</Link>
+                                                        <Link href={`/dashboard/deliveries`}><Eye className="mr-2 h-4 w-4"/>Manage Run</Link>
                                                     </Button>
                                                 )}
                                             </TableCell>
@@ -799,11 +798,9 @@ export default function StockControlPage() {
                         </CardFooter>
                     </Card>
                 </div>
-                {userRole === 'Delivery Staff' && (
-                    <div className="flex-1">
-                        <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
-                    </div>
-                )}
+                <div className="flex-1">
+                    <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
+                </div>
             </div>
          </div>
      )
