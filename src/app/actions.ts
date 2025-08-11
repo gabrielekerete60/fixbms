@@ -470,12 +470,34 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         const now = new Date();
         const startOfCurrentMonth = startOfMonth(now);
 
-        // Calculate personal stock count
-        const personalStockQuery = collection(db, 'staff', staffId, 'personal_stock');
-        const personalStockSnapshot = await getDocs(personalStockQuery);
-        const personalStockCount = personalStockSnapshot.docs.reduce((sum, doc) => {
-            return sum + (doc.data().stock || 0);
-        }, 0);
+        // Calculate personal stock count from active sales runs
+        const activeRunsQuery = query(
+            collection(db, 'transfers'),
+            where('to_staff_id', '==', staffId),
+            where('status', '==', 'active')
+        );
+        const activeRunsSnapshot = await getDocs(activeRunsQuery);
+
+        let initialStock = 0;
+        activeRunsSnapshot.docs.forEach(doc => {
+            const items = doc.data().items || [];
+            initialStock += items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+        });
+        
+        // Calculate items sold from this user's active runs
+        const runIds = activeRunsSnapshot.docs.map(doc => doc.id);
+        let soldStock = 0;
+        if (runIds.length > 0) {
+            const ordersQuery = query(collection(db, 'orders'), where('salesRunId', 'in', runIds));
+            const ordersSnapshot = await getDocs(ordersQuery);
+            ordersSnapshot.forEach(doc => {
+                const items = doc.data().items || [];
+                soldStock += items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+            });
+        }
+        
+        const personalStockCount = initialStock - soldStock;
+
 
         // Calculate pending transfers
         const pendingTransfersQuery = query(
@@ -1393,39 +1415,33 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             
             if (action === 'approve') {
                 const runRef = doc(db, 'transfers', confirmationData.runId);
+                const newOrderRef = doc(collection(db, 'orders'));
 
-                if (confirmationData.isDebtPayment) {
-                    // --- Handle Debt Payment ---
-                    if (confirmationData.customerId) {
-                        const customerRef = doc(db, 'customers', confirmationData.customerId);
-                        transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
-                    }
-                    transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+                // This logic handles both new sales and debt payments.
+                // A debt payment has an empty `items` array.
+                const orderData = {
+                    salesRunId: confirmationData.runId,
+                    customerId: confirmationData.customerId || (confirmationData.isDebtPayment ? 'multiple' : 'walk-in'),
+                    customerName: confirmationData.customerName,
+                    total: confirmationData.amount,
+                    paymentMethod: confirmationData.paymentMethod,
+                    date: Timestamp.now(),
+                    staffId: confirmationData.driverId,
+                    status: 'Completed',
+                    items: confirmationData.items,
+                    id: newOrderRef.id,
+                };
+                
+                transaction.set(newOrderRef, orderData);
+                
+                if (confirmationData.isDebtPayment && confirmationData.customerId) {
+                    const customerRef = doc(db, 'customers', confirmationData.customerId);
+                    transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
+                }
 
-                } else {
-                    // --- Handle New Sale ---
-                    const productCostPromises = confirmationData.items.map(item => getDoc(doc(db, 'products', item.productId)));
-                    const productDocs = await Promise.all(productCostPromises);
-                    const itemsWithCost = confirmationData.items.map((item, index) => {
-                        const costPrice = productDocs[index].exists() ? productDocs[index].data()?.costPrice : 0;
-                        return {...item, costPrice };
-                    });
-                    
-                    const newOrderRef = doc(collection(db, 'orders'));
-                    const orderData = {
-                        salesRunId: confirmationData.runId,
-                        customerId: confirmationData.customerId || 'walk-in',
-                        customerName: confirmationData.customerName,
-                        total: confirmationData.amount,
-                        paymentMethod: confirmationData.paymentMethod,
-                        date: Timestamp.now(),
-                        staffId: confirmationData.driverId,
-                        status: 'Completed',
-                        items: itemsWithCost,
-                        id: newOrderRef.id,
-                    };
-                    
-                    for (const item of confirmationData.items) {
+                // Decrement personal stock only if it's a new sale (has items)
+                if (confirmationData.items && confirmationData.items.length > 0) {
+                     for (const item of confirmationData.items) {
                         const stockRef = doc(db, 'staff', confirmationData.driverId, 'personal_stock', item.productId);
                         const stockDoc = await transaction.get(stockRef);
                         if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
@@ -1433,13 +1449,13 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         }
                         transaction.update(stockRef, { stock: increment(-item.quantity) });
                     }
-                    
-                    transaction.set(newOrderRef, orderData);
-                    transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
                 }
+                
+                // Update the total collected on the sales run
+                transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
             }
 
-            // Update the confirmation status regardless of sale type
+            // Update the confirmation status regardless of action
             transaction.update(confirmationRef, { status: newStatus });
         });
 
@@ -2230,7 +2246,7 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
       }
       
       salesByCustomer[customerId].totalSold += order.total;
-      if (order.paymentMethod === 'Cash' || order.paymentMethod === 'Card') {
+      if (order.paymentMethod === 'Cash' || order.paymentMethod === 'Paystack') {
         salesByCustomer[customerId].totalPaid += order.total;
       }
     });
@@ -2306,9 +2322,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
 
       // Logic for different payment methods
       if (data.paymentMethod === 'Cash') {
-        // Recalculate total on the server to ensure accuracy
         const total = data.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
         const confirmationRef = doc(collection(db, 'payment_confirmations'));
         transaction.set(confirmationRef, {
           runId: data.runId,
