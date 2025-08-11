@@ -307,6 +307,9 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                                 date: new Date().toISOString(),
                                 paymentMethod: 'Paystack' as const,
                                 customerName: customerName,
+                                subtotal: 0,
+                                tax: 0,
+                                status: 'Completed'
                             }
                             onSaleMade(completedOrder);
                             setIsOpen(false);
@@ -337,6 +340,9 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 date: new Date().toISOString(),
                 paymentMethod: 'Credit',
                 customerName: customerName,
+                subtotal: 0,
+                tax: 0,
+                status: 'Completed'
             });
             setIsOpen(false);
         } else {
@@ -372,6 +378,9 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 date: new Date().toISOString(),
                 paymentMethod: 'Cash' as const,
                 customerName: customerName,
+                subtotal: 0,
+                tax: 0,
+                status: 'Pending'
             }
             onSaleMade(completedOrder);
             setIsOpen(false);
@@ -533,19 +542,12 @@ function SalesRunDetails() {
     const fetchRunDetails = useCallback(async () => {
         try {
             const runDetails = await getSalesRunDetails(runId as string);
-            if (runDetails) {
-                setRun(runDetails);
-                const orderDetails = await getOrdersForRun(runId as string);
-                setOrders(orderDetails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-            } else {
+            if (!runDetails) {
                 toast({ variant: 'destructive', title: 'Error', description: 'Run not found.' });
                 router.push('/dashboard');
                 return;
             }
-
-            const customerDetails = await getCustomersForRun(runId as string);
-            setCustomers(customerDetails);
-
+            setRun(runDetails);
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch run details.' });
         } finally {
@@ -556,35 +558,46 @@ function SalesRunDetails() {
     }, [runId, router, toast, isLoading]);
 
     useEffect(() => {
-        fetchRunDetails();
+        fetchRunDetails(); // Initial fetch
         
-        const salesRunDoc = doc(db, "transfers", runId as string);
-        const unsubscribe = onSnapshot(salesRunDoc, (doc) => {
-            if (doc.exists()) {
-                 const plainData: { [key: string]: any } = {};
-                const data = doc.data();
-                for (const key in data) {
-                    if (data[key] instanceof Timestamp) {
-                        plainData[key] = (data[key] as Timestamp).toDate().toISOString();
-                    } else {
-                        plainData[key] = data[key];
-                    }
-                }
-                setRun(prevRun => ({ ...prevRun, ...plainData } as SalesRun));
+        // Real-time listener for the sales run document
+        const runDocRef = doc(db, "transfers", runId as string);
+        const unsubscribeRun = onSnapshot(runDocRef, async (docSnap) => {
+            if (docSnap.exists()) {
+                const runDetails = await getSalesRunDetails(runId as string);
+                setRun(runDetails);
             }
         });
 
+        // Real-time listener for orders associated with this run
+        const ordersQuery = collection(db, 'orders');
+        const runOrdersQuery = query(ordersQuery, where('salesRunId', '==', runId as string));
+        const unsubscribeOrders = onSnapshot(runOrdersQuery, async (snapshot) => {
+            const orderDetails = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as CompletedOrder))
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setOrders(orderDetails);
+
+            // Recalculate customer details when orders change
+            const customerDetails = await getCustomersForRun(runId as string);
+            setCustomers(customerDetails);
+        });
+        
         // Subscribe to cash payment confirmation requests
         const paymentConfirmationCollection = collection(db, 'payment_confirmations');
         const unsubscribePaymentConfirmations = onSnapshot(paymentConfirmationCollection, (snapshot) => {
             const payments = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
                 .filter(payment => payment.runId === runId && payment.status === 'pending')
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                .sort((a, b) => {
+                    const dateA = a.date?.toDate ? a.date.toDate() : new Date(0);
+                    const dateB = b.date?.toDate ? b.date.toDate() : new Date(0);
+                    return dateB.getTime() - dateA.getTime();
+                });
             setPaymentConfirmations(payments);
         });
         
         return () => {
-            unsubscribe();
+            unsubscribeRun();
+            unsubscribeOrders();
             unsubscribePaymentConfirmations();
         };
     }, [runId, fetchRunDetails]);
@@ -594,7 +607,7 @@ function SalesRunDetails() {
     const runStatus = useMemo(() => run?.status || 'inactive', [run]);
     
     const handleRecordDebtPayment = async () => {
-        if (!user) return;
+        if (!user || !run) return;
         if (!newDebtPaymentAmount || isNaN(Number(newDebtPaymentAmount))) {
             toast({ variant: 'destructive', title: 'Error', description: 'Invalid amount.' });
             return;
@@ -603,21 +616,18 @@ function SalesRunDetails() {
         const amount = Number(newDebtPaymentAmount);
         setIsSettling(true);
         try {
-            // This function needs to be updated to handle any customer, not just from a fixed list
-            // For now, let's assume it can take a name
             const result = await handleRecordCashPaymentForRun({
                 runId: runId as string,
-                customerId: 'multiple', // Placeholder
+                customerId: 'multiple',
                 customerName: 'Debt Settlement',
-                driverId: run?.to_staff_id || '',
-                driverName: run?.to_staff_name || '',
+                driverId: run.to_staff_id,
+                driverName: run.to_staff_name || 'Unknown Driver',
                 amount,
             });
 
             if (result.success) {
                 toast({ title: 'Success', description: 'Debt payment recorded for approval.' });
                 setNewDebtPaymentAmount('');
-                fetchRunDetails(); // Refresh the run details
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: result.error });
             }
@@ -629,8 +639,7 @@ function SalesRunDetails() {
     };
     
      const handleSaleMade = (newOrder: CompletedOrder) => {
-         setOrders(prev => [newOrder, ...prev]);
-         fetchRunDetails();
+         // The real-time listener will handle the update
      }
     
      const getRemainingItems = useCallback(() => {
@@ -805,7 +814,7 @@ function SalesRunDetails() {
                                         <TableRow key={customer.customerId}>
                                             <TableCell>{customer.customerName}</TableCell>
                                             <TableCell className="text-right">₦{customer.totalSold.toLocaleString()}</TableCell>
-                                            <TableCell className="text-right">₦{customer.totalPaid.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right">₦{(customer.totalPaid || 0).toLocaleString()}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -853,7 +862,7 @@ function SalesRunDetails() {
                      <Card>
                         <CardHeader>
                             <CardTitle>Pending Confirmations</CardTitle>
-                            <CardDescription>Pending payment confirmations</CardDescription>
+                            <CardDescription>Cash payments awaiting accountant approval.</CardDescription>
                         </CardHeader>
                         <CardContent>
                              <Table>
