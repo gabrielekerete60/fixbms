@@ -20,7 +20,7 @@ import { collection, getDocs, doc, addDoc, Timestamp, onSnapshot } from 'firebas
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
 import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
@@ -661,9 +661,7 @@ function SalesRunDetails() {
             const soldQuantity = soldQuantities[item.productId] || 0;
             const remainingQuantity = item.quantity - soldQuantity;
             return {
-                productId: item.productId,
-                productName: item.productName,
-                price: item.price || 0,
+                ...item,
                 quantity: remainingQuantity > 0 ? remainingQuantity : 0,
             };
         }).filter(item => item.quantity > 0);
@@ -890,4 +888,5 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
+
 
