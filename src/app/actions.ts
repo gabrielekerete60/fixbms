@@ -1764,21 +1764,24 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(docSnap => {
             const data = docSnap.data();
-            const plainData: { [key: string]: any } = {};
-            for (const key in data) {
-                if (data[key] instanceof Timestamp) {
-                    plainData[key] = data[key].toDate().toISOString();
-                } else {
-                    plainData[key] = data[key];
-                }
-            }
-            return { 
+            return {
                 id: docSnap.id,
-                ...plainData
-             } as Transfer
+                from_staff_id: data.from_staff_id,
+                from_staff_name: data.from_staff_name,
+                to_staff_id: data.to_staff_id,
+                to_staff_name: data.to_staff_name,
+                items: data.items,
+                date: (data.date as Timestamp)?.toDate().toISOString(),
+                status: data.status,
+                totalValue: data.totalValue || 0,
+                is_sales_run: data.is_sales_run || false,
+                notes: data.notes || '',
+                time_received: (data.time_received as Timestamp)?.toDate().toISOString() || null,
+                time_completed: (data.time_completed as Timestamp)?.toDate().toISOString() || null,
+            } as Transfer;
         });
     } catch (error: any) {
-         if (error.code === 'failed-precondition') {
+        if (error.code === 'failed-precondition') {
             console.error("Firestore index missing for getCompletedTransfersForStaff. Please create it in the Firebase console.", error.message);
         } else {
             console.error("Error fetching completed transfers:", error);
