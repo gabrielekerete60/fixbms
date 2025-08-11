@@ -403,7 +403,7 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
         let activeOrders = 0;
         ordersSnapshot.forEach(orderDoc => {
             const order = orderDoc.data();
-            revenue += order.total || 0; // Safely add total
+            revenue += (order.total || 0); // Safely add total
             if (order.status === 'Pending') {
                 activeOrders++;
             }
@@ -439,7 +439,7 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
             const dayOfWeek = format(orderDate, 'E'); 
             const index = weeklyRevenueData.findIndex(d => d.day === dayOfWeek);
             if (index !== -1) {
-                weeklyRevenueData[index].revenue += order.total || 0;
+                weeklyRevenueData[index].revenue += (order.total || 0);
             }
         });
         
@@ -1416,6 +1416,8 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
             if (action === 'approve') {
+                const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
+                
                 // Create the official order document
                 const newOrderRef = doc(collection(db, 'orders'));
                 transaction.set(newOrderRef, {
@@ -1437,12 +1439,18 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                 }
 
-                const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
-                
                 // If it's from a sales run, update the run's collected amount
                 if (isFromSalesRun) {
                     const runRef = doc(db, 'transfers', confirmationData.runId);
                     transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+                }
+
+                 // For POS sales, decrement the main product stock
+                if (!isFromSalesRun) {
+                    for (const item of confirmationData.items) {
+                        const productRef = doc(db, 'products', item.productId);
+                        transaction.update(productRef, { stock: increment(-item.quantity) });
+                    }
                 }
             }
 
@@ -2762,17 +2770,15 @@ export async function getPendingSupplyRequests(): Promise<SupplyRequest[]> {
 }
 
 export async function approveStockIncrease(requestId: string, costPerUnit: number, totalCost: number, user: { staff_id: string; name: string }) {
-     try {
+    try {
         const requestRef = doc(db, 'supply_requests', requestId);
-
+        
+        // First transaction: Update the request status
         await runTransaction(db, async (transaction) => {
             const requestDoc = await transaction.get(requestRef);
             if (!requestDoc.exists() || requestDoc.data().status !== 'pending') {
                 throw new Error("Request not found or already processed.");
             }
-            const requestData = requestDoc.data() as SupplyRequest;
-
-            // Update request to approved
             transaction.update(requestRef, {
                 status: 'approved',
                 costPerUnit: costPerUnit,
@@ -2781,10 +2787,16 @@ export async function approveStockIncrease(requestId: string, costPerUnit: numbe
                 approverName: user.name,
                 approvedDate: serverTimestamp()
             });
+        });
 
+        // Second transaction: Update inventory, supplier, and logs
+        const requestDoc = await getDoc(requestRef);
+        const requestData = requestDoc.data() as SupplyRequest;
+
+        await runTransaction(db, async (transaction) => {
             // Update ingredient stock
             const ingredientRef = doc(db, 'ingredients', requestData.ingredientId);
-            transaction.update(ingredientRef, { stock: increment(requestData.quantity) });
+            transaction.update(ingredientRef, { stock: increment(requestData.quantity), costPerUnit: costPerUnit });
             
             // Update supplier balance
             const supplierRef = doc(db, 'suppliers', requestData.supplierId);
@@ -2811,8 +2823,8 @@ export async function approveStockIncrease(requestId: string, costPerUnit: numbe
                 staffName: user.name,
                 logRefId: requestId,
             });
-
         });
+
         return { success: true };
     } catch (error) {
         console.error("Error approving stock increase:", error);

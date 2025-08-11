@@ -90,12 +90,14 @@ function IngredientDialog({
   isOpen,
   onOpenChange,
   onSave,
-  ingredient
+  ingredient,
+  user
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: Partial<Omit<Ingredient, 'id' | 'stock'>>) => void;
   ingredient: Partial<Ingredient> | null;
+  user: User | null;
 }) {
     const { toast } = useToast();
     const [name, setName] = useState("");
@@ -103,6 +105,8 @@ function IngredientDialog({
     const [costPerUnit, setCostPerUnit] = useState(0);
     const [expiryDate, setExpiryDate] = useState<Date | undefined>();
     const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(10);
+    
+    const canEditFinancials = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant' || user?.role === 'Storekeeper';
 
     useEffect(() => {
         if (ingredient) {
@@ -155,7 +159,7 @@ function IngredientDialog({
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="costPerUnit" className="text-right">Cost/Unit (₦)</Label>
-                        <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" />
+                        <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" disabled={!canEditFinancials} />
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="low-stock" className="text-right">Low Stock Threshold</Label>
@@ -478,7 +482,7 @@ export default function IngredientsPage() {
 
     const canManageIngredients = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
     const isStorekeeper = user?.role === 'Storekeeper';
-    const canViewCosts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
+    const canViewCosts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant' || user?.role === 'Storekeeper';
 
     return (
         <div className="flex flex-col gap-4">
@@ -499,6 +503,7 @@ export default function IngredientsPage() {
                 onOpenChange={setIsDialogOpen}
                 onSave={handleSaveIngredient}
                 ingredient={editingIngredient}
+                user={user}
             />
              <LogDetailsDialog 
                 isOpen={isDetailsOpen}
