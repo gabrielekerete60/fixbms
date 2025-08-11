@@ -45,11 +45,6 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
     if (!userData.is_active) {
         return { success: false, error: "This staff account is inactive." };
     }
-
-    // NOTE: In a real production app, this would be handled on a secure backend
-    // using the Firebase Admin SDK to set custom claims.
-    // We are simulating this behavior here for the prototype.
-    console.log(`Simulating setting custom claim 'role: ${userData.role}' for user ${staffId}`);
     
     // Check for MFA
     if (userData.mfa_enabled) {
