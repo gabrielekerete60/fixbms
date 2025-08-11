@@ -223,7 +223,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         setCart(prev => {
             const existing = prev.find(p => p.productId === item.productId);
             if (existing) {
-                return prev.map(p => p.productId === item.productId ? { ...p, quantity: p.quantity + quantityToAdd } : p);
+                return prev.map(p => p.productId === item.productId ? { ...p, price: item.price, quantity: p.quantity + quantityToAdd } : p);
             }
             return [...prev, { productId: item.productId, price: item.price, name: item.productName, quantity: quantityToAdd }];
         });
@@ -662,6 +662,7 @@ function SalesRunDetails() {
             const remainingQuantity = item.quantity - soldQuantity;
             return {
                 ...item,
+                price: item.price || 0,
                 quantity: remainingQuantity > 0 ? remainingQuantity : 0,
             };
         }).filter(item => item.quantity > 0);
