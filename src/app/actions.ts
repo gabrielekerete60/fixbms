@@ -403,7 +403,7 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
         let activeOrders = 0;
         ordersSnapshot.forEach(orderDoc => {
             const order = orderDoc.data();
-            revenue += order.total;
+            revenue += order.total || 0; // Safely add total
             if (order.status === 'Pending') {
                 activeOrders++;
             }
@@ -439,7 +439,7 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
             const dayOfWeek = format(orderDate, 'E'); 
             const index = weeklyRevenueData.findIndex(d => d.day === dayOfWeek);
             if (index !== -1) {
-                weeklyRevenueData[index].revenue += order.total;
+                weeklyRevenueData[index].revenue += order.total || 0;
             }
         });
         
@@ -470,7 +470,7 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         const now = new Date();
         const startOfCurrentMonth = startOfMonth(now);
 
-        // Calculate personal stock count from active sales runs
+        // Fetch all active sales runs for the user
         const activeRunsQuery = query(
             collection(db, 'transfers'),
             where('to_staff_id', '==', staffId),
@@ -478,13 +478,14 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         );
         const activeRunsSnapshot = await getDocs(activeRunsQuery);
 
+        // Sum up the initial quantities from all active runs
         let initialStock = 0;
         activeRunsSnapshot.docs.forEach(doc => {
             const items = doc.data().items || [];
             initialStock += items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
         });
-        
-        // Calculate items sold from this user's active runs
+
+        // Fetch all orders made by this user from their active sales runs
         const runIds = activeRunsSnapshot.docs.map(doc => doc.id);
         let soldStock = 0;
         if (runIds.length > 0) {
@@ -496,8 +497,8 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
             });
         }
         
+        // The remaining stock is the initial total minus what has been sold
         const personalStockCount = initialStock - soldStock;
-
 
         // Calculate pending transfers
         const pendingTransfersQuery = query(
@@ -1415,13 +1416,11 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
             if (action === 'approve') {
-                const runId = confirmationData.runId;
-                const isFromSalesRun = runId && !runId.startsWith('pos-sale-');
-                
+                // Create the official order document
                 const newOrderRef = doc(collection(db, 'orders'));
-                const orderData = {
-                    salesRunId: runId,
-                    customerId: confirmationData.customerId || (confirmationData.isDebtPayment ? 'multiple' : 'walk-in'),
+                transaction.set(newOrderRef, {
+                    salesRunId: confirmationData.runId,
+                    customerId: confirmationData.customerId || 'walk-in',
                     customerName: confirmationData.customerName,
                     total: confirmationData.amount,
                     paymentMethod: confirmationData.paymentMethod,
@@ -1430,39 +1429,20 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     status: 'Completed',
                     items: confirmationData.items,
                     id: newOrderRef.id,
-                };
-                transaction.set(newOrderRef, orderData);
+                });
                 
-                // If it's a debt payment for a customer, update their record
+                // If it's a debt payment for a registered customer, update their record
                 if (confirmationData.isDebtPayment && confirmationData.customerId) {
                     const customerRef = doc(db, 'customers', confirmationData.customerId);
                     transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                 }
 
+                const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
+                
                 // If it's from a sales run, update the run's collected amount
                 if (isFromSalesRun) {
-                    const runRef = doc(db, 'transfers', runId);
+                    const runRef = doc(db, 'transfers', confirmationData.runId);
                     transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
-                }
-
-                // Decrement stock only if it's a new sale (has items)
-                if (confirmationData.items && confirmationData.items.length > 0) {
-                    for (const item of confirmationData.items) {
-                        let stockRef;
-                        if (isFromSalesRun) {
-                            // Decrement from driver's personal stock
-                            stockRef = doc(db, 'staff', confirmationData.driverId, 'personal_stock', item.productId);
-                        } else {
-                            // Decrement from main product stock for POS sales
-                            stockRef = doc(db, 'products', item.productId);
-                        }
-                        
-                        const stockDoc = await transaction.get(stockRef);
-                        if (!stockDoc.exists() || (stockDoc.data().stock || 0) < item.quantity) {
-                            throw new Error(`Not enough stock for ${item.name}.`);
-                        }
-                        transaction.update(stockRef, { stock: increment(-item.quantity) });
-                    }
                 }
             }
 
