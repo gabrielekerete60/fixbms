@@ -225,10 +225,8 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             if (existing) {
                 return prev.map(p => p.productId === item.productId ? { ...p, quantity: p.quantity + quantityToAdd } : p);
             }
-            // Ensure the price is included when adding a new item
             return [...prev, { productId: item.productId, price: item.price, name: item.productName, quantity: quantityToAdd }];
         });
-        // Reset input for that item
         setItemQuantities(prev => ({...prev, [item.productId]: ''}));
     };
 
@@ -647,16 +645,18 @@ function SalesRunDetails() {
     
      const getRemainingItems = () => {
         if (!run || !run.items) return [];
-    
-        const soldQuantities: { [key: string]: number } = {};
-        orders.forEach(order => {
-            if (Array.isArray(order.items)) {
-                order.items.forEach(item => {
-                    soldQuantities[item.productId] = (soldQuantities[item.productId] || 0) + item.quantity;
-                });
-            }
-        });
 
+        const soldQuantities: { [key: string]: number } = {};
+        if (Array.isArray(orders)) {
+            orders.forEach(order => {
+                if (Array.isArray(order.items)) {
+                    order.items.forEach(item => {
+                        soldQuantities[item.productId] = (soldQuantities[item.productId] || 0) + item.quantity;
+                    });
+                }
+            });
+        }
+        
         return run.items.map(item => {
             const soldQuantity = soldQuantities[item.productId] || 0;
             const remainingQuantity = item.quantity - soldQuantity;
@@ -667,7 +667,7 @@ function SalesRunDetails() {
         }).filter(item => item.quantity > 0);
     };
 
-    const remainingItems = useMemo(() => getRemainingItems(), [run, orders]);
+    const remainingItems = useMemo(getRemainingItems, [run, orders]);
 
     if (isLoading || !run) {
         return (
