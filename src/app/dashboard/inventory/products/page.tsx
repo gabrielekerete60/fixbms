@@ -18,11 +18,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableFooter
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, FileUp, Loader2, ArrowLeft, ArrowDownUp } from "lucide-react";
+import { MoreHorizontal, PlusCircle, FileUp, Loader2, ArrowDownUp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,8 +41,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogClose,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -104,7 +101,7 @@ const getStatusBadge = (stock: number, threshold?: number) => {
   if (stock < lowStock) {
     return <Badge variant="secondary">Low Stock</Badge>;
   }
-  return <Badge variant="outline">In Stock</Badge>;
+  return <Badge>In Stock</Badge>;
 };
 
 
@@ -178,7 +175,7 @@ function ProductDialog({ product, onSave, onOpenChange, categories, user }: { pr
                                 <SelectValue placeholder="Select a category" />
                             </SelectTrigger>
                             <SelectContent>
-                                {categories.map(cat => (
+                                {categories.filter(c => c !== 'All').map(cat => (
                                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                                 ))}
                             </SelectContent>
@@ -239,116 +236,13 @@ function ExportDialog({ children, onExport }: { children: React.ReactNode, onExp
   )
 }
 
-function ProductLogs({ product }: { product: Product }) {
-    const [logs, setLogs] = useState<LogEntry[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchLogs = async () => {
-            setIsLoading(true);
-            const allLogs: LogEntry[] = [];
-            
-            // 1. Fetch transfers
-            const transfersQuery = query(collection(db, 'transfers'), where('items', 'array-contains-any', [{productId: product.id}]));
-            const transfersSnap = await getDocs(transfersQuery);
-            transfersSnap.forEach(doc => {
-                const data = doc.data();
-                const item = data.items.find((i: any) => i.productId === product.id);
-                if (item) {
-                     if (data.notes?.startsWith('Return from production batch')) {
-                         allLogs.push({
-                            date: data.date.toDate(),
-                            type: 'Production Return',
-                            quantityChange: item.quantity,
-                            details: `From Batch ${data.notes.split(' ').pop()}`,
-                            staff: data.from_staff_name
-                        });
-                     } else {
-                         allLogs.push({
-                            date: data.date.toDate(),
-                            type: 'Transfer Out',
-                            quantityChange: -item.quantity,
-                            details: `To ${data.to_staff_name}`,
-                            staff: data.from_staff_name
-                        });
-                     }
-                }
-            });
-
-            // 2. Fetch Waste Logs
-            const wasteQuery = query(collection(db, 'waste_logs'), where('productId', '==', product.id));
-            const wasteSnap = await getDocs(wasteQuery);
-            wasteSnap.forEach(doc => {
-                const data = doc.data();
-                allLogs.push({
-                    date: data.date.toDate(),
-                    type: 'Waste',
-                    quantityChange: -data.quantity,
-                    details: `Reason: ${data.reason}`,
-                    staff: data.staffName
-                })
-            });
-
-            // Note: Sales are deducted from personal_stock, not main inventory directly.
-            // A more complex system would trace stock back, but for now we focus on main inventory movements.
-
-            setLogs(allLogs.sort((a, b) => b.date.getTime() - a.date.getTime()));
-            setIsLoading(false);
-        }
-        fetchLogs();
-    }, [product]);
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Product Logs: {product.name}</CardTitle>
-                <CardDescription>A complete audit trail of stock movements for this product.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isLoading ? (
-                    <div className="flex items-center justify-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Quantity</TableHead>
-                                <TableHead>Details</TableHead>
-                                <TableHead>Staff</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {logs.length === 0 ? (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No logs found for this product.</TableCell></TableRow>
-                            ) : logs.map((log, index) => (
-                                <TableRow key={index}>
-                                    <TableCell>{format(log.date, 'Pp')}</TableCell>
-                                    <TableCell><Badge variant={log.quantityChange > 0 ? 'default' : 'secondary'}>{log.type}</Badge></TableCell>
-                                    <TableCell className={log.quantityChange > 0 ? 'text-green-500' : 'text-destructive'}>
-                                        {log.quantityChange > 0 ? `+${log.quantityChange}` : log.quantityChange}
-                                    </TableCell>
-                                    <TableCell>{log.details}</TableCell>
-                                    <TableCell>{log.staff || 'N/A'}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                )}
-            </CardContent>
-        </Card>
-    )
-}
-
 export default function ProductsPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("products");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
-  const [viewingLogsFor, setViewingLogsFor] = useState<Product | null>(null);
   const [activeStockTab, setActiveStockTab] = useState("all");
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [sort, setSort] = useState("name_asc");
@@ -454,7 +348,7 @@ export default function ProductsPage() {
             case "stock_asc": return a.stock - b.stock;
             case "stock_desc": return b.stock - a.stock;
             case "profit_asc": return a.totalProfit - b.totalProfit;
-            case "profit_desc": return b.totalProfit - a.totalProfit;
+            case "profit_desc": return b.totalProfit - b.totalProfit;
             default: return 0;
         }
     });
@@ -478,41 +372,13 @@ export default function ProductsPage() {
     toast({ title: "Success", description: "Product data exported." });
   };
 
-  const handleViewLogs = (product: Product) => {
-    setViewingLogsFor(product);
-    setActiveTab('logs');
-  }
-
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-    if (value === 'products') {
-        setViewingLogsFor(null);
-    }
-  }
-
   const categories = useMemo(() => ['All', ...new Set(products.map(p => p.category))], [products]);
   const canManageProducts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
   const canViewFinancials = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer' || user?.role === 'Accountant';
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold font-headline">Products</h1>
-        <div className="flex items-center gap-2">
-           <ExportDialog onExport={handleExport}>
-            <Button variant="outline">
-                <FileUp className="mr-2 h-4 w-4" />
-                Export
-            </Button>
-           </ExportDialog>
-          {canManageProducts && (
-            <Button onClick={() => setEditingProduct({} as Product)}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Product
-            </Button>
-          )}
-        </div>
-      </div>
-       <ProductDialog 
+      <ProductDialog 
             product={editingProduct} 
             onSave={handleSaveProduct}
             onOpenChange={() => setEditingProduct(null)}
@@ -520,53 +386,40 @@ export default function ProductsPage() {
             user={user}
         />
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="products">Products</TabsTrigger>
-          <TabsTrigger value="logs">
-            Product Logs {viewingLogsFor && `- ${viewingLogsFor.name}`}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="products" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div className="overflow-x-auto pb-2">
-                <Tabs value={activeStockTab} onValueChange={setActiveStockTab}>
-                  <TabsList>
-                    <TabsTrigger value="all">All</TabsTrigger>
-                    <TabsTrigger value="in-stock">In Stock</TabsTrigger>
-                    <TabsTrigger value="low-stock">Low Stock</TabsTrigger>
-                    <TabsTrigger value="out-of-stock">Out of Stock</TabsTrigger>
-                  </TabsList>
-                </Tabs>
+        <Card>
+            <CardHeader>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="overflow-x-auto pb-2">
+                    <Tabs value={activeStockTab} onValueChange={setActiveStockTab}>
+                    <TabsList>
+                        <TabsTrigger value="all">All</TabsTrigger>
+                        <TabsTrigger value="in-stock">In Stock</TabsTrigger>
+                        <TabsTrigger value="low-stock">Low Stock</TabsTrigger>
+                        <TabsTrigger value="out-of-stock">Out of Stock</TabsTrigger>
+                    </TabsList>
+                    </Tabs>
+                </div>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline">
+                            <ArrowDownUp className="mr-2 h-4 w-4" />
+                            Sort By
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                        <DropdownMenuRadioGroup value={sort} onValueChange={setSort}>
+                            <DropdownMenuRadioItem value="name_asc">Name (A-Z)</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="name_desc">Name (Z-A)</DropdownMenuRadioItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuRadioItem value="price_desc">Price (High-Low)</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="price_asc">Price (Low-High)</DropdownMenuRadioItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuRadioItem value="stock_desc">Stock (High-Low)</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="stock_asc">Stock (Low-High)</DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="outline">
-                        <ArrowDownUp className="mr-2 h-4 w-4" />
-                        Sort By
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                    <DropdownMenuRadioGroup value={sort} onValueChange={setSort}>
-                        <DropdownMenuRadioItem value="name_asc">Name (A-Z)</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="name_desc">Name (Z-A)</DropdownMenuRadioItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuRadioItem value="price_desc">Price (High-Low)</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="price_asc">Price (Low-High)</DropdownMenuRadioItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuRadioItem value="stock_desc">Stock (High-Low)</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="stock_asc">Stock (Low-High)</DropdownMenuRadioItem>
-                         {canViewFinancials && (
-                            <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuRadioItem value="profit_desc">Total Profit (High-Low)</DropdownMenuRadioItem>
-                                <DropdownMenuRadioItem value="profit_asc">Total Profit (Low-High)</DropdownMenuRadioItem>
-                            </>
-                         )}
-                    </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto">
@@ -575,11 +428,8 @@ export default function ProductsPage() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Status</TableHead>
-                    {canViewFinancials && <TableHead>Cost Price</TableHead>}
                     <TableHead>Selling Price</TableHead>
                     <TableHead>Stock</TableHead>
-                    {canViewFinancials && <TableHead>Total Value</TableHead>}
-                    {canViewFinancials && <TableHead>Total Profit</TableHead>}
                     <TableHead>
                       <span className="sr-only">Actions</span>
                     </TableHead>
@@ -588,20 +438,14 @@ export default function ProductsPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={canViewFinancials ? 8 : 6} className="h-24 text-center">
+                      <TableCell colSpan={5} className="h-24 text-center">
                         <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                       </TableCell>
                     </TableRow>
                   ) : productsWithFinancials.length > 0 ? (
                     productsWithFinancials.map((product) => (
                       <TableRow 
-                        key={product.id} 
-                        onClick={() => {
-                          if (!menuOpenId) {
-                            setEditingProduct(product);
-                          }
-                        }}
-                        className="cursor-pointer"
+                        key={product.id}
                       >
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
@@ -617,15 +461,8 @@ export default function ProductsPage() {
                           </div>
                         </TableCell>
                         <TableCell>{getStatusBadge(product.stock, product.lowStockThreshold)}</TableCell>
-                        {canViewFinancials && <TableCell>₦{(product.costPrice || 0).toFixed(2)}</TableCell>}
                         <TableCell>₦{product.price.toFixed(2)}</TableCell>
                         <TableCell>{product.stock > 0 ? `${product.stock} ${product.unit || ''}`.trim() : '--'}</TableCell>
-                        {canViewFinancials && <TableCell>₦{product.totalValue.toFixed(2)}</TableCell>}
-                        {canViewFinancials && 
-                          <TableCell className={product.totalProfit < 0 ? 'text-destructive' : 'text-green-600'}>
-                              {product.totalProfit < 0 ? `-₦${Math.abs(product.totalProfit).toFixed(2)}` : `₦${product.totalProfit.toFixed(2)}`}
-                          </TableCell>
-                        }
                         <TableCell>
                             <DropdownMenu onOpenChange={(open) => setMenuOpenId(open ? product.id : null)}>
                                 <DropdownMenuTrigger asChild>
@@ -640,10 +477,9 @@ export default function ProductsPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onSelect={(e) => {e.stopPropagation(); setEditingProduct(product);}}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={(e) => {e.stopPropagation(); handleViewLogs(product)}}>View Logs</DropdownMenuItem>
                                 {canManageProducts && (
                                   <>
+                                    <DropdownMenuItem onSelect={(e) => {e.stopPropagation(); setEditingProduct(product);}}>Edit</DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem className="text-destructive" onSelect={(e) => {e.stopPropagation(); setProductToDelete(product)}}>
                                         Delete
@@ -657,43 +493,17 @@ export default function ProductsPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={canViewFinancials ? 8 : 6} className="h-24 text-center">
+                      <TableCell colSpan={5} className="h-24 text-center">
                         No products found for this filter.
                       </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
-                {canViewFinancials && (
-                    <TableFooter>
-                        <TableRow>
-                            <TableCell colSpan={5} className="font-bold text-right">Grand Totals</TableCell>
-                            <TableCell className="font-bold">₦{grandTotalValue.toFixed(2)}</TableCell>
-                            <TableCell className="font-bold text-green-600">₦{grandTotalProfit.toFixed(2)}</TableCell>
-                            <TableCell></TableCell>
-                        </TableRow>
-                    </TableFooter>
-                )}
               </Table>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-         <TabsContent value="logs">
-            {viewingLogsFor ? (
-                <ProductLogs product={viewingLogsFor} />
-            ) : (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Product Logs</CardTitle>
-                        <CardDescription>Select a product to view its history.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex items-center justify-center h-64 text-muted-foreground">
-                        <p>Go to the "Products" tab and click "View Logs" on an item to see its history here.</p>
-                    </CardContent>
-                </Card>
-            )}
-        </TabsContent>
-      </Tabs>
+      
       <AlertDialog open={productToDelete !== null} onOpenChange={(open) => !open && setProductToDelete(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>

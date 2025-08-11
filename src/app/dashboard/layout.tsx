@@ -188,6 +188,7 @@ export default function DashboardLayout({
   const [isClocking, setIsClocking] = useState(true);
   const [notificationCounts, setNotificationCounts] = useState({
       pendingTransfers: 0,
+      activeRuns: 0,
       pendingBatches: 0,
       pendingPayments: 0,
       newReports: 0,
@@ -287,6 +288,9 @@ export default function DashboardLayout({
     const pendingTransfersQuery = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'pending'));
     const unsubPending = onSnapshot(pendingTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingTransfers: snap.size })));
     
+    const activeRunsQuery = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'active'));
+    const unsubActiveRuns = onSnapshot(activeRunsQuery, (snap) => setNotificationCounts(prev => ({...prev, activeRuns: snap.size })));
+
     const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
     const unsubBatches = onSnapshot(pendingBatchesQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingBatches: snap.size })));
 
@@ -331,6 +335,7 @@ export default function DashboardLayout({
         clearInterval(timer);
         unsubUser();
         unsubPending();
+        unsubActiveRuns();
         unsubBatches();
         unsubPayments();
         unsubReports();
@@ -404,7 +409,7 @@ export default function DashboardLayout({
           { href: "/dashboard/staff/payroll", label: "Payroll", disabled: false },
         ]
       },
-      { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", roles: ['Manager', 'Supervisor', 'Delivery Staff', 'Developer'], disabled: false },
+      { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", notificationKey: "activeRuns", roles: ['Manager', 'Supervisor', 'Delivery Staff', 'Developer'], disabled: false },
       { href: "/dashboard/accounting", icon: Wallet, label: "Accounting", notificationKey: "accounting", roles: ['Manager', 'Accountant', 'Developer'] },
       { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor', 'Developer'], disabled: true },
       { href: "/dashboard/communication", icon: MessageSquare, label: "Communication", notificationKey: "communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
@@ -456,6 +461,7 @@ export default function DashboardLayout({
 
       return {
           stockControl: stockControlCount,
+          activeRuns: notificationCounts.activeRuns,
           pendingBatches: notificationCounts.pendingBatches,
           inventory: stockControlCount,
           accounting: accountingCount,

@@ -783,7 +783,7 @@ function POSPageContent() {
                     </Button>
                     <Button className="h-20 text-lg w-full font-bold bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handlePaystackPayment}>
                         <ArrowRightLeft className="mr-2 h-6 w-6"/>
-                        Pay with Transfer
+                        Pay with Paystack
                     </Button>
                 </div>
             </DialogContent>
