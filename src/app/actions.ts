@@ -1758,7 +1758,7 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         const q = query(
             collection(db, 'transfers'),
             where('to_staff_id', '==', staffId),
-            where('status', '==', 'completed'),
+            where('status', 'in', ['completed', 'active']),
             orderBy('date', 'desc')
         );
         const querySnapshot = await getDocs(q);
@@ -2807,4 +2807,5 @@ export async function declineStockIncrease(requestId: string, user: { staff_id: 
         return { success: false, error: "Failed to decline request." };
     }
 }
+
 
