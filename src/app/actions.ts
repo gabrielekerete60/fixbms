@@ -470,12 +470,10 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         const now = new Date();
         const startOfCurrentMonth = startOfMonth(now);
 
-        // 1. Get personal stock count from the subcollection
         const personalStockQuery = collection(db, 'staff', staffId, 'personal_stock');
         const personalStockSnapshot = await getDocs(personalStockQuery);
         const personalStockCount = personalStockSnapshot.docs.reduce((sum, doc) => sum + (doc.data().stock || 0), 0);
 
-        // 2. Get pending transfers count
         const pendingTransfersQuery = query(
             collection(db, 'transfers'),
             where('to_staff_id', '==', staffId),
@@ -484,7 +482,6 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         const pendingTransfersSnapshot = await getDocs(pendingTransfersQuery);
         const pendingTransfersCount = pendingTransfersSnapshot.size;
 
-        // 3. Get waste reports count for the month
         const wasteLogsQuery = query(
             collection(db, 'waste_logs'),
             where('staffId', '==', staffId),
@@ -2304,13 +2301,16 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
 
       // Logic for different payment methods
       if (data.paymentMethod === 'Cash') {
+        // Recalculate total on the server to ensure accuracy
+        const total = data.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
         const confirmationRef = doc(collection(db, 'payment_confirmations'));
         transaction.set(confirmationRef, {
           runId: data.runId,
           customerId: data.customerId,
           customerName: data.customerName,
           items: data.items,
-          amount: data.total,
+          amount: total,
           driverId: data.staffId,
           driverName: driverName,
           date: serverTimestamp(),
