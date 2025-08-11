@@ -19,7 +19,7 @@ import { collection, getDocs, doc, addDoc, Timestamp, onSnapshot } from 'firebas
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
@@ -242,7 +242,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
 
         const itemInRun = remainingItems.find(p => p.productId === productId);
         if (itemInRun && newQuantity > itemInRun.quantity) {
-             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.name} units of ${itemInRun.name} available.`});
+             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.quantity} units of ${itemInRun.name} available.`});
              return;
         }
 
@@ -300,7 +300,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                         const finalOrder = await handleSellToCustomer(saleData);
                          if (finalOrder.success) {
                             toast({ title: 'Payment Successful', description: 'Order has been completed.' });
-                            const completedOrder = {
+                            const completedOrder: CompletedOrder = {
                                 id: paystackResult.reference || '',
                                 items: cart,
                                 total: total,
@@ -365,7 +365,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
 
         if (result.success) {
             toast({ title: 'Pending Approval', description: 'Cash payment has been submitted for accountant approval.' });
-            const completedOrder = {
+            const completedOrder: CompletedOrder = {
                 id: 'cash-sale-' + Date.now(),
                 items: cart,
                 total: total,
