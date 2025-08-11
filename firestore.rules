@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -8,58 +9,53 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(staffId) {
-      return request.auth.uid == staffId;
-    }
-
-    function getRole(staffId) {
-        return get(/databases/$(database)/documents/staff/$(staffId)).data.role;
-    }
-
+    // Checks if the user's custom token claim matches one of the allowed roles.
+    // This is more secure and efficient than reading from the staff collection.
     function hasRole(allowedRoles) {
-        return isSignedIn() && getRole(request.auth.uid) in allowedRoles;
+      return isSignedIn() && request.auth.token.role in allowedRoles;
     }
 
     function isAdmin() {
         return hasRole(['Manager', 'Developer', 'Supervisor']);
     }
 
+    function isOwner(staffId) {
+      return request.auth.uid == staffId;
+    }
+    
     // --- DEFAULT RULES ---
     match /{document=**} {
       allow read, write: if false; // Deny all by default
     }
 
     // --- COLLECTION-SPECIFIC RULES ---
-
-    // Public read for app configuration, write for admins
     match /settings/{docId} {
-        allow get: if true;
-        allow write: if isAdmin();
-        allow delete: if isAdmin();
+      allow get: if true; // Allow public read for app config
+      allow write: if isAdmin();
+      allow delete: if isAdmin();
     }
     
     match /cost_categories/{docId} {
-        allow list: if isSignedIn();
+        allow list, get: if isSignedIn();
         allow write, delete: if isAdmin();
     }
     
     match /staff/{staffId} {
-      allow read: if isSignedIn();
+      allow get: if isSignedIn();
+      allow list: if hasRole(['Manager', 'Supervisor', 'Developer']);
       allow create: if isAdmin();
-      // Users can update their own non-critical info. Admins can update anything.
       allow update: if (isOwner(staffId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['password', 'theme', 'lastLogin'])) || isAdmin();
       allow delete: if isAdmin();
     }
     
-    match /staff/{staffId}/{subcollection}/{docId} {
+    // Personal stock is only accessible by the owner.
+    match /staff/{staffId}/personal_stock/{productId} {
         allow read, write: if isOwner(staffId);
     }
     
     match /products/{productId} {
       allow read: if isSignedIn();
-      // Allow only specific roles to create/update.
       allow create: if hasRole(['Manager', 'Supervisor', 'Storekeeper', 'Developer']);
-      // Allow Accountant to update only financial fields. Storekeeper/Admins can update anything.
       allow update: if (hasRole(['Accountant']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['costPrice', 'price'])) || hasRole(['Manager', 'Supervisor', 'Storekeeper', 'Developer']);
       allow delete: if isAdmin();
     }
@@ -83,9 +79,9 @@ service cloud.firestore {
     }
     
     match /other_supplies/{supplyId} {
-      allow read: if isSignedIn();
-      allow write: if hasRole(['Manager', 'Supervisor', 'Storekeeper', 'Developer', 'Accountant']);
-      allow delete: if isAdmin();
+        allow read: if isSignedIn();
+        allow write: if hasRole(['Manager', 'Supervisor', 'Storekeeper', 'Developer', 'Accountant']);
+        allow delete: if isAdmin();
     }
 
     match /customers/{customerId} {
@@ -96,14 +92,12 @@ service cloud.firestore {
 
     match /orders/{orderId} {
       allow read: if isSignedIn();
-      // Allow sales staff to create orders
       allow create: if hasRole(['Manager', 'Supervisor', 'Showroom Staff', 'Delivery Staff', 'Developer']);
-      // Only admins can update/delete historical order records
       allow update, delete: if isAdmin();
     }
     
     match /promotions/{promoId} {
-        allow list: if isSignedIn();
+        allow list, get: if isSignedIn();
         allow create, update: if hasRole(['Manager', 'Supervisor', 'Developer']);
         allow delete: if isAdmin();
     }
@@ -144,42 +138,34 @@ service cloud.firestore {
     }
     
     match /supply_requests/{requestId} {
-      // Storekeepers can create.
       allow create: if hasRole(['Storekeeper']);
-      // Accountants & Admins can read & update (to approve/decline).
       allow read, update: if hasRole(['Accountant', 'Manager', 'Developer']);
       allow delete: if isAdmin();
     }
     
     match /payment_confirmations/{confirmationId} {
-        // Delivery staff create these.
-        allow create: if hasRole(['Delivery Staff']);
-        // Accountants and admins can read and update them.
+        allow create: if hasRole(['Delivery Staff', 'Showroom Staff']);
         allow read, update: if hasRole(['Accountant', 'Manager', 'Developer']);
         allow delete: if isAdmin();
     }
 
     match /transfers/{transferId} {
         allow read: if isSignedIn();
-        // Admins/Storekeeper can initiate transfers.
         allow create: if hasRole(['Manager', 'Supervisor', 'Storekeeper', 'Developer']);
-        // The recipient can update to acknowledge.
         allow update: if isSignedIn() && (resource.data.to_staff_id == request.auth.uid || hasRole(['Manager', 'Developer']));
         allow delete: if isAdmin();
     }
     
     match /production_batches/{batchId} {
         allow read: if isSignedIn();
-        // Bakers can create batches.
         allow create: if hasRole(['Baker', 'Chief Baker', 'Bakery Assistant']);
-        // Storekeepers/Admins approve, Bakers complete.
         allow update: if hasRole(['Storekeeper', 'Manager', 'Developer']) || (hasRole(['Baker', 'Chief Baker']) && resource.data.status == 'in_production');
         allow delete: if isAdmin();
     }
 
     match /waste_logs/{logId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn(); // Any signed-in user can report waste
+      allow create: if isSignedIn();
       allow delete: if isAdmin();
     }
     
@@ -199,7 +185,7 @@ service cloud.firestore {
     match /reports/{reportId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isAdmin(); // Only admins can change status
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
     
