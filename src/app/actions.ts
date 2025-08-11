@@ -20,6 +20,16 @@ type LoginResult = {
   }
 };
 
+// NOTE: In a real production application, you would use the Firebase Admin SDK 
+// in a secure backend environment (like Cloud Functions) to set custom claims.
+// This function simulates that process for the prototype.
+async function setAuthClaims(userId: string, claims: object) {
+    console.log(`Simulating setting custom claims for ${userId}:`, claims);
+    // In a real backend:
+    // await admin.auth().setCustomUserClaims(userId, claims);
+    return Promise.resolve();
+}
+
 export async function handleLogin(formData: FormData): Promise<LoginResult> {
   const staffId = formData.get("staff_id") as string;
   const password = formData.get("password") as string;
@@ -46,7 +56,9 @@ export async function handleLogin(formData: FormData): Promise<LoginResult> {
         return { success: false, error: "This staff account is inactive." };
     }
     
-    // Check for MFA
+    // This is the critical step: Set custom claims upon successful login.
+    await setAuthClaims(staffId, { role: userData.role });
+    
     if (userData.mfa_enabled) {
         return { success: true, mfaRequired: true, user: { staff_id: userDoc.id, name: userData.name, role: userData.role, email: userData.email, theme: userData.theme || 'default' } };
     }
@@ -111,6 +123,9 @@ export async function verifyMfa(staffId: string, token: string): Promise<MfaResu
         if (!verified) {
             return { success: false, error: "Invalid MFA token." };
         }
+        
+        // This is the critical step: Set custom claims upon successful MFA verification.
+        await setAuthClaims(staffId, { role: userData.role });
 
         await updateDoc(userDocRef, {
             lastLogin: serverTimestamp(),
@@ -2792,3 +2807,4 @@ export async function declineStockIncrease(requestId: string, user: { staff_id: 
         return { success: false, error: "Failed to decline request." };
     }
 }
+
