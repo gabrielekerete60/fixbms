@@ -244,7 +244,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
 
         const itemInRun = remainingItems.find(p => p.productId === productId);
         if (itemInRun && newQuantity > itemInRun.quantity) {
-             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.quantity} units of ${itemInRun.productName} available.`});
+             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.quantity} units of ${itemInRun.name} available.`});
              return;
         }
 
@@ -428,7 +428,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                         <h4 className="font-semibold">Sale Details</h4>
                          {/* Customer Selection */}
                         <div className="space-y-2">
-                            <Label>Customer (Optional for cash/card)</Label>
+                            <Label>Customer (Optional for cash/Paystack)</Label>
                              <div className="flex gap-2">
                                 <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
                                     <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
@@ -484,7 +484,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
 
                         <DialogFooter>
                             <Button type="button" variant="outline" disabled={isLoading} onClick={() => setIsOpen(false)}>Cancel</Button>
-                            <Button type="submit" disabled={isLoading} onClick={handleSubmit}>
+                            <Button type="submit" disabled={isLoading || cart.length === 0} onClick={handleSubmit}>
                                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Record Sale
                             </Button>
@@ -554,8 +554,8 @@ function SalesRunDetails() {
             const salesRunDoc = doc(db, "transfers", runId as string);
             const unsubscribe = onSnapshot(salesRunDoc, (doc) => {
                 if (doc.exists()) {
+                     const plainData: { [key: string]: any } = {};
                     const data = doc.data();
-                    const plainData: { [key: string]: any } = {};
                     for (const key in data) {
                         if (data[key] instanceof Timestamp) {
                             plainData[key] = data[key].toDate().toISOString();
@@ -588,7 +588,17 @@ function SalesRunDetails() {
     };
 
     useEffect(() => {
-        fetchRunDetails();
+        const performFetch = async () => {
+            const unsub = await fetchRunDetails();
+            return unsub;
+        };
+        const unsubPromise = performFetch();
+        
+        return () => {
+            unsubPromise.then(unsub => {
+                if(unsub) unsub();
+            });
+        }
     }, [runId, router, toast]);
     
     const totalSold = useMemo(() => customers.reduce((sum, cust) => sum + cust.totalSold, 0), [customers]);
@@ -640,9 +650,11 @@ function SalesRunDetails() {
     
         const soldQuantities: { [key: string]: number } = {};
         orders.forEach(order => {
-            order.items.forEach(item => {
-                soldQuantities[item.productId] = (soldQuantities[item.productId] || 0) + item.quantity;
-            });
+            if (Array.isArray(order.items)) {
+                order.items.forEach(item => {
+                    soldQuantities[item.productId] = (soldQuantities[item.productId] || 0) + item.quantity;
+                });
+            }
         });
 
         return run.items.map(item => {
@@ -806,10 +818,12 @@ function SalesRunDetails() {
                                 </TableBody>
                             </Table>
                         </CardContent>
-                        <CardFooter className="flex justify-end gap-2">
-                                <Input type="number" placeholder="Enter amount" value={newDebtPaymentAmount} onChange={(e) => setNewDebtPaymentAmount(e.target.value)} />
-                                <Button onClick={handleRecordDebtPayment} disabled={isSettling}>{isSettling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Payment</Button>
-                        </CardFooter>
+                         {!runComplete && (
+                            <CardFooter className="flex justify-end gap-2">
+                                    <Input type="number" placeholder="Enter amount" value={newDebtPaymentAmount} onChange={(e) => setNewDebtPaymentAmount(e.target.value)} />
+                                    <Button onClick={handleRecordDebtPayment} disabled={isSettling}>{isSettling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Payment</Button>
+                            </CardFooter>
+                         )}
                     </Card>
                 </TabsContent>
                  <TabsContent value="sales">
@@ -876,3 +890,4 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
+
