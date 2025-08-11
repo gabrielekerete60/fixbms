@@ -19,7 +19,7 @@ import { collection, getDocs, doc, Timestamp, onSnapshot, query, where } from 'f
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
@@ -515,6 +515,79 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
     );
 }
 
+function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, run: SalesRun, user: User | null }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [amount, setAmount] = useState<number | string>('');
+    const [isSettling, setIsSettling] = useState(false);
+
+    const outstanding = customer.totalSold - customer.totalPaid;
+
+    const handleRecordPayment = async () => {
+        if (!user || !run) return;
+        const paymentAmount = Number(amount);
+        if (isNaN(paymentAmount) || paymentAmount <= 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please enter a valid amount.' });
+            return;
+        }
+        if (paymentAmount > outstanding) {
+            toast({ variant: 'destructive', title: 'Error', description: `Payment cannot exceed outstanding balance of ₦${outstanding.toLocaleString()}.` });
+            return;
+        }
+
+        setIsSettling(true);
+        try {
+            const result = await handleRecordCashPaymentForRun({
+                runId: run.id,
+                customerId: customer.customerId,
+                customerName: customer.customerName,
+                driverId: run.to_staff_id,
+                driverName: run.to_staff_name || 'Unknown Driver',
+                amount: paymentAmount,
+            });
+
+            if (result.success) {
+                toast({ title: 'Success', description: 'Debt payment recorded for approval.' });
+                setAmount('');
+                setIsOpen(false);
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error });
+            }
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to record debt payment.' });
+        } finally {
+            setIsSettling(false);
+        }
+    };
+    
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm" variant="outline">Record Payment</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Record Payment for {customer.customerName}</DialogTitle>
+                    <DialogDescription>
+                        Outstanding Amount: <span className="font-bold text-destructive">₦{outstanding.toLocaleString()}</span>
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <Label htmlFor="payment-amount">Amount Received (₦)</Label>
+                    <Input id="payment-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleRecordPayment} disabled={isSettling}>
+                        {isSettling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Submit for Approval
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 function SalesRunDetails() {
     const { runId } = useParams();
     const router = useRouter();
@@ -524,10 +597,8 @@ function SalesRunDetails() {
     const [customers, setCustomers] = useState<RunCustomer[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState<User | null>(null);
-    const [isSettling, setIsSettling] = useState(false);
     const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
     const receiptRef = useRef<HTMLDivElement>(null);
-    const [newDebtPaymentAmount, setNewDebtPaymentAmount] = useState('');
     const [paymentConfirmations, setPaymentConfirmations] = useState<any[]>([]);
 
     useEffect(() => {
@@ -552,8 +623,6 @@ function SalesRunDetails() {
     }, [runId, router, toast]);
 
     useEffect(() => {
-        fetchRunDetails();
-        
         const runDocRef = doc(db, "transfers", runId as string);
         const unsubscribeRun = onSnapshot(runDocRef, async (docSnap) => {
             if (docSnap.exists()) {
@@ -597,45 +666,13 @@ function SalesRunDetails() {
             unsubscribeOrders();
             unsubscribePaymentConfirmations();
         };
-    }, [runId, fetchRunDetails]);
+    }, [runId]);
     
     const totalSold = useMemo(() => orders.reduce((sum, order) => sum + order.total, 0), [orders]);
     const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
     const runStatus = useMemo(() => run?.status || 'inactive', [run]);
     
-    const handleRecordDebtPayment = async () => {
-        if (!user || !run) return;
-        if (!newDebtPaymentAmount || isNaN(Number(newDebtPaymentAmount))) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Invalid amount.' });
-            return;
-        }
-
-        const amount = Number(newDebtPaymentAmount);
-        setIsSettling(true);
-        try {
-            const result = await handleRecordCashPaymentForRun({
-                runId: runId as string,
-                customerId: 'multiple',
-                customerName: 'Debt Settlement',
-                driverId: run.to_staff_id,
-                driverName: run.to_staff_name || 'Unknown Driver',
-                amount,
-            });
-
-            if (result.success) {
-                toast({ title: 'Success', description: 'Debt payment recorded for approval.' });
-                setNewDebtPaymentAmount('');
-            } else {
-                toast({ variant: 'destructive', title: 'Error', description: result.error });
-            }
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to record debt payment.' });
-        } finally {
-            setIsSettling(false);
-        }
-    };
-    
-     const handleSaleMade = (newOrder: CompletedOrder) => {
+    const handleSaleMade = (newOrder: CompletedOrder) => {
          // The real-time listener will handle the update
      }
     
@@ -674,6 +711,7 @@ function SalesRunDetails() {
         );
     }
     const runComplete = runStatus === 'completed';
+    const isRunActive = runStatus === 'active';
 
     return (
         <div className="flex flex-col gap-4">
@@ -763,7 +801,7 @@ function SalesRunDetails() {
                         <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
                          {runComplete ? <Button variant="secondary" disabled>Run Completed</Button> : (
                             <AlertDialog>
-                                <AlertDialogTrigger asChild><Button variant="destructive" disabled={remainingItems.length > 0}>Complete Run</Button></AlertDialogTrigger>
+                                <AlertDialogTrigger asChild><Button variant="destructive" disabled={isRunActive && remainingItems.length > 0}>Complete Run</Button></AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -804,25 +842,32 @@ function SalesRunDetails() {
                                         <TableHead>Name</TableHead>
                                         <TableHead className="text-right">Total Sold</TableHead>
                                         <TableHead className="text-right">Total Paid</TableHead>
+                                        <TableHead className="text-right">Outstanding</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {customers.map(customer => (
-                                        <TableRow key={customer.customerId}>
-                                            <TableCell>{customer.customerName}</TableCell>
-                                            <TableCell className="text-right">₦{customer.totalSold.toLocaleString()}</TableCell>
-                                            <TableCell className="text-right">₦{(customer.totalPaid || 0).toLocaleString()}</TableCell>
-                                        </TableRow>
-                                    ))}
+                                    {customers.map(customer => {
+                                        const outstanding = customer.totalSold - customer.totalPaid;
+                                        return (
+                                            <TableRow key={customer.customerId}>
+                                                <TableCell>{customer.customerName}</TableCell>
+                                                <TableCell className="text-right">₦{customer.totalSold.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right">₦{(customer.totalPaid || 0).toLocaleString()}</TableCell>
+                                                <TableCell className="text-right font-bold text-destructive">
+                                                    {outstanding > 0 ? `₦${outstanding.toLocaleString()}` : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    {outstanding > 0 && isRunActive && (
+                                                        <RecordPaymentDialog customer={customer} run={run} user={user} />
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
                                 </TableBody>
                             </Table>
                         </CardContent>
-                        {!runComplete && (
-                            <CardFooter className="flex justify-end gap-2">
-                                <Input type="number" placeholder="Enter amount" value={newDebtPaymentAmount} onChange={(e) => setNewDebtPaymentAmount(e.target.value)} />
-                                <Button onClick={handleRecordDebtPayment} disabled={isSettling}>{isSettling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Payment</Button>
-                            </CardFooter>
-                        )}
                     </Card>
                 </TabsContent>
                  <TabsContent value="sales">
@@ -889,5 +934,3 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
-
-    
