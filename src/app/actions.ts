@@ -1764,12 +1764,17 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(docSnap => {
             const data = docSnap.data();
+            const plainData: { [key: string]: any } = {};
+            for (const key in data) {
+                if (data[key] instanceof Timestamp) {
+                    plainData[key] = data[key].toDate().toISOString();
+                } else {
+                    plainData[key] = data[key];
+                }
+            }
             return { 
                 id: docSnap.id,
-                ...data,
-                date: (data.date as Timestamp)?.toDate().toISOString(),
-                time_received: (data.time_received as Timestamp)?.toDate().toISOString(),
-                time_completed: (data.time_completed as Timestamp)?.toDate().toISOString(),
+                ...plainData
              } as Transfer
         });
     } catch (error: any) {
