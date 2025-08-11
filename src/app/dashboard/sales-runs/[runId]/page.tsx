@@ -816,10 +816,12 @@ function SalesRunDetails() {
                                 </TableBody>
                             </Table>
                         </CardContent>
-                         <CardFooter className="flex justify-end gap-2">
-                                    <Input type="number" placeholder="Enter amount" value={newDebtPaymentAmount} onChange={(e) => setNewDebtPaymentAmount(e.target.value)} />
-                                    <Button onClick={handleRecordDebtPayment} disabled={isSettling}>{isSettling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Payment</Button>
+                        {!runComplete && (
+                            <CardFooter className="flex justify-end gap-2">
+                                <Input type="number" placeholder="Enter amount" value={newDebtPaymentAmount} onChange={(e) => setNewDebtPaymentAmount(e.target.value)} />
+                                <Button onClick={handleRecordDebtPayment} disabled={isSettling}>{isSettling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Payment</Button>
                             </CardFooter>
+                        )}
                     </Card>
                 </TabsContent>
                  <TabsContent value="sales">
@@ -886,4 +888,5 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
+
 
