@@ -2,16 +2,10 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to check if a user is signed in.
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
     // Default rule: Only authenticated users can read or write data.
-    // This provides a secure baseline for the entire database.
+    // This is a secure default for an internal application where all users are trusted staff.
     match /{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if request.auth != null;
     }
   }
 }
