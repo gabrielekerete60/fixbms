@@ -20,7 +20,7 @@ import { collection, getDocs, doc, addDoc, Timestamp, onSnapshot } from 'firebas
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from '@/components/ui/alert-dialog';
 import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
@@ -475,9 +475,9 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                                     <SelectValue placeholder="Select payment method" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Cash"><HandCoins className="mr-2 h-4 w-4"/> Cash</SelectItem>
+                                    <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</SelectItem>
                                     <SelectItem value="Paystack"><ArrowRightLeft className="mr-2 h-4 w-4"/> Pay with Paystack</SelectItem>
-                                    <SelectItem value="Credit" disabled={selectedCustomerId === 'walk-in'}><Wallet className="mr-2 h-4 w-4"/> Credit</SelectItem>
+                                    <SelectItem value="Credit" disabled={selectedCustomerId === 'walk-in'}><CreditCard className="mr-2 h-4 w-4"/> Credit</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -558,7 +558,7 @@ function SalesRunDetails() {
                     const data = doc.data();
                     for (const key in data) {
                         if (data[key] instanceof Timestamp) {
-                            plainData[key] = data[key].toDate().toISOString();
+                            plainData[key] = (data[key] as Timestamp).toDate().toISOString();
                         } else {
                             plainData[key] = data[key];
                         }
@@ -890,3 +890,4 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
+
