@@ -19,7 +19,7 @@ import { collection, getDocs, doc, addDoc, Timestamp, onSnapshot } from 'firebas
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type PaystackPop from '@paystack/inline-js';
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
@@ -531,7 +531,6 @@ function SalesRunDetails() {
     }, []);
 
     const fetchRunDetails = useCallback(async () => {
-        setIsLoading(true);
         try {
             const runDetails = await getSalesRunDetails(runId as string);
             if (runDetails) {
@@ -555,6 +554,7 @@ function SalesRunDetails() {
     }, [runId, router, toast]);
 
     useEffect(() => {
+        setIsLoading(true);
         fetchRunDetails();
         
         const salesRunDoc = doc(db, "transfers", runId as string);
@@ -882,3 +882,5 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
+
+    
