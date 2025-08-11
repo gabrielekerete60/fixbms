@@ -431,6 +431,50 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
     );
 }
 
+function TransferDetailsDialog({ transfer, isOpen, onOpenChange }: { transfer: Transfer | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+    if (!transfer) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Transfer Details: {transfer.id.substring(0, 6).toUpperCase()}</DialogTitle>
+                    <DialogDescription>
+                        From: {transfer.from_staff_name} To: {transfer.to_staff_name} on {format(new Date(transfer.date), 'PPp')}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 max-h-[400px] overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-right">Quantity</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {transfer.items.map(item => (
+                                <TableRow key={item.productId}>
+                                    <TableCell>{item.productName}</TableCell>
+                                    <TableCell className="text-right">{item.quantity}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                    {transfer.notes && (
+                        <div className="text-sm space-y-1 mt-4">
+                            <p className="font-semibold">Notes:</p>
+                            <p className="p-2 bg-muted rounded-md">{transfer.notes}</p>
+                        </div>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function StockControlPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -458,6 +502,7 @@ export default function StockControlPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingBatches, setIsLoadingBatches] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [viewingTransfer, setViewingTransfer] = useState<Transfer | null>(null);
 
   const [visiblePendingRows, setVisiblePendingRows] = useState<number | 'all'>(10);
   const [visibleHistoryRows, setVisibleHistoryRows] = useState<number | 'all'>(10);
@@ -845,6 +890,13 @@ export default function StockControlPage() {
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
       </div>
+      
+      <TransferDetailsDialog 
+        transfer={viewingTransfer} 
+        isOpen={!!viewingTransfer}
+        onOpenChange={() => setViewingTransfer(null)}
+      />
+
       <Tabs defaultValue={userRole === 'Manager' ? 'pending-transfers' : 'initiate-transfer'}>
         <div className="overflow-x-auto pb-2">
             <TabsList>
@@ -1146,7 +1198,7 @@ export default function StockControlPage() {
                         </TableRow>
                     ) : paginatedLogs.length > 0 ? (
                         paginatedLogs.map((transfer) => (
-                             <TableRow key={transfer.id}>
+                             <TableRow key={transfer.id} className="cursor-pointer" onClick={() => setViewingTransfer(transfer)}>
                                 <TableCell>{transfer.date ? format(new Date(transfer.date), 'PPpp') : 'N/A'}</TableCell>
                                 <TableCell>{transfer.from_staff_name}</TableCell>
                                 <TableCell>{transfer.to_staff_name}</TableCell>
@@ -1169,4 +1221,3 @@ export default function StockControlPage() {
     </div>
   );
 }
-
