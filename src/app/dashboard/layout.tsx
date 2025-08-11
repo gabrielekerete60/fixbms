@@ -404,7 +404,7 @@ export default function DashboardLayout({
           { href: "/dashboard/staff/payroll", label: "Payroll", disabled: false },
         ]
       },
-      { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", roles: ['Manager', 'Supervisor', 'Delivery Staff', 'Developer'] },
+      { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", roles: ['Manager', 'Supervisor', 'Delivery Staff', 'Developer'], disabled: false },
       { href: "/dashboard/accounting", icon: Wallet, label: "Accounting", notificationKey: "accounting", roles: ['Manager', 'Accountant', 'Developer'] },
       { href: "/dashboard/promotions", icon: LineChart, label: "Promotions", roles: ['Manager', 'Supervisor', 'Developer'], disabled: true },
       { href: "/dashboard/communication", icon: MessageSquare, label: "Communication", notificationKey: "communication", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
@@ -569,3 +569,4 @@ export default function DashboardLayout({
     </div>
   );
 }
+

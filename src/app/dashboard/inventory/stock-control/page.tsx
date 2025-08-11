@@ -490,7 +490,7 @@ export default function StockControlPage() {
             } else {
                 const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
                 const personalStockSnapshot = await getDocs(personalStockQuery);
-                setProducts(personalStockSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().productName, stock: doc.data().stock })));
+                setProducts(personalStockSnapshot.docs.map(doc => ({ id: doc.data().productId, name: doc.data().productName, stock: doc.data().stock })));
             }
             
             const [pendingData, completedData, wasteData, prodTransfers] = await Promise.all([
@@ -799,7 +799,7 @@ export default function StockControlPage() {
                         </CardFooter>
                     </Card>
                 </div>
-                {userRole !== 'Baker' && (
+                {userRole === 'Delivery Staff' && (
                     <div className="flex-1">
                         <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
                     </div>
@@ -1139,3 +1139,4 @@ export default function StockControlPage() {
     </div>
   );
 }
+
