@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { collection, getDocs, doc, addDoc, Timestamp, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, Timestamp, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -39,7 +39,7 @@ type CompletedOrder = {
   id: string;
   items: OrderItem[];
   total: number;
-  date: string;
+  date: Date;
   paymentMethod: 'Paystack' | 'Cash' | 'Credit';
   customerName?: string;
 }
@@ -235,14 +235,21 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
     }
 
     const updateCartQuantity = (productId: string, newQuantity: number) => {
+        const itemInCart = cart.find(p => p.productId === productId);
+        if (!itemInCart) return;
+
         if (newQuantity <= 0) {
             handleRemoveFromCart(productId);
             return;
         }
 
         const itemInRun = remainingItems.find(p => p.productId === productId);
-        if (itemInRun && newQuantity > itemInRun.quantity) {
-             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${itemInRun.quantity} units of ${itemInRun.name} available.`});
+        const availableStock = itemInRun?.quantity || 0;
+        const otherItemsInCart = cart.filter(p => p.productId !== productId);
+        const stockInOtherCarts = otherItemsInCart.reduce((sum, item) => sum + (item.productId === productId ? item.quantity : 0), 0);
+
+        if (newQuantity > (availableStock - stockInOtherCarts)) {
+             toast({ variant: 'destructive', title: 'Stock Limit Exceeded', description: `Only ${availableStock} units of ${itemInRun?.productName} available in total.`});
              return;
         }
 
@@ -304,7 +311,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                                 id: paystackResult.reference || '',
                                 items: cart,
                                 total: total,
-                                date: new Date().toISOString(),
+                                date: new Date(),
                                 paymentMethod: 'Paystack' as const,
                                 customerName: customerName,
                             }
@@ -334,7 +341,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 id: 'credit-sale-' + Date.now(),
                 items: cart,
                 total: total,
-                date: new Date().toISOString(),
+                date: new Date(),
                 paymentMethod: 'Credit',
                 customerName: customerName,
             });
@@ -369,7 +376,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 id: 'cash-sale-' + Date.now(),
                 items: cart,
                 total: total,
-                date: new Date().toISOString(),
+                date: new Date(),
                 paymentMethod: 'Cash' as const,
                 customerName: customerName,
             }
@@ -545,7 +552,6 @@ function SalesRunDetails() {
     }, [runId, router, toast]);
 
     useEffect(() => {
-        setIsLoading(true);
         fetchRunDetails();
         
         const runDocRef = doc(db, "transfers", runId as string);
@@ -554,13 +560,18 @@ function SalesRunDetails() {
                 const runDetails = await getSalesRunDetails(runId as string);
                 setRun(runDetails);
             }
-            if (isLoading) setIsLoading(false);
         });
 
         const runOrdersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
         const unsubscribeOrders = onSnapshot(runOrdersQuery, async (snapshot) => {
-            const orderDetails = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as CompletedOrder))
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const orderDetails = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return { 
+                    ...data, 
+                    id: doc.id,
+                    date: (data.date as Timestamp)?.toDate() || new Date()
+                } as CompletedOrder
+            }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setOrders(orderDetails);
 
             const customerDetails = await getCustomersForRun(runId as string);
@@ -579,12 +590,14 @@ function SalesRunDetails() {
             setPaymentConfirmations(payments);
         });
         
+        if (isLoading) setIsLoading(false);
+        
         return () => {
             unsubscribeRun();
             unsubscribeOrders();
             unsubscribePaymentConfirmations();
         };
-    }, [runId, fetchRunDetails, isLoading]);
+    }, [runId, fetchRunDetails]);
     
     const totalSold = useMemo(() => orders.reduce((sum, order) => sum + order.total, 0), [orders]);
     const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
