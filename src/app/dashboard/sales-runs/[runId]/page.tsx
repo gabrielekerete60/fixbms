@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -468,7 +469,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                          {/* Payment Options */}
                          <div className="space-y-2">
                             <Label>Payment Method</Label>
-                            <Select onValueChange={setPaymentMethod} defaultValue={paymentMethod}>
+                            <Select onValueChange={(value) => setPaymentMethod(value as 'Cash' | 'Credit' | 'Card')} defaultValue={paymentMethod}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select payment method" />
                                 </SelectTrigger>
@@ -525,7 +526,7 @@ function SalesRunDetails() {
     const [paymentConfirmations, setPaymentConfirmations] = useState<any[]>([]);
 
     useEffect(() => {
-      const userJSON = localStorage.getItem('user');
+      const userJSON = localStorage.getItem('loggedInUser');
       if (userJSON) {
           setUser(JSON.parse(userJSON));
       }
@@ -549,12 +550,19 @@ function SalesRunDetails() {
             const orderDetails = await getOrdersForRun(runId as string);
              setOrders(orderDetails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
 
-            // Subscribe to the Firestore collection
             const salesRunDoc = doc(db, "transfers", runId as string);
             const unsubscribe = onSnapshot(salesRunDoc, (doc) => {
                 if (doc.exists()) {
-                    const updatedRun = { id: doc.id, ...doc.data() } as SalesRun;
-                    setRun(updatedRun);
+                    const data = doc.data();
+                    const plainData: { [key: string]: any } = {};
+                    for (const key in data) {
+                        if (data[key] instanceof Timestamp) {
+                            plainData[key] = data[key].toDate().toISOString();
+                        } else {
+                            plainData[key] = data[key];
+                        }
+                    }
+                    setRun(prevRun => ({ ...prevRun, ...plainData } as SalesRun));
                 }
             });
 
@@ -596,14 +604,19 @@ function SalesRunDetails() {
         const amount = Number(newDebtPaymentAmount);
         setIsSettling(true);
         try {
+            // This function needs to be updated to handle any customer, not just from a fixed list
+            // For now, let's assume it can take a name
             const result = await handleRecordCashPaymentForRun({
                 runId: runId as string,
+                customerId: 'multiple', // Placeholder
+                customerName: 'Debt Settlement',
+                driverId: run?.to_staff_id || '',
+                driverName: run?.to_staff_name || '',
                 amount,
-                staffId: user.staff_id,
             });
 
             if (result.success) {
-                toast({ title: 'Success', description: 'Debt payment recorded successfully.' });
+                toast({ title: 'Success', description: 'Debt payment recorded for approval.' });
                 setNewDebtPaymentAmount('');
                 fetchRunDetails(); // Refresh the run details
             } else {
@@ -623,14 +636,13 @@ function SalesRunDetails() {
     
      const getRemainingItems = () => {
         if (!run || !run.items) return [];
-
-        // Aggregate the number of products already sold
-        const soldQuantities = orders.reduce((acc, order) => {
+    
+        const soldQuantities: { [key: string]: number } = {};
+        orders.forEach(order => {
             order.items.forEach(item => {
-                acc[item.productId] = (acc[item.productId] || 0) + item.quantity;
+                soldQuantities[item.productId] = (soldQuantities[item.productId] || 0) + item.quantity;
             });
-            return acc;
-        }, {});
+        });
 
         return run.items.map(item => {
             const soldQuantity = soldQuantities[item.productId] || 0;
@@ -638,7 +650,7 @@ function SalesRunDetails() {
             return {
                 productId: item.productId,
                 productName: item.productName,
-                price: item.price,
+                price: item.price || 0,
                 quantity: remainingQuantity > 0 ? remainingQuantity : 0,
             };
         }).filter(item => item.quantity > 0);
@@ -646,16 +658,15 @@ function SalesRunDetails() {
 
     const remainingItems = useMemo(() => getRemainingItems(), [run, orders]);
 
-    if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    if (isLoading || !run) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
-    if (!run) return <div>Run not found.</div>;
 
     const runComplete = runStatus === 'completed';
 
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
-                <Link href="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to Dashboard</Link>
+                <Link href="/dashboard/deliveries" className="flex items-center gap-2 text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to Deliveries</Link>
                  <Button variant="ghost" size="sm" onClick={() => handlePrint(receiptRef.current)} disabled={!runComplete}>
                     <Printer className={`mr-2 h-4 w-4`} /> Print
                 </Button>
@@ -678,7 +689,7 @@ function SalesRunDetails() {
                         </div>
                         <div className="flex justify-between text-sm">
                             <span>Start Time:</span>
-                            <span>{format(new Date(run.date.seconds * 1000), 'Pp')}</span>
+                            <span>{run.date ? format(new Date(run.date), 'Pp') : 'N/A'}</span>
                         </div>
                          <div className="flex justify-between text-sm">
                             <span>Driver:</span>
@@ -701,7 +712,7 @@ function SalesRunDetails() {
                 </div>
              </div>
 
-            <h1 className="text-2xl font-bold font-headline">Sales Run: {runId}</h1>
+            <h1 className="text-2xl font-bold font-headline">Sales Run: {(runId as string).substring(0,8)}...</h1>
              {runComplete && <Badge variant="outline">Completed</Badge>}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -711,10 +722,10 @@ function SalesRunDetails() {
                         <CardDescription>Overview of this sales run.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                        <div className="flex justify-between"><span>Status:</span> <span>{runStatus}</span></div>
-                        <div className="flex justify-between"><span>Start Time:</span> <span>{format(new Date(run.date.seconds * 1000), 'PPP')}</span></div>
+                        <div className="flex justify-between"><span>Status:</span> <Badge>{runStatus}</Badge></div>
+                        <div className="flex justify-between"><span>Start Time:</span> <span>{run.date ? format(new Date(run.date), 'PPP') : 'N/A'}</span></div>
                          <div className="flex justify-between"><span>Driver:</span> <span>{run.to_staff_name}</span></div>
-                        <div><Progress value={(totalCollected / totalSold) * 100} /></div>
+                        <div><Progress value={(totalCollected / (run.totalRevenue || 1)) * 100} /></div>
                         <div className="text-sm text-muted-foreground">Collection Progress</div>
                     </CardContent>
                 </Card>
@@ -725,9 +736,9 @@ function SalesRunDetails() {
                         <CardDescription>Key metrics from this run.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                        <div className="flex justify-between"><span>Total Sold:</span> <span>₦{totalSold.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span>Total Revenue:</span> <span>₦{run.totalRevenue.toLocaleString()}</span></div>
                         <div className="flex justify-between"><span>Total Collected:</span> <span>₦{totalCollected.toLocaleString()}</span></div>
-                         <div className="flex justify-between"><span>Outstanding Debt:</span> <span>₦{(totalSold - totalCollected).toLocaleString()}</span></div>
+                         <div className="flex justify-between"><span>Outstanding Debt:</span> <span>₦{(run.totalOutstanding).toLocaleString()}</span></div>
                     </CardContent>
                 </Card>
 
@@ -763,7 +774,10 @@ function SalesRunDetails() {
                 <TabsList>
                     <TabsTrigger value="customers">Customers</TabsTrigger>
                     <TabsTrigger value="sales">Sales</TabsTrigger>
-                    <TabsTrigger value="pending">Pending Confirmations</TabsTrigger>
+                    <TabsTrigger value="pending" className="relative">
+                        Pending Confirmations
+                        {paymentConfirmations.length > 0 && <Badge variant="destructive" className="ml-2">{paymentConfirmations.length}</Badge>}
+                    </TabsTrigger>
                 </TabsList>
                  <TabsContent value="customers">
                     <Card>
@@ -847,7 +861,7 @@ function SalesRunDetails() {
                                 <TableBody>
                                     {paymentConfirmations.map(order => (
                                         <TableRow key={order.id}>
-                                            <TableCell>{format(new Date(order.date), 'PPP')}</TableCell>
+                                            <TableCell>{order.date ? format(order.date.toDate(), 'PPP') : 'N/A'}</TableCell>
                                             <TableCell>{order.customerName}</TableCell>
                                             <TableCell className="text-right">₦{order.amount.toLocaleString()}</TableCell>
                                         </TableRow>
