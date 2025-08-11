@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { collection, getDocs, doc, addDoc, Timestamp, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, doc, addDoc, Timestamp, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -307,9 +307,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                                 date: new Date().toISOString(),
                                 paymentMethod: 'Paystack' as const,
                                 customerName: customerName,
-                                subtotal: 0,
-                                tax: 0,
-                                status: 'Completed'
                             }
                             onSaleMade(completedOrder);
                             setIsOpen(false);
@@ -340,9 +337,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 date: new Date().toISOString(),
                 paymentMethod: 'Credit',
                 customerName: customerName,
-                subtotal: 0,
-                tax: 0,
-                status: 'Completed'
             });
             setIsOpen(false);
         } else {
@@ -378,9 +372,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 date: new Date().toISOString(),
                 paymentMethod: 'Cash' as const,
                 customerName: customerName,
-                subtotal: 0,
-                tax: 0,
-                status: 'Pending'
             }
             onSaleMade(completedOrder);
             setIsOpen(false);
@@ -550,39 +541,32 @@ function SalesRunDetails() {
             setRun(runDetails);
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch run details.' });
-        } finally {
-            if (isLoading) {
-              setIsLoading(false);
-            }
         }
-    }, [runId, router, toast, isLoading]);
+    }, [runId, router, toast]);
 
     useEffect(() => {
-        fetchRunDetails(); // Initial fetch
+        setIsLoading(true);
+        fetchRunDetails();
         
-        // Real-time listener for the sales run document
         const runDocRef = doc(db, "transfers", runId as string);
         const unsubscribeRun = onSnapshot(runDocRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const runDetails = await getSalesRunDetails(runId as string);
                 setRun(runDetails);
             }
+            if (isLoading) setIsLoading(false);
         });
 
-        // Real-time listener for orders associated with this run
-        const ordersQuery = collection(db, 'orders');
-        const runOrdersQuery = query(ordersQuery, where('salesRunId', '==', runId as string));
+        const runOrdersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
         const unsubscribeOrders = onSnapshot(runOrdersQuery, async (snapshot) => {
             const orderDetails = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as CompletedOrder))
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setOrders(orderDetails);
 
-            // Recalculate customer details when orders change
             const customerDetails = await getCustomersForRun(runId as string);
             setCustomers(customerDetails);
         });
         
-        // Subscribe to cash payment confirmation requests
         const paymentConfirmationCollection = collection(db, 'payment_confirmations');
         const unsubscribePaymentConfirmations = onSnapshot(paymentConfirmationCollection, (snapshot) => {
             const payments = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
@@ -600,7 +584,7 @@ function SalesRunDetails() {
             unsubscribeOrders();
             unsubscribePaymentConfirmations();
         };
-    }, [runId, fetchRunDetails]);
+    }, [runId, fetchRunDetails, isLoading]);
     
     const totalSold = useMemo(() => orders.reduce((sum, order) => sum + order.total, 0), [orders]);
     const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
@@ -892,3 +876,5 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
+
+    
