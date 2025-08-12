@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { collection, doc, Timestamp, onSnapshot, query, where, addDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, Timestamp, onSnapshot, query, where, addDoc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -338,7 +338,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             }));
             
             const loadingToast = toast({ title: "Initializing Payment...", description: "Please wait.", duration: Infinity });
-            setIsOpen(false); // Close the dialog before showing Paystack
             
             const paystackResult = await initializePaystackTransaction({
                 email: customerEmail,
@@ -354,6 +353,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             loadingToast.dismiss();
             
             if (paystackResult.success && paystackResult.reference) {
+                setIsOpen(false);
                 const PaystackPop = (await import('@paystack/inline-js')).default;
                 const paystack = new PaystackPop();
                 
@@ -378,17 +378,16 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                             onSaleMade(completedOrder);
                         } else {
                             toast({ variant: 'destructive', title: 'Order processing failed', description: verifyResult.error });
-                            setIsOpen(true); // Re-open on failure
+                            setIsOpen(true);
                         }
                     },
                     onClose: () => {
                         toast({ variant: "destructive", title: "Payment Cancelled" });
-                        setIsOpen(true); // Re-open on close
+                        setIsOpen(true);
                     }
                 });
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
-                setIsOpen(true); // Re-open on init failure
             }
             setIsLoading(false);
             return;
