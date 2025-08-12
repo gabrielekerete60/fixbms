@@ -1434,6 +1434,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     status: 'Completed',
                     items: confirmationData.items,
                     id: newOrderRef.id,
+                    isDebtPayment: confirmationData.isDebtPayment || false,
                 });
                 
                 // If it's a debt payment for a registered customer, update their record
@@ -2232,9 +2233,13 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
         salesByCustomer[customerId] = { customerId, customerName, totalSold: 0, totalPaid: 0 };
       }
       
-      salesByCustomer[customerId].totalSold += order.total;
+      // Only add to totalSold if it's not a debt payment
+      if (!order.isDebtPayment) {
+        salesByCustomer[customerId].totalSold += order.total;
+      }
       
-      if (order.paymentMethod === 'Cash' || order.paymentMethod === 'Paystack' || order.paymentMethod === 'POS') {
+      // Add to totalPaid if it's an upfront payment OR a debt payment
+      if (order.paymentMethod === 'Cash' || order.paymentMethod === 'Paystack' || order.paymentMethod === 'POS' || order.isDebtPayment) {
         salesByCustomer[customerId].totalPaid += order.total;
       }
     });
@@ -2286,11 +2291,8 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
         customerRef = doc(db, 'customers', data.customerId);
         await transaction.get(customerRef);
       }
-      let runRef;
-      if (data.paymentMethod === 'Paystack') {
-        runRef = doc(db, 'transfers', data.runId);
-        await transaction.get(runRef);
-      }
+      const runRef = doc(db, 'transfers', data.runId);
+      await transaction.get(runRef);
 
       // --- 2. All VALIDATIONS happen next ---
       for (let i = 0; i < data.items.length; i++) {
@@ -2303,14 +2305,12 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       const driverName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
 
       // --- 3. All WRITES happen last ---
-      // Decrement stock for all sales
       for (let i = 0; i < data.items.length; i++) {
           const item = data.items[i];
           const stockRef = stockRefs[i];
           transaction.update(stockRef, { stock: increment(-item.quantity) });
       }
 
-      // If cash, create a confirmation request
       if (data.paymentMethod === 'Cash') {
           const confirmationRef = doc(collection(db, 'payment_confirmations'));
           transaction.set(confirmationRef, {
@@ -2323,7 +2323,8 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
               driverName: driverName,
               date: serverTimestamp(),
               status: 'pending',
-              paymentMethod: 'Cash'
+              paymentMethod: 'Cash',
+              isDebtPayment: false,
           });
       } else { // For Credit and Paystack, create the order directly
           const newOrderRef = doc(collection(db, 'orders'));
@@ -2337,11 +2338,12 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
             date: Timestamp.now(),
             staffId: data.staffId,
             status: 'Completed',
-            id: newOrderRef.id
+            id: newOrderRef.id,
+            isDebtPayment: false,
           };
           transaction.set(newOrderRef, orderData);
 
-          if (data.paymentMethod === 'Paystack' && runRef) {
+          if (data.paymentMethod === 'Paystack') {
             transaction.update(runRef, { totalCollected: increment(data.total) });
           }
           
