@@ -1968,9 +1968,10 @@ export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 's
 }
 
 export async function approveIngredientRequest(batchId: string, ingredients: { ingredientId: string, quantity: number, ingredientName: string, unit: string }[], user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+    const batchRef = doc(db, 'production_batches', batchId);
+
+    // Transaction for batch and ingredient updates
     try {
-        const batchRef = doc(db, 'production_batches', batchId);
-        
         await runTransaction(db, async (transaction) => {
             const batchDoc = await transaction.get(batchRef);
             if (!batchDoc.exists() || batchDoc.data()?.status !== 'pending_approval') {
@@ -1981,60 +1982,52 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
             const ingredientDocs = await Promise.all(ingredientRefs.map(ref => transaction.get(ref)));
             const ingredientsWithStock = [];
 
-            // Step 1: Validate stock for all ingredients first
             for (let i = 0; i < ingredientDocs.length; i++) {
                 const ingDoc = ingredientDocs[i];
                 const reqIng = ingredients[i];
                 if (!ingDoc.exists() || (ingDoc.data()?.stock || 0) < reqIng.quantity) {
-                    throw new Error(`Not enough stock for ${reqIng.ingredientName}. Required: ${reqIng.quantity}, Available: ${ingDoc.data()?.stock || 0}`);
+                    throw new Error(`Not enough stock for ${reqIng.ingredientName}.`);
                 }
-            }
-
-            // Step 2: If all validations pass, perform updates
-            for (let i = 0; i < ingredientDocs.length; i++) {
-                const ingDoc = ingredientDocs[i];
-                const reqIng = ingredients[i];
                 const currentStock = ingDoc.data()?.stock || 0;
-
-                ingredientsWithStock.push({
-                    ...reqIng,
-                    openingStock: currentStock,
-                    closingStock: currentStock - reqIng.quantity
-                });
-                
-                // Update ingredient stock
+                ingredientsWithStock.push({ ...reqIng, openingStock: currentStock, closingStock: currentStock - reqIng.quantity });
                 transaction.update(ingredientRefs[i], { stock: increment(-reqIng.quantity) });
             }
-            
-            const logRef = doc(collection(db, 'ingredient_stock_logs'));
-            transaction.set(logRef, {
-                ingredientId: '', // Consolidated log
-                ingredientName: `Production Batch: ${batchDoc.data()?.productName}`,
-                change: -ingredients.reduce((sum, ing) => sum + ing.quantity, 0),
-                reason: `Production: ${batchDoc.data()?.productName}`,
-                date: serverTimestamp(),
-                staffName: user.name,
-                logRefId: batchId,
-            });
 
             transaction.update(batchRef, { 
                 status: 'in_production', 
                 approvedAt: serverTimestamp(),
-                ingredients: ingredientsWithStock // Save the stock snapshot
+                ingredients: ingredientsWithStock
             });
         });
-        
+    } catch (error) {
+        console.error("Error in main transaction for ingredient request:", error);
+        return { success: false, error: (error as Error).message };
+    }
+    
+    // Separate transaction for logging
+    try {
+        const logRef = doc(collection(db, 'ingredient_stock_logs'));
         const batchDocForLog = await getDoc(batchRef);
         const batchData = batchDocForLog.data();
-        await createProductionLog('Batch Approved', `Approved batch for ${batchData?.quantityToProduce} of ${batchData?.productName}: ${batchDocForLog.id}`, user);
-        
-        return { success: true };
-    } catch (error) {
-        console.error("Error approving ingredient request:", error);
-        const errorMessage = error instanceof Error ? error.message : "Failed to approve request.";
-        return { success: false, error: errorMessage };
+        const requesterName = batchData?.requestedByName || 'Unknown';
+        await setDoc(logRef, {
+            ingredientId: '',
+            ingredientName: `Production Batch: ${batchData?.productName}`,
+            change: -ingredients.reduce((sum, ing) => sum + ing.quantity, 0),
+            reason: `Production: ${batchData?.productName}`,
+            date: serverTimestamp(),
+            staffName: requesterName,
+            logRefId: batchId,
+        });
+         await createProductionLog('Batch Approved', `Approved batch for ${batchData?.quantityToProduce} of ${batchData?.productName}: ${batchDocForLog.id}`, user);
+    } catch (logError) {
+         console.error("Error creating stock log for request:", logError);
+         // Don't fail the whole operation if logging fails
     }
+
+    return { success: true };
 }
+
 
 export async function declineProductionBatch(batchId: string, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
     try {
@@ -2608,14 +2601,14 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
     
     try {
         // Fetch cost price for each item in the cart
-        const productIds = data.items.map((item: any) => item.id);
+        const productIds = data.items.map((item: any) => item.id || item.productId);
         const productDocs = await Promise.all(productIds.map((id: string) => getDoc(doc(db, 'products', id))));
         
         const itemsWithCost = data.items.map((item: any, index: number) => {
             const productDoc = productDocs[index];
             const costPrice = productDoc.exists() ? productDoc.data()?.costPrice : 0;
             return {
-                productId: item.id,
+                productId: item.id || item.productId,
                 name: item.name,
                 price: item.price,
                 quantity: item.quantity,
@@ -2636,6 +2629,7 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
                     customer_name: data.customerName,
                     staff_id: data.staffId,
                     cart: itemsWithCost, // Pass the enriched cart data
+                    runId: data.runId || null // Include runId if it exists
                 }
             }),
         });
@@ -2673,34 +2667,40 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
             return { success: false, error: 'Transaction metadata is missing or corrupt.'}
         }
 
-        const staffDoc = await getDoc(doc(db, "staff", metadata.staff_id));
-        const staffName = staffDoc.exists() ? staffDoc.data().name : "Unknown";
-
-        const posSaleData: PosSaleData = {
-            items: metadata.cart, // cart now contains costPrice
-            customerName: metadata.customer_name,
-            paymentMethod: 'Paystack',
-            staffId: metadata.staff_id,
-            staffName: staffName,
-            total: verificationData.data.amount / 100,
-        };
-        
-        // Final validation to ensure all items have costPrice
-        for (const item of posSaleData.items) {
-            if (typeof item.costPrice !== 'number') {
-                console.error('Missing costPrice for item in verified metadata:', item);
-                // Try to fetch it again as a fallback
-                const productDoc = await getDoc(doc(db, 'products', item.productId));
-                item.costPrice = productDoc.exists() ? productDoc.data()?.costPrice || 0 : 0;
-            }
-        }
-
-        const finalizationResult = await handlePosSale(posSaleData);
-
-        if (finalizationResult.success) {
-            return { success: true, orderId: finalizationResult.orderId };
+        // Check if this is a sales run or POS sale
+        if (metadata.runId) {
+             const saleData = {
+                runId: metadata.runId,
+                items: metadata.cart,
+                customerId: metadata.customerId || 'walk-in',
+                customerName: metadata.customer_name,
+                paymentMethod: 'Paystack' as const,
+                staffId: metadata.staff_id,
+                total: verificationData.data.amount / 100,
+            };
+            return await handleSellToCustomer(saleData);
         } else {
-            return { success: false, error: finalizationResult.error || 'Failed to finalize order in database.' };
+            // It's a POS sale
+            const staffDoc = await getDoc(doc(db, "staff", metadata.staff_id));
+            const staffName = staffDoc.exists() ? staffDoc.data().name : "Unknown";
+
+            const posSaleData: PosSaleData = {
+                items: metadata.cart,
+                customerName: metadata.customer_name,
+                paymentMethod: 'Paystack',
+                staffId: metadata.staff_id,
+                staffName: staffName,
+                total: verificationData.data.amount / 100,
+            };
+            
+            for (const item of posSaleData.items) {
+                if (typeof item.costPrice !== 'number') {
+                    const productDoc = await getDoc(doc(db, 'products', item.productId));
+                    item.costPrice = productDoc.exists() ? productDoc.data()?.costPrice || 0 : 0;
+                }
+            }
+
+            return await handlePosSale(posSaleData);
         }
 
     } catch (error) {
@@ -2767,17 +2767,15 @@ export async function getPendingSupplyRequests(): Promise<SupplyRequest[]> {
 }
 
 export async function approveStockIncrease(requestId: string, costPerUnit: number, totalCost: number, user: { staff_id: string; name: string }) {
+    const requestRef = doc(db, 'supply_requests', requestId);
+    
+    // First transaction for the request itself
     try {
-        const requestRef = doc(db, 'supply_requests', requestId);
-        
-        await runTransaction(db, async (transaction) => {
+         await runTransaction(db, async (transaction) => {
             const requestDoc = await transaction.get(requestRef);
             if (!requestDoc.exists() || requestDoc.data().status !== 'pending') {
                 throw new Error("Request not found or already processed.");
             }
-
-            const requestData = requestDoc.data() as SupplyRequest;
-
             transaction.update(requestRef, {
                 status: 'approved',
                 costPerUnit: costPerUnit,
@@ -2786,42 +2784,51 @@ export async function approveStockIncrease(requestId: string, costPerUnit: numbe
                 approverName: user.name,
                 approvedDate: serverTimestamp()
             });
-
-            // Update ingredient stock
-            const ingredientRef = doc(db, 'ingredients', requestData.ingredientId);
-            transaction.update(ingredientRef, { stock: increment(requestData.quantity), costPerUnit: costPerUnit });
-            
-            // Update supplier balance
-            const supplierRef = doc(db, 'suppliers', requestData.supplierId);
-            transaction.update(supplierRef, { amountOwed: increment(totalCost) });
-            
-            // Log as direct cost
-            const directCostRef = doc(collection(db, 'directCosts'));
-            transaction.set(directCostRef, {
-                description: `Purchase of ${requestData.ingredientName} from ${requestData.supplierName}`,
-                category: 'Ingredients',
-                quantity: requestData.quantity,
-                total: totalCost,
-                date: serverTimestamp()
-            });
-            
-            // Log in ingredient stock logs
-            const stockLogRef = doc(collection(db, 'ingredient_stock_logs'));
-            transaction.set(stockLogRef, {
-                ingredientId: requestData.ingredientId,
-                ingredientName: requestData.ingredientName,
-                change: requestData.quantity,
-                reason: `Purchase from ${requestData.supplierName} (Approved)`,
-                date: serverTimestamp(),
-                staffName: requestData.requesterName, // Use requester's name
-                logRefId: requestId,
-            });
         });
+    } catch (error) {
+        console.error("Error approving request:", error);
+        return { success: false, error: (error as Error).message };
+    }
+
+    // Second transaction for inventory and financials
+    try {
+        const requestDoc = await getDoc(requestRef);
+        if(!requestDoc.exists()) throw new Error("Could not find original request after approval.");
+        const requestData = requestDoc.data() as SupplyRequest;
+
+        const ingredientRef = doc(db, 'ingredients', requestData.ingredientId);
+        const supplierRef = doc(db, 'suppliers', requestData.supplierId);
+        const directCostRef = doc(collection(db, 'directCosts'));
+        const stockLogRef = doc(collection(db, 'ingredient_stock_logs'));
+
+        const batch = writeBatch(db);
+        batch.update(ingredientRef, { stock: increment(requestData.quantity), costPerUnit: costPerUnit });
+        batch.update(supplierRef, { amountOwed: increment(totalCost) });
+        batch.set(directCostRef, {
+            description: `Purchase of ${requestData.ingredientName} from ${requestData.supplierName}`,
+            category: 'Ingredients',
+            quantity: requestData.quantity,
+            total: totalCost,
+            date: serverTimestamp()
+        });
+        batch.set(stockLogRef, {
+            ingredientId: requestData.ingredientId,
+            ingredientName: requestData.ingredientName,
+            change: requestData.quantity,
+            reason: `Purchase from ${requestData.supplierName} (Approved)`,
+            date: serverTimestamp(),
+            staffName: requestData.requesterName, // Use requester's name
+            logRefId: requestId,
+        });
+
+        await batch.commit();
 
         return { success: true };
     } catch (error) {
-        console.error("Error approving stock increase:", error);
-        return { success: false, error: (error as Error).message };
+        console.error("Error updating inventory/financials after approval:", error);
+        // Optionally, try to revert the request status here
+        await updateDoc(requestRef, { status: 'pending', notes: 'Inventory update failed' });
+        return { success: false, error: "Failed to update inventory and financials. Request status has been reverted." };
     }
 }
 

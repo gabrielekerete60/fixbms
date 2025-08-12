@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -329,6 +330,8 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             return;
         }
         
+        setIsLoading(true);
+
         const saleData = {
             runId: run.id,
             items: cart,
@@ -349,9 +352,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 costPrice: item.costPrice
             }));
 
-            // Close the current dialog before opening paystack
-            setIsOpen(false);
-            
             const loadingToast = toast({
                 title: "Initializing Payment...",
                 description: "Please wait while we connect to Paystack.",
@@ -364,6 +364,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 customerName: customerName,
                 staffId: user.staff_id,
                 items: itemsForPaystack,
+                runId: run.id,
             });
 
             loadingToast.dismiss();
@@ -371,17 +372,18 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             if (paystackResult.success && paystackResult.reference) {
                 const PaystackPop = (await import('@paystack/inline-js')).default;
                 const paystack = new PaystackPop();
+                setIsOpen(false); // Close dialog before showing paystack
                 paystack.newTransaction({
                     key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
                     email: customerEmail,
                     amount: Math.round(total * 100),
                     ref: paystackResult.reference,
                     onSuccess: async (transaction) => {
-                        const finalOrder = await handleSellToCustomer(saleData);
-                         if (finalOrder.success) {
+                        const verifyResult = await handleSellToCustomer(saleData);
+                        if (verifyResult.success && verifyResult.orderId) {
                             toast({ title: 'Payment Successful', description: 'Order has been completed.' });
                             const completedOrder: CompletedOrder = {
-                                id: finalOrder.orderId || paystackResult.reference || '',
+                                id: verifyResult.orderId,
                                 items: cart,
                                 total: total,
                                 date: new Date(),
@@ -391,10 +393,11 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                             }
                             onSaleMade(completedOrder);
                         } else {
-                            toast({ variant: 'destructive', title: 'Order processing failed', description: finalOrder.error });
+                            toast({ variant: 'destructive', title: 'Order processing failed', description: verifyResult.error });
                         }
                     },
                     onClose: () => {
+                        setIsOpen(true); // Reopen dialog if payment is cancelled
                         toast({ variant: "destructive", title: "Payment Cancelled" });
                     }
                 });
@@ -406,13 +409,12 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         }
 
         // Handle Credit Sale
-        setIsLoading(true);
         const result = await handleSellToCustomer(saleData);
 
-        if (result.success) {
+        if (result.success && result.orderId) {
             toast({ title: 'Success', description: 'Credit sale recorded successfully.' });
             onSaleMade({
-                id: result.orderId || 'credit-sale-' + Date.now(),
+                id: result.orderId,
                 items: cart,
                 total: total,
                 date: new Date(),
@@ -738,7 +740,7 @@ function CustomerOrdersDialog({ isOpen, onOpenChange, customer, orders }: { isOp
                             Receipt for order {viewingOrder?.id.substring(0,8)}...
                         </DialogDescription>
                     </DialogHeader>
-                    {viewingOrder && <Receipt order={viewingOrder} />}
+                    {viewingOrder && <Receipt order={viewingOrder} ref={receiptRef} />}
                     <DialogFooter className="gap-2 sm:justify-end">
                         <Button variant="outline" onClick={() => setViewingOrder(null)}>Close</Button>
                         <Button onClick={() => handlePrint(receiptRef.current)}><Printer className="mr-2 h-4 w-4" />Print</Button>
@@ -834,7 +836,7 @@ function SalesRunDetails() {
     
     const handleSaleMade = (newOrder: CompletedOrder) => {
          // The real-time listener will handle the update
-         if (newOrder.paymentMethod === 'Paystack') {
+         if (newOrder.paymentMethod === 'Paystack' || newOrder.paymentMethod === 'Credit') {
             setViewingOrder(newOrder);
          }
      }
@@ -1097,7 +1099,7 @@ function SalesRunDetails() {
             
             <CustomerOrdersDialog isOpen={!!viewingCustomer} onOpenChange={() => setViewingCustomer(null)} customer={viewingCustomer} orders={orders} />
 
-            <Dialog open={!!viewingOrder} onOpenChange={setViewingOrder}>
+            <Dialog open={!!viewingOrder} onOpenChange={(isOpen) => !isOpen && setViewingOrder(null)}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Order Details</DialogTitle>
