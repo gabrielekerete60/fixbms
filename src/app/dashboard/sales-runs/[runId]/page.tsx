@@ -344,10 +344,11 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         if (paymentMethod === 'Paystack') {
             const customerEmail = selectedCustomer?.email || user.email;
              const itemsForPaystack = cart.map(item => ({
-                id: item.productId, // Use productId as id
+                id: item.productId,
                 name: item.name,
                 price: item.price,
                 quantity: item.quantity,
+                costPrice: item.costPrice
             }));
 
             const paystackResult = await initializePaystackTransaction({
@@ -355,7 +356,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 total: total,
                 customerName: customerName,
                 staffId: user.staff_id,
-                items: itemsForPaystack, // Pass the correctly structured items
+                items: itemsForPaystack,
             });
 
             if (paystackResult.success && paystackResult.reference) {
