@@ -1447,6 +1447,22 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                 if (isFromSalesRun) {
                     const runRef = doc(db, 'transfers', confirmationData.runId);
                     transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+
+                    // -- START: Auto-complete run logic --
+                    const runDoc = await transaction.get(runRef);
+                    if (runDoc.exists()) {
+                        const runData = runDoc.data();
+                        const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
+                        const totalRevenue = runData.totalRevenue || 0;
+
+                        if (newTotalCollected >= totalRevenue) {
+                            transaction.update(runRef, { 
+                                status: 'completed',
+                                time_completed: serverTimestamp()
+                            });
+                        }
+                    }
+                    // -- END: Auto-complete run logic --
                 }
             }
 
