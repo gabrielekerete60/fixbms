@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
+import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -739,7 +739,7 @@ function RegularOrdersPage() {
                                 <SelectItem value="Cash">Cash</SelectItem>
                                 <SelectItem value="POS">POS</SelectItem>
                                 <SelectItem value="Paystack">Transfer</SelectItem>
-                                <SelectItem value="Credit">Credit</SelectItem>
+                                {!isShowroomStaff && <SelectItem value="Credit">Credit</SelectItem>}
                             </SelectContent>
                         </Select>
                         {!isShowroomStaff && (
