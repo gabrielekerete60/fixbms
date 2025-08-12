@@ -2322,12 +2322,14 @@ type SaleData = {
 
 export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
   try {
+    const newOrderRef = doc(collection(db, 'orders'));
+
     await runTransaction(db, async (transaction) => {
       // --- 1. All READS must happen first ---
       const staffDoc = await transaction.get(doc(db, 'staff', data.staffId));
       const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
       const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
-      let customerRef;
+      let customerRef: any; // Can't be a specific type because it might not exist
       if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
         customerRef = doc(db, 'customers', data.customerId);
         await transaction.get(customerRef);
@@ -2368,7 +2370,6 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
               isDebtPayment: false,
           });
       } else { // For Credit and Paystack, create the order directly
-          const newOrderRef = doc(collection(db, 'orders'));
           const orderData = {
             salesRunId: data.runId,
             customerId: data.customerId,
@@ -2394,7 +2395,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       }
     });
 
-    return { success: true, orderId: "dummy-id-for-client" };
+    return { success: true, orderId: newOrderRef.id };
 
   } catch (error) {
     console.error("Error selling to customer:", error);
@@ -2411,13 +2412,19 @@ type PosSaleData = {
     total: number;
 }
 export async function handlePosSale(data: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
+    const newOrderRef = doc(collection(db, 'orders'));
+
     try {
         await runTransaction(db, async (transaction) => {
-            // --- 1. All READS must happen first ---
+            // --- 1. READS ---
             const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
             const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
+            const today = new Date();
+            const salesDocId = format(today, 'yyyy-MM-dd');
+            const salesDocRef = doc(db, 'sales', salesDocId);
+            const salesDoc = await transaction.get(salesDocRef);
 
-            // --- 2. All VALIDATIONS happen next ---
+            // --- 2. VALIDATIONS ---
             for (let i = 0; i < data.items.length; i++) {
                 const item = data.items[i];
                 const stockDoc = stockDocs[i];
@@ -2426,15 +2433,16 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                 }
             }
 
-            // --- 3. All WRITES happen last ---
+            // --- 3. WRITES ---
+            // Decrement personal stock for all payment types
             for (let i = 0; i < data.items.length; i++) {
                 const item = data.items[i];
                 const stockRef = stockRefs[i];
                 transaction.update(stockRef, { stock: increment(-item.quantity) });
             }
 
-            // For Cash and POS, create a payment confirmation for approval
-            if (data.paymentMethod === 'Cash' || data.paymentMethod === 'POS') {
+            // Handle payment-specific logic
+            if (data.paymentMethod === 'POS') {
                 const confirmationRef = doc(collection(db, 'payment_confirmations'));
                 transaction.set(confirmationRef, {
                     runId: `pos-sale-${confirmationRef.id}`,
@@ -2446,11 +2454,10 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                     driverName: data.staffName,
                     date: serverTimestamp(),
                     status: 'pending',
-                    paymentMethod: data.paymentMethod,
+                    paymentMethod: 'POS',
                     isDebtPayment: false,
                 });
-            } else { // For Paystack, create the order and daily sales record directly
-                const newOrderRef = doc(collection(db, 'orders'));
+            } else { // For Cash and Paystack, create order and sales record directly
                 transaction.set(newOrderRef, {
                     id: newOrderRef.id,
                     salesRunId: `pos-sale-${newOrderRef.id}`,
@@ -2465,13 +2472,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                     status: 'Completed',
                 });
                 
-                // Update or create the daily sales summary
-                const today = new Date();
-                const salesDocId = format(today, 'yyyy-MM-dd');
-                const salesDocRef = doc(db, 'sales', salesDocId);
-                const salesDoc = await transaction.get(salesDocRef);
-
-                const paymentField = 'transfer'; // Paystack maps to transfer
+                const paymentField = data.paymentMethod === 'Cash' ? 'cash' : 'transfer'; // Paystack maps to transfer
                 if (salesDoc.exists()) {
                     transaction.update(salesDocRef, {
                         [paymentField]: increment(data.total),
@@ -2481,9 +2482,9 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                     transaction.set(salesDocRef, {
                         date: Timestamp.fromDate(startOfDay(today)),
                         description: `Daily Sales for ${salesDocId}`,
-                        cash: 0,
+                        cash: data.paymentMethod === 'Cash' ? data.total : 0,
                         pos: 0,
-                        transfer: data.total,
+                        transfer: data.paymentMethod === 'Paystack' ? data.total : 0,
                         creditSales: 0,
                         shortage: 0,
                         total: data.total
@@ -2492,10 +2493,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
             }
         });
 
-        // The logic for returning orderId needs to be conditional now.
-        // For Cash/POS, we don't have an orderId yet.
-        // For Paystack, we could return it but the client flow handles that.
-        return { success: true, orderId: "pos-sale-submitted" };
+        return { success: true, orderId: newOrderRef.id };
     } catch (error) {
         console.error("Error processing POS sale:", error);
         return { success: false, error: (error as Error).message };

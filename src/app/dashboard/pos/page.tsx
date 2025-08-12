@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
@@ -228,30 +229,13 @@ function POSPageContent() {
     setCustomerEmail('');
   }, [setCart, setCustomerName, setCustomerEmail]);
   
-  const handleSaleMade = useCallback(async (orderId: string) => {
-      const orderDoc = await getDoc(doc(db, 'orders', orderId));
-      if (orderDoc.exists()) {
-          const orderData = orderDoc.data();
-          const completedOrder: CompletedOrder = {
-              id: orderDoc.id,
-              items: orderData.items,
-              total: orderData.total,
-              date: (orderData.date as any).toDate().toISOString(),
-              paymentMethod: orderData.paymentMethod,
-              customerName: orderData.customerName,
-              status: orderData.status,
-              subtotal: 0, // Placeholder
-              tax: 0, // Placeholder
-          };
-          setLastCompletedOrder(completedOrder);
-          setIsReceiptOpen(true);
-          clearCartAndStorage();
-      } else {
-          toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch completed order details for receipt.' });
-      }
+  const handleSaleMade = useCallback((order: CompletedOrder) => {
+      setLastCompletedOrder(order);
+      setIsReceiptOpen(true);
+      clearCartAndStorage();
       setPaymentStatus('idle');
       setIsCheckoutOpen(false);
-  }, [clearCartAndStorage, toast]);
+  }, [clearCartAndStorage]);
 
   useEffect(() => {
     const initializePos = async () => {
@@ -343,8 +327,19 @@ function POSPageContent() {
     const result = await handlePosSale(saleData);
 
     if (result.success && result.orderId) {
-        toast({ title: 'Sale Completed', description: 'Order has been successfully recorded.' });
-        handleSaleMade(result.orderId);
+        const completedOrder: CompletedOrder = {
+            id: result.orderId,
+            items: cart,
+            total: total,
+            date: new Date().toISOString(),
+            paymentMethod: method,
+            customerName: customerName || 'Walk-in',
+            status: 'Completed',
+            subtotal: 0, // Placeholder
+            tax: 0, // Placeholder
+        };
+        handleSaleMade(completedOrder);
+        toast({ title: 'Sale Recorded', description: 'Order has been successfully recorded.' });
     } else {
          toast({
             variant: "destructive",
@@ -382,8 +377,19 @@ function POSPageContent() {
                 setPaymentStatus('processing'); // Keep it processing during verification
                 const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
                 if (verifyResult.success && verifyResult.orderId) {
+                    const completedOrder: CompletedOrder = {
+                        id: verifyResult.orderId,
+                        items: cart,
+                        total,
+                        date: new Date().toISOString(),
+                        paymentMethod: 'Paystack',
+                        customerName: customerName || 'Walk-in',
+                        status: 'Completed',
+                        subtotal: 0, // Placeholder
+                        tax: 0, // Placeholder
+                    };
+                    handleSaleMade(completedOrder);
                     toast({ title: "Payment Successful", description: "Order has been verified and completed." });
-                    handleSaleMade(verifyResult.orderId);
                     setPaymentStatus('success');
                 } else {
                     toast({ variant: "destructive", title: "Verification Failed", description: verifyResult.error || "Could not verify payment. Please contact support." });
@@ -795,7 +801,7 @@ function POSPageContent() {
                 <AlertDialogHeader>
                     <AlertDialogTitle>Confirm {confirmMethod} Payment</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Have you received <strong>₦{total.toFixed(2)}</strong> via {confirmMethod}? This action is final and will complete the order.
+                        Have you received <strong>₦{total.toFixed(2)}</strong> via {confirmMethod}? This action will finalize the order and log it for necessary approvals.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
