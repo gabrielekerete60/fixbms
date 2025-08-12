@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, getDoc } from '@/app/actions';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder } from '@/app/actions';
 import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { collection, getDocs, doc, Timestamp, onSnapshot, query, where, addDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, Timestamp, onSnapshot, query, where, addDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -327,16 +327,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         
         setIsLoading(true);
 
-        const saleData = {
-            runId: run.id,
-            items: cart,
-            customerId: customerId,
-            customerName: customerName,
-            paymentMethod,
-            staffId: user.staff_id,
-            total,
-        };
-
         if (paymentMethod === 'Paystack') {
             const customerEmail = selectedCustomer?.email || user.email;
              const itemsForPaystack = cart.map(item => ({
@@ -348,8 +338,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             }));
             
             const loadingToast = toast({ title: "Initializing Payment...", description: "Please wait.", duration: Infinity });
-            setIsOpen(false); 
-
+            
             const paystackResult = await initializePaystackTransaction({
                 email: customerEmail,
                 total: total,
@@ -366,6 +355,8 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             if (paystackResult.success && paystackResult.reference) {
                 const PaystackPop = (await import('@paystack/inline-js')).default;
                 const paystack = new PaystackPop();
+                
+                setIsOpen(false); // Close dialog before Paystack modal opens
 
                 paystack.newTransaction({
                     key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
@@ -388,21 +379,31 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                             onSaleMade(completedOrder);
                         } else {
                             toast({ variant: 'destructive', title: 'Order processing failed', description: verifyResult.error });
-                            setIsOpen(true);
+                            setIsOpen(true); // Re-open on failure
                         }
                     },
                     onClose: () => {
                         toast({ variant: "destructive", title: "Payment Cancelled" });
-                        setIsOpen(true);
+                        setIsOpen(true); // Re-open on cancellation
                     }
                 });
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
-                setIsOpen(true);
             }
             setIsLoading(false);
             return;
         }
+        
+        // For Cash and Credit
+        const saleData = {
+            runId: run.id,
+            items: cart,
+            customerId: customerId,
+            customerName: customerName,
+            paymentMethod,
+            staffId: user.staff_id,
+            total,
+        };
 
         const result = await handleSellToCustomer(saleData);
 
@@ -410,15 +411,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             toast({ 
                 title: paymentMethod === 'Cash' ? 'Pending Approval' : 'Success', 
                 description: paymentMethod === 'Cash' ? 'Cash payment has been submitted for accountant approval.' : 'Credit sale recorded successfully.' 
-            });
-            onSaleMade({
-                id: result.orderId,
-                items: cart,
-                total: total,
-                date: new Date(),
-                paymentMethod: paymentMethod,
-                customerName: customerName,
-                subtotal: 0, tax: 0, status: 'Completed'
             });
             setIsOpen(false);
         } else {
@@ -908,7 +900,7 @@ function SalesRunDetails() {
     };
     
     const handleSaleMade = (newOrder: CompletedOrder) => {
-        if (newOrder.paymentMethod === 'Paystack' || newOrder.paymentMethod === 'Credit') {
+        if (newOrder.paymentMethod === 'Paystack') {
             setViewingOrder(newOrder);
         }
     }
