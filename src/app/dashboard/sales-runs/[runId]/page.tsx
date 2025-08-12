@@ -1,12 +1,11 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder } from '@/app/actions';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, getDoc } from '@/app/actions';
 import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
@@ -16,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { collection, getDocs, doc, Timestamp, onSnapshot, query, where, addDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, Timestamp, onSnapshot, query, where, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -234,7 +233,6 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
 
 function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: { productId: string; productName: string; price: number; quantity: number, costPrice?: number }[] }) {
     const { toast } = useToast();
-    const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -350,6 +348,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             }));
             
             const loadingToast = toast({ title: "Initializing Payment...", description: "Please wait.", duration: Infinity });
+            setIsOpen(false); 
 
             const paystackResult = await initializePaystackTransaction({
                 email: customerEmail,
@@ -365,7 +364,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             loadingToast.dismiss();
             
             if (paystackResult.success && paystackResult.reference) {
-                setIsOpen(false);
                 const PaystackPop = (await import('@paystack/inline-js')).default;
                 const paystack = new PaystackPop();
 
@@ -400,6 +398,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 });
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
+                setIsOpen(true);
             }
             setIsLoading(false);
             return;
@@ -565,6 +564,26 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
         }
     }, [isOpen, customer.customerId]);
 
+    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        if (value === '') {
+            setAmount('');
+            return;
+        }
+
+        const numValue = parseFloat(value);
+        if (isNaN(numValue)) {
+            return;
+        }
+
+        if (numValue > outstanding) {
+            setAmount(outstanding);
+            toast({ variant: 'destructive', title: 'Limit Exceeded', description: `Amount cannot be more than the outstanding balance of ${formatCurrency(outstanding)}` });
+        } else {
+            setAmount(numValue);
+        }
+    };
+
 
     const handleRecordPayment = async () => {
         if (!user || !run) return;
@@ -669,7 +688,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
                     )}
                     <div className="space-y-2">
                         <Label htmlFor="payment-amount">Amount to Pay (₦)</Label>
-                        <Input id="payment-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                        <Input id="payment-amount" type="number" value={amount} onChange={handleAmountChange} />
                     </div>
                 </div>
                 <DialogFooter>
