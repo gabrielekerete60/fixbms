@@ -7,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -60,6 +60,9 @@ type User = {
     staff_id: string;
     email: string;
 };
+
+type SortKey = 'customerName' | 'totalSold' | 'totalPaid' | 'outstanding';
+type SortDirection = 'asc' | 'desc';
 
 const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -368,11 +371,12 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             });
 
             loadingToast.dismiss();
-
+            
             if (paystackResult.success && paystackResult.reference) {
+                setIsOpen(false);
                 const PaystackPop = (await import('@paystack/inline-js')).default;
                 const paystack = new PaystackPop();
-                setIsOpen(false); // Close dialog before showing paystack
+
                 paystack.newTransaction({
                     key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
                     email: customerEmail,
@@ -397,7 +401,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                         }
                     },
                     onClose: () => {
-                        setIsOpen(true); // Reopen dialog if payment is cancelled
+                        setIsOpen(true);
                         toast({ variant: "destructive", title: "Payment Cancelled" });
                     }
                 });
@@ -776,6 +780,8 @@ function SalesRunDetails() {
     const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
     const receiptRef = useRef<HTMLDivElement>(null);
     const [paymentConfirmations, setPaymentConfirmations] = useState<any[]>([]);
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'outstanding', direction: 'desc' });
+
 
     useEffect(() => {
       const userJSON = localStorage.getItem('loggedInUser');
@@ -833,6 +839,40 @@ function SalesRunDetails() {
     const totalSold = useMemo(() => orders.reduce((sum, order) => sum + order.total, 0), [orders]);
     const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
     const runStatus = useMemo(() => run?.status || 'inactive', [run]);
+
+    const sortedCustomers = useMemo(() => {
+        const customersWithOutstanding = customers.map(c => ({
+            ...c,
+            outstanding: c.totalSold - c.totalPaid
+        }));
+
+        return [...customersWithOutstanding].sort((a, b) => {
+            const { key, direction } = sortConfig;
+            if (a[key] < b[key]) {
+                return direction === 'asc' ? -1 : 1;
+            }
+            if (a[key] > b[key]) {
+                return direction === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
+    }, [customers, sortConfig]);
+
+    const handleSort = (key: SortKey) => {
+        setSortConfig(prev => {
+            if (prev.key === key) {
+                return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: 'desc' }; // Default to desc for new column
+        });
+    };
+
+    const getSortIcon = (key: SortKey) => {
+        if (sortConfig.key !== key) {
+            return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/50" />;
+        }
+        return sortConfig.direction === 'asc' ? '▲' : '▼';
+    };
     
     const handleSaleMade = (newOrder: CompletedOrder) => {
          // The real-time listener will handle the update
@@ -998,21 +1038,27 @@ function SalesRunDetails() {
                     <Card>
                         <CardHeader>
                             <CardTitle>Customers</CardTitle>
-                            <CardDescription>All customers in this run.</CardDescription>
+                            <CardDescription>All customers in this run. Click headers to sort.</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <Table>
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Name</TableHead>
-                                        <TableHead className="text-right">Total Sold</TableHead>
-                                        <TableHead className="text-right">Total Paid</TableHead>
-                                        <TableHead className="text-right">Outstanding</TableHead>
+                                        <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('totalSold')}>
+                                            <div className="flex items-center justify-end">Total Sold {getSortIcon('totalSold')}</div>
+                                        </TableHead>
+                                        <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('totalPaid')}>
+                                            <div className="flex items-center justify-end">Total Paid {getSortIcon('totalPaid')}</div>
+                                        </TableHead>
+                                        <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('outstanding')}>
+                                            <div className="flex items-center justify-end">Outstanding {getSortIcon('outstanding')}</div>
+                                        </TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {customers.map(customer => {
+                                    {sortedCustomers.map(customer => {
                                         const outstanding = customer.totalSold - customer.totalPaid;
                                         return (
                                             <TableRow key={customer.customerId} onClick={() => setViewingCustomer(customer)} className="cursor-pointer">
