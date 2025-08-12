@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { collection, getDocs, doc, Timestamp, onSnapshot, query, where, addDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, Timestamp, onSnapshot, query, where, addDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,7 +32,7 @@ type Customer = {
   address: string;
 };
 
-type OrderItem = { productId: string; quantity: number, price: number, name: string, costPrice: number };
+type OrderItem = { productId: string; quantity: number, price: number, name: string, costPrice?: number };
 
 type CompletedOrder = {
   id: string;
@@ -338,6 +338,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             }));
             
             const loadingToast = toast({ title: "Initializing Payment...", description: "Please wait.", duration: Infinity });
+            setIsOpen(false); // Close the dialog before showing Paystack
             
             const paystackResult = await initializePaystackTransaction({
                 email: customerEmail,
@@ -364,7 +365,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                     onSuccess: async (transaction) => {
                         const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
                         if (verifyResult.success && verifyResult.orderId) {
-                            setIsOpen(false);
                             toast({ title: 'Payment Successful', description: 'Order has been completed.' });
                             const completedOrder: CompletedOrder = {
                                 id: verifyResult.orderId,
@@ -378,14 +378,17 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                             onSaleMade(completedOrder);
                         } else {
                             toast({ variant: 'destructive', title: 'Order processing failed', description: verifyResult.error });
+                            setIsOpen(true); // Re-open on failure
                         }
                     },
                     onClose: () => {
                         toast({ variant: "destructive", title: "Payment Cancelled" });
+                        setIsOpen(true); // Re-open on close
                     }
                 });
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
+                setIsOpen(true); // Re-open on init failure
             }
             setIsLoading(false);
             return;
@@ -607,6 +610,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
             }
         } else { // Paystack
             const loadingToast = toast({ title: "Initializing Payment...", duration: Infinity });
+            setIsOpen(false); // Close dialog before showing paystack
             const paystackResult = await initializePaystackTransaction({
                 email: customerEmail || user.email,
                 total: paymentAmount,
@@ -631,15 +635,19 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
                         const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
                         if (verifyResult.success) {
                             toast({ title: 'Payment Successful', description: 'Debt has been settled.' });
-                            setIsOpen(false);
                         } else {
                             toast({ variant: 'destructive', title: 'Verification Failed', description: verifyResult.error });
+                            setIsOpen(true); // Re-open on failure
                         }
                     },
-                    onClose: () => toast({ variant: 'destructive', title: 'Payment Cancelled' })
+                    onClose: () => {
+                        toast({ variant: 'destructive', title: 'Payment Cancelled' });
+                        setIsOpen(true); // Re-open on close
+                    }
                 });
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
+                setIsOpen(true); // Re-open on init failure
             }
         }
         
@@ -1159,7 +1167,7 @@ function SalesRunDetails() {
                                 <TableBody>
                                     {orders.map(order => (
                                         <TableRow key={order.id} className="cursor-pointer" onClick={() => setViewingOrder(order)}>
-                                            <TableCell>{format(new Date(order.date), 'PPP')}</TableCell>
+                                            <TableCell>{format(new Date(order.date), 'Pp')}</TableCell>
                                             <TableCell>{order.customerName}</TableCell>
                                             <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
                                             <TableCell>{order.paymentMethod}</TableCell>
