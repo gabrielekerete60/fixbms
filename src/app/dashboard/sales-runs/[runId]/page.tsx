@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -356,8 +356,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 const PaystackPop = (await import('@paystack/inline-js')).default;
                 const paystack = new PaystackPop();
                 
-                setIsOpen(false); // Close dialog before Paystack modal opens
-
                 paystack.newTransaction({
                     key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
                     email: customerEmail,
@@ -366,6 +364,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                     onSuccess: async (transaction) => {
                         const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
                         if (verifyResult.success && verifyResult.orderId) {
+                            setIsOpen(false);
                             toast({ title: 'Payment Successful', description: 'Order has been completed.' });
                             const completedOrder: CompletedOrder = {
                                 id: verifyResult.orderId,
@@ -379,12 +378,10 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                             onSaleMade(completedOrder);
                         } else {
                             toast({ variant: 'destructive', title: 'Order processing failed', description: verifyResult.error });
-                            setIsOpen(true); // Re-open on failure
                         }
                     },
                     onClose: () => {
                         toast({ variant: "destructive", title: "Payment Cancelled" });
-                        setIsOpen(true); // Re-open on cancellation
                     }
                 });
             } else {
@@ -397,7 +394,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         // For Cash and Credit
         const saleData = {
             runId: run.id,
-            items: cart,
+            items: cart.map(item => ({...item, productId: item.productId || '' })),
             customerId: customerId,
             customerName: customerName,
             paymentMethod,
@@ -799,14 +796,36 @@ function SalesRunDetails() {
     const [orders, setOrders] = useState<CompletedOrder[]>([]);
     const [customers, setCustomers] = useState<RunCustomer[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [user, setUser] = useState<User | null>(null);
     const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
     const [viewingCustomer, setViewingCustomer] = useState<RunCustomer | null>(null);
-    const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
-    const receiptRef = useRef<HTMLDivElement>(null);
+    const summaryReceiptRef = useRef<HTMLDivElement>(null);
     const [paymentConfirmations, setPaymentConfirmations] = useState<any[]>([]);
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'outstanding', direction: 'desc' });
 
+
+    const fetchRunData = useCallback(async (showToast = false) => {
+        if (!runId) return;
+        
+        try {
+            const runDetails = await getSalesRunDetails(runId as string);
+            setRun(runDetails);
+            if(showToast) toast({ title: "Refreshed", description: "Sales run data has been updated."});
+        } catch (error) {
+            console.error("Failed to fetch run details:", error);
+            if(showToast) toast({ variant: "destructive", title: "Error", description: "Could not refresh data." });
+        }
+    }, [runId, toast]);
+    
+    useEffect(() => {
+        fetchRunData();
+    }, [fetchRunData])
+    
+    const handleRefresh = () => {
+        setIsRefreshing(true);
+        fetchRunData(true).finally(() => setIsRefreshing(false));
+    };
 
     useEffect(() => {
       const userJSON = localStorage.getItem('loggedInUser');
@@ -946,48 +965,65 @@ function SalesRunDetails() {
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <Link href="/dashboard/deliveries" className="flex items-center gap-2 text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to Deliveries</Link>
-                 <Button variant="ghost" size="sm" onClick={() => handlePrint(receiptRef.current)} disabled={!runComplete}>
-                    <Printer className={`mr-2 h-4 w-4`} /> Print Run Summary
-                </Button>
+                 <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+                        <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handlePrint(summaryReceiptRef.current)}>
+                        <Printer className={`mr-2 h-4 w-4`} /> Print Run Summary
+                    </Button>
+                 </div>
             </div>
-             <div ref={receiptRef} className="hidden">
-                 <div className="receipt-container">
+             <div ref={summaryReceiptRef} className="hidden print:block">
+                 <div className="receipt-container p-4">
                     <div className="text-center">
-                        <div className="font-bold text-2xl">Your Bakery Name</div>
-                        <div className="text-sm text-muted-foreground">123 Main Street, City</div>
-                         <div className="text-xs text-muted-foreground">Date: {format(new Date(), 'Pp')}</div>
-                         <div className="my-4">
-                            <div className="font-bold text-lg">Sales Run Summary</div>
-                        </div>
+                        <div className="font-bold text-2xl">BMS</div>
+                        <div className="text-sm text-muted-foreground">Sales Run Summary</div>
                     </div>
-                    <hr />
-                     <div>
-                        <div className="flex justify-between text-sm">
+                    <hr className="my-2" />
+                     <div className="text-xs space-y-1">
+                        <div className="flex justify-between">
                             <span>Run ID:</span>
-                            <span>{runId}</span>
+                            <span>{run.id}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between">
                             <span>Start Time:</span>
                             <span>{run.date ? format(new Date(run.date), 'Pp') : 'N/A'}</span>
                         </div>
-                         <div className="flex justify-between text-sm">
+                         <div className="flex justify-between">
                             <span>Driver:</span>
                             <span>{run.to_staff_name}</span>
                         </div>
                     </div>
-                    <hr />
-                     <div>
-                        <div className="flex justify-between text-sm">
-                            <span>Total Sold:</span>
-                            <span className="font-bold">₦{totalSold.toLocaleString()}</span>
+                    <hr className="my-2" />
+                    <h3 className="font-bold text-center text-sm mb-1">Stock Summary</h3>
+                    <Table>
+                        <TableHeader><TableRow><TableHead className="h-auto p-1 text-xs">Item</TableHead><TableHead className="text-right h-auto p-1 text-xs">Initial</TableHead><TableHead className="text-right h-auto p-1 text-xs">Sold</TableHead><TableHead className="text-right h-auto p-1 text-xs">Left</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {run.items.map(item => {
+                                const sold = item.quantity - (remainingItems.find(i => i.productId === item.productId)?.quantity || 0);
+                                return <TableRow key={item.productId}><TableCell className="p-1 text-xs">{item.productName}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity}</TableCell><TableCell className="text-right p-1 text-xs">{sold}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity - sold}</TableCell></TableRow>
+                            })}
+                        </TableBody>
+                    </Table>
+                    <hr className="my-2" />
+                     <h3 className="font-bold text-center text-sm mb-1">Financial Summary</h3>
+                     <div className="text-xs space-y-1">
+                        <div className="flex justify-between">
+                            <span>Total Value:</span>
+                            <span className="font-bold">{formatCurrency(run.totalRevenue)}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between">
                             <span>Total Collected:</span>
-                            <span className="font-bold">₦{totalCollected.toLocaleString()}</span>
+                            <span className="font-bold">{formatCurrency(totalCollected)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span>Total Outstanding:</span>
+                            <span className="font-bold">{formatCurrency(run.totalOutstanding)}</span>
                         </div>
                     </div>
-                    <hr />
-                     <div className="text-xs text-muted-foreground text-center">Thank you for your business!</div>
+                    <hr className="my-2" />
+                     <div className="text-xs text-muted-foreground text-center">Printed on {format(new Date(), 'Pp')}</div>
                 </div>
              </div>
 
