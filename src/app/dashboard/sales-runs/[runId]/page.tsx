@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { collection, getDocs, doc, Timestamp, onSnapshot, query, where, addDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, Timestamp, onSnapshot, query, where, addDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -238,7 +238,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
     const [isOpen, setIsOpen] = useState(false);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [isCashConfirmOpen, setIsCashConfirmOpen] = useState(false);
     
     // Form state
     const [selectedCustomerId, setSelectedCustomerId] = useState('walk-in');
@@ -327,11 +326,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             toast({ variant: 'destructive', title: 'Error', description: 'Credit sales cannot be made to a walk-in customer. Please select a registered customer.' });
             return;
         }
-
-        if (paymentMethod === 'Cash') {
-            setIsCashConfirmOpen(true);
-            return;
-        }
         
         setIsLoading(true);
 
@@ -348,18 +342,14 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         if (paymentMethod === 'Paystack') {
             const customerEmail = selectedCustomer?.email || user.email;
              const itemsForPaystack = cart.map(item => ({
-                id: item.productId,
+                productId: item.productId,
                 name: item.name,
                 price: item.price,
                 quantity: item.quantity,
                 costPrice: item.costPrice
             }));
-
-            const loadingToast = toast({
-                title: "Initializing Payment...",
-                description: "Please wait while we connect to Paystack.",
-                duration: Infinity,
-            });
+            
+            const loadingToast = toast({ title: "Initializing Payment...", description: "Please wait.", duration: Infinity });
 
             const paystackResult = await initializePaystackTransaction({
                 email: customerEmail,
@@ -368,6 +358,8 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 staffId: user.staff_id,
                 items: itemsForPaystack,
                 runId: run.id,
+                customerId: customerId,
+                isDebtPayment: false,
             });
 
             loadingToast.dismiss();
@@ -383,7 +375,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                     amount: Math.round(total * 100),
                     ref: paystackResult.reference,
                     onSuccess: async (transaction) => {
-                        const verifyResult = await handleSellToCustomer(saleData);
+                        const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
                         if (verifyResult.success && verifyResult.orderId) {
                             toast({ title: 'Payment Successful', description: 'Order has been completed.' });
                             const completedOrder: CompletedOrder = {
@@ -398,11 +390,12 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                             onSaleMade(completedOrder);
                         } else {
                             toast({ variant: 'destructive', title: 'Order processing failed', description: verifyResult.error });
+                            setIsOpen(true);
                         }
                     },
                     onClose: () => {
-                        setIsOpen(true);
                         toast({ variant: "destructive", title: "Payment Cancelled" });
+                        setIsOpen(true);
                     }
                 });
             } else {
@@ -412,57 +405,22 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             return;
         }
 
-        // Handle Credit Sale
         const result = await handleSellToCustomer(saleData);
 
         if (result.success && result.orderId) {
-            toast({ title: 'Success', description: 'Credit sale recorded successfully.' });
+            toast({ 
+                title: paymentMethod === 'Cash' ? 'Pending Approval' : 'Success', 
+                description: paymentMethod === 'Cash' ? 'Cash payment has been submitted for accountant approval.' : 'Credit sale recorded successfully.' 
+            });
             onSaleMade({
                 id: result.orderId,
                 items: cart,
                 total: total,
                 date: new Date(),
-                paymentMethod: 'Credit',
+                paymentMethod: paymentMethod,
                 customerName: customerName,
                 subtotal: 0, tax: 0, status: 'Completed'
             });
-            setIsOpen(false);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setIsLoading(false);
-    };
-    
-    const handleCashConfirmation = async () => {
-        if (!user) return;
-        setIsCashConfirmOpen(false);
-        setIsLoading(true);
-
-        const customerId = selectedCustomerId;
-        const customerName = selectedCustomer?.name || 'Walk-in';
-
-        const result = await handleSellToCustomer({
-            runId: run.id,
-            items: cart,
-            customerId: customerId,
-            customerName: customerName,
-            paymentMethod: 'Cash',
-            staffId: user.staff_id,
-            total,
-        });
-
-        if (result.success) {
-            toast({ title: 'Pending Approval', description: 'Cash payment has been submitted for accountant approval.' });
-            const completedOrder: CompletedOrder = {
-                id: 'cash-sale-' + Date.now(),
-                items: cart,
-                total: total,
-                date: new Date(),
-                paymentMethod: 'Cash' as const,
-                customerName: customerName,
-                subtotal: 0, tax: 0, status: 'Pending'
-            }
-            onSaleMade(completedOrder);
             setIsOpen(false);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -578,20 +536,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                         </DialogFooter>
                     </div>
                 </div>
-                <AlertDialog open={isCashConfirmOpen} onOpenChange={setIsCashConfirmOpen}>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Confirm Cash Payment</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Are you sure you want to record this sale as a cash payment? This will be sent for accountant approval.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel onClick={() => setIsCashConfirmOpen(false)}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleCashConfirmation}>Confirm</AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
             </DialogContent>
         </Dialog>
     );
@@ -697,7 +641,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button size="sm" variant="outline">Record Payment</Button>
+                 {outstanding > 0 && <Button size="sm" variant="outline">Record Payment</Button>}
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
@@ -1138,9 +1082,7 @@ function SalesRunDetails() {
                                                     {outstanding > 0 ? formatCurrency(outstanding) : '-'}
                                                 </TableCell>
                                                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                    {outstanding > 0 && isRunActive && (
-                                                        <RecordPaymentDialog customer={customer} run={run} user={user} />
-                                                    )}
+                                                    <RecordPaymentDialog customer={customer} run={run} user={user} />
                                                 </TableCell>
                                             </TableRow>
                                         )
