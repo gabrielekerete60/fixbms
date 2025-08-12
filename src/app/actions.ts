@@ -403,7 +403,9 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
         let activeOrders = 0;
         ordersSnapshot.forEach(orderDoc => {
             const order = orderDoc.data();
-            revenue += (order.total || 0); // Safely add total
+            if (order.total && typeof order.total === 'number') {
+                revenue += order.total;
+            }
             if (order.status === 'Pending') {
                 activeOrders++;
             }
@@ -438,8 +440,8 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
             const orderDate = orderTimestamp.toDate();
             const dayOfWeek = format(orderDate, 'E'); 
             const index = weeklyRevenueData.findIndex(d => d.day === dayOfWeek);
-            if (index !== -1) {
-                weeklyRevenueData[index].revenue += (order.total || 0);
+            if (index !== -1 && order.total && typeof order.total === 'number') {
+                weeklyRevenueData[index].revenue += order.total;
             }
         });
         

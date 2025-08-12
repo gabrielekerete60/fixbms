@@ -107,7 +107,6 @@ function IngredientDialog({
     const [expiryDate, setExpiryDate] = useState<Date | undefined>();
     const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(10);
     
-    const canEditFinancials = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
     const isStorekeeper = user?.role === 'Storekeeper';
 
 
@@ -487,7 +486,6 @@ export default function IngredientsPage() {
 
     const canManageIngredients = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
     const isStorekeeper = user?.role === 'Storekeeper';
-    const canViewCosts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
 
     return (
         <div className="flex flex-col gap-4">
