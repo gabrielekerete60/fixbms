@@ -37,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -107,6 +108,8 @@ function IngredientDialog({
     const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(10);
     
     const canEditFinancials = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
+    const isStorekeeper = user?.role === 'Storekeeper';
+
 
     useEffect(() => {
         if (ingredient) {
@@ -157,7 +160,7 @@ function IngredientDialog({
                         <Label htmlFor="unit" className="text-right">Unit</Label>
                         <Input id="unit" placeholder="e.g., kg, L, pcs" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" />
                     </div>
-                    {canEditFinancials && (
+                    {!isStorekeeper && (
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="costPerUnit" className="text-right">Cost/Unit (₦)</Label>
                             <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" />
@@ -534,8 +537,8 @@ export default function IngredientsPage() {
                                     <TableRow>
                                         <TableHead>Ingredient</TableHead>
                                         <TableHead>Stock</TableHead>
-                                        {canViewCosts && <TableHead>Cost/Unit</TableHead>}
-                                        {canViewCosts && <TableHead>Total Cost</TableHead>}
+                                        {!isStorekeeper && <TableHead>Cost/Unit</TableHead>}
+                                        {!isStorekeeper && <TableHead>Total Cost</TableHead>}
                                         <TableHead>Expiry</TableHead>
                                         <TableHead><span className="sr-only">Actions</span></TableHead>
                                     </TableRow>
@@ -543,7 +546,7 @@ export default function IngredientsPage() {
                                 <TableBody>
                                     {isLoading ? (
                                         <TableRow>
-                                            <TableCell colSpan={canViewCosts ? 6 : 4} className="h-24 text-center">
+                                            <TableCell colSpan={isStorekeeper ? 4 : 6} className="h-24 text-center">
                                                 <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                                             </TableCell>
                                         </TableRow>
@@ -560,8 +563,8 @@ export default function IngredientsPage() {
                                                     }
                                                 </TableCell>
                                                 <TableCell>{(ingredient.stock || 0).toFixed(2)} {ingredient.unit}</TableCell>
-                                                {canViewCosts && <TableCell>₦{(ingredient.costPerUnit || 0).toFixed(2)}</TableCell>}
-                                                {canViewCosts && <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>}
+                                                {!isStorekeeper && <TableCell>₦{(ingredient.costPerUnit || 0).toFixed(2)}</TableCell>}
+                                                {!isStorekeeper && <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>}
                                                 <TableCell>{ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
                                                 <TableCell>
                                                    {canManageIngredients && (
@@ -585,13 +588,13 @@ export default function IngredientsPage() {
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={canViewCosts ? 6 : 4} className="h-24 text-center">
+                                            <TableCell colSpan={isStorekeeper ? 4 : 6} className="h-24 text-center">
                                                 No ingredients found.
                                             </TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
-                                {canViewCosts && (
+                                {!isStorekeeper && (
                                     <TableFooter>
                                         <TableRow>
                                             <TableCell colSpan={3} className="font-bold text-right">Grand Total</TableCell>
@@ -670,7 +673,7 @@ export default function IngredientsPage() {
                                         <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
                                     ) : filteredLogs.length > 0 ? (
                                         filteredLogs.map(log => (
-                                            <TableRow key={log.id}>
+                                            <TableRow key={log.id} onClick={() => handleViewDetails(log)} className="cursor-pointer">
                                                 <TableCell>{log.date ? format(new Date(log.date), 'Pp') : 'N/A'}</TableCell>
                                                 <TableCell>{log.ingredientName}</TableCell>
                                                 <TableCell>{log.staffName}</TableCell>
@@ -682,7 +685,7 @@ export default function IngredientsPage() {
                                                 </TableCell>
                                                 <TableCell>{log.reason}</TableCell>
                                                 <TableCell className="text-right">
-                                                    <Button variant="ghost" size="icon" onClick={() => handleViewDetails(log)} disabled={!log.logRefId}>
+                                                    <Button variant="ghost" size="icon" disabled={!log.logRefId}>
                                                         <Eye className="h-4 w-4"/>
                                                     </Button>
                                                 </TableCell>
