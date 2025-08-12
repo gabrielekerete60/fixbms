@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
@@ -458,7 +459,7 @@ function ExportDialog({ children, onExport }: { children: React.ReactNode, onExp
   )
 }
 
-export default function RegularOrdersPage() {
+function RegularOrdersPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [allOrders, setAllOrders] = useState<CompletedOrder[]>([]);
