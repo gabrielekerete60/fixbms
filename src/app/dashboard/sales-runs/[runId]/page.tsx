@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -33,7 +32,7 @@ type Customer = {
   address: string;
 };
 
-type OrderItem = { productId: string; quantity: number, price: number, name: string };
+type OrderItem = { productId: string; quantity: number, price: number, name: string, costPrice: number };
 
 type CompletedOrder = {
   id: string;
@@ -229,7 +228,7 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
     )
 }
 
-function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: { productId: string; productName: string; price: number; quantity: number }[] }) {
+function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: { productId: string; productName: string; price: number; quantity: number, costPrice?: number }[] }) {
     const { toast } = useToast();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
@@ -258,7 +257,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         }
     }, [isOpen]);
 
-    const handleAddToCart = (item: { productId: string, productName: string, price: number, quantity: number }) => {
+    const handleAddToCart = (item: { productId: string, productName: string, price: number, quantity: number, costPrice?: number }) => {
         const quantityToAdd = Number(itemQuantities[item.productId] || 1);
         if (isNaN(quantityToAdd) || quantityToAdd <= 0) {
             toast({ variant: 'destructive', title: 'Invalid Quantity', description: 'Please enter a valid number.' });
@@ -280,7 +279,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             if (existing) {
                 return prev.map(p => p.productId === item.productId ? { ...p, price: item.price, quantity: p.quantity + quantityToAdd } : p);
             }
-            return [...prev, { productId: item.productId, price: item.price, name: item.productName, quantity: quantityToAdd }];
+            return [...prev, { productId: item.productId, price: item.price, name: item.productName, quantity: quantityToAdd, costPrice: item.costPrice || 0 }];
         });
         setItemQuantities(prev => ({...prev, [item.productId]: ''}));
     };
@@ -344,10 +343,19 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
 
         if (paymentMethod === 'Paystack') {
             const customerEmail = selectedCustomer?.email || user.email;
+             const itemsForPaystack = cart.map(item => ({
+                id: item.productId, // Use productId as id
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+            }));
+
             const paystackResult = await initializePaystackTransaction({
-                ...saleData,
                 email: customerEmail,
-                runId: run.id,
+                total: total,
+                customerName: customerName,
+                staffId: user.staff_id,
+                items: itemsForPaystack, // Pass the correctly structured items
             });
 
             if (paystackResult.success && paystackResult.reference) {
