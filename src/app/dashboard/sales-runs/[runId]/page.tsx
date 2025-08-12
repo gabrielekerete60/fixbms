@@ -351,6 +351,15 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 costPrice: item.costPrice
             }));
 
+            // Close the current dialog before opening paystack
+            setIsOpen(false);
+            
+            const loadingToast = toast({
+                title: "Initializing Payment...",
+                description: "Please wait while we connect to Paystack.",
+                duration: Infinity,
+            });
+
             const paystackResult = await initializePaystackTransaction({
                 email: customerEmail,
                 total: total,
@@ -358,6 +367,8 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 staffId: user.staff_id,
                 items: itemsForPaystack,
             });
+
+            loadingToast.dismiss();
 
             if (paystackResult.success && paystackResult.reference) {
                 const PaystackPop = (await import('@paystack/inline-js')).default;
@@ -381,13 +392,12 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                                 subtotal: 0, tax: 0, status: 'Completed'
                             }
                             onSaleMade(completedOrder);
-                            setIsOpen(false);
                         } else {
                             toast({ variant: 'destructive', title: 'Order processing failed', description: finalOrder.error });
                         }
                     },
                     onClose: () => {
-                        toast({ variant: 'destructive', title: 'Payment Cancelled' });
+                        toast({ variant: "destructive", title: "Payment Cancelled" });
                     }
                 });
             } else {
