@@ -2233,6 +2233,8 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
       }
       
       salesByCustomer[customerId].totalSold += order.total;
+      
+      // Only count cash and paystack as "paid" for the run summary
       if (order.paymentMethod === 'Cash' || order.paymentMethod === 'Paystack') {
         salesByCustomer[customerId].totalPaid += order.total;
       }
@@ -2275,84 +2277,64 @@ type SaleData = {
 
 export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
   try {
-    const newOrderRef = doc(collection(db, 'orders'));
-
     await runTransaction(db, async (transaction) => {
-      // --- 1. All READS must happen first ---
-      const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
-      const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
-      
-      let customerRef;
-      if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
-        customerRef = doc(db, 'customers', data.customerId);
-        await transaction.get(customerRef);
-      }
-      
-      const staffDoc = await getDoc(doc(db, 'staff', data.staffId));
+      const staffDoc = await transaction.get(doc(db, 'staff', data.staffId));
       const driverName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
 
-      // --- 2. All VALIDATIONS happen next ---
-      for (let i = 0; i < data.items.length; i++) {
-        const item = data.items[i];
-        const stockDoc = stockDocs[i];
+      // If cash, create a confirmation request
+      if (data.paymentMethod === 'Cash') {
+          const confirmationRef = doc(collection(db, 'payment_confirmations'));
+          transaction.set(confirmationRef, {
+              runId: data.runId,
+              customerId: data.customerId,
+              customerName: data.customerName,
+              items: data.items,
+              amount: data.total,
+              driverId: data.staffId,
+              driverName: driverName,
+              date: serverTimestamp(),
+              status: 'pending',
+              paymentMethod: 'Cash'
+          });
+      } else { // For Credit and Paystack, create the order directly
+          const newOrderRef = doc(collection(db, 'orders'));
+          const orderData = {
+            salesRunId: data.runId,
+            customerId: data.customerId,
+            customerName: data.customerName,
+            items: data.items,
+            total: data.total,
+            paymentMethod: data.paymentMethod,
+            date: Timestamp.now(),
+            staffId: data.staffId,
+            status: 'Completed',
+            id: newOrderRef.id
+          };
+          transaction.set(newOrderRef, orderData);
+
+          const runRef = doc(db, 'transfers', data.runId);
+          if (data.paymentMethod === 'Paystack') {
+            transaction.update(runRef, { totalCollected: increment(data.total) });
+          }
+          
+          if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
+            const customerRef = doc(db, 'customers', data.customerId);
+            transaction.update(customerRef, { amountOwed: increment(data.total) });
+          }
+      }
+
+      // Decrement stock for all sales
+      for (const item of data.items) {
+        const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
+        const stockDoc = await transaction.get(stockRef);
         if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
           throw new Error(`Not enough stock for ${item.name}.`);
         }
-      }
-
-      // --- 3. All WRITES happen last ---
-      
-      // Handle stock decrements for all payment types
-      for (let i = 0; i < data.items.length; i++) {
-        const item = data.items[i];
-        const stockRef = stockRefs[i];
         transaction.update(stockRef, { stock: increment(-item.quantity) });
-      }
-
-      // Logic for different payment methods
-      if (data.paymentMethod === 'Cash') {
-        const total = data.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        const confirmationRef = doc(collection(db, 'payment_confirmations'));
-        transaction.set(confirmationRef, {
-          runId: data.runId,
-          customerId: data.customerId,
-          customerName: data.customerName,
-          items: data.items,
-          amount: total,
-          driverId: data.staffId,
-          driverName: driverName,
-          date: serverTimestamp(),
-          status: 'pending',
-          paymentMethod: data.paymentMethod
-        });
-
-      } else { // This handles 'Credit' and 'Paystack'
-        const orderData = {
-          salesRunId: data.runId,
-          customerId: data.customerId,
-          customerName: data.customerName,
-          items: data.items,
-          total: data.total,
-          paymentMethod: data.paymentMethod,
-          date: Timestamp.now(),
-          staffId: data.staffId,
-          status: 'Completed',
-          id: newOrderRef.id
-        };
-        transaction.set(newOrderRef, orderData);
-
-        const runRef = doc(db, 'transfers', data.runId);
-        if (data.paymentMethod === 'Paystack') { // Assumes Paystack payments are collected
-          transaction.update(runRef, { totalCollected: increment(data.total) });
-        }
-        
-        if (data.paymentMethod === 'Credit' && customerRef) {
-          transaction.update(customerRef, { amountOwed: increment(data.total) });
-        }
       }
     });
 
-    return { success: true, orderId: newOrderRef.id };
+    return { success: true, orderId: "dummy-id-for-client" }; // Client doesn't need real ID for cash sales
 
   } catch (error) {
     console.error("Error selling to customer:", error);
@@ -2616,6 +2598,15 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
             };
         });
 
+        const metadata = {
+            customer_name: data.customerName,
+            staff_id: data.staffId,
+            cart: data.items, // Original cart data
+            runId: data.runId || null,
+            customerId: data.customerId || null,
+            isDebtPayment: data.isDebtPayment || false,
+        };
+
         const response = await fetch('https://api.paystack.co/transaction/initialize', {
             method: 'POST',
             headers: {
@@ -2625,12 +2616,7 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
             body: JSON.stringify({
                 email: data.email,
                 amount: Math.round(data.total * 100), // amount in kobo
-                metadata: {
-                    customer_name: data.customerName,
-                    staff_id: data.staffId,
-                    cart: itemsWithCost, // Pass the enriched cart data
-                    runId: data.runId || null // Include runId if it exists
-                }
+                metadata,
             }),
         });
 
@@ -2663,11 +2649,24 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         }
         
         const metadata = verificationData.data.metadata;
-        if (!metadata || !metadata.cart || !Array.isArray(metadata.cart)) {
+        if (!metadata) {
             return { success: false, error: 'Transaction metadata is missing or corrupt.'}
         }
+        
+        const amountPaid = verificationData.data.amount / 100;
 
-        // Check if this is a sales run or POS sale
+        // Debt Payment from Sales Run
+        if (metadata.isDebtPayment && metadata.runId && metadata.customerId) {
+            await runTransaction(db, async (transaction) => {
+                const runRef = doc(db, 'transfers', metadata.runId);
+                const customerRef = doc(db, 'customers', metadata.customerId);
+                transaction.update(runRef, { totalCollected: increment(amountPaid) });
+                transaction.update(customerRef, { amountPaid: increment(amountPaid) });
+            });
+            return { success: true, orderId: `debt-payment-${reference}` };
+        }
+        
+        // New Sale (POS or Sales Run)
         if (metadata.runId) {
              const saleData = {
                 runId: metadata.runId,
@@ -2769,7 +2768,6 @@ export async function getPendingSupplyRequests(): Promise<SupplyRequest[]> {
 export async function approveStockIncrease(requestId: string, costPerUnit: number, totalCost: number, user: { staff_id: string; name: string }) {
     const requestRef = doc(db, 'supply_requests', requestId);
     
-    // First transaction for the request itself
     try {
          await runTransaction(db, async (transaction) => {
             const requestDoc = await transaction.get(requestRef);
@@ -2790,7 +2788,6 @@ export async function approveStockIncrease(requestId: string, costPerUnit: numbe
         return { success: false, error: (error as Error).message };
     }
 
-    // Second transaction for inventory and financials
     try {
         const requestDoc = await getDoc(requestRef);
         if(!requestDoc.exists()) throw new Error("Could not find original request after approval.");
@@ -2826,7 +2823,6 @@ export async function approveStockIncrease(requestId: string, costPerUnit: numbe
         return { success: true };
     } catch (error) {
         console.error("Error updating inventory/financials after approval:", error);
-        // Optionally, try to revert the request status here
         await updateDoc(requestRef, { status: 'pending', notes: 'Inventory update failed' });
         return { success: false, error: "Failed to update inventory and financials. Request status has been reverted." };
     }
