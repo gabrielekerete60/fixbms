@@ -1379,7 +1379,7 @@ export type PaymentConfirmation = {
   items: { productId: string; quantity: number, price: number, name: string }[];
   isDebtPayment?: boolean;
   customerId?: string;
-  paymentMethod: 'Cash' | 'POS';
+  paymentMethod: 'Cash' | 'POS' | 'Paystack';
 };
 
 
@@ -2234,8 +2234,7 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
       
       salesByCustomer[customerId].totalSold += order.total;
       
-      // Only count cash and paystack as "paid" for the run summary
-      if (order.paymentMethod === 'Cash' || order.paymentMethod === 'Paystack') {
+      if (order.paymentMethod === 'Cash' || order.paymentMethod === 'Paystack' || order.paymentMethod === 'POS') {
         salesByCustomer[customerId].totalPaid += order.total;
       }
     });
@@ -2278,8 +2277,38 @@ type SaleData = {
 export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
   try {
     await runTransaction(db, async (transaction) => {
+      // --- 1. All READS must happen first ---
       const staffDoc = await transaction.get(doc(db, 'staff', data.staffId));
+      const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
+      const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
+      let customerRef;
+      if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
+        customerRef = doc(db, 'customers', data.customerId);
+        await transaction.get(customerRef);
+      }
+      let runRef;
+      if (data.paymentMethod === 'Paystack') {
+        runRef = doc(db, 'transfers', data.runId);
+        await transaction.get(runRef);
+      }
+
+      // --- 2. All VALIDATIONS happen next ---
+      for (let i = 0; i < data.items.length; i++) {
+        const item = data.items[i];
+        const stockDoc = stockDocs[i];
+        if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
+          throw new Error(`Not enough stock for ${item.name}.`);
+        }
+      }
       const driverName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
+
+      // --- 3. All WRITES happen last ---
+      // Decrement stock for all sales
+      for (let i = 0; i < data.items.length; i++) {
+          const item = data.items[i];
+          const stockRef = stockRefs[i];
+          transaction.update(stockRef, { stock: increment(-item.quantity) });
+      }
 
       // If cash, create a confirmation request
       if (data.paymentMethod === 'Cash') {
@@ -2312,29 +2341,17 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
           };
           transaction.set(newOrderRef, orderData);
 
-          const runRef = doc(db, 'transfers', data.runId);
-          if (data.paymentMethod === 'Paystack') {
+          if (data.paymentMethod === 'Paystack' && runRef) {
             transaction.update(runRef, { totalCollected: increment(data.total) });
           }
           
-          if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
-            const customerRef = doc(db, 'customers', data.customerId);
+          if (data.paymentMethod === 'Credit' && customerRef) {
             transaction.update(customerRef, { amountOwed: increment(data.total) });
           }
       }
-
-      // Decrement stock for all sales
-      for (const item of data.items) {
-        const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
-        const stockDoc = await transaction.get(stockRef);
-        if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
-          throw new Error(`Not enough stock for ${item.name}.`);
-        }
-        transaction.update(stockRef, { stock: increment(-item.quantity) });
-      }
     });
 
-    return { success: true, orderId: "dummy-id-for-client" }; // Client doesn't need real ID for cash sales
+    return { success: true, orderId: "dummy-id-for-client" };
 
   } catch (error) {
     console.error("Error selling to customer:", error);
@@ -2767,40 +2784,35 @@ export async function getPendingSupplyRequests(): Promise<SupplyRequest[]> {
 
 export async function approveStockIncrease(requestId: string, costPerUnit: number, totalCost: number, user: { staff_id: string; name: string }) {
     const requestRef = doc(db, 'supply_requests', requestId);
-    
-    try {
-         await runTransaction(db, async (transaction) => {
-            const requestDoc = await transaction.get(requestRef);
-            if (!requestDoc.exists() || requestDoc.data().status !== 'pending') {
-                throw new Error("Request not found or already processed.");
-            }
-            transaction.update(requestRef, {
-                status: 'approved',
-                costPerUnit: costPerUnit,
-                totalCost: totalCost,
-                approverId: user.staff_id,
-                approverName: user.name,
-                approvedDate: serverTimestamp()
-            });
-        });
-    } catch (error) {
-        console.error("Error approving request:", error);
-        return { success: false, error: (error as Error).message };
+    const requestDoc = await getDoc(requestRef);
+    if(!requestDoc.exists() || requestDoc.data()?.status !== 'pending') {
+        return { success: false, error: "Request not found or already processed." };
     }
+    const requestData = requestDoc.data() as SupplyRequest;
 
     try {
-        const requestDoc = await getDoc(requestRef);
-        if(!requestDoc.exists()) throw new Error("Could not find original request after approval.");
-        const requestData = requestDoc.data() as SupplyRequest;
-
-        const ingredientRef = doc(db, 'ingredients', requestData.ingredientId);
-        const supplierRef = doc(db, 'suppliers', requestData.supplierId);
-        const directCostRef = doc(collection(db, 'directCosts'));
-        const stockLogRef = doc(collection(db, 'ingredient_stock_logs'));
-
         const batch = writeBatch(db);
+
+        // Update the original request to 'approved'
+        batch.update(requestRef, {
+            status: 'approved',
+            costPerUnit: costPerUnit,
+            totalCost: totalCost,
+            approverId: user.staff_id,
+            approverName: user.name,
+            approvedDate: serverTimestamp()
+        });
+
+        // Update ingredient stock
+        const ingredientRef = doc(db, 'ingredients', requestData.ingredientId);
         batch.update(ingredientRef, { stock: increment(requestData.quantity), costPerUnit: costPerUnit });
+
+        // Update supplier amount owed
+        const supplierRef = doc(db, 'suppliers', requestData.supplierId);
         batch.update(supplierRef, { amountOwed: increment(totalCost) });
+
+        // Add to Direct Costs
+        const directCostRef = doc(collection(db, 'directCosts'));
         batch.set(directCostRef, {
             description: `Purchase of ${requestData.ingredientName} from ${requestData.supplierName}`,
             category: 'Ingredients',
@@ -2808,13 +2820,16 @@ export async function approveStockIncrease(requestId: string, costPerUnit: numbe
             total: totalCost,
             date: serverTimestamp()
         });
+
+        // Create an ingredient stock log
+        const stockLogRef = doc(collection(db, 'ingredient_stock_logs'));
         batch.set(stockLogRef, {
             ingredientId: requestData.ingredientId,
             ingredientName: requestData.ingredientName,
             change: requestData.quantity,
             reason: `Purchase from ${requestData.supplierName} (Approved)`,
             date: serverTimestamp(),
-            staffName: requestData.requesterName, // Use requester's name
+            staffName: requestData.requesterName,
             logRefId: requestId,
         });
 
@@ -2822,11 +2837,11 @@ export async function approveStockIncrease(requestId: string, costPerUnit: numbe
 
         return { success: true };
     } catch (error) {
-        console.error("Error updating inventory/financials after approval:", error);
-        await updateDoc(requestRef, { status: 'pending', notes: 'Inventory update failed' });
-        return { success: false, error: "Failed to update inventory and financials. Request status has been reverted." };
+        console.error("Error approving stock increase:", error);
+        return { success: false, error: "Failed to approve stock increase." };
     }
 }
+
 
 export async function declineStockIncrease(requestId: string, user: { staff_id: string, name: string }) {
     try {
