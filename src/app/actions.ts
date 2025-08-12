@@ -2280,8 +2280,10 @@ type SaleData = {
     total: number;
 }
 
-export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string }> {
+export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
   try {
+    const newOrderRef = doc(collection(db, 'orders'));
+
     await runTransaction(db, async (transaction) => {
       // --- 1. All READS must happen first ---
       const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
@@ -2332,7 +2334,6 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
         });
 
       } else { // This handles 'Credit' and 'Paystack'
-        const newOrderRef = doc(collection(db, 'orders'));
         const orderData = {
           salesRunId: data.runId,
           customerId: data.customerId,
@@ -2343,6 +2344,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
           date: Timestamp.now(),
           staffId: data.staffId,
           status: 'Completed',
+          id: newOrderRef.id
         };
         transaction.set(newOrderRef, orderData);
 
@@ -2357,7 +2359,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
       }
     });
 
-    return { success: true };
+    return { success: true, orderId: newOrderRef.id };
 
   } catch (error) {
     console.error("Error selling to customer:", error);
@@ -2652,7 +2654,7 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
 }
 
 export async function verifyPaystackOnServerAndFinalizeOrder(reference: string): Promise<{ success: boolean; error?: string, orderId?: string }> {
-    const secretKey = process.env.PAYSTACK_SECRET_KEY;
+    const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
     if (!secretKey) return { success: false, error: "Paystack secret key is not configured." };
 
     try {

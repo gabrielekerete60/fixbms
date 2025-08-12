@@ -329,8 +329,6 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             return;
         }
         
-        setIsLoading(true);
-
         const saleData = {
             runId: run.id,
             items: cart,
@@ -383,7 +381,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                          if (finalOrder.success) {
                             toast({ title: 'Payment Successful', description: 'Order has been completed.' });
                             const completedOrder: CompletedOrder = {
-                                id: paystackResult.reference || '',
+                                id: finalOrder.orderId || paystackResult.reference || '',
                                 items: cart,
                                 total: total,
                                 date: new Date(),
@@ -408,12 +406,13 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         }
 
         // Handle Credit Sale
+        setIsLoading(true);
         const result = await handleSellToCustomer(saleData);
 
         if (result.success) {
             toast({ title: 'Success', description: 'Credit sale recorded successfully.' });
             onSaleMade({
-                id: 'credit-sale-' + Date.now(),
+                id: result.orderId || 'credit-sale-' + Date.now(),
                 items: cart,
                 total: total,
                 date: new Date(),
@@ -835,6 +834,9 @@ function SalesRunDetails() {
     
     const handleSaleMade = (newOrder: CompletedOrder) => {
          // The real-time listener will handle the update
+         if (newOrder.paymentMethod === 'Paystack') {
+            setViewingOrder(newOrder);
+         }
      }
     
      const getRemainingItems = useCallback(() => {
@@ -1095,7 +1097,7 @@ function SalesRunDetails() {
             
             <CustomerOrdersDialog isOpen={!!viewingCustomer} onOpenChange={() => setViewingCustomer(null)} customer={viewingCustomer} orders={orders} />
 
-            <Dialog open={!!viewingOrder} onOpenChange={() => setViewingOrder(null)}>
+            <Dialog open={!!viewingOrder} onOpenChange={setViewingOrder}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Order Details</DialogTitle>
@@ -1103,7 +1105,7 @@ function SalesRunDetails() {
                             Receipt for order {viewingOrder?.id.substring(0,8)}...
                         </DialogDescription>
                     </DialogHeader>
-                    {viewingOrder && <Receipt order={viewingOrder} />}
+                    {viewingOrder && <Receipt order={viewingOrder} ref={receiptRef} />}
                     <DialogFooter className="gap-2 sm:justify-end">
                         <Button variant="outline" onClick={() => setViewingOrder(null)}>Close</Button>
                         <Button onClick={() => handlePrint(receiptRef.current)}><Printer className="mr-2 h-4 w-4" />Print</Button>
