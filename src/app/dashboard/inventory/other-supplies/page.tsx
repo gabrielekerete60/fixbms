@@ -482,5 +482,4 @@ export default function OtherSuppliesPage() {
             </AlertDialog>
         </div>
     );
-
-    
+}
