@@ -1463,6 +1463,31 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         }
                     }
                     // -- END: Auto-complete run logic --
+                } else if (confirmationData.runId.startsWith('pos-sale-')) {
+                    // This is a POS sale, update daily sales record
+                    const today = new Date();
+                    const salesDocId = format(today, 'yyyy-MM-dd');
+                    const salesDocRef = doc(db, 'sales', salesDocId);
+                    const salesDoc = await transaction.get(salesDocRef);
+
+                    const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
+                    if (salesDoc.exists()) {
+                        transaction.update(salesDocRef, {
+                            [paymentField]: increment(confirmationData.amount),
+                            total: increment(confirmationData.amount)
+                        });
+                    } else {
+                        transaction.set(salesDocRef, {
+                            date: Timestamp.fromDate(startOfDay(today)),
+                            description: `Daily Sales for ${salesDocId}`,
+                            cash: confirmationData.paymentMethod === 'Cash' ? confirmationData.amount : 0,
+                            pos: confirmationData.paymentMethod === 'POS' ? confirmationData.amount : 0,
+                            transfer: 0,
+                            creditSales: 0,
+                            shortage: 0,
+                            total: confirmationData.amount
+                        });
+                    }
                 }
             }
 
@@ -2254,8 +2279,8 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
         salesByCustomer[customerId].totalSold += order.total;
       }
       
-      // Add to totalPaid if it's an upfront payment OR a debt payment
-      if (order.paymentMethod === 'Cash' || order.paymentMethod === 'Paystack' || order.paymentMethod === 'POS' || order.isDebtPayment) {
+      // Add to totalPaid for any completed order, including debt payments
+      if (order.status === 'Completed') {
         salesByCustomer[customerId].totalPaid += order.total;
       }
     });
@@ -2387,16 +2412,10 @@ type PosSaleData = {
 }
 export async function handlePosSale(data: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
     try {
-        const newOrderRef = doc(collection(db, 'orders'));
-        const today = new Date();
-        const salesDocId = format(today, 'yyyy-MM-dd');
-        const salesDocRef = doc(db, 'sales', salesDocId);
-
         await runTransaction(db, async (transaction) => {
             // --- 1. All READS must happen first ---
             const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
             const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
-            const salesDoc = await transaction.get(salesDocRef);
 
             // --- 2. All VALIDATIONS happen next ---
             for (let i = 0; i < data.items.length; i++) {
@@ -2414,49 +2433,75 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                 transaction.update(stockRef, { stock: increment(-item.quantity) });
             }
 
-            // Create the order
-            const orderData = {
-                id: newOrderRef.id,
-                salesRunId: `pos-sale-${newOrderRef.id}`,
-                customerId: 'walk-in',
-                customerName: data.customerName,
-                items: data.items,
-                total: data.total,
-                paymentMethod: data.paymentMethod,
-                date: Timestamp.now(),
-                staffId: data.staffId,
-                staffName: data.staffName,
-                status: 'Completed',
-            };
-            transaction.set(newOrderRef, orderData);
+            // For Cash and POS, create a payment confirmation for approval
+            if (data.paymentMethod === 'Cash' || data.paymentMethod === 'POS') {
+                const confirmationRef = doc(collection(db, 'payment_confirmations'));
+                transaction.set(confirmationRef, {
+                    runId: `pos-sale-${confirmationRef.id}`,
+                    customerId: 'walk-in',
+                    customerName: data.customerName,
+                    items: data.items,
+                    amount: data.total,
+                    driverId: data.staffId, // Using driverId field for consistency
+                    driverName: data.staffName,
+                    date: serverTimestamp(),
+                    status: 'pending',
+                    paymentMethod: data.paymentMethod,
+                    isDebtPayment: false,
+                });
+            } else { // For Paystack, create the order and daily sales record directly
+                const newOrderRef = doc(collection(db, 'orders'));
+                transaction.set(newOrderRef, {
+                    id: newOrderRef.id,
+                    salesRunId: `pos-sale-${newOrderRef.id}`,
+                    customerId: 'walk-in',
+                    customerName: data.customerName,
+                    items: data.items,
+                    total: data.total,
+                    paymentMethod: data.paymentMethod,
+                    date: Timestamp.now(),
+                    staffId: data.staffId,
+                    staffName: data.staffName,
+                    status: 'Completed',
+                });
+                
+                // Update or create the daily sales summary
+                const today = new Date();
+                const salesDocId = format(today, 'yyyy-MM-dd');
+                const salesDocRef = doc(db, 'sales', salesDocId);
+                const salesDoc = await transaction.get(salesDocRef);
 
-            // Update or create the daily sales summary
-            const paymentField = data.paymentMethod === 'Cash' ? 'cash' : (data.paymentMethod === 'POS' ? 'pos' : 'transfer');
-            if (salesDoc.exists()) {
-                transaction.update(salesDocRef, {
-                    [paymentField]: increment(data.total),
-                    total: increment(data.total)
-                });
-            } else {
-                transaction.set(salesDocRef, {
-                    date: Timestamp.fromDate(startOfDay(today)),
-                    description: `Daily Sales for ${salesDocId}`,
-                    cash: data.paymentMethod === 'Cash' ? data.total : 0,
-                    pos: data.paymentMethod === 'POS' ? data.total : 0,
-                    transfer: data.paymentMethod === 'Paystack' ? data.total : 0,
-                    creditSales: 0,
-                    shortage: 0,
-                    total: data.total
-                });
+                const paymentField = 'transfer'; // Paystack maps to transfer
+                if (salesDoc.exists()) {
+                    transaction.update(salesDocRef, {
+                        [paymentField]: increment(data.total),
+                        total: increment(data.total)
+                    });
+                } else {
+                    transaction.set(salesDocRef, {
+                        date: Timestamp.fromDate(startOfDay(today)),
+                        description: `Daily Sales for ${salesDocId}`,
+                        cash: 0,
+                        pos: 0,
+                        transfer: data.total,
+                        creditSales: 0,
+                        shortage: 0,
+                        total: data.total
+                    });
+                }
             }
         });
 
-        return { success: true, orderId: newOrderRef.id };
+        // The logic for returning orderId needs to be conditional now.
+        // For Cash/POS, we don't have an orderId yet.
+        // For Paystack, we could return it but the client flow handles that.
+        return { success: true, orderId: "pos-sale-submitted" };
     } catch (error) {
         console.error("Error processing POS sale:", error);
         return { success: false, error: (error as Error).message };
     }
 }
+
 
 
 type PaymentData = {
@@ -2861,7 +2906,7 @@ export async function approveStockIncrease(requestId: string, costPerUnit: numbe
 }
 
 
-export async function declineStockIncrease(requestId: string, user: { staff_id: string, name: string }) {
+export async function declineStockIncrease(requestId: string, user: { staff_id: string; name: string }) {
     try {
         const requestRef = doc(db, 'supply_requests', requestId);
         await updateDoc(requestRef, {

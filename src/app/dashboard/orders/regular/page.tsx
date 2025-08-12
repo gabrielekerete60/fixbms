@@ -52,7 +52,7 @@ import { Input } from "@/components/ui/input"
 import { DateRange } from "react-day-picker";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
-import { collection, getDocs, query, orderBy, Timestamp, doc, getDoc, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, Timestamp, doc, getDoc, onSnapshot, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -88,11 +88,13 @@ type CompletedOrder = {
 type User = {
     name: string;
     role: string;
+    staff_id: string;
 };
 
 type StaffMember = {
     id: string;
     name: string;
+    role: string;
 }
 
 const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -248,7 +250,7 @@ function PaginationControls({
     )
 }
 
-function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected, storeAddress, grandTotal }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean, storeAddress?: string, grandTotal: number }) {
+function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrdersSelected, storeAddress, grandTotal, user }: { orders: CompletedOrder[], onSelectOne: (id: string, checked: boolean) => void, onSelectAll: (checked: boolean) => void, selectedOrders: string[], allOrdersSelected: boolean, storeAddress?: string, grandTotal: number, user: User | null }) {
     const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
     const [printingOrder, setPrintingOrder] = useState<CompletedOrder | null>(null);
     const receiptRef = useRef<HTMLDivElement>(null);
@@ -261,6 +263,8 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
       }, 100);
     }
     
+    const isShowroomStaff = user?.role === 'Showroom Staff';
+
     return (
         <>
         <Dialog open={!!viewingOrder} onOpenChange={() => setViewingOrder(null)}>
@@ -293,7 +297,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                     <TableHead>Order ID</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Customer</TableHead>
-                    <TableHead>Staff</TableHead>
+                    {!isShowroomStaff && <TableHead>Staff</TableHead>}
                     <TableHead>Items</TableHead>
                     <TableHead>Payment</TableHead>
                     <TableHead>Status</TableHead>
@@ -326,7 +330,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
                             <TableCell className="font-medium">{order.id.substring(0, 7)}...</TableCell>
                             <TableCell>{order.date.toDate().toLocaleDateString()}</TableCell>
                             <TableCell>{order.customerName || 'Walk-in'}</TableCell>
-                            <TableCell>{order.staffName || 'N/A'}</TableCell>
+                            {!isShowroomStaff && <TableCell>{order.staffName || 'N/A'}</TableCell>}
                             <TableCell>{order.items.reduce((acc, item) => acc + item.quantity, 0)}</TableCell>
                             <TableCell>
                                 <Badge variant={'secondary'}>
@@ -365,7 +369,7 @@ function OrdersTable({ orders, onSelectOne, onSelectAll, selectedOrders, allOrde
             </TableBody>
             <TableFooter>
                 <TableRow>
-                    <TableCell colSpan={8} className="text-right font-bold">Grand Total</TableCell>
+                    <TableCell colSpan={isShowroomStaff ? 7 : 8} className="text-right font-bold">Grand Total</TableCell>
                     <TableCell className="text-right font-bold">{formatCurrency(grandTotal)}</TableCell>
                     <TableCell></TableCell>
                 </TableRow>
@@ -492,10 +496,13 @@ export default function RegularOrdersPage() {
             const currentUser: User | null = userStr ? JSON.parse(userStr) : null;
             setUser(currentUser);
             
+            let initialStaffFilter = 'all';
             if(currentUser?.role === 'Showroom Staff') {
                 const today = new Date();
                 setDate({ from: startOfDay(today), to: endOfDay(today) });
+                initialStaffFilter = currentUser.staff_id;
             }
+             setStaffFilter(initialStaffFilter);
 
             const [settingsDoc, staffListData] = await Promise.all([
                 getDoc(doc(db, 'settings', 'app_config')),
@@ -505,7 +512,7 @@ export default function RegularOrdersPage() {
             if (settingsDoc.exists()) {
                 setStoreAddress(settingsDoc.data().storeAddress);
             }
-            setStaffList(staffListData);
+            setStaffList(staffListData as StaffMember[]);
 
             const ordersQuery = query(collection(db, "orders"), orderBy("date", "desc"));
             const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
@@ -546,16 +553,26 @@ export default function RegularOrdersPage() {
     };
   }, [toast, isLoading]);
 
+  const isShowroomStaff = user?.role === 'Showroom Staff';
+
   const filteredOrders = useMemo(() => {
     return allOrders.filter(order => {
       const orderDate = order.date.toDate();
+      
+      let staffMatch = true;
+      if (isShowroomStaff) {
+          staffMatch = order.staffId === user?.staff_id;
+      } else {
+          staffMatch = staffFilter === 'all' || order.staffId === staffFilter;
+      }
+
       const dateMatch = !date?.from || (orderDate >= date.from && (!date.to || orderDate <= date.to));
       const searchMatch = !searchTerm || order.id.toLowerCase().includes(searchTerm.toLowerCase()) || order.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
       const paymentMatch = paymentMethodFilter === 'all' || order.paymentMethod === paymentMethodFilter;
-      const staffMatch = staffFilter === 'all' || order.staffId === staffFilter;
+      
       return dateMatch && searchMatch && paymentMatch && staffMatch;
     });
-  }, [allOrders, date, searchTerm, paymentMethodFilter, staffFilter]);
+  }, [allOrders, date, searchTerm, paymentMethodFilter, staffFilter, isShowroomStaff, user]);
   
   const grandTotal = useMemo(() => {
     return filteredOrders.reduce((sum, order) => sum + order.total, 0);
@@ -616,8 +633,12 @@ export default function RegularOrdersPage() {
     document.body.removeChild(link);
     toast({ title: "Success", description: `${ordersToExport.length} orders exported.` });
   };
+  
+  const salesStaff = useMemo(() => {
+    return staffList.filter(s => s.role === 'Showroom Staff' || s.role === 'Delivery Staff');
+  }, [staffList]);
 
-  const isShowroomStaff = user?.role === 'Showroom Staff';
+
   const ordersByStatus = (status: CompletedOrder['status']) => paginatedOrders.filter(o => o.status === status);
   const TABS = ['All Orders', 'Completed', 'Pending', 'Cancelled'];
 
@@ -638,6 +659,7 @@ export default function RegularOrdersPage() {
         allOrdersSelected={selectedOrders.length > 0 && selectedOrders.length === paginatedOrders.length}
         storeAddress={storeAddress}
         grandTotal={grandTotal}
+        user={user}
       />
     );
   };
@@ -719,15 +741,17 @@ export default function RegularOrdersPage() {
                                 <SelectItem value="Credit">Credit</SelectItem>
                             </SelectContent>
                         </Select>
+                        {!isShowroomStaff && (
                         <Select value={staffFilter} onValueChange={setStaffFilter}>
                             <SelectTrigger className="w-full sm:w-[180px]">
                                 <SelectValue placeholder="Filter by staff" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All Staff</SelectItem>
-                                {staffList.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                                {salesStaff.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
+                        )}
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -764,4 +788,16 @@ export default function RegularOrdersPage() {
         </div>
     </div>
   )
+}
+
+function RegularOrdersPageWithSuspense() {
+    return (
+        <Suspense fallback={<div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>}>
+            <RegularOrdersPage />
+        </Suspense>
+    )
+}
+
+export default function RegularOrdersPageWithTypes() {
+  return <RegularOrdersPageWithSuspense />;
 }
