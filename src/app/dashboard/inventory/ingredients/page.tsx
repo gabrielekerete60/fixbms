@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -330,14 +331,20 @@ function LogDetailsDialog({ isOpen, onOpenChange, log, productionBatch, supplyLo
             {isPurchase && supplyLog && (
               <div>
                 <h4 className="font-semibold mb-2">Purchase from: {supplyLog.supplierName}</h4>
-                <p><strong>Ingredient:</strong> {supplyLog.ingredientName}</p>
-                <p><strong>Quantity:</strong> {supplyLog.quantity} {supplyLog.unit}</p>
-                <p><strong>Cost per Unit:</strong> ₦{supplyLog.costPerUnit.toLocaleString()}</p>
-                <p><strong>Total Cost:</strong> ₦{supplyLog.totalCost.toLocaleString()}</p>
+                <div className="text-sm space-y-1">
+                    <p><strong>Ingredient:</strong> {supplyLog.ingredientName}</p>
+                    <p><strong>Quantity Received:</strong> {supplyLog.quantity} {supplyLog.unit}</p>
+                    <p><strong>Cost per Unit:</strong> ₦{supplyLog.costPerUnit.toLocaleString()}</p>
+                    <p><strong>Total Cost:</strong> ₦{supplyLog.totalCost.toLocaleString()}</p>
+                    {supplyLog.invoiceNumber && <p><strong>Invoice #:</strong> {supplyLog.invoiceNumber}</p>}
+                </div>
               </div>
             )}
             {!isProduction && !isPurchase && (
-                <p><strong>Change:</strong> {log.change} | <strong>Reason:</strong> {log.reason}</p>
+                <div className="text-sm">
+                    <p><strong>Change:</strong> {log.change > 0 ? `+${log.change}` : log.change}</p>
+                    <p><strong>Reason:</strong> {log.reason}</p>
+                </div>
             )}
           </div>
           <DialogFooter>

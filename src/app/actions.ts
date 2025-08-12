@@ -1,4 +1,5 @@
 
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -1446,14 +1447,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     const runRef = doc(db, 'transfers', confirmationData.runId);
                     transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
                 }
-
-                 // For POS sales, decrement the main product stock
-                if (!isFromSalesRun) {
-                    for (const item of confirmationData.items) {
-                        const productRef = doc(db, 'products', item.productId);
-                        transaction.update(productRef, { stock: increment(-item.quantity) });
-                    }
-                }
             }
 
             // Update the confirmation status regardless of action
@@ -2775,12 +2768,14 @@ export async function approveStockIncrease(requestId: string, costPerUnit: numbe
     try {
         const requestRef = doc(db, 'supply_requests', requestId);
         
-        // First transaction: Update the request status
         await runTransaction(db, async (transaction) => {
             const requestDoc = await transaction.get(requestRef);
             if (!requestDoc.exists() || requestDoc.data().status !== 'pending') {
                 throw new Error("Request not found or already processed.");
             }
+
+            const requestData = requestDoc.data() as SupplyRequest;
+
             transaction.update(requestRef, {
                 status: 'approved',
                 costPerUnit: costPerUnit,
@@ -2789,13 +2784,7 @@ export async function approveStockIncrease(requestId: string, costPerUnit: numbe
                 approverName: user.name,
                 approvedDate: serverTimestamp()
             });
-        });
 
-        // Second transaction: Update inventory, supplier, and logs
-        const requestDoc = await getDoc(requestRef);
-        const requestData = requestDoc.data() as SupplyRequest;
-
-        await runTransaction(db, async (transaction) => {
             // Update ingredient stock
             const ingredientRef = doc(db, 'ingredients', requestData.ingredientId);
             transaction.update(ingredientRef, { stock: increment(requestData.quantity), costPerUnit: costPerUnit });
@@ -2822,7 +2811,7 @@ export async function approveStockIncrease(requestId: string, costPerUnit: numbe
                 change: requestData.quantity,
                 reason: `Purchase from ${requestData.supplierName} (Approved)`,
                 date: serverTimestamp(),
-                staffName: user.name,
+                staffName: requestData.requesterName, // Use requester's name
                 logRefId: requestId,
             });
         });
