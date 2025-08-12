@@ -685,7 +685,7 @@ export default function IngredientsPage() {
                                                 <TableCell>
                                                     <Badge variant={log.change > 0 ? "default" : "destructive"} className="gap-1">
                                                         {log.change > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                                                        {log.change}
+                                                        {log.change.toLocaleString()}
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>{log.reason}</TableCell>
