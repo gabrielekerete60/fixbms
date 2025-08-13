@@ -1,8 +1,10 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Package2, Car, Users, DollarSign, Filter, MoreVertical, Calendar as CalendarIcon } from 'lucide-react';
@@ -97,6 +99,7 @@ function RunCard({ run }: { run: SalesRunType }) {
 }
 
 function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], isLoading: boolean, user: User | null }) {
+    const router = useRouter();
     const [filterDriver, setFilterDriver] = useState('all');
     const [sort, setSort] = useState('date_desc');
     const [date, setDate] = useState<DateRange | undefined>({ from: subDays(new Date(), 6), to: new Date() });
@@ -204,7 +207,7 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                                     onSelect={setTempDate}
                                     numberOfMonths={2}
                                 />
-                                <div className="p-2 border-t flex justify-end">
+                                 <div className="p-2 border-t flex justify-end">
                                     <Button onClick={handleDateApply}>Apply</Button>
                                 </div>
                             </PopoverContent>
@@ -300,7 +303,7 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                             </TableHeader>
                             <TableBody>
                                 {filteredAndSortedRuns.map(run => (
-                                    <TableRow key={run.id}>
+                                    <TableRow key={run.id} className="cursor-pointer hover:bg-muted" onClick={() => router.push(`/dashboard/sales-runs/${run.id}`)}>
                                         <TableCell>{run.to_staff_name}</TableCell>
                                         <TableCell>{format(new Date(run.date), 'PPP')}</TableCell>
                                         <TableCell><Badge variant={run.status === 'active' ? 'default' : 'secondary'}>{run.status}</Badge></TableCell>
@@ -408,7 +411,7 @@ export default function DeliveriesPage() {
         if (userStr) {
             const parsedUser = JSON.parse(userStr);
             setUser(parsedUser);
-            const managerRoles = ['Manager', 'Developer', 'Supervisor'];
+            const managerRoles = ['Manager', 'Developer', 'Supervisor', 'Accountant'];
             if(managerRoles.includes(parsedUser.role)) {
                 fetchAllRunsForManager();
             } else {
@@ -425,7 +428,7 @@ export default function DeliveriesPage() {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
     }
 
-    const managerRoles = ['Manager', 'Developer', 'Supervisor'];
+    const managerRoles = ['Manager', 'Developer', 'Supervisor', 'Accountant'];
     if(managerRoles.includes(user.role)) {
         return <ManagerView allRuns={allRuns} isLoading={isLoading} user={user} />;
     }

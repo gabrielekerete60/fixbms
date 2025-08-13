@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -47,7 +48,7 @@ type AccountSummary = Record<string, number>;
 type DebtRecord = { id: string; date: string; description: string; debit: number; credit: number; };
 type DirectCost = { id: string; date: string; description: string; category: string; quantity: number; total: number; };
 type IndirectCost = { id: string; date: string; description: string; category: string; amount: number; };
-type ClosingStock = { name: string; value: number; };
+type ClosingStock = { name: string; value: number; quantity: number; unit: string; };
 type DiscountRecord = { id: string; bread_type: string; amount: number };
 type Wage = { id: string; date: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
 type Sale = { id: string; date: any; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; staffName?: string; };
@@ -1559,9 +1560,28 @@ function ClosingStockTab() {
                     </CardHeader>
                     <CardContent>
                         <Table>
-                            <TableHeader><TableRow><TableHead>Item</TableHead><TableHead className="text-right">Amount (₦)</TableHead></TableRow></TableHeader>
-                            <TableBody>{closingStock.map(r => <TableRow key={r.name}><TableCell>{r.name}</TableCell><TableCell className="text-right">{formatCurrency(r.value)}</TableCell></TableRow>)}</TableBody>
-                            <TableFooter><TableRow><TableCell className="font-bold text-right">Total Closing Stock</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalClosingStock)}</TableCell></TableRow></TableFooter>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Item</TableHead>
+                                    <TableHead className="text-right">Quantity</TableHead>
+                                    <TableHead className="text-right">Amount (₦)</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {closingStock.map(r => (
+                                    <TableRow key={r.name}>
+                                        <TableCell>{r.name}</TableCell>
+                                        <TableCell className="text-right">{r.quantity.toFixed(2)} {r.unit}</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(r.value)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                            <TableFooter>
+                                <TableRow>
+                                    <TableCell colSpan={2} className="font-bold text-right">Total Closing Stock</TableCell>
+                                    <TableCell className="font-bold text-right">{formatCurrency(totalClosingStock)}</TableCell>
+                                </TableRow>
+                            </TableFooter>
                         </Table>
                     </CardContent>
                 </Card>

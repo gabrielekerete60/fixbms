@@ -992,18 +992,28 @@ export async function getClosingStocks(category?: 'products' | 'ingredients') {
     const collections = [];
     if (category === 'products' || !category) {
         collections.push(getDocs(collection(db, "products")).then(snap => 
-            snap.docs.map(doc => ({ 
-                name: doc.data().name, 
-                value: (doc.data().stock || 0) * (doc.data().costPrice || 0)
-            }))
+            snap.docs.map(doc => {
+                const data = doc.data();
+                return { 
+                    name: data.name, 
+                    value: (data.stock || 0) * (data.costPrice || 0),
+                    quantity: data.stock || 0,
+                    unit: data.unit || 'pcs',
+                }
+            })
         ));
     }
     if (category === 'ingredients' || !category) {
         collections.push(getDocs(collection(db, "ingredients")).then(snap => 
-            snap.docs.map(doc => ({ 
-                name: doc.data().name, 
-                value: (doc.data().stock || 0) * (doc.data().costPerUnit || 0)
-            }))
+            snap.docs.map(doc => {
+                const data = doc.data();
+                return { 
+                    name: data.name, 
+                    value: (data.stock || 0) * (data.costPerUnit || 0),
+                    quantity: data.stock || 0,
+                    unit: data.unit || 'unit',
+                }
+            })
         ));
     }
     const results = await Promise.all(collections);
@@ -1445,18 +1455,13 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             
             if (isFromSalesRun) {
                 runRef = doc(db, 'transfers', confirmationData.runId);
-                await transaction.get(runRef);
             }
             if (confirmationData.isDebtPayment && confirmationData.customerId) {
                 customerRef = doc(db, 'customers', confirmationData.customerId);
-                await transaction.get(customerRef);
             }
-            if (confirmationData.runId.startsWith('pos-sale-')) {
-                const today = new Date();
-                const salesDocId = format(today, 'yyyy-MM-dd');
-                salesDocRef = doc(db, 'sales', salesDocId);
-                await transaction.get(salesDocRef);
-            }
+            
+            const salesDocId = format(new Date(), 'yyyy-MM-dd');
+            salesDocRef = doc(db, 'sales', salesDocId);
             
             // --- WRITES ---
             const newStatus = action === 'approve' ? 'approved' : 'declined';
