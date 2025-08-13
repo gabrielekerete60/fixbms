@@ -1641,24 +1641,30 @@ type ReportWasteData = {
     notes?: string;
 };
 
-// This function now reports waste from a specific user's personal stock
-export async function handleReportWaste(data: ReportWasteData, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+// This function now reports waste from a specific user's personal stock OR main inventory
+export async function handleReportWaste(data: ReportWasteData, user: { staff_id: string, name: string, role: string }): Promise<{success: boolean, error?: string}> {
     if (!data.productId || !data.quantity || !data.reason) {
         return { success: false, error: "Please fill out all required fields." };
     }
     
     try {
-        const staffStockRef = doc(db, 'staff', user.staff_id, 'personal_stock', data.productId);
+        const isAdminOrStorekeeper = ['Manager', 'Developer', 'Supervisor', 'Storekeeper'].includes(user.role);
+        
+        const stockRef = isAdminOrStorekeeper 
+            ? doc(db, 'products', data.productId)
+            : doc(db, 'staff', user.staff_id, 'personal_stock', data.productId);
+            
         const wasteLogRef = doc(collection(db, 'waste_logs'));
 
         await runTransaction(db, async (transaction) => {
-            const staffStockDoc = await transaction.get(staffStockRef);
-            if (!staffStockDoc.exists() || staffStockDoc.data().stock < data.quantity) {
-                throw new Error("Not enough personal stock to report as waste.");
+            const stockDoc = await transaction.get(stockRef);
+            if (!stockDoc.exists() || (stockDoc.data().stock || 0) < data.quantity) {
+                const stockLocation = isAdminOrStorekeeper ? 'main inventory' : 'personal stock';
+                throw new Error(`Not enough stock for ${data.productName} in ${stockLocation}.`);
             }
 
-            // 1. Decrement personal stock
-            transaction.update(staffStockRef, { stock: increment(-data.quantity) });
+            // 1. Decrement stock
+            transaction.update(stockRef, { stock: increment(-data.quantity) });
 
             // 2. Create a waste log entry
             transaction.set(wasteLogRef, {
@@ -1799,14 +1805,15 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
     }
 }
 
-export async function getProductionTransfers(): Promise<Transfer[]> {
+export async function getProductionTransfers(staffId: string): Promise<Transfer[]> {
      try {
         const notesPrefix = 'Return from production batch';
         const q = query(
             collection(db, 'transfers'),
             where('notes', '>=', notesPrefix),
             where('notes', '<=', notesPrefix + '\uf8ff'),
-            where('status', '==', 'pending')
+            where('status', '==', 'pending'),
+            where('to_staff_id', '==', staffId)
         );
         const querySnapshot = await getDocs(q);
 

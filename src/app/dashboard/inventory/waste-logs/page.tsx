@@ -14,6 +14,7 @@ import { collection, getDocs, where, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format, startOfDay } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 type Product = {
     id: string;
@@ -75,10 +76,10 @@ export default function WasteLogsPage() {
         if (!user) return;
         setIsLoading(true);
 
-        const isAdmin = ['Manager', 'Developer', 'Supervisor'].includes(user.role);
+        const isAdminOrStorekeeper = ['Manager', 'Developer', 'Supervisor', 'Storekeeper'].includes(user.role);
 
         try {
-            const logsData = isAdmin ? await getWasteLogs() : await getWasteLogsForStaff(user.staff_id);
+            const logsData = isAdminOrStorekeeper ? await getWasteLogs() : await getWasteLogsForStaff(user.staff_id);
             setWasteLogs(logsData);
 
             if (products.length === 0) {
@@ -122,7 +123,7 @@ export default function WasteLogsPage() {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
     }
 
-    const isAdmin = ['Manager', 'Developer', 'Supervisor'].includes(user.role);
+    const isAdminOrStorekeeper = ['Manager', 'Developer', 'Supervisor', 'Storekeeper'].includes(user.role);
 
     return (
         <div className="flex flex-col gap-4">
@@ -132,7 +133,7 @@ export default function WasteLogsPage() {
                 <CardHeader>
                     <CardTitle>Manage Waste Logs</CardTitle>
                     <CardDescription>
-                        {isAdmin ? "Review all reported waste and damage across the business." : "A log of all items you have reported as waste."}
+                        {isAdminOrStorekeeper ? "Review all reported waste and damage across the business." : "A log of all items you have reported as waste."}
                     </CardDescription>
                      <div className="flex items-center justify-between gap-4 pt-4">
                         <div className="relative flex-1">
@@ -168,7 +169,7 @@ export default function WasteLogsPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Date</TableHead>
-                                {isAdmin && <TableHead>Staff</TableHead>}
+                                {isAdminOrStorekeeper && <TableHead>Staff</TableHead>}
                                 <TableHead>Product</TableHead>
                                 <TableHead>Quantity</TableHead>
                                 <TableHead>Reason</TableHead>
@@ -177,14 +178,14 @@ export default function WasteLogsPage() {
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
-                                <TableRow><TableCell colSpan={isAdmin ? 6 : 5} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                <TableRow><TableCell colSpan={isAdminOrStorekeeper ? 6 : 5} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
                             ) : filteredLogs.length === 0 ? (
-                                <TableRow><TableCell colSpan={isAdmin ? 6 : 5} className="h-24 text-center">No waste logs found for this filter.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={isAdminOrStorekeeper ? 6 : 5} className="h-24 text-center">No waste logs found for this filter.</TableCell></TableRow>
                             ) : (
                                 filteredLogs.map(log => (
                                     <TableRow key={log.id} onClick={() => setViewingLog(log)} className="cursor-pointer hover:bg-muted/50">
                                         <TableCell>{format(new Date(log.date), 'PPP')}</TableCell>
-                                        {isAdmin && <TableCell>{log.staffName}</TableCell>}
+                                        {isAdminOrStorekeeper && <TableCell>{log.staffName}</TableCell>}
                                         <TableCell>{log.productName}</TableCell>
                                         <TableCell>{log.quantity}</TableCell>
                                         <TableCell>{log.reason}</TableCell>
