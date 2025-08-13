@@ -1437,19 +1437,17 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             const confirmationData = confirmationDoc.data() as PaymentConfirmation;
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
-            let runRef: any, runDoc: any, salesDocRef: any, salesDoc: any;
-
+            let runRef: any, salesDocRef: any;
             if (action === 'approve') {
                 const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
-                
                 if (isFromSalesRun) {
                     runRef = doc(db, 'transfers', confirmationData.runId);
-                    runDoc = await transaction.get(runRef);
+                    await transaction.get(runRef);
                 } else if (confirmationData.runId.startsWith('pos-sale-')) {
                     const today = new Date();
                     const salesDocId = format(today, 'yyyy-MM-dd');
                     salesDocRef = doc(db, 'sales', salesDocId);
-                    salesDoc = await transaction.get(salesDocRef);
+                    await transaction.get(salesDocRef);
                 }
             }
 
@@ -1477,23 +1475,14 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                 }
 
-                if (isFromSalesRun && runDoc.exists()) {
-                    const runData = runDoc.data();
-                    const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
-                    const totalRevenue = runData.totalRevenue || 0;
-                    
-                    let updateData: any = { totalCollected: increment(confirmationData.amount) };
-
-                    if (newTotalCollected >= totalRevenue) {
-                        updateData.status = 'completed';
-                        updateData.time_completed = serverTimestamp();
-                    }
-                    transaction.update(runRef, updateData);
-                } else if (confirmationData.runId.startsWith('pos-sale-')) {
+                if (isFromSalesRun && runRef) {
+                    transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+                } else if (confirmationData.runId.startsWith('pos-sale-') && salesDocRef) {
                     const today = new Date();
                     const salesDocId = format(today, 'yyyy-MM-dd');
-                    
                     const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
+                    
+                    const salesDoc = await transaction.get(salesDocRef);
                     if (salesDoc.exists()) {
                         transaction.update(salesDocRef, {
                             [paymentField]: increment(confirmationData.amount),
@@ -1813,7 +1802,6 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
         const notesPrefix = 'Return from production batch';
         const q = query(
             collection(db, 'transfers'),
-            where('status', '==', 'pending'),
             where('notes', '>=', notesPrefix),
             where('notes', '<=', notesPrefix + '\uf8ff')
         );
