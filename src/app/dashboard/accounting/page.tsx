@@ -50,7 +50,7 @@ type IndirectCost = { id: string; date: string; description: string; category: s
 type ClosingStock = { name: string; value: number; };
 type DiscountRecord = { id: string; bread_type: string; amount: number };
 type Wage = { id: string; date: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
-type Sale = { id: string; date: string; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; staffName?: string; };
+type Sale = { id: string; date: any; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; staffName?: string; };
 type DrinkSaleSummary = { productId: string; productName: string; quantitySold: number; totalRevenue: number; costPrice: number, stock: number };
 
 const chartConfig = {
@@ -1154,11 +1154,14 @@ function PaymentsRequestsTab({ notificationBadge }: { notificationBadge?: React.
 
 function SalesRecordDetailsDialog({ record, isOpen, onOpenChange }: { record: Sale | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
     if (!record) return null;
+    
+    const recordDate = record.date?.toDate ? record.date.toDate() : new Date(record.date);
+
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Sales Details for {format(new Date(record.date), 'PPP')}</DialogTitle>
+                    <DialogTitle>Sales Details for {format(recordDate, 'PPP')}</DialogTitle>
                     <DialogDescription>A breakdown of the day's sales.</DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-2">
@@ -1224,16 +1227,19 @@ function SalesRecordsTab() {
         const wasteByDate: Record<string, number> = {};
 
         wasteLogs.forEach(log => {
-            const dateStr = format(new Date((log.date as any).toDate()), 'yyyy-MM-dd');
+            const logDate = log.date && (log.date as any).toDate ? (log.date as any).toDate() : new Date(log.date);
+            const dateStr = format(logDate, 'yyyy-MM-dd');
             const cost = productCostMap.get(log.productId) || 0;
             const wasteValue = cost * log.quantity;
             wasteByDate[dateStr] = (wasteByDate[dateStr] || 0) + wasteValue;
         });
 
         return records.map(rec => {
-            const dateStr = format(new Date(rec.date), 'yyyy-MM-dd');
+            const recordDate = rec.date && (rec.date as any).toDate ? (rec.date as any).toDate() : new Date(rec.date);
+            const dateStr = format(recordDate, 'yyyy-MM-dd');
             return {
                 ...rec,
+                date: recordDate,
                 shortage: wasteByDate[dateStr] || 0,
             };
         });
@@ -2166,5 +2172,3 @@ export default function AccountingPage() {
     </div>
   );
 }
-
-    
