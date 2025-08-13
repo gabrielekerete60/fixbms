@@ -212,55 +212,29 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                         <div className="text-2xl font-bold">{drivers.length > 1 ? drivers.length - 1 : 0}</div>
                     </CardContent>
                 </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Date Range</CardTitle>
-                         <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
-                            <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="h-4 w-4 text-muted-foreground"/></Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="end">
-                                <Calendar
-                                    initialFocus
-                                    mode="range"
-                                    defaultMonth={tempDate?.from}
-                                    selected={tempDate}
-                                    onSelect={setTempDate}
-                                    numberOfMonths={2}
-                                />
-                                 <div className="p-2 border-t flex justify-end">
-                                    <Button onClick={handleDateApply}>Apply</Button>
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                    </CardHeader>
-                    <CardContent>
-                       <div className="text-lg font-bold">
-                           {date?.from ? (
-                            date.to ? (
-                                <>
-                                {format(date.from, "LLL dd")} - {format(date.to, "LLL dd, y")}
-                                </>
-                            ) : (
-                                format(date.from, "LLL dd, y")
-                            )
-                            ) : (
-                            <span>All time</span>
-                            )}
-                       </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-             <Card className="xl:col-span-2">
-              <CardHeader className="flex flex-row items-center">
-                <div className="grid gap-2">
-                  <CardTitle>Sales Run Performance</CardTitle>
-                  <CardDescription>Revenue from sales runs in the selected period.</CardDescription>
-                </div>
                  <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
                     <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="ml-auto h-8 w-8"><MoreVertical className="h-4 w-4"/></Button>
+                        <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Date Range</CardTitle>
+                                <CalendarIcon className="h-4 w-4 text-muted-foreground"/>
+                            </CardHeader>
+                            <CardContent>
+                            <div className="text-lg font-bold">
+                                {date?.from ? (
+                                    date.to ? (
+                                        <>
+                                        {format(date.from, "LLL dd")} - {format(date.to, "LLL dd, y")}
+                                        </>
+                                    ) : (
+                                        format(date.from, "LLL dd, y")
+                                    )
+                                    ) : (
+                                    <span>All time</span>
+                                    )}
+                            </div>
+                            </CardContent>
+                        </Card>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="end">
                         <Calendar
@@ -276,6 +250,14 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                         </div>
                     </PopoverContent>
                 </Popover>
+            </div>
+
+             <Card className="xl:col-span-2">
+              <CardHeader className="flex flex-row items-center">
+                <div className="grid gap-2">
+                  <CardTitle>Sales Run Performance</CardTitle>
+                  <CardDescription>Revenue from sales runs in the selected period.</CardDescription>
+                </div>
               </CardHeader>
               <CardContent>
                 <RevenueChart data={weeklySalesChartData} />
