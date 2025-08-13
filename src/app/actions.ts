@@ -1652,15 +1652,12 @@ export async function updateReportStatus(reportId: string, newStatus: Report['st
     }
 }
 
-type WasteItem = {
-    productId: string;
-    quantity: number;
-};
 type ReportWasteData = {
-    items: WasteItem[];
+    items: { productId: string; quantity: number, productName: string }[];
     reason: string;
     notes?: string;
 };
+
 export async function handleReportWaste(data: ReportWasteData, user: { staff_id: string, name: string, role: string }): Promise<{success: boolean, error?: string}> {
     if (!data.items || data.items.length === 0 || !data.reason) {
         return { success: false, error: "Please provide items and a reason for the waste." };
@@ -3002,23 +2999,25 @@ export async function handleReturnStock(runId: string, unsoldItems: { productId:
 
 export async function handleCompleteRun(runId: string): Promise<{success: boolean, error?: string}> {
     try {
+        // This is a non-transactional read, it happens before the transaction starts.
+        const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId));
+        const ordersSnapshot = await getDocs(ordersQuery);
+
         await runTransaction(db, async (transaction) => {
+            // All reads must happen first.
             const runRef = doc(db, 'transfers', runId);
             const runDoc = await transaction.get(runRef);
+            
             if (!runDoc.exists()) throw new Error("Sales run not found.");
 
             const runData = runDoc.data();
             if (runData.status !== 'active') throw new Error("This run is not active or has already been completed.");
 
-            // Update run status and completion time
-            transaction.update(runRef, {
-                status: 'completed',
-                time_completed: serverTimestamp()
-            });
-            
-            // Calculate shortage/overage
-            const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId));
-            const ordersSnapshot = await getDocs(ordersQuery);
+            const salesDocId = format(runData.date.toDate(), 'yyyy-MM-dd');
+            const salesDocRef = doc(db, 'sales', salesDocId);
+            const salesDoc = await transaction.get(salesDocRef);
+
+            // Now, perform calculations with the data we've read.
             const creditSales = ordersSnapshot.docs
                 .filter(doc => doc.data().paymentMethod === 'Credit')
                 .reduce((sum, doc) => sum + doc.data().total, 0);
@@ -3027,11 +3026,13 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
             const cashCollected = runData.totalCollected || 0;
             const shortage = expectedCash - cashCollected;
             
-            // Log shortage to daily sales record if there is one
+            // All writes happen last.
+            transaction.update(runRef, {
+                status: 'completed',
+                time_completed: serverTimestamp()
+            });
+            
             if (Math.abs(shortage) > 0.01) { // Use a small epsilon for float comparison
-                const salesDocId = format(runData.date.toDate(), 'yyyy-MM-dd');
-                const salesDocRef = doc(db, 'sales', salesDocId);
-                const salesDoc = await transaction.get(salesDocRef);
                 if (salesDoc.exists()) {
                     transaction.update(salesDocRef, { shortage: increment(shortage) });
                 } else {
