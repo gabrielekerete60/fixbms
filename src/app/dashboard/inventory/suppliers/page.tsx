@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Search, ArrowLeft } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Search, ArrowLeft, Wallet, ArrowRightLeft } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +52,7 @@ import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { addDirectCost } from "@/app/actions";
+import { addDirectCost, handleLogPayment, initializePaystackTransaction } from "@/app/actions";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +60,7 @@ type User = {
     name: string;
     role: string;
     staff_id: string;
+    email: string;
 };
 
 type Supplier = {
@@ -307,6 +308,139 @@ function SupplyLogDialog({
     )
 }
 
+function LogPaymentDialog({ supplier, user, onPaymentLogged }: { supplier: Supplier, user: User, onPaymentLogged: () => void }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [amount, setAmount] = useState<number | string>('');
+    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Paystack'>('Cash');
+    const [customerEmail, setCustomerEmail] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const outstanding = supplier.amountOwed - supplier.amountPaid;
+
+    useEffect(() => {
+        if (isOpen) {
+            setAmount('');
+            setPaymentMethod('Cash');
+            setCustomerEmail(supplier.email || '');
+        }
+    }, [isOpen, supplier.email]);
+    
+    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        const numValue = parseFloat(value);
+        if (value === '') {
+            setAmount('');
+        } else if (!isNaN(numValue) && numValue <= outstanding) {
+            setAmount(numValue);
+        } else if (numValue > outstanding) {
+            setAmount(outstanding);
+        }
+    };
+    
+    const handleRecordPayment = async () => {
+        const paymentAmount = Number(amount);
+        if (!paymentAmount || paymentAmount <= 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please enter a valid amount.'});
+            return;
+        }
+
+        setIsSubmitting(true);
+        if (paymentMethod === 'Cash') {
+            const result = await handleLogPayment(supplier.id, paymentAmount);
+            if (result.success) {
+                toast({ title: 'Success', description: 'Cash payment logged successfully.' });
+                onPaymentLogged();
+                setIsOpen(false);
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error });
+            }
+        } else { // Paystack
+            const loadingToast = toast({ title: "Initializing Payment...", description: "Please wait.", duration: Infinity });
+            const paystackResult = await initializePaystackTransaction({
+                email: customerEmail || user.email,
+                total: paymentAmount,
+                customerName: supplier.name,
+                staffId: user.staff_id,
+                items: [],
+            });
+            loadingToast.dismiss();
+
+            if (paystackResult.success && paystackResult.reference) {
+                const PaystackPop = (await import('@paystack/inline-js')).default;
+                const paystack = new PaystackPop();
+                paystack.newTransaction({
+                    key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+                    email: customerEmail || user.email,
+                    amount: Math.round(paymentAmount * 100),
+                    ref: paystackResult.reference,
+                    onSuccess: async () => {
+                        const result = await handleLogPayment(supplier.id, paymentAmount);
+                        if (result.success) {
+                            toast({ title: 'Payment Successful', description: 'Paystack payment recorded.' });
+                            onPaymentLogged();
+                        } else {
+                             toast({ variant: 'destructive', title: 'Payment Error', description: 'Payment succeeded but failed to log. Please contact support.' });
+                        }
+                    },
+                    onClose: () => toast({ variant: 'destructive', title: 'Payment Cancelled' })
+                });
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
+            }
+        }
+        setIsSubmitting(false);
+    }
+    
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button>
+                    <PlusCircle className="mr-2 h-4 w-4"/> Log Payment
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Log Payment to {supplier.name}</DialogTitle>
+                    <DialogDescription>
+                        Outstanding Balance: <span className="font-bold text-destructive">₦{outstanding.toLocaleString()}</span>
+                    </DialogDescription>
+                </DialogHeader>
+                 <div className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label>Payment Method</Label>
+                        <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as any)}>
+                            <SelectTrigger><SelectValue/></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/>Cash</SelectItem>
+                                <SelectItem value="Paystack"><ArrowRightLeft className="mr-2 h-4 w-4"/>Paystack</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {paymentMethod === 'Paystack' && (
+                        <div className="space-y-2">
+                            <Label htmlFor="supplier-email">Supplier Email (for receipt)</Label>
+                            <Input id="supplier-email" type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="supplier@email.com" />
+                        </div>
+                    )}
+                    <div className="space-y-2">
+                        <Label htmlFor="payment-amount">Amount Paid (₦)</Label>
+                        <Input id="payment-amount" type="number" value={amount} onChange={handleAmountChange} />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleRecordPayment} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Log Payment
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+
 function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack: () => void, user: User | null }) {
     const { toast } = useToast();
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -317,15 +451,15 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
     const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     
-    const canManageSupplies = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
+    const canManageSupplies = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper' || user?.role === 'Accountant';
+    const canLogPayments = user?.role === 'Accountant';
 
-    useEffect(() => {
-        const fetchIngredients = async () => {
-            const ingredientsCollection = collection(db, "ingredients");
-            const ingredientSnapshot = await getDocs(ingredientsCollection);
-            setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[]);
-        };
-        fetchIngredients();
+
+    const fetchDetails = useCallback(async () => {
+        if (!user) return;
+         const ingredientsCollection = collection(db, "ingredients");
+        const ingredientSnapshot = await getDocs(ingredientsCollection);
+        setIngredients(ingredientSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Ingredient[]);
 
         const supplyLogsQuery = query(collection(db, 'supply_logs'), where('supplierId', '==', supplier.id), orderBy('date', 'desc'));
         const unsubSupplyLogs = onSnapshot(supplyLogsQuery, (snapshot) => {
@@ -342,12 +476,20 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
                 description: doc.data().description,
             } as PaymentLog)));
         });
-
-        return () => {
+        
+         return () => {
             unsubSupplyLogs();
             unsubPaymentLogs();
         };
-    }, [supplier.id, supplier.name]);
+
+    }, [supplier.id, supplier.name, user]);
+    
+    useEffect(() => {
+       const unsubPromise = fetchDetails();
+       return () => {
+           unsubPromise.then(unsub => unsub && unsub());
+       }
+    }, [fetchDetails]);
     
     useEffect(() => {
         const getDate = (log: any) => {
@@ -363,9 +505,6 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
         ];
         
         combinedLogs.sort((a,b) => b.date - a.date);
-
-        let balance = supplier.amountOwed - supplier.amountPaid; // Start with current balance
-        const transactionsData: Transaction[] = [];
 
         // We need to calculate running balance going forwards, so we reverse for calculation then reverse back
         const reversedLogs = [...combinedLogs].reverse();
@@ -484,7 +623,10 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                 <Input placeholder="Search logs..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
-                            {canManageSupplies && (
+                            {canLogPayments && user && (
+                                <LogPaymentDialog supplier={supplier} user={user} onPaymentLogged={fetchDetails} />
+                            )}
+                            {canManageSupplies && !canLogPayments && (
                               <Button onClick={() => setIsLogDialogOpen(true)}>
                                   <PlusCircle className="mr-2 h-4 w-4"/> Add Supply Log
                               </Button>
@@ -603,7 +745,7 @@ export default function SuppliersPage() {
         }));
     }, [suppliers]);
     
-    const canManageSuppliers = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
+    const canManageSuppliers = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper' || user?.role === 'Accountant';
     const isStorekeeper = user?.role === 'Storekeeper';
 
     if (selectedSupplier) {

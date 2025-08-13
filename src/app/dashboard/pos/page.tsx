@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
@@ -165,6 +164,7 @@ function POSPageContent() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [confirmMethod, setConfirmMethod] = useState<'Cash' | 'POS' | null>(null);
   const [storeAddress, setStoreAddress] = useState<string | undefined>();
+  const [searchTerm, setSearchTerm] = useState("");
   
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed' | 'cancelled'>('idle');
 
@@ -412,9 +412,15 @@ function POSPageContent() {
   const categories = ['All', ...new Set(products.map(p => p.category))];
   
   const filteredProducts = useMemo(() => {
-    if (activeTab === 'All') return products;
-    return products.filter(p => p.category === activeTab);
-  }, [activeTab, products]);
+    let productsToFilter = products;
+    if (activeTab !== 'All') {
+        productsToFilter = productsToFilter.filter(p => p.category === activeTab);
+    }
+    if (searchTerm) {
+        productsToFilter = productsToFilter.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    }
+    return productsToFilter;
+  }, [activeTab, products, searchTerm]);
 
 
   const addToCart = (product: Product) => {
@@ -524,7 +530,7 @@ function POSPageContent() {
                 </div>
                 <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                        <Input placeholder="Search products..." className="pl-10 w-full sm:w-64" />
+                        <Input placeholder="Search products..." className="pl-10 w-full sm:w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
             </header>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow">
@@ -583,7 +589,7 @@ function POSPageContent() {
                                 </div>
                             ) : (
                                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                                    <p>{selectedStaffId ? "No products in this staff's inventory." : "Select a staff member to begin."}</p>
+                                    <p>{selectedStaffId ? "No products found for this filter." : "Select a staff member to begin."}</p>
                                 </div>
                             )
                         )}
