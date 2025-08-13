@@ -569,7 +569,11 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
         const activeBatchesQuery = query(collection(db, 'production_batches'), where('status', 'in', ['in_production', 'pending_approval']));
         const activeBatchesSnapshot = await getDocs(activeBatchesQuery);
 
-        const recentCompletedQuery = query(collection(db, 'production_batches'), where('status', '==', 'completed'), where('createdAt', '>=', weekStartTimestamp));
+        const recentCompletedQuery = query(
+            collection(db, 'production_batches'), 
+            where('status', '==', 'completed'), 
+            where('approvedAt', '>=', weekStartTimestamp)
+        );
         const recentCompletedSnapshot = await getDocs(recentCompletedQuery);
         
         let producedThisWeek = 0;
@@ -583,10 +587,10 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
             const produced = batch.successfullyProduced || 0;
             producedThisWeek += produced;
 
-            if (batch.approvedAt) { // Use approvedAt for more accurate timing
-                const createdDate = (batch.approvedAt as Timestamp).toDate();
-                 if (createdDate >= weekStart) {
-                    const dayOfWeek = format(createdDate, 'E');
+            if (batch.approvedAt) {
+                const approvedDate = (batch.approvedAt as Timestamp).toDate();
+                 if (approvedDate >= weekStart) {
+                    const dayOfWeek = format(approvedDate, 'E');
                     const index = weeklyProductionData.findIndex(d => d.day === dayOfWeek);
                     if (index !== -1) {
                         weeklyProductionData[index].quantity += produced;
@@ -1451,7 +1455,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             }
             
             const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
-            let customerRef, runRef;
+            let customerRef, runRef, salesDoc;
             
             if (isFromSalesRun) {
                 runRef = doc(db, 'transfers', confirmationData.runId);
@@ -1464,7 +1468,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             
             const salesDocId = format(new Date(), 'yyyy-MM-dd');
             const salesDocRef = doc(db, 'sales', salesDocId);
-            const salesDoc = await transaction.get(salesDocRef); 
+            salesDoc = await transaction.get(salesDocRef); 
             
             // --- 2. All WRITES happen last ---
             const newStatus = action === 'approve' ? 'approved' : 'declined';
@@ -2959,3 +2963,4 @@ export async function declineStockIncrease(requestId: string, user: { staff_id: 
 
 
     
+
