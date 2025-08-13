@@ -1082,7 +1082,7 @@ function SalesRunDetails() {
                          {runComplete ? <Button variant="secondary" disabled>Run Completed</Button> : (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" disabled={isRunActive && remainingItems.length > 0}>Complete Run</Button>
+                                    <Button variant="destructive" disabled={!canPerformSales || (isRunActive && remainingItems.length > 0)}>Complete Run</Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
