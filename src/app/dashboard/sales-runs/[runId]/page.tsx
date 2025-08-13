@@ -7,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2 } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -1106,28 +1106,28 @@ function SalesRunDetails() {
                                 <span>Sell to Customer</span>
                             </Button>
                         )}
-                         {isRunActive ? (
+                         {isRunActive && canPerformSales ? (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="secondary" disabled={!canPerformSales || remainingItems.length === 0}><Undo2 className="mr-2 h-4 w-4"/>Return Unsold Stock</Button>
+                                    <Button variant="secondary" disabled={remainingItems.length === 0}><Undo2 className="mr-2 h-4 w-4"/>Return Unsold Stock</Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader><AlertDialogTitle>Confirm Stock Return</AlertDialogTitle><AlertDialogDescription>This will create a transfer request for all unsold items to be returned to the storekeeper. Are you sure?</AlertDialogDescription></AlertDialogHeader>
                                     <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleReturnStockAction}>Confirm Return</AlertDialogAction></AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                         ) : <Button variant="secondary" disabled>Run Not Active</Button>}
-                         {isRunActive ? (
+                         ) : <Button variant="secondary" disabled>Return Unsold Stock</Button>}
+                         {isRunActive && canPerformSales ? (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" disabled={!canPerformSales}><CheckCircle className="mr-2 h-4 w-4"/>Mark as Complete</Button>
+                                    <Button variant="destructive"><CheckCircle className="mr-2 h-4 w-4"/>Mark as Complete</Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action should only be taken after all cash has been submitted and all stock has been returned and acknowledged. This will finalize the run. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
                                     <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleCompleteRunAction}>Yes, Mark as Complete</AlertDialogAction></AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                         ) : <Button variant="destructive" disabled>Run Not Active</Button>}
+                         ) : <Button variant="destructive" disabled>Mark as Complete</Button>}
                     </CardContent>
                 </Card>
             </div>
