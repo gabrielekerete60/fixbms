@@ -1441,6 +1441,22 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             
             const confirmationData = confirmationDoc.data() as PaymentConfirmation;
             const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
+            let customerRef, salesDocRef, runRef;
+            
+            if (isFromSalesRun) {
+                runRef = doc(db, 'transfers', confirmationData.runId);
+                await transaction.get(runRef);
+            }
+            if (confirmationData.isDebtPayment && confirmationData.customerId) {
+                customerRef = doc(db, 'customers', confirmationData.customerId);
+                await transaction.get(customerRef);
+            }
+            if (confirmationData.runId.startsWith('pos-sale-')) {
+                const today = new Date();
+                const salesDocId = format(today, 'yyyy-MM-dd');
+                salesDocRef = doc(db, 'sales', salesDocId);
+                await transaction.get(salesDocRef);
+            }
             
             // --- WRITES ---
             const newStatus = action === 'approve' ? 'approved' : 'declined';
@@ -1461,21 +1477,16 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     isDebtPayment: confirmationData.isDebtPayment || false,
                 });
                 
-                if (confirmationData.isDebtPayment && confirmationData.customerId) {
-                    const customerRef = doc(db, 'customers', confirmationData.customerId);
+                if (confirmationData.isDebtPayment && customerRef) {
                     transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                 }
 
-                if (isFromSalesRun) {
-                    const runRef = doc(db, 'transfers', confirmationData.runId);
+                if (isFromSalesRun && runRef) {
                     transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
-                } else if (confirmationData.runId.startsWith('pos-sale-')) {
-                    const today = new Date();
-                    const salesDocId = format(today, 'yyyy-MM-dd');
-                    const salesDocRef = doc(db, 'sales', salesDocId);
+                } else if (salesDocRef) {
+                    const salesDoc = await transaction.get(salesDocRef); // Re-get inside for safety
                     const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
                     
-                    const salesDoc = await transaction.get(salesDocRef);
                     if (salesDoc.exists()) {
                         transaction.update(salesDocRef, {
                             [paymentField]: increment(confirmationData.amount),
@@ -1483,8 +1494,8 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         });
                     } else {
                         transaction.set(salesDocRef, {
-                            date: Timestamp.fromDate(startOfDay(today)),
-                            description: `Daily Sales for ${salesDocId}`,
+                            date: Timestamp.fromDate(startOfDay(new Date())),
+                            description: `Daily Sales for ${format(new Date(), 'yyyy-MM-dd')}`,
                             cash: confirmationData.paymentMethod === 'Cash' ? confirmationData.amount : 0,
                             pos: confirmationData.paymentMethod === 'POS' ? confirmationData.amount : 0,
                             transfer: 0,
@@ -1644,19 +1655,25 @@ export async function handleReportWaste(data: ReportWasteData, user: { staff_id:
              for (const item of data.items) {
                 if (!item.productId || !item.quantity || item.quantity <= 0) continue;
 
-                const stockRef = isAdminOrStorekeeper 
+                const isMainInventory = isAdminOrStorekeeper;
+                
+                const stockRef = isMainInventory
                     ? doc(db, 'products', item.productId)
                     : doc(db, 'staff', user.staff_id, 'personal_stock', item.productId);
                 
-                const productDoc = await getDoc(doc(db, 'products', item.productId));
+                const productDocRef = doc(db, 'products', item.productId);
+                const [stockDoc, productDoc] = await Promise.all([
+                    transaction.get(stockRef),
+                    transaction.get(productDocRef)
+                ]);
+
                 if (!productDoc.exists()) throw new Error(`Product with ID ${item.productId} not found.`);
                 
                 const productName = productDoc.data().name || 'Unknown Product';
                 const productCategory = productDoc.data().category || 'Unknown';
 
-                const stockDoc = await transaction.get(stockRef);
                 if (!stockDoc.exists() || (stockDoc.data()?.stock || 0) < item.quantity) {
-                    const stockLocation = isAdminOrStorekeeper ? 'main inventory' : 'personal stock';
+                    const stockLocation = isMainInventory ? 'main inventory' : 'personal stock';
                     throw new Error(`Not enough stock for ${productName} in ${stockLocation}.`);
                 }
 
@@ -1811,13 +1828,12 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
 
 export async function getProductionTransfers(staffId: string): Promise<Transfer[]> {
      try {
-        const notesPrefix = 'Return from production batch';
         const q = query(
             collection(db, 'transfers'),
-            where('notes', '>=', notesPrefix),
-            where('notes', '<=', notesPrefix + '\uf8ff'),
-            where('status', '==', 'pending'),
-            where('to_staff_id', '==', staffId)
+            where('to_staff_id', '==', staffId),
+            where('notes', '>=', 'Return from production batch'),
+            where('notes', '<=', 'Return from production batch' + '\uf8ff'),
+            where('status', '==', 'pending')
         );
         const querySnapshot = await getDocs(q);
 

@@ -192,13 +192,20 @@ function IncreaseSupplyDialog({ supplies, onStockIncreased }: { supplies: OtherS
     const [isOpen, setIsOpen] = useState(false);
     const [selectedSupplyId, setSelectedSupplyId] = useState('');
     const [quantity, setQuantity] = useState<number | ''>('');
-    const [totalCost, setTotalCost] = useState<number | ''>('');
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    
+    const selectedSupply = useMemo(() => supplies.find(s => s.id === selectedSupplyId), [supplies, selectedSupplyId]);
+    const totalCost = useMemo(() => {
+        if (selectedSupply && quantity) {
+            return (selectedSupply.costPerUnit || 0) * Number(quantity);
+        }
+        return 0;
+    }, [selectedSupply, quantity]);
 
     const handleSave = async () => {
-        if (!selectedSupplyId || !quantity || !totalCost) {
-            toast({ variant: 'destructive', title: 'Error', description: 'All fields are required.' });
+        if (!selectedSupplyId || !quantity) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please select a supply and enter the quantity.' });
             return;
         }
 
@@ -220,8 +227,8 @@ function IncreaseSupplyDialog({ supplies, onStockIncreased }: { supplies: OtherS
             // 2. Add an indirect cost entry
             await addIndirectCost({
                 description: `Purchase of ${supply.name}`,
-                category: supply.category,
-                amount: Number(totalCost),
+                category: 'Other Supplies',
+                amount: totalCost,
             });
             
             await batch.commit();
@@ -229,7 +236,6 @@ function IncreaseSupplyDialog({ supplies, onStockIncreased }: { supplies: OtherS
             toast({ title: 'Success', description: 'Stock updated and cost logged.' });
             setSelectedSupplyId('');
             setQuantity('');
-            setTotalCost('');
             onStockIncreased();
             setIsOpen(false);
         } catch (error) {
@@ -262,16 +268,15 @@ function IncreaseSupplyDialog({ supplies, onStockIncreased }: { supplies: OtherS
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="quantity">Quantity Added</Label>
-                            <Input id="quantity" type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="total-cost">Total Cost (₦)</Label>
-                            <Input id="total-cost" type="number" value={totalCost} onChange={(e) => setTotalCost(Number(e.target.value))} />
-                        </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="quantity">Quantity Added</Label>
+                        <Input id="quantity" type="number" value={quantity} onChange={(e) => setQuantity(e.target.value === '' ? '' : Number(e.target.value))} />
                     </div>
+                    {totalCost > 0 && (
+                        <div className="font-medium text-sm">
+                            Calculated Total Cost: ₦{totalCost.toLocaleString()}
+                        </div>
+                    )}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
@@ -388,7 +393,7 @@ export default function OtherSuppliesPage() {
                 <div className="flex items-center gap-2">
                     <IncreaseSupplyDialog supplies={supplies} onStockIncreased={fetchSupplies} />
                      <Button onClick={openAddDialog} variant="outline">
-                        Add New Supply
+                        Add New Supply Type
                     </Button>
                 </div>
             </div>
@@ -497,3 +502,4 @@ export default function OtherSuppliesPage() {
         </div>
     );
 }
+
