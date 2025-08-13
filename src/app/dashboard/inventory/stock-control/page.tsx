@@ -374,6 +374,13 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
         }
         setIsSubmitting(false);
     };
+
+    const getAvailableProductsForRow = (rowIndex: number) => {
+        const selectedIdsInOtherRows = new Set(
+            wasteItems.filter((_, i) => i !== rowIndex).map(item => item.productId)
+        );
+        return products.filter(p => !selectedIdsInOtherRows.has(p.id));
+    };
     
     return (
         <Card className="flex-1">
@@ -387,22 +394,25 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
                 <div className="space-y-2">
                     <Label>Items to Report</Label>
                     <div className="space-y-2">
-                        {wasteItems.map((item, index) => (
-                             <div key={index} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
-                                <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
-                                    <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
-                                    <SelectContent>
-                                        {products.map((p) => (
-                                            <SelectItem key={p.id} value={p.id}>
-                                                {p.name} (Stock: {p.stock})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
-                                <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                            </div>
-                        ))}
+                        {wasteItems.map((item, index) => {
+                             const availableProducts = getAvailableProductsForRow(index);
+                             return (
+                                <div key={index} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
+                                    <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
+                                        <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
+                                        <SelectContent>
+                                            {availableProducts.map((p) => (
+                                                <SelectItem key={p.id} value={p.id}>
+                                                    {p.name} (Stock: {p.stock})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
+                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                </div>
+                            )
+                        })}
                     </div>
                      <Button variant="outline" size="sm" className="mt-2" onClick={handleAddItem}>
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Another Item
@@ -604,15 +614,7 @@ export default function StockControlPage() {
             setIsLoadingBatches(false);
         });
         
-        const notesPrefix = 'Return from production batch';
-        const qProdTransfers = query(
-            collection(db, 'transfers'),
-            where('notes', '>=', notesPrefix),
-            where('notes', '<=', notesPrefix + '\uf8ff'),
-            where('status', '==', 'pending'),
-            where('to_staff_id', '==', currentUser.staff_id)
-        );
-        const unsubProdTransfers = onSnapshot(qProdTransfers, (snapshot) => {
+        const unsubProdTransfers = onSnapshot(query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('notes', '>=', 'Return from production batch'), where('notes', '<=', 'Return from production batch' + '\uf8ff'), where('status', '==', 'pending')), (snapshot) => {
             const transfersData = snapshot.docs.map(docSnap => {
                 const data = docSnap.data();
                 return {
@@ -630,7 +632,7 @@ export default function StockControlPage() {
             unsubProdTransfers();
         };
     }
-  }, []);
+  }, [fetchPageData]);
 
   const handleTransferToChange = (staffId: string) => {
     setTransferTo(staffId);
@@ -1257,5 +1259,3 @@ export default function StockControlPage() {
     </div>
   );
 }
-
-
