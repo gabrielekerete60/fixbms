@@ -1455,13 +1455,16 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             
             if (isFromSalesRun) {
                 runRef = doc(db, 'transfers', confirmationData.runId);
+                await transaction.get(runRef);
             }
             if (confirmationData.isDebtPayment && confirmationData.customerId) {
                 customerRef = doc(db, 'customers', confirmationData.customerId);
+                 await transaction.get(customerRef);
             }
             
             const salesDocId = format(new Date(), 'yyyy-MM-dd');
             salesDocRef = doc(db, 'sales', salesDocId);
+            const salesDoc = await transaction.get(salesDocRef); 
             
             // --- WRITES ---
             const newStatus = action === 'approve' ? 'approved' : 'declined';
@@ -1489,7 +1492,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                 if (isFromSalesRun && runRef) {
                     transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
                 } else if (salesDocRef) {
-                    const salesDoc = await transaction.get(salesDocRef); // Re-get inside for safety
                     const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
                     
                     if (salesDoc.exists()) {
