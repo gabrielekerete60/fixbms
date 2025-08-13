@@ -1440,18 +1440,18 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
 
     try {
         await runTransaction(db, async (transaction) => {
-            // --- READS ---
+            // --- 1. All READS must happen first ---
             const confirmationDoc = await transaction.get(confirmationRef);
             if (!confirmationDoc.exists()) {
                 throw new Error("Confirmation not found.");
             }
-            if (confirmationDoc.data().status !== 'pending') {
+            const confirmationData = confirmationDoc.data() as PaymentConfirmation;
+            if (confirmationData.status !== 'pending') {
                 throw new Error("This confirmation has already been processed.");
             }
             
-            const confirmationData = confirmationDoc.data() as PaymentConfirmation;
             const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
-            let customerRef, salesDocRef, runRef;
+            let customerRef, runRef;
             
             if (isFromSalesRun) {
                 runRef = doc(db, 'transfers', confirmationData.runId);
@@ -1459,14 +1459,14 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             }
             if (confirmationData.isDebtPayment && confirmationData.customerId) {
                 customerRef = doc(db, 'customers', confirmationData.customerId);
-                 await transaction.get(customerRef);
+                await transaction.get(customerRef);
             }
             
             const salesDocId = format(new Date(), 'yyyy-MM-dd');
-            salesDocRef = doc(db, 'sales', salesDocId);
+            const salesDocRef = doc(db, 'sales', salesDocId);
             const salesDoc = await transaction.get(salesDocRef); 
             
-            // --- WRITES ---
+            // --- 2. All WRITES happen last ---
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
             if (action === 'approve') {
