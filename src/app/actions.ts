@@ -1428,7 +1428,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
 
     try {
         await runTransaction(db, async (transaction) => {
-            // --- ALL READS FIRST ---
+            // --- 1. All READS must happen first ---
             const confirmationDoc = await transaction.get(confirmationRef);
             if (!confirmationDoc.exists() || confirmationDoc.data().status !== 'pending') {
                 throw new Error("This confirmation has already been processed.");
@@ -1437,22 +1437,23 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             const confirmationData = confirmationDoc.data() as PaymentConfirmation;
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
-            // Conditional reads based on approval action
+            let runRef: any, runDoc: any, salesDocRef: any, salesDoc: any;
+
             if (action === 'approve') {
                 const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
                 
                 if (isFromSalesRun) {
-                    const runRef = doc(db, 'transfers', confirmationData.runId);
-                    await transaction.get(runRef); // Read the run doc
+                    runRef = doc(db, 'transfers', confirmationData.runId);
+                    runDoc = await transaction.get(runRef);
                 } else if (confirmationData.runId.startsWith('pos-sale-')) {
                     const today = new Date();
                     const salesDocId = format(today, 'yyyy-MM-dd');
-                    const salesDocRef = doc(db, 'sales', salesDocId);
-                    await transaction.get(salesDocRef); // Read the sales doc
+                    salesDocRef = doc(db, 'sales', salesDocId);
+                    salesDoc = await transaction.get(salesDocRef);
                 }
             }
 
-            // --- ALL WRITES LAST ---
+            // --- 2. All WRITES happen last ---
             if (action === 'approve') {
                 const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
                 
@@ -1476,27 +1477,21 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                 }
 
-                if (isFromSalesRun) {
-                    const runRef = doc(db, 'transfers', confirmationData.runId);
-                    const runDoc = await transaction.get(runRef); // Re-get for safety, though already read
-                    if (runDoc.exists()) {
-                        const runData = runDoc.data();
-                        const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
-                        const totalRevenue = runData.totalRevenue || 0;
-                        
-                        let updateData: any = { totalCollected: increment(confirmationData.amount) };
+                if (isFromSalesRun && runDoc.exists()) {
+                    const runData = runDoc.data();
+                    const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
+                    const totalRevenue = runData.totalRevenue || 0;
+                    
+                    let updateData: any = { totalCollected: increment(confirmationData.amount) };
 
-                        if (newTotalCollected >= totalRevenue) {
-                            updateData.status = 'completed';
-                            updateData.time_completed = serverTimestamp();
-                        }
-                        transaction.update(runRef, updateData);
+                    if (newTotalCollected >= totalRevenue) {
+                        updateData.status = 'completed';
+                        updateData.time_completed = serverTimestamp();
                     }
+                    transaction.update(runRef, updateData);
                 } else if (confirmationData.runId.startsWith('pos-sale-')) {
                     const today = new Date();
                     const salesDocId = format(today, 'yyyy-MM-dd');
-                    const salesDocRef = doc(db, 'sales', salesDocId);
-                    const salesDoc = await transaction.get(salesDocRef); // Re-get for safety
                     
                     const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
                     if (salesDoc.exists()) {
