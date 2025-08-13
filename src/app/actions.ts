@@ -832,6 +832,7 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
             collection(db, "transfers"),
             where("is_sales_run", "==", true),
             where("date", ">=", Timestamp.fromDate(fromDate)),
+            where("date", "<=", Timestamp.fromDate(fromDate)),
             where("status", "in", ["completed", "active"])
         );
         const snapshot = await getDocs(q);
@@ -1837,11 +1838,10 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
     }
 }
 
-export async function getProductionTransfers(staffId: string): Promise<Transfer[]> {
+export async function getProductionTransfers(): Promise<Transfer[]> {
      try {
         const q = query(
             collection(db, 'transfers'),
-            where('to_staff_id', '==', staffId),
             where('notes', '>=', 'Return from production batch'),
             where('notes', '<=', 'Return from production batch' + '\uf8ff'),
             where('status', '==', 'pending')
@@ -2964,3 +2964,6 @@ export async function declineStockIncrease(requestId: string, user: { staff_id: 
 
     
 
+
+
+    
