@@ -1,12 +1,13 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw } from 'lucide-react';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock } from '@/app/actions';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -834,11 +835,23 @@ function SalesRunDetails() {
         fetchRunData(true).finally(() => setIsRefreshing(false));
     };
 
+    const handleReturnStockAction = async () => {
+        if (!run || !user) return;
+        setIsRefreshing(true);
+        const unsold = getRemainingItems();
+        const result = await handleReturnStock(run.id, unsold, user);
+        if (result.success) {
+            toast({ title: 'Success!', description: 'Unsold stock has been sent for acknowledgement.'});
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsRefreshing(false);
+    }
+
     const handleCompleteRunAction = async () => {
         if (!run) return;
         setIsRefreshing(true);
-        const unsold = getRemainingItems();
-        const result = await handleCompleteRun(run.id, unsold);
+        const result = await handleCompleteRun(run.id);
         if (result.success) {
             toast({ title: 'Success!', description: 'Sales run has been completed and stock reconciled.'});
             router.push('/dashboard/deliveries');
@@ -1093,25 +1106,28 @@ function SalesRunDetails() {
                                 <span>Sell to Customer</span>
                             </Button>
                         )}
-                         {runComplete ? <Button variant="secondary" disabled>Run Completed</Button> : (
+                         {isRunActive ? (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" disabled={!canPerformSales}>Complete Run</Button>
+                                    <Button variant="secondary" disabled={!canPerformSales || remainingItems.length === 0}><Undo2 className="mr-2 h-4 w-4"/>Return Unsold Stock</Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This action cannot be undone. All remaining items will be returned to stock, and this run will be closed.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleCompleteRunAction}>Complete</AlertDialogAction>
-                                    </AlertDialogFooter>
+                                    <AlertDialogHeader><AlertDialogTitle>Confirm Stock Return</AlertDialogTitle><AlertDialogDescription>This will create a transfer request for all unsold items to be returned to the storekeeper. Are you sure?</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleReturnStockAction}>Confirm Return</AlertDialogAction></AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                        )}
+                         ) : <Button variant="secondary" disabled>Run Not Active</Button>}
+                         {isRunActive ? (
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" disabled={!canPerformSales}><CheckCircle className="mr-2 h-4 w-4"/>Mark as Complete</Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action should only be taken after all cash has been submitted and all stock has been returned and acknowledged. This will finalize the run. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleCompleteRunAction}>Yes, Mark as Complete</AlertDialogAction></AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                         ) : <Button variant="destructive" disabled>Run Not Active</Button>}
                     </CardContent>
                 </Card>
             </div>

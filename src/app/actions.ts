@@ -1844,11 +1844,10 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
     }
 }
 
-export async function getProductionTransfers(toStaffId: string): Promise<Transfer[]> {
+export async function getProductionTransfers(): Promise<Transfer[]> {
      try {
         const q = query(
             collection(db, 'transfers'),
-            where('to_staff_id', '==', toStaffId),
             where('notes', '>=', 'Return from production batch'),
             where('notes', '<=', 'Return from production batch' + '\uf8ff'),
             where('status', '==', 'pending')
@@ -1927,10 +1926,10 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             const transfer = transferDoc.data() as Transfer;
             if (transfer.status !== 'pending') throw new Error("This transfer has already been processed.");
 
-            const isProductionReturn = transfer.notes?.startsWith('Return from production batch');
+            const isProductionReturn = transfer.notes?.startsWith('Return from production batch') || transfer.notes?.startsWith('Return from Sales Run');
 
             if (isProductionReturn) {
-                // Return from production goes back to main inventory
+                // Return from production or sales run goes back to main inventory
                 for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
                     transaction.update(productRef, { stock: increment(item.quantity) });
@@ -2965,7 +2964,43 @@ export async function declineStockIncrease(requestId: string, user: { staff_id: 
     }
 }
 
-export async function handleCompleteRun(runId: string, unsoldItems: { productId: string, productName: string, quantity: number }[]): Promise<{success: boolean, error?: string}> {
+export async function handleReturnStock(runId: string, unsoldItems: { productId: string, productName: string, quantity: number }[], user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+    try {
+        if (unsoldItems.length === 0) {
+            return { success: true }; // Nothing to return
+        }
+        
+        const storekeeperQuery = query(collection(db, "staff"), where("role", "==", "Storekeeper"), limit(1));
+        const storekeeperSnapshot = await getDocs(storekeeperQuery);
+        if (storekeeperSnapshot.empty) {
+            throw new Error("No storekeeper found to return stock to.");
+        }
+        const storekeeper = storekeeperSnapshot.docs[0].data();
+        const storekeeperId = storekeeperSnapshot.docs[0].id;
+        
+        await runTransaction(db, async (transaction) => {
+            const transferRef = doc(collection(db, 'transfers'));
+            transaction.set(transferRef, {
+                from_staff_id: user.staff_id,
+                from_staff_name: user.name,
+                to_staff_id: storekeeperId,
+                to_staff_name: storekeeper.name,
+                items: unsoldItems,
+                date: serverTimestamp(),
+                status: 'pending',
+                is_sales_run: false,
+                notes: `Return from Sales Run ${runId}`
+            });
+        });
+        
+        return { success: true };
+    } catch (error) {
+        console.error("Error returning stock from sales run:", error);
+        return { success: false, error: (error as Error).message || "An unexpected error occurred." };
+    }
+}
+
+export async function handleCompleteRun(runId: string): Promise<{success: boolean, error?: string}> {
     try {
         await runTransaction(db, async (transaction) => {
             const runRef = doc(db, 'transfers', runId);
@@ -2973,7 +3008,7 @@ export async function handleCompleteRun(runId: string, unsoldItems: { productId:
             if (!runDoc.exists()) throw new Error("Sales run not found.");
 
             const runData = runDoc.data();
-            if (runData.status !== 'active') throw new Error("This run is not active.");
+            if (runData.status !== 'active') throw new Error("This run is not active or has already been completed.");
 
             // Update run status and completion time
             transaction.update(runRef, {
@@ -2981,14 +3016,6 @@ export async function handleCompleteRun(runId: string, unsoldItems: { productId:
                 time_completed: serverTimestamp()
             });
             
-            // Return unsold items to main stock
-            for (const item of unsoldItems) {
-                if (item.quantity > 0) {
-                    const productRef = doc(db, 'products', item.productId);
-                    transaction.update(productRef, { stock: increment(item.quantity) });
-                }
-            }
-
             // Calculate shortage/overage
             const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId));
             const ordersSnapshot = await getDocs(ordersQuery);
