@@ -1672,33 +1672,33 @@ export async function handleReportWaste(data: ReportWasteData, user: { staff_id:
         await runTransaction(db, async (transaction) => {
              for (const item of data.items) {
                 if (!item.productId || !item.quantity || item.quantity <= 0) continue;
-
-                const isMainInventory = isAdminOrStorekeeper;
                 
-                const stockRef = isMainInventory
-                    ? doc(db, 'products', item.productId)
-                    : doc(db, 'staff', user.staff_id, 'personal_stock', item.productId);
+                const productRef = doc(db, 'products', item.productId);
                 
-                const productDocRef = doc(db, 'products', item.productId);
-                const [stockDoc, productDoc] = await Promise.all([
-                    transaction.get(stockRef),
-                    transaction.get(productDocRef)
-                ]);
-
-                if (!productDoc.exists()) throw new Error(`Product with ID ${item.productId} not found.`);
-                
-                const productName = productDoc.data().name || 'Unknown Product';
-                const productCategory = productDoc.data().category || 'Unknown';
-
-                if (!stockDoc.exists() || (stockDoc.data()?.stock || 0) < item.quantity) {
-                    const stockLocation = isMainInventory ? 'main inventory' : 'personal stock';
-                    throw new Error(`Not enough stock for ${productName} in ${stockLocation}.`);
+                if (isAdminOrStorekeeper) {
+                    const productDoc = await transaction.get(productRef);
+                    if (!productDoc.exists()) throw new Error(`Product with ID ${item.productId} not found.`);
+                    
+                    if ((productDoc.data().stock || 0) < item.quantity) {
+                        throw new Error(`Not enough stock for ${productDoc.data().name} in main inventory.`);
+                    }
+                    transaction.update(productRef, { stock: increment(-item.quantity) });
+                } else {
+                    const personalStockRef = doc(db, 'staff', user.staff_id, 'personal_stock', item.productId);
+                    const staffStockDoc = await transaction.get(personalStockRef);
+                    if (!staffStockDoc.exists() || (staffStockDoc.data()?.stock || 0) < item.quantity) {
+                         const productDoc = await transaction.get(productRef);
+                         const productName = productDoc.exists() ? productDoc.data().name : item.productId;
+                        throw new Error(`Not enough stock for ${productName} in your personal inventory.`);
+                    }
+                    transaction.update(personalStockRef, { stock: increment(-item.quantity) });
                 }
 
-                // 1. Decrement stock
-                transaction.update(stockRef, { stock: increment(-item.quantity) });
+                // This read needs to be after potential transaction reads for product name.
+                const productDocForLog = await getDoc(productRef);
+                const productName = productDocForLog.exists() ? productDocForLog.data().name : 'Unknown Product';
+                const productCategory = productDocForLog.exists() ? productDocForLog.data().category : 'Unknown';
 
-                // 2. Create a waste log entry
                 const wasteLogRef = doc(collection(db, 'waste_logs'));
                 transaction.set(wasteLogRef, {
                     productId: item.productId,
@@ -1844,11 +1844,11 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
     }
 }
 
-export async function getProductionTransfers(staffId: string): Promise<Transfer[]> {
+export async function getProductionTransfers(toStaffId: string): Promise<Transfer[]> {
      try {
         const q = query(
             collection(db, 'transfers'),
-            where('to_staff_id', '==', staffId),
+            where('to_staff_id', '==', toStaffId),
             where('notes', '>=', 'Return from production batch'),
             where('notes', '<=', 'Return from production batch' + '\uf8ff'),
             where('status', '==', 'pending')
@@ -2965,13 +2965,63 @@ export async function declineStockIncrease(requestId: string, user: { staff_id: 
     }
 }
 
+export async function handleCompleteRun(runId: string, unsoldItems: { productId: string, productName: string, quantity: number }[]): Promise<{success: boolean, error?: string}> {
+    try {
+        await runTransaction(db, async (transaction) => {
+            const runRef = doc(db, 'transfers', runId);
+            const runDoc = await transaction.get(runRef);
+            if (!runDoc.exists()) throw new Error("Sales run not found.");
 
+            const runData = runDoc.data();
+            if (runData.status !== 'active') throw new Error("This run is not active.");
 
+            // Update run status and completion time
+            transaction.update(runRef, {
+                status: 'completed',
+                time_completed: serverTimestamp()
+            });
+            
+            // Return unsold items to main stock
+            for (const item of unsoldItems) {
+                if (item.quantity > 0) {
+                    const productRef = doc(db, 'products', item.productId);
+                    transaction.update(productRef, { stock: increment(item.quantity) });
+                }
+            }
 
+            // Calculate shortage/overage
+            const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId));
+            const ordersSnapshot = await getDocs(ordersQuery);
+            const creditSales = ordersSnapshot.docs
+                .filter(doc => doc.data().paymentMethod === 'Credit')
+                .reduce((sum, doc) => sum + doc.data().total, 0);
 
-    
+            const expectedCash = (runData.totalRevenue || 0) - creditSales;
+            const cashCollected = runData.totalCollected || 0;
+            const shortage = expectedCash - cashCollected;
+            
+            // Log shortage to daily sales record if there is one
+            if (Math.abs(shortage) > 0.01) { // Use a small epsilon for float comparison
+                const salesDocId = format(runData.date.toDate(), 'yyyy-MM-dd');
+                const salesDocRef = doc(db, 'sales', salesDocId);
+                const salesDoc = await transaction.get(salesDocRef);
+                if (salesDoc.exists()) {
+                    transaction.update(salesDocRef, { shortage: increment(shortage) });
+                } else {
+                     transaction.set(salesDocRef, {
+                        date: runData.date,
+                        description: `Daily Sales for ${salesDocId}`,
+                        cash: 0, pos: 0, transfer: 0, creditSales: 0,
+                        total: 0,
+                        shortage: shortage
+                    });
+                }
+            }
+        });
 
-
-
-    
-
+        return { success: true };
+    } catch (error) {
+        console.error("Error completing sales run:", error);
+        return { success: false, error: (error as Error).message || "An unexpected error occurred." };
+    }
+}

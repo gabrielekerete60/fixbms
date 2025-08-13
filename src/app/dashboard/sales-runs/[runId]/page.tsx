@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder } from '@/app/actions';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun } from '@/app/actions';
 import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
@@ -834,6 +834,20 @@ function SalesRunDetails() {
         fetchRunData(true).finally(() => setIsRefreshing(false));
     };
 
+    const handleCompleteRunAction = async () => {
+        if (!run) return;
+        setIsRefreshing(true);
+        const unsold = getRemainingItems();
+        const result = await handleCompleteRun(run.id, unsold);
+        if (result.success) {
+            toast({ title: 'Success!', description: 'Sales run has been completed and stock reconciled.'});
+            router.push('/dashboard/deliveries');
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+            setIsRefreshing(false);
+        }
+    }
+
     useEffect(() => {
       const userJSON = localStorage.getItem('loggedInUser');
       if (userJSON) {
@@ -1082,18 +1096,18 @@ function SalesRunDetails() {
                          {runComplete ? <Button variant="secondary" disabled>Run Completed</Button> : (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" disabled={!canPerformSales || (isRunActive && remainingItems.length > 0)}>Complete Run</Button>
+                                    <Button variant="destructive" disabled={!canPerformSales}>Complete Run</Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            This action cannot be undone. All remaining items will be marked as returned and this run will be closed.
+                                            This action cannot be undone. All remaining items will be returned to stock, and this run will be closed.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => router.push(`/dashboard/complete-run/${runId}`)}>Complete</AlertDialogAction>
+                                        <AlertDialogAction onClick={handleCompleteRunAction}>Complete</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
