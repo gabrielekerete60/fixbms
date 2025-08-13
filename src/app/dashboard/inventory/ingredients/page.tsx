@@ -104,7 +104,7 @@ function IngredientDialog({
     const { toast } = useToast();
     const [name, setName] = useState("");
     const [unit, setUnit] = useState("");
-    const [costPerUnit, setCostPerUnit] = useState(0);
+    const [costPerUnit, setCostPerUnit] = useState<number | string>(0);
     const [expiryDate, setExpiryDate] = useState<Date | undefined>();
     const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(10);
     
@@ -121,7 +121,7 @@ function IngredientDialog({
         } else {
             setName("");
             setUnit("");
-            setCostPerUnit(0);
+            setCostPerUnit("");
             setExpiryDate(undefined);
             setLowStockThreshold(10);
         }

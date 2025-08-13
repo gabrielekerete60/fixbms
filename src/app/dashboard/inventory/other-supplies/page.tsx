@@ -375,7 +375,7 @@ export default function OtherSuppliesPage() {
                 <div className="flex items-center gap-2">
                     <IncreaseSupplyDialog supplies={supplies} onStockIncreased={fetchSupplies} />
                      <Button onClick={openAddDialog} variant="outline">
-                        Manage Supply Types
+                        Add New Supply
                     </Button>
                 </div>
             </div>
