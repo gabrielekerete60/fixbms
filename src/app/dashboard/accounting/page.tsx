@@ -1155,6 +1155,7 @@ function PaymentsRequestsTab({ notificationBadge }: { notificationBadge?: React.
 function SalesRecordDetailsDialog({ record, isOpen, onOpenChange }: { record: Sale | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
     if (!record) return null;
     
+    // Check if date is a Firestore Timestamp
     const recordDate = record.date?.toDate ? record.date.toDate() : new Date(record.date);
 
     return (
@@ -1182,7 +1183,7 @@ function SalesRecordDetailsDialog({ record, isOpen, onOpenChange }: { record: Sa
 }
 
 function SalesRecordsTab() {
-    const [records, setRecords] = useState<Sale[]>([]);
+    const [salesRecords, setSalesRecords] = useState<Sale[]>([]);
     const [wasteLogs, setWasteLogs] = useState<WasteLog[]>([]);
     const [products, setProducts] = useState<{ id: string, costPrice: number }[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -1193,25 +1194,24 @@ function SalesRecordsTab() {
     useEffect(() => {
         const fetchSalesData = async () => {
             setIsLoading(true);
-            const salesQuery = query(collection(db, "sales"), orderBy("date", "desc"));
-            const wasteQuery = query(collection(db, "waste_logs"));
-            const productsQuery = query(collection(db, "products"));
-
             try {
-                const [salesSnapshot, wasteSnapshot, productsSnapshot] = await Promise.all([
-                    getDocs(salesQuery),
-                    getDocs(wasteQuery),
-                    getDocs(productsQuery)
-                ]);
+                const salesQuery = query(collection(db, "sales"), orderBy("date", "desc"));
+                const unsubSales = onSnapshot(salesQuery, (snapshot) => {
+                    setSalesRecords(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
+                });
 
-                const salesData = salesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale));
-                const wasteData = wasteSnapshot.docs.map(doc => doc.data() as WasteLog);
-                const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, costPrice: doc.data().costPrice || 0 }));
+                const wasteQuery = query(collection(db, "waste_logs"), orderBy("date", "desc"));
+                const unsubWaste = onSnapshot(wasteQuery, (snapshot) => {
+                    setWasteLogs(snapshot.docs.map(doc => doc.data() as WasteLog));
+                });
                 
-                setRecords(salesData);
-                setWasteLogs(wasteData);
-                setProducts(productsData);
+                const productsSnapshot = await getDocs(collection(db, "products"));
+                setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, costPrice: doc.data().costPrice || 0 })));
 
+                return () => { 
+                    unsubSales(); 
+                    unsubWaste();
+                };
             } catch (error) {
                 console.error("Error fetching sales records in real-time: ", error);
             } finally {
@@ -1219,31 +1219,49 @@ function SalesRecordsTab() {
             }
         };
 
-        fetchSalesData();
+        const unsubPromise = fetchSalesData();
+        return () => {
+            unsubPromise.then(unsub => unsub && unsub());
+        };
     }, []);
 
     const processedRecords = useMemo(() => {
         const productCostMap = new Map(products.map(p => [p.id, p.costPrice]));
-        const wasteByDate: Record<string, number> = {};
+        const dailyDataMap = new Map<string, Partial<Sale>>();
 
+        // Process sales
+        salesRecords.forEach(rec => {
+            const date = rec.date?.toDate ? rec.date.toDate() : new Date(rec.date);
+            const dateStr = format(date, 'yyyy-MM-dd');
+            dailyDataMap.set(dateStr, { ...rec, date, shortage: 0 });
+        });
+
+        // Process waste logs
         wasteLogs.forEach(log => {
-            const logDate = log.date && (log.date as any).toDate ? (log.date as any).toDate() : new Date(log.date);
-            const dateStr = format(logDate, 'yyyy-MM-dd');
+            const date = log.date && (log.date as any).toDate ? (log.date as any).toDate() : new Date(log.date);
+            const dateStr = format(date, 'yyyy-MM-dd');
             const cost = productCostMap.get(log.productId) || 0;
             const wasteValue = cost * log.quantity;
-            wasteByDate[dateStr] = (wasteByDate[dateStr] || 0) + wasteValue;
+
+            if (dailyDataMap.has(dateStr)) {
+                const existing = dailyDataMap.get(dateStr)!;
+                existing.shortage = (existing.shortage || 0) + wasteValue;
+            } else {
+                dailyDataMap.set(dateStr, {
+                    id: `waste-${dateStr}`,
+                    date: date,
+                    description: `Daily Sales for ${dateStr}`,
+                    cash: 0, pos: 0, transfer: 0, creditSales: 0, total: 0,
+                    shortage: wasteValue,
+                });
+            }
         });
 
-        return records.map(rec => {
-            const recordDate = rec.date && (rec.date as any).toDate ? (rec.date as any).toDate() : new Date(rec.date);
-            const dateStr = format(recordDate, 'yyyy-MM-dd');
-            return {
-                ...rec,
-                date: recordDate,
-                shortage: wasteByDate[dateStr] || 0,
-            };
-        });
-    }, [records, wasteLogs, products]);
+        return Array.from(dailyDataMap.values())
+            .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)) as Sale[];
+            
+    }, [salesRecords, wasteLogs, products]);
+
 
     const filteredRecords = useMemo(() => {
         if (!date?.from) return processedRecords;
@@ -1294,7 +1312,7 @@ function SalesRecordsTab() {
                             <TableBody>
                                 {paginatedRecords.map(r => (
                                     <TableRow key={r.id} className="cursor-pointer hover:bg-muted" onClick={() => setViewingRecord(r)}>
-                                        <TableCell>{format(new Date(r.date), 'PPP')}</TableCell>
+                                        <TableCell>{r.date ? format(new Date(r.date), 'PPP') : 'Invalid Date'}</TableCell>
                                         <TableCell>{r.description}</TableCell>
                                         <TableCell className="text-right">{formatCurrency(r.cash)}</TableCell>
                                         <TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell>
