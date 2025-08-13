@@ -967,6 +967,7 @@ function SalesRunDetails() {
     }
     const runComplete = runStatus === 'completed';
     const isRunActive = runStatus === 'active';
+    const canPerformSales = user?.staff_id === run?.to_staff_id;
 
     return (
         <div className="flex flex-col gap-4">
@@ -1070,10 +1071,19 @@ function SalesRunDetails() {
                         <CardDescription>Manage this sales run.</CardDescription>
                     </CardHeader>
                     <CardContent className="flex flex-col gap-4">
-                        <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
+                        {canPerformSales ? (
+                            <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
+                        ) : (
+                             <Button variant="outline" className="h-20 flex-col gap-1" disabled>
+                                <User className="h-5 w-5"/>
+                                <span>Sell to Customer</span>
+                            </Button>
+                        )}
                          {runComplete ? <Button variant="secondary" disabled>Run Completed</Button> : (
                             <AlertDialog>
-                                <AlertDialogTrigger asChild><Button variant="destructive" disabled={isRunActive && remainingItems.length > 0}>Complete Run</Button></AlertDialogTrigger>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" disabled={isRunActive && remainingItems.length > 0}>Complete Run</Button>
+                                </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -1136,7 +1146,11 @@ function SalesRunDetails() {
                                                     {outstanding > 0 ? formatCurrency(outstanding) : '-'}
                                                 </TableCell>
                                                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                    <RecordPaymentDialog customer={customer} run={run} user={user} />
+                                                    {canPerformSales ? (
+                                                        <RecordPaymentDialog customer={customer} run={run} user={user} />
+                                                    ) : (
+                                                        <Button size="sm" variant="outline" disabled>Record Payment</Button>
+                                                    )}
                                                 </TableCell>
                                             </TableRow>
                                         )

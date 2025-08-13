@@ -1445,7 +1445,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
 
     try {
         await runTransaction(db, async (transaction) => {
-            // --- 1. All READS must happen first ---
             const confirmationDoc = await transaction.get(confirmationRef);
             if (!confirmationDoc.exists()) {
                 throw new Error("Confirmation not found.");
@@ -1460,6 +1459,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             
             if (isFromSalesRun) {
                 runRef = doc(db, 'transfers', confirmationData.runId);
+                // Pre-read runRef inside the transaction
                 await transaction.get(runRef);
             }
             if (confirmationData.isDebtPayment && confirmationData.customerId) {
@@ -1471,7 +1471,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             const salesDocRef = doc(db, 'sales', salesDocId);
             salesDoc = await transaction.get(salesDocRef); 
             
-            // --- 2. All WRITES happen last ---
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
             if (action === 'approve') {
@@ -1838,10 +1837,11 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
     }
 }
 
-export async function getProductionTransfers(): Promise<Transfer[]> {
+export async function getProductionTransfers(staffId: string): Promise<Transfer[]> {
      try {
         const q = query(
             collection(db, 'transfers'),
+            where('to_staff_id', '==', staffId),
             where('notes', '>=', 'Return from production batch'),
             where('notes', '<=', 'Return from production batch' + '\uf8ff'),
             where('status', '==', 'pending')
@@ -2272,8 +2272,8 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
             totalOutstanding: totalRevenue - (data.totalCollected || 0),
             time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
             time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
-            is_sales_run: data.is_sales_run,
-        } as SalesRun;
+            is_sales_run: data.is_sales_run || false,
+        };
 
     } catch (error) {
         console.error("Error fetching sales run details:", error);
