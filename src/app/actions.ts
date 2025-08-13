@@ -764,7 +764,7 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
 export async function getAllSalesRuns(): Promise<SalesRunResult> {
     try {
         const q = query(
-            collection(db, 'transfers'), 
+            collection(db, 'transfers'),
             where('is_sales_run', '==', true),
             orderBy('date', 'desc')
         );
@@ -772,29 +772,36 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
         const querySnapshot = await getDocs(q);
         const runs = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
             const data = transferDoc.data();
-            const date = data.date as Timestamp;
-
             let totalRevenue = 0;
             const itemsWithPrices = await Promise.all(
-              (data.items || []).map(async (item: any) => {
-                const productDoc = await getDoc(doc(db, 'products', item.productId));
-                const price = productDoc.exists() ? productDoc.data().price : 0;
-                totalRevenue += price * item.quantity;
-                return { ...item, price };
-              })
+                (data.items || []).map(async (item: any) => {
+                    const productDoc = await getDoc(doc(db, 'products', item.productId));
+                    const price = productDoc.exists() ? productDoc.data().price : 0;
+                    totalRevenue += price * item.quantity;
+                    return { ...item, price };
+                })
             );
 
+            // Create a new, clean object to return
             return {
                 id: transferDoc.id,
-                ...data,
-                date: date.toDate().toISOString(),
+                date: (data.date as Timestamp).toDate().toISOString(),
+                status: data.status,
                 items: itemsWithPrices,
+                notes: data.notes,
+                from_staff_name: data.from_staff_name,
+                from_staff_id: data.from_staff_id,
+                to_staff_name: data.to_staff_name,
+                to_staff_id: data.to_staff_id,
+                is_sales_run: data.is_sales_run,
                 totalRevenue,
                 totalCollected: data.totalCollected || 0,
                 totalOutstanding: totalRevenue - (data.totalCollected || 0),
+                time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
+                time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
             } as SalesRun;
         }));
-        
+
         const active = runs.filter(run => run.status === 'active');
         const completed = runs.filter(run => run.status === 'completed');
 
@@ -2967,3 +2974,4 @@ export async function declineStockIncrease(requestId: string, user: { staff_id: 
 
 
     
+
