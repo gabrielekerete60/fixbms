@@ -8,10 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getWasteLogs, WasteLog } from "@/app/actions";
-import { collection, getDocs } from "firebase/firestore";
+import { getWasteLogs, WasteLog, getWasteLogsForStaff } from "@/app/actions";
+import { collection, getDocs, where, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
 
 type Product = {
     id: string;
@@ -19,8 +19,14 @@ type Product = {
     category: string;
 }
 
+type User = {
+    staff_id: string;
+    role: string;
+}
+
 export default function WasteLogsPage() {
     const { toast } = useToast();
+    const [user, setUser] = useState<User | null>(null);
     const [wasteLogs, setWasteLogs] = useState<WasteLog[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -29,38 +35,65 @@ export default function WasteLogsPage() {
     const [reasonFilter, setReasonFilter] = useState("all");
     const [searchTerm, setSearchTerm] = useState("");
 
+    useEffect(() => {
+        const userStr = localStorage.getItem('loggedInUser');
+        if (userStr) {
+            setUser(JSON.parse(userStr));
+        }
+    }, []);
+
     const fetchPageData = useCallback(async () => {
+        if (!user) return;
         setIsLoading(true);
+
+        const isAdmin = ['Manager', 'Developer', 'Supervisor'].includes(user.role);
+
         try {
-            const [logsData, productsSnapshot] = await Promise.all([
-                getWasteLogs(),
-                getDocs(collection(db, "products"))
-            ]);
+            const logsData = isAdmin ? await getWasteLogs() : await getWasteLogsForStaff(user.staff_id);
             setWasteLogs(logsData);
-            setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+
+            if (products.length === 0) {
+                 const productsSnapshot = await getDocs(collection(db, "products"));
+                 setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+            }
         } catch (error) {
             console.error("Error fetching data:", error);
             toast({ variant: "destructive", title: "Error", description: "Failed to load waste log data." });
         } finally {
             setIsLoading(false);
         }
-    }, [toast]);
+    }, [toast, user, products.length]);
 
     useEffect(() => {
-        fetchPageData();
-    }, [fetchPageData]);
+        if (user) {
+            fetchPageData();
+        }
+    }, [user, fetchPageData]);
     
     const productCategories = useMemo(() => ["all", ...new Set(products.map(p => p.category))], [products]);
     const wasteReasons = useMemo(() => ["all", "Spoiled", "Damaged", "Burnt", "Error", "Other"], []);
 
     const filteredLogs = useMemo(() => {
-        return wasteLogs.filter(log => {
+        let logs = wasteLogs;
+
+        if (user?.role === 'Showroom Staff') {
+            const today = startOfDay(new Date());
+            logs = logs.filter(log => new Date(log.date) >= today);
+        }
+
+        return logs.filter(log => {
             const categoryMatch = categoryFilter === 'all' || log.productCategory === categoryFilter;
             const reasonMatch = reasonFilter === 'all' || log.reason === reasonFilter;
             const searchMatch = !searchTerm || log.productName.toLowerCase().includes(searchTerm.toLowerCase());
             return categoryMatch && reasonMatch && searchMatch;
         });
-    }, [wasteLogs, categoryFilter, reasonFilter, searchTerm]);
+    }, [wasteLogs, categoryFilter, reasonFilter, searchTerm, user?.role]);
+
+    if (!user) {
+        return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
+    }
+
+    const isAdmin = ['Manager', 'Developer', 'Supervisor'].includes(user.role);
 
     return (
         <div className="flex flex-col gap-4">
@@ -69,7 +102,9 @@ export default function WasteLogsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Manage Waste Logs</CardTitle>
-                    <CardDescription>Review all reported waste and damage across the business.</CardDescription>
+                    <CardDescription>
+                        {isAdmin ? "Review all reported waste and damage across the business." : "A log of all items you have reported as waste."}
+                    </CardDescription>
                      <div className="flex items-center justify-between gap-4 pt-4">
                         <div className="relative flex-1">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -104,7 +139,7 @@ export default function WasteLogsPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Date</TableHead>
-                                <TableHead>Staff</TableHead>
+                                {isAdmin && <TableHead>Staff</TableHead>}
                                 <TableHead>Product</TableHead>
                                 <TableHead>Quantity</TableHead>
                                 <TableHead>Reason</TableHead>
@@ -113,14 +148,14 @@ export default function WasteLogsPage() {
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
-                                <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                <TableRow><TableCell colSpan={isAdmin ? 6 : 5} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
                             ) : filteredLogs.length === 0 ? (
-                                <TableRow><TableCell colSpan={6} className="h-24 text-center">No waste logs found for this filter.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={isAdmin ? 6 : 5} className="h-24 text-center">No waste logs found for this filter.</TableCell></TableRow>
                             ) : (
                                 filteredLogs.map(log => (
                                     <TableRow key={log.id}>
                                         <TableCell>{format(new Date(log.date), 'PPP')}</TableCell>
-                                        <TableCell>{log.staffName}</TableCell>
+                                        {isAdmin && <TableCell>{log.staffName}</TableCell>}
                                         <TableCell>{log.productName}</TableCell>
                                         <TableCell>{log.quantity}</TableCell>
                                         <TableCell>{log.reason}</TableCell>
@@ -135,5 +170,3 @@ export default function WasteLogsPage() {
         </div>
     );
 }
-
-    

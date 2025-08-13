@@ -392,7 +392,7 @@ export default function DashboardLayout({
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
           { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", roles: ['Manager', 'Developer'] },
+          { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", roles: ['Manager', 'Developer', 'Storekeeper', 'Delivery Staff', 'Showroom Staff'] },
         ]
       },
       {
@@ -468,6 +468,8 @@ export default function DashboardLayout({
           payments: notificationCounts.pendingPayments,
           approvals: notificationCounts.pendingApprovals,
           communication: communicationCount,
+          unreadAnnouncements: notificationCounts.unreadAnnouncements,
+          actionableReports: notificationCounts.newReports + notificationCounts.inProgressReports
       }
   }, [notificationCounts, user]);
 

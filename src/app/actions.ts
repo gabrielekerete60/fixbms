@@ -178,9 +178,25 @@ export async function verifyMfaSetup(staffId: string, token: string, secret: str
     }
 }
 
-export async function disableMfa(staffId: string): Promise<{ success: boolean; error?: string }> {
+export async function disableMfa(staffId: string, token: string): Promise<{ success: boolean; error?: string }> {
     try {
         const userDocRef = doc(db, "staff", staffId);
+        const userDoc = await getDoc(userDocRef);
+
+        if (!userDoc.exists() || !userDoc.data().mfa_enabled || !userDoc.data().mfa_secret) {
+            return { success: false, error: "MFA is not enabled for this user." };
+        }
+
+        const verified = speakeasy.totp.verify.call(speakeasy.totp, {
+            secret: userDoc.data().mfa_secret,
+            encoding: 'base32',
+            token: token,
+        });
+
+        if (!verified) {
+            return { success: false, error: "Invalid MFA token." };
+        }
+
         await updateDoc(userDocRef, {
             mfa_enabled: false,
             mfa_secret: ""
@@ -567,11 +583,13 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
             const produced = batch.successfullyProduced || 0;
             producedThisWeek += produced;
 
-            const approvedDate = (batch.approvedAt as Timestamp).toDate();
-            const dayOfWeek = format(approvedDate, 'E');
-            const index = weeklyProductionData.findIndex(d => d.day === dayOfWeek);
-            if (index !== -1) {
-                weeklyProductionData[index].quantity += produced;
+            if (batch.approvedAt) {
+                 const approvedDate = (batch.approvedAt as Timestamp).toDate();
+                const dayOfWeek = format(approvedDate, 'E');
+                const index = weeklyProductionData.findIndex(d => d.day === dayOfWeek);
+                if (index !== -1) {
+                    weeklyProductionData[index].quantity += produced;
+                }
             }
         });
 
@@ -1841,7 +1859,7 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         if (error.code === 'failed-precondition') {
             console.error("Firestore index missing for getCompletedTransfersForStaff. Please create it in the Firebase console.", error.message);
         } else {
-            console.error("Error fetching completed transfers:", error);
+            console.error("Error fetching completed transfers for staff:", error);
         }
         return [];
     }

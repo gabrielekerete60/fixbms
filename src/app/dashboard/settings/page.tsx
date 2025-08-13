@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -120,18 +121,26 @@ function ThemeSettings({ user }: { user: User }) {
     useEffect(() => {
         setSelectedTheme(user.theme || 'default');
     }, [user.theme]);
+    
+    const applyTheme = (theme: string) => {
+        const root = document.documentElement;
+        root.className = ''; // Clear all existing theme classes
+        if (theme && theme !== 'default') {
+            root.classList.add(`theme-${theme}`);
+        }
+    }
 
     const handleSaveTheme = async () => {
         setIsSaving(true);
         const result = await handleUpdateTheme(user.staff_id, selectedTheme);
         if (result.success) {
             localStorage.setItem('loggedInUser', JSON.stringify({ ...user, theme: selectedTheme }));
-            toast({ title: 'Theme saved!', description: 'Applying new theme...' });
-            window.location.reload();
+            applyTheme(selectedTheme);
+            toast({ title: 'Theme saved!', description: 'Your new theme has been applied.' });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save your theme preference.' });
-            setIsSaving(false);
         }
+        setIsSaving(false);
     };
     
     return (
@@ -225,6 +234,60 @@ function StoreCustomization({ currentSettings }: { currentSettings: any }) {
     )
 }
 
+function DisableMfaDialog({ user, onDisabled }: { user: User, onDisabled: () => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [code, setCode] = useState('');
+    const [isVerifying, setIsVerifying] = useState(false);
+    const { toast } = useToast();
+
+    const handleDisable = async () => {
+        setIsVerifying(true);
+        const result = await disableMfa(user.staff_id, code);
+        if (result.success) {
+            toast({ title: 'Success', description: 'MFA has been disabled.' });
+            onDisabled();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsVerifying(false);
+    };
+
+    return (
+        <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+            <AlertDialogTrigger asChild>
+                <Button variant="destructive">Disable MFA</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Disable Multi-Factor Authentication?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        For your security, please enter the 6-digit code from your authenticator app to confirm this action.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="py-2">
+                    <Label htmlFor="disable-mfa-code" className="sr-only">MFA Code</Label>
+                    <Input 
+                        id="disable-mfa-code"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value)}
+                        placeholder="123456"
+                        maxLength={6}
+                        className="text-center text-lg tracking-[0.3em]"
+                    />
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDisable} disabled={isVerifying || code.length !== 6}>
+                        {isVerifying && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Confirm & Disable
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
 export default function SettingsPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
@@ -302,16 +365,6 @@ export default function SettingsPage() {
         setIsVerifying(false);
     };
 
-    const handleDisableMfa = async () => {
-        if (!user) return;
-        const result = await disableMfa(user.staff_id);
-        if (result.success) {
-            toast({ title: 'Success', description: 'MFA has been disabled.' });
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-    }
-
     if (isLoading || isMfaEnabled === null || !user) {
         return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin"/></div>
     }
@@ -348,21 +401,7 @@ export default function SettingsPage() {
                             </AlertDescription>
                             <div className="mt-4">
                                 {isMfaEnabled ? (
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="destructive">Disable MFA</Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                <AlertDialogDescription>This will remove the extra security layer from your account.</AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={handleDisableMfa}>Yes, Disable</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
+                                   <DisableMfaDialog user={user} onDisabled={() => setIsMfaEnabled(false)} />
                                 ) : (
                                     <Button onClick={handleGenerateMfa} disabled={isGenerating}>
                                         {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
