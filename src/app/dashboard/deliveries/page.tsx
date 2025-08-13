@@ -1,10 +1,9 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Package2, Car, Users, DollarSign, Filter, MoreVertical, Calendar as CalendarIcon } from 'lucide-react';
@@ -16,7 +15,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { format, eachDayOfInterval, subDays } from 'date-fns';
+import { format, eachDayOfInterval, subDays, startOfDay, endOfDay } from 'date-fns';
 import { RevenueChart } from '@/components/revenue-chart';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -100,11 +99,14 @@ function RunCard({ run }: { run: SalesRunType }) {
 
 function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], isLoading: boolean, user: User | null }) {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [filterDriver, setFilterDriver] = useState('all');
     const [sort, setSort] = useState('date_desc');
     const [date, setDate] = useState<DateRange | undefined>({ from: subDays(new Date(), 6), to: new Date() });
     const [tempDate, setTempDate] = useState<DateRange | undefined>(date);
     const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
+    
+    const showOnlyActive = searchParams.get('status') === 'active';
 
     const drivers = useMemo(() => {
         const driverSet = new Set(allRuns.map(run => run.to_staff_name).filter(Boolean));
@@ -113,8 +115,21 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
 
     const filteredAndSortedRuns = useMemo(() => {
         let runs = [...allRuns];
-        if (filterDriver !== 'all') {
-            runs = runs.filter(run => run.to_staff_name === filterDriver);
+
+        if (showOnlyActive) {
+            runs = runs.filter(run => run.status === 'active');
+        } else {
+             if (filterDriver !== 'all') {
+                runs = runs.filter(run => run.to_staff_name === filterDriver);
+            }
+             if (date?.from) {
+                const start = startOfDay(date.from);
+                const end = date.to ? endOfDay(date.to) : endOfDay(date.from);
+                runs = runs.filter(run => {
+                    const runDate = new Date(run.date);
+                    return runDate >= start && runDate <= end;
+                });
+            }
         }
         
         runs.sort((a, b) => {
@@ -126,9 +141,9 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
             }
         });
         return runs;
-    }, [allRuns, filterDriver, sort]);
+    }, [allRuns, filterDriver, sort, date, showOnlyActive]);
 
-    const activeRuns = filteredAndSortedRuns.filter(r => r.status === 'active');
+    const activeRuns = allRuns.filter(r => r.status === 'active');
     const totalOutstanding = activeRuns.reduce((sum, run) => sum + run.totalOutstanding, 0);
 
     const weeklySalesChartData = useMemo(() => {
@@ -161,19 +176,25 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
         setDate(tempDate);
         setIsDatePopoverOpen(false);
     }
+    
+    const title = showOnlyActive ? 'Active Sales Runs' : 'All Sales Runs';
+    const description = showOnlyActive ? 'Monitor all currently active sales runs.' : 'Monitor all active and completed sales runs across all drivers.';
+
 
     return (
         <div className="flex flex-col gap-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Active Sales Runs</CardTitle>
-                        <Car className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{activeRuns.length}</div>
-                    </CardContent>
-                </Card>
+                 <Link href="/dashboard/deliveries?status=active">
+                    <Card className="hover:bg-muted/50 transition-colors h-full">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Active Sales Runs</CardTitle>
+                            <Car className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{activeRuns.length}</div>
+                        </CardContent>
+                    </Card>
+                </Link>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                          <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
@@ -265,24 +286,30 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                 <CardHeader>
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
-                            <CardTitle>All Sales Runs</CardTitle>
-                            <CardDescription>Monitor all active and completed sales runs across all drivers.</CardDescription>
+                            <CardTitle>{title}</CardTitle>
+                            <CardDescription>{description}</CardDescription>
                         </div>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild><Button variant="outline"><Filter className="mr-2"/> Filter & Sort</Button></DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <DropdownMenuLabel>Filter by Driver</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                {drivers.map(d => <DropdownMenuItem key={d} onSelect={() => setFilterDriver(d)}>{d === 'all' ? 'All Drivers' : d}</DropdownMenuItem>)}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuLabel>Sort By</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onSelect={() => setSort('date_desc')}>Newest First</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => setSort('date_asc')}>Oldest First</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => setSort('value_desc')}>Highest Value</DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => setSort('value_asc')}>Lowest Value</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                         {showOnlyActive ? (
+                            <Link href="/dashboard/deliveries">
+                                <Button variant="outline">Show All Runs</Button>
+                            </Link>
+                         ) : (
+                             <DropdownMenu>
+                                <DropdownMenuTrigger asChild><Button variant="outline"><Filter className="mr-2"/> Filter & Sort</Button></DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    <DropdownMenuLabel>Filter by Driver</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {drivers.map(d => <DropdownMenuItem key={d} onSelect={() => setFilterDriver(d)}>{d === 'all' ? 'All Drivers' : d}</DropdownMenuItem>)}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuLabel>Sort By</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onSelect={() => setSort('date_desc')}>Newest First</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => setSort('date_asc')}>Oldest First</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => setSort('value_desc')}>Highest Value</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => setSort('value_asc')}>Lowest Value</DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                         )}
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -398,7 +425,7 @@ export default function DeliveriesPage() {
         try {
             const { active, completed } = await getAllSalesRuns();
             setAllRuns([...active, ...completed]);
-        } catch (error) {
+        } catch (error: any) {
              console.error("Error fetching all runs:", error);
              toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales runs for manager view.' });
         } finally {
