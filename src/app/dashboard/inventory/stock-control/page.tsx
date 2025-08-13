@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -325,51 +326,55 @@ function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept:
 
 function ReportWasteTab({ products, user, onWasteReported }: { products: Product[], user: User | null, onWasteReported: () => void }) {
     const { toast } = useToast();
-    const [productId, setProductId] = useState("");
-    const [quantity, setQuantity] = useState<number | string>(1);
+    const [wasteItems, setWasteItems] = useState<{ productId: string, quantity: number | string }[]>([{ productId: '', quantity: 1 }]);
     const [reason, setReason] = useState("");
     const [notes, setNotes] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const selectedProduct = useMemo(() => products.find(p => p.id === productId), [productId, products]);
+    const handleItemChange = (index: number, field: 'productId' | 'quantity', value: string) => {
+        const newItems = [...wasteItems];
+        if (field === 'quantity') {
+            newItems[index][field] = value === '' ? '' : Number(value);
+        } else {
+            newItems[index][field] = value;
+        }
+        setWasteItems(newItems);
+    };
+
+    const handleAddItem = () => {
+        setWasteItems([...wasteItems, { productId: '', quantity: 1 }]);
+    };
+
+    const handleRemoveItem = (index: number) => {
+        setWasteItems(wasteItems.filter((_, i) => i !== index));
+    };
 
     const handleSubmit = async () => {
-        if (!productId || !quantity || !reason || !user) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please fill all required fields.' });
-            return;
-        }
-
-        const productStock = selectedProduct?.stock || 0;
-
-        if (Number(quantity) > productStock) {
-            toast({ variant: 'destructive', title: 'Error', description: `Cannot report more waste than available stock (${productStock}).` });
+        if (!user || wasteItems.some(item => !item.productId || !item.quantity || Number(item.quantity) <= 0) || !reason) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all product and reason fields correctly.' });
             return;
         }
 
         setIsSubmitting(true);
-        const productCategory = (await getDoc(doc(db, 'products', productId))).data()?.category || 'Unknown';
-        
-        const result = await handleReportWaste({
-            productId,
-            productName: selectedProduct?.name || 'Unknown Product',
-            productCategory,
-            quantity: Number(quantity),
+        const dataToSubmit = {
+            items: wasteItems.map(item => ({ ...item, quantity: Number(item.quantity) })),
             reason,
-            notes
-        }, { ...user, role: user.role || '' });
+            notes,
+        };
+
+        const result = await handleReportWaste(dataToSubmit, user);
 
         if (result.success) {
             toast({ title: 'Success', description: 'Waste reported successfully. Inventory has been updated.' });
-            setProductId("");
-            setQuantity(1);
+            setWasteItems([{ productId: '', quantity: 1 }]);
             setReason("");
             setNotes("");
-            onWasteReported(); // Callback to refresh product list
+            onWasteReported();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
         setIsSubmitting(false);
-    }
+    };
     
     return (
         <Card className="flex-1">
@@ -380,26 +385,29 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                 <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                    <Label>Items to Report</Label>
                     <div className="space-y-2">
-                        <Label htmlFor="waste-product">Product</Label>
-                        <Select value={productId} onValueChange={setProductId}>
-                            <SelectTrigger id="waste-product">
-                                <SelectValue placeholder="Select a product" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {products.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                    {p.name} (Stock: {p.stock})
-                                </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        {wasteItems.map((item, index) => (
+                             <div key={index} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
+                                <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
+                                    <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
+                                    <SelectContent>
+                                        {products.map((p) => (
+                                            <SelectItem key={p.id} value={p.id}>
+                                                {p.name} (Stock: {p.stock})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
+                                <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                            </div>
+                        ))}
                     </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="waste-quantity">Quantity Wasted</Label>
-                        <Input id="waste-quantity" type="number" min="1" value={quantity} onChange={e => setQuantity(Number(e.target.value))} />
-                    </div>
+                     <Button variant="outline" size="sm" className="mt-2" onClick={handleAddItem}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Another Item
+                    </Button>
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="waste-reason">Reason for Waste</Label>
@@ -1231,3 +1239,4 @@ export default function StockControlPage() {
     </div>
   );
 }
+

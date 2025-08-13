@@ -584,11 +584,13 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
             producedThisWeek += produced;
 
             if (batch.createdAt) {
-                const approvedDate = (batch.createdAt as Timestamp).toDate();
-                const dayOfWeek = format(approvedDate, 'E');
-                const index = weeklyProductionData.findIndex(d => d.day === dayOfWeek);
-                if (index !== -1) {
-                    weeklyProductionData[index].quantity += produced;
+                const createdDate = (batch.createdAt as Timestamp).toDate();
+                 if (createdDate >= weekStart) {
+                    const dayOfWeek = format(createdDate, 'E');
+                    const index = weeklyProductionData.findIndex(d => d.day === dayOfWeek);
+                    if (index !== -1) {
+                        weeklyProductionData[index].quantity += produced;
+                    }
                 }
             }
         });
@@ -1428,7 +1430,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
 
     try {
         await runTransaction(db, async (transaction) => {
-            // --- 1. All READS must happen first ---
             const confirmationDoc = await transaction.get(confirmationRef);
             if (!confirmationDoc.exists() || confirmationDoc.data().status !== 'pending') {
                 throw new Error("This confirmation has already been processed.");
@@ -1437,22 +1438,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             const confirmationData = confirmationDoc.data() as PaymentConfirmation;
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
-            let runRef, salesDocRef;
-            if (action === 'approve') {
-                const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
-                if (isFromSalesRun) {
-                    runRef = doc(db, 'transfers', confirmationData.runId);
-                    await transaction.get(runRef);
-                } else if (confirmationData.runId.startsWith('pos-sale-')) {
-                    const today = new Date();
-                    const salesDocId = format(today, 'yyyy-MM-dd');
-                    salesDocRef = doc(db, 'sales', salesDocId);
-                    // This is a potential read that can fail if the doc doesn't exist
-                    // so we read it here.
-                }
-            }
-
-            // --- 2. All WRITES happen last ---
             if (action === 'approve') {
                 const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
                 
@@ -1476,12 +1461,13 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                 }
 
-                if (isFromSalesRun && runRef) {
+                if (isFromSalesRun) {
+                    const runRef = doc(db, 'transfers', confirmationData.runId);
                     transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
                 } else if (confirmationData.runId.startsWith('pos-sale-')) {
                     const today = new Date();
                     const salesDocId = format(today, 'yyyy-MM-dd');
-                    salesDocRef = doc(db, 'sales', salesDocId); // Redefine for write context
+                    const salesDocRef = doc(db, 'sales', salesDocId);
                     const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
                     
                     const salesDoc = await transaction.get(salesDocRef);
@@ -1632,47 +1618,60 @@ export async function updateReportStatus(reportId: string, newStatus: Report['st
     }
 }
 
-type ReportWasteData = {
+type WasteItem = {
     productId: string;
-    productName: string;
-    productCategory: string;
     quantity: number;
+};
+type ReportWasteData = {
+    items: WasteItem[];
     reason: string;
     notes?: string;
 };
-
-// This function now reports waste from a specific user's personal stock OR main inventory
 export async function handleReportWaste(data: ReportWasteData, user: { staff_id: string, name: string, role: string }): Promise<{success: boolean, error?: string}> {
-    if (!data.productId || !data.quantity || !data.reason) {
-        return { success: false, error: "Please fill out all required fields." };
+    if (!data.items || data.items.length === 0 || !data.reason) {
+        return { success: false, error: "Please provide items and a reason for the waste." };
     }
     
     try {
         const isAdminOrStorekeeper = ['Manager', 'Developer', 'Supervisor', 'Storekeeper'].includes(user.role);
         
-        const stockRef = isAdminOrStorekeeper 
-            ? doc(db, 'products', data.productId)
-            : doc(db, 'staff', user.staff_id, 'personal_stock', data.productId);
-            
-        const wasteLogRef = doc(collection(db, 'waste_logs'));
-
         await runTransaction(db, async (transaction) => {
-            const stockDoc = await transaction.get(stockRef);
-            if (!stockDoc.exists() || (stockDoc.data().stock || 0) < data.quantity) {
-                const stockLocation = isAdminOrStorekeeper ? 'main inventory' : 'personal stock';
-                throw new Error(`Not enough stock for ${data.productName} in ${stockLocation}.`);
-            }
+             for (const item of data.items) {
+                if (!item.productId || !item.quantity || item.quantity <= 0) continue;
 
-            // 1. Decrement stock
-            transaction.update(stockRef, { stock: increment(-data.quantity) });
+                const stockRef = isAdminOrStorekeeper 
+                    ? doc(db, 'products', item.productId)
+                    : doc(db, 'staff', user.staff_id, 'personal_stock', item.productId);
+                
+                const productDoc = await getDoc(doc(db, 'products', item.productId));
+                if (!productDoc.exists()) throw new Error(`Product with ID ${item.productId} not found.`);
+                
+                const productName = productDoc.data().name || 'Unknown Product';
+                const productCategory = productDoc.data().category || 'Unknown';
 
-            // 2. Create a waste log entry
-            transaction.set(wasteLogRef, {
-                ...data,
-                staffId: user.staff_id,
-                staffName: user.name,
-                date: serverTimestamp()
-            });
+                const stockDoc = await transaction.get(stockRef);
+                if (!stockDoc.exists() || (stockDoc.data()?.stock || 0) < item.quantity) {
+                    const stockLocation = isAdminOrStorekeeper ? 'main inventory' : 'personal stock';
+                    throw new Error(`Not enough stock for ${productName} in ${stockLocation}.`);
+                }
+
+                // 1. Decrement stock
+                transaction.update(stockRef, { stock: increment(-item.quantity) });
+
+                // 2. Create a waste log entry
+                const wasteLogRef = doc(collection(db, 'waste_logs'));
+                transaction.set(wasteLogRef, {
+                    productId: item.productId,
+                    productName,
+                    productCategory,
+                    quantity: item.quantity,
+                    reason: data.reason,
+                    notes: data.notes || '',
+                    staffId: user.staff_id,
+                    staffName: user.name,
+                    date: serverTimestamp()
+                });
+             }
         });
 
         return { success: true };
