@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -518,7 +517,7 @@ export default function StockControlPage() {
   const [visibleLogRows, setVisibleLogRows] = useState<number | 'all'>(10);
   const [visibleAllPendingRows, setVisibleAllPendingRows] = useState<number | 'all'>(10);
   
-  const fetchPageData = async () => {
+  const fetchPageData = useCallback(async () => {
         const userStr = localStorage.getItem('loggedInUser');
         if (!userStr) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
@@ -545,11 +544,10 @@ export default function StockControlPage() {
                 setProducts(personalStockSnapshot.docs.map(doc => ({ id: doc.data().productId, name: doc.data().productName, stock: doc.data().stock })));
             }
             
-             const [pendingData, completedData, wasteData, prodTransfers, ingredientsSnapshot, initiatedTransfersSnapshot] = await Promise.all([
+             const [pendingData, completedData, wasteData, ingredientsSnapshot, initiatedTransfersSnapshot] = await Promise.all([
                 getPendingTransfersForStaff(currentUser.staff_id),
                 getCompletedTransfersForStaff(currentUser.staff_id),
                 getWasteLogsForStaff(currentUser.staff_id),
-                getProductionTransfers(currentUser.staff_id),
                 getDocs(collection(db, "ingredients")),
                 getDocs(query(collection(db, "transfers"), orderBy("date", "desc")))
             ]);
@@ -557,7 +555,6 @@ export default function StockControlPage() {
             setPendingTransfers(pendingData);
             setCompletedTransfers(completedData);
             setMyWasteLogs(wasteData);
-            setProductionTransfers(prodTransfers);
             setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock })));
             setInitiatedTransfers(initiatedTransfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
 
@@ -567,7 +564,7 @@ export default function StockControlPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [toast]);
 
   useEffect(() => {
     fetchPageData();
@@ -606,10 +603,31 @@ export default function StockControlPage() {
             setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate().toISOString() } as ProductionBatch)));
             setIsLoadingBatches(false);
         });
+        
+        const notesPrefix = 'Return from production batch';
+        const qProdTransfers = query(
+            collection(db, 'transfers'),
+            where('notes', '>=', notesPrefix),
+            where('notes', '<=', notesPrefix + '\uf8ff'),
+            where('status', '==', 'pending'),
+            where('to_staff_id', '==', currentUser.staff_id)
+        );
+        const unsubProdTransfers = onSnapshot(qProdTransfers, (snapshot) => {
+            const transfersData = snapshot.docs.map(docSnap => {
+                const data = docSnap.data();
+                return {
+                    id: docSnap.id,
+                    ...data,
+                    date: (data.date as Timestamp).toDate().toISOString(),
+                } as Transfer;
+            });
+            setProductionTransfers(transfersData);
+        });
 
         return () => {
             unsubTransfers();
             unsubBatches();
+            unsubProdTransfers();
         };
     }
   }, []);
@@ -1239,4 +1257,5 @@ export default function StockControlPage() {
     </div>
   );
 }
+
 

@@ -583,8 +583,8 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
             const produced = batch.successfullyProduced || 0;
             producedThisWeek += produced;
 
-            if (batch.createdAt) {
-                const createdDate = (batch.createdAt as Timestamp).toDate();
+            if (batch.approvedAt) { // Use approvedAt for more accurate timing
+                const createdDate = (batch.approvedAt as Timestamp).toDate();
                  if (createdDate >= weekStart) {
                     const dayOfWeek = format(createdDate, 'E');
                     const index = weeklyProductionData.findIndex(d => d.day === dayOfWeek);
@@ -1430,17 +1430,22 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
 
     try {
         await runTransaction(db, async (transaction) => {
+            // --- READS ---
             const confirmationDoc = await transaction.get(confirmationRef);
-            if (!confirmationDoc.exists() || confirmationDoc.data().status !== 'pending') {
+            if (!confirmationDoc.exists()) {
+                throw new Error("Confirmation not found.");
+            }
+            if (confirmationDoc.data().status !== 'pending') {
                 throw new Error("This confirmation has already been processed.");
             }
             
             const confirmationData = confirmationDoc.data() as PaymentConfirmation;
+            const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
+            
+            // --- WRITES ---
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
             if (action === 'approve') {
-                const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
-                
                 const newOrderRef = doc(collection(db, 'orders'));
                 transaction.set(newOrderRef, {
                     salesRunId: confirmationData.runId,
