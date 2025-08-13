@@ -526,10 +526,11 @@ export default function StockControlPage() {
             setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
 
             const userRole = currentUser.role;
-            if (userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper') {
+            const adminRoles = ['Manager', 'Supervisor', 'Storekeeper'];
+            if (adminRoles.includes(userRole)) {
                 const productsSnapshot = await getDocs(collection(db, "products"));
                 setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
-            } else if (userRole === 'Delivery Staff') {
+            } else {
                  const personalStockQuery = collection(db, 'staff', currentUser.staff_id, 'personal_stock');
                 const personalStockSnapshot = await getDocs(personalStockQuery);
                 setProducts(personalStockSnapshot.docs.map(doc => ({ id: doc.data().productId, name: doc.data().productName, stock: doc.data().stock })));
