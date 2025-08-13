@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -429,6 +429,51 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
             </CardContent>
         </Card>
     );
+}
+
+function TransferDetailsDialog({ transfer, isOpen, onOpenChange }: { transfer: Transfer | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+    if (!transfer) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Transfer Details: {transfer.id.substring(0, 8)}...</DialogTitle>
+                    <DialogDescription>
+                        From {transfer.from_staff_name} to {transfer.to_staff_name} on {format(new Date(transfer.date), 'PPP')}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="text-sm">
+                        <p><strong>Status:</strong> <Badge variant={transfer.status === 'pending' ? 'secondary' : transfer.status === 'completed' || transfer.status === 'active' ? 'default' : 'destructive'}>{transfer.status}</Badge></p>
+                        {transfer.is_sales_run && <p><strong>Type:</strong> Sales Run</p>}
+                        {transfer.notes && <p><strong>Notes:</strong> {transfer.notes}</p>}
+                    </div>
+                    <Separator />
+                    <h4 className="font-semibold">Items Transferred</h4>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-right">Quantity</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {transfer.items.map(item => (
+                                <TableRow key={item.productId}>
+                                    <TableCell>{item.productName}</TableCell>
+                                    <TableCell className="text-right">{item.quantity}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 export default function StockControlPage() {
@@ -1186,4 +1231,3 @@ export default function StockControlPage() {
     </div>
   );
 }
-
