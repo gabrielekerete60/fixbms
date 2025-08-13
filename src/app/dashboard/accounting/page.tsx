@@ -1214,11 +1214,35 @@ function SalesRecordsTab() {
             <CardContent>
                 <div className="overflow-x-auto">
                     <Table>
-                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Staff</TableHead><TableHead className="text-right">Cash</TableHead><TableHead className="text-right">Transfer</TableHead><TableHead className="text-right">POS</TableHead><TableHead className="text-right">Credit Sales</TableHead><TableHead className="text-right">Shortage</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
-                        <TableBody>{paginatedRecords.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell>{r.staffName || 'N/A'}</TableCell><TableCell className="text-right">{formatCurrency(r.cash)}</TableCell><TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell><TableCell className="text-right">{formatCurrency(r.pos)}</TableCell><TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell><TableCell className="text-right">{formatCurrency(r.shortage)}</TableCell><TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell></TableRow>)}</TableBody>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead className="text-right">Cash</TableHead>
+                                <TableHead className="text-right">Transfer</TableHead>
+                                <TableHead className="text-right">POS</TableHead>
+                                <TableHead className="text-right">Credit Sales</TableHead>
+                                <TableHead className="text-right">Shortage</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {paginatedRecords.map(r => (
+                                <TableRow key={r.id} className="cursor-pointer">
+                                    <TableCell>{format(new Date(r.date), 'PPP')}</TableCell>
+                                    <TableCell>{r.description}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.cash)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.pos)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.shortage)}</TableCell>
+                                    <TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
                         <TableFooter>
                             <TableRow>
-                                <TableCell colSpan={8} className="font-bold text-right">Grand Total</TableCell>
+                                <TableCell colSpan={7} className="font-bold text-right">Grand Total</TableCell>
                                 <TableCell className="font-bold text-right">{formatCurrency(grandTotal)}</TableCell>
                             </TableRow>
                         </TableFooter>
