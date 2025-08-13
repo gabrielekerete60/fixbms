@@ -1,12 +1,11 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle, MessageSquareQuote, CheckCircle, PackageSearch, Banknote, PlusCircle, Trash2, Settings2 } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle, MessageSquareQuote, CheckCircle, PackageSearch, Banknote, PlusCircle, Trash2, Settings2, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear as dateFnsEndOfYear } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement, getAccountSummary, SupplyRequest, getPendingSupplyRequests, approveStockIncrease, declineStockIncrease, handlePaymentConfirmation } from '@/app/actions';
@@ -33,7 +32,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Separator } from '@/components/ui/separator';
-import { collection, onSnapshot, query, where, orderBy, Timestamp, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, Timestamp, addDoc, deleteDoc, doc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Progress } from '@/components/ui/progress';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -1153,44 +1152,102 @@ function PaymentsRequestsTab({ notificationBadge }: { notificationBadge?: React.
     )
 }
 
+function SalesRecordDetailsDialog({ record, isOpen, onOpenChange }: { record: Sale | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+    if (!record) return null;
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Sales Details for {format(new Date(record.date), 'PPP')}</DialogTitle>
+                    <DialogDescription>A breakdown of the day's sales.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-2">
+                    <div className="flex justify-between items-center text-sm"><span className="text-muted-foreground">Cash</span><span>{formatCurrency(record.cash)}</span></div>
+                    <div className="flex justify-between items-center text-sm"><span className="text-muted-foreground">POS</span><span>{formatCurrency(record.pos)}</span></div>
+                    <div className="flex justify-between items-center text-sm"><span className="text-muted-foreground">Transfer</span><span>{formatCurrency(record.transfer)}</span></div>
+                    <div className="flex justify-between items-center text-sm"><span className="text-muted-foreground">Credit Sales</span><span>{formatCurrency(record.creditSales)}</span></div>
+                    <Separator className="my-2"/>
+                    <div className="flex justify-between items-center font-bold text-base"><span className="text-muted-foreground">Total Sales</span><span>{formatCurrency(record.total)}</span></div>
+                    <div className="flex justify-between items-center text-sm text-destructive"><span className="text-muted-foreground">Shortage (from Waste)</span><span>{formatCurrency(record.shortage)}</span></div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
 
 function SalesRecordsTab() {
     const [records, setRecords] = useState<Sale[]>([]);
+    const [wasteLogs, setWasteLogs] = useState<WasteLog[]>([]);
+    const [products, setProducts] = useState<{ id: string, costPrice: number }[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [date, setDate] = useState<DateRange | undefined>();
     const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
+    const [viewingRecord, setViewingRecord] = useState<Sale | null>(null);
 
     useEffect(() => {
-        const q = query(collection(db, "sales"), orderBy("date", "desc"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => {
-                const docData = doc.data();
-                const firestoreTimestamp = docData.date as Timestamp;
-                return {
-                    id: doc.id,
-                    ...docData,
-                    date: firestoreTimestamp.toDate().toISOString()
-                } as Sale;
-            });
-            setRecords(data);
-            if (isLoading) setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching sales records in real-time: ", error);
-            if (isLoading) setIsLoading(false);
+        const fetchSalesData = async () => {
+            setIsLoading(true);
+            const salesQuery = query(collection(db, "sales"), orderBy("date", "desc"));
+            const wasteQuery = query(collection(db, "waste_logs"));
+            const productsQuery = query(collection(db, "products"));
+
+            try {
+                const [salesSnapshot, wasteSnapshot, productsSnapshot] = await Promise.all([
+                    getDocs(salesQuery),
+                    getDocs(wasteQuery),
+                    getDocs(productsQuery)
+                ]);
+
+                const salesData = salesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale));
+                const wasteData = wasteSnapshot.docs.map(doc => doc.data() as WasteLog);
+                const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, costPrice: doc.data().costPrice || 0 }));
+                
+                setRecords(salesData);
+                setWasteLogs(wasteData);
+                setProducts(productsData);
+
+            } catch (error) {
+                console.error("Error fetching sales records in real-time: ", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchSalesData();
+    }, []);
+
+    const processedRecords = useMemo(() => {
+        const productCostMap = new Map(products.map(p => [p.id, p.costPrice]));
+        const wasteByDate: Record<string, number> = {};
+
+        wasteLogs.forEach(log => {
+            const dateStr = format(new Date((log.date as any).toDate()), 'yyyy-MM-dd');
+            const cost = productCostMap.get(log.productId) || 0;
+            const wasteValue = cost * log.quantity;
+            wasteByDate[dateStr] = (wasteByDate[dateStr] || 0) + wasteValue;
         });
 
-        return () => unsubscribe();
-    }, [isLoading]);
+        return records.map(rec => {
+            const dateStr = format(new Date(rec.date), 'yyyy-MM-dd');
+            return {
+                ...rec,
+                shortage: wasteByDate[dateStr] || 0,
+            };
+        });
+    }, [records, wasteLogs, products]);
 
     const filteredRecords = useMemo(() => {
-        if (!date?.from) return records;
+        if (!date?.from) return processedRecords;
         const from = startOfDay(date.from);
         const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
-        return records.filter(rec => {
+        return processedRecords.filter(rec => {
             const recDate = new Date(rec.date);
             return recDate >= from && recDate <= to;
         });
-    }, [records, date]);
+    }, [processedRecords, date]);
     
     const paginatedRecords = useMemo(() => {
         return visibleRows === 'all' ? filteredRecords : filteredRecords.slice(0, visibleRows);
@@ -1201,60 +1258,64 @@ function SalesRecordsTab() {
     if (isLoading) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
     return (
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <CardTitle>Daily Sales Records</CardTitle>
-                        <CardDescription>A log of all daily sales transactions.</CardDescription>
+        <>
+            <SalesRecordDetailsDialog record={viewingRecord} isOpen={!!viewingRecord} onOpenChange={() => setViewingRecord(null)} />
+            <Card>
+                <CardHeader>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <CardTitle>Daily Sales Records</CardTitle>
+                            <CardDescription>A log of all daily sales transactions.</CardDescription>
+                        </div>
+                        <DateRangeFilter date={date} setDate={setDate} />
                     </div>
-                    <DateRangeFilter date={date} setDate={setDate} />
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Description</TableHead>
-                                <TableHead className="text-right">Cash</TableHead>
-                                <TableHead className="text-right">Transfer</TableHead>
-                                <TableHead className="text-right">POS</TableHead>
-                                <TableHead className="text-right">Credit Sales</TableHead>
-                                <TableHead className="text-right">Shortage</TableHead>
-                                <TableHead className="text-right">Total</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {paginatedRecords.map(r => (
-                                <TableRow key={r.id} className="cursor-pointer">
-                                    <TableCell>{format(new Date(r.date), 'PPP')}</TableCell>
-                                    <TableCell>{r.description}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(r.cash)}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(r.pos)}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(r.shortage)}</TableCell>
-                                    <TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell>
+                </CardHeader>
+                <CardContent>
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead className="text-right">Cash</TableHead>
+                                    <TableHead className="text-right">Transfer</TableHead>
+                                    <TableHead className="text-right">POS</TableHead>
+                                    <TableHead className="text-right">Credit Sales</TableHead>
+                                    <TableHead className="text-right">Shortage</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                        <TableFooter>
-                            <TableRow>
-                                <TableCell colSpan={7} className="font-bold text-right">Grand Total</TableCell>
-                                <TableCell className="font-bold text-right">{formatCurrency(grandTotal)}</TableCell>
-                            </TableRow>
-                        </TableFooter>
-                    </Table>
-                </div>
-            </CardContent>
-            <CardFooter>
-                 <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredRecords.length} />
-            </CardFooter>
-        </Card>
+                            </TableHeader>
+                            <TableBody>
+                                {paginatedRecords.map(r => (
+                                    <TableRow key={r.id} className="cursor-pointer hover:bg-muted" onClick={() => setViewingRecord(r)}>
+                                        <TableCell>{format(new Date(r.date), 'PPP')}</TableCell>
+                                        <TableCell>{r.description}</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(r.cash)}</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(r.transfer)}</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(r.pos)}</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(r.creditSales)}</TableCell>
+                                        <TableCell className="text-right text-destructive">{formatCurrency(r.shortage)}</TableCell>
+                                        <TableCell className="text-right font-bold">{formatCurrency(r.total)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                            <TableFooter>
+                                <TableRow>
+                                    <TableCell colSpan={7} className="font-bold text-right">Grand Total</TableCell>
+                                    <TableCell className="font-bold text-right">{formatCurrency(grandTotal)}</TableCell>
+                                </TableRow>
+                            </TableFooter>
+                        </Table>
+                    </div>
+                </CardContent>
+                <CardFooter>
+                    <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredRecords.length} />
+                </CardFooter>
+            </Card>
+        </>
     );
 }
+
 
 function DrinkSalesTab() {
     const [records, setRecords] = useState<DrinkSaleSummary[]>([]);
@@ -2105,3 +2166,5 @@ export default function AccountingPage() {
     </div>
   );
 }
+
+    
