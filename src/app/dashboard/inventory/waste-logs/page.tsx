@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -8,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getWasteLogs, WasteLog, getWasteLogsForStaff } from "@/app/actions";
+import { getWasteLogs, getWasteLogsForStaff, WasteLog } from "@/app/actions";
 import { collection, getDocs, where, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format, startOfDay } from "date-fns";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 type Product = {
     id: string;
@@ -24,12 +26,39 @@ type User = {
     role: string;
 }
 
+function WasteLogDetailsDialog({ log, isOpen, onOpenChange }: { log: WasteLog | null, isOpen: boolean, onOpenChange: (open: boolean) => void }) {
+    if (!log) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Waste Log Details</DialogTitle>
+                    <DialogDescription>Details for waste log from {format(new Date(log.date), 'PPP')}.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-2 text-sm">
+                    <p><strong>Product:</strong> {log.productName}</p>
+                    <p><strong>Category:</strong> {log.productCategory}</p>
+                    <p><strong>Quantity:</strong> {log.quantity}</p>
+                    <p><strong>Reason:</strong> {log.reason}</p>
+                    <p><strong>Reported by:</strong> {log.staffName}</p>
+                    {log.notes && <p><strong>Notes:</strong> {log.notes}</p>}
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function WasteLogsPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
     const [wasteLogs, setWasteLogs] = useState<WasteLog[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [viewingLog, setViewingLog] = useState<WasteLog | null>(null);
 
     const [categoryFilter, setCategoryFilter] = useState("all");
     const [reasonFilter, setReasonFilter] = useState("all");
@@ -98,7 +127,7 @@ export default function WasteLogsPage() {
     return (
         <div className="flex flex-col gap-4">
             <h1 className="text-2xl font-bold font-headline">Waste Logs</h1>
-
+            <WasteLogDetailsDialog log={viewingLog} isOpen={!!viewingLog} onOpenChange={() => setViewingLog(null)} />
             <Card>
                 <CardHeader>
                     <CardTitle>Manage Waste Logs</CardTitle>
@@ -153,7 +182,7 @@ export default function WasteLogsPage() {
                                 <TableRow><TableCell colSpan={isAdmin ? 6 : 5} className="h-24 text-center">No waste logs found for this filter.</TableCell></TableRow>
                             ) : (
                                 filteredLogs.map(log => (
-                                    <TableRow key={log.id}>
+                                    <TableRow key={log.id} onClick={() => setViewingLog(log)} className="cursor-pointer hover:bg-muted/50">
                                         <TableCell>{format(new Date(log.date), 'PPP')}</TableCell>
                                         {isAdmin && <TableCell>{log.staffName}</TableCell>}
                                         <TableCell>{log.productName}</TableCell>

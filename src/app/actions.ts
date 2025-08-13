@@ -569,7 +569,7 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
         const activeBatchesQuery = query(collection(db, 'production_batches'), where('status', 'in', ['in_production', 'pending_approval']));
         const activeBatchesSnapshot = await getDocs(activeBatchesQuery);
 
-        const recentCompletedQuery = query(collection(db, 'production_batches'), where('status', '==', 'completed'), where('approvedAt', '>=', weekStartTimestamp));
+        const recentCompletedQuery = query(collection(db, 'production_batches'), where('status', '==', 'completed'), where('createdAt', '>=', weekStartTimestamp));
         const recentCompletedSnapshot = await getDocs(recentCompletedQuery);
         
         let producedThisWeek = 0;
@@ -583,8 +583,8 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
             const produced = batch.successfullyProduced || 0;
             producedThisWeek += produced;
 
-            if (batch.approvedAt) {
-                 const approvedDate = (batch.approvedAt as Timestamp).toDate();
+            if (batch.createdAt) {
+                const approvedDate = (batch.createdAt as Timestamp).toDate();
                 const dayOfWeek = format(approvedDate, 'E');
                 const index = weeklyProductionData.findIndex(d => d.day === dayOfWeek);
                 if (index !== -1) {
@@ -2454,39 +2454,25 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                 const stockRef = stockRefs[i];
                 transaction.update(stockRef, { stock: increment(-item.quantity) });
             }
+            
+            const orderData = {
+                id: newOrderRef.id,
+                salesRunId: `pos-sale-${newOrderRef.id}`,
+                customerId: 'walk-in',
+                customerName: data.customerName,
+                items: data.items,
+                total: data.total,
+                paymentMethod: data.paymentMethod,
+                date: Timestamp.now(),
+                staffId: data.staffId,
+                staffName: data.staffName,
+                status: 'Completed',
+            };
+            
+            transaction.set(newOrderRef, orderData);
 
-            // Handle payment-specific logic
-            if (data.paymentMethod === 'POS' || data.paymentMethod === 'Cash') {
-                const confirmationRef = doc(collection(db, 'payment_confirmations'));
-                transaction.set(confirmationRef, {
-                    runId: `pos-sale-${confirmationRef.id}`,
-                    customerId: 'walk-in',
-                    customerName: data.customerName,
-                    items: data.items,
-                    amount: data.total,
-                    driverId: data.staffId, // Using driverId field for consistency
-                    driverName: data.staffName,
-                    date: serverTimestamp(),
-                    status: 'pending',
-                    paymentMethod: data.paymentMethod,
-                    isDebtPayment: false,
-                });
-            } else { // For Paystack, create order and sales record directly
-                transaction.set(newOrderRef, {
-                    id: newOrderRef.id,
-                    salesRunId: `pos-sale-${newOrderRef.id}`,
-                    customerId: 'walk-in',
-                    customerName: data.customerName,
-                    items: data.items,
-                    total: data.total,
-                    paymentMethod: data.paymentMethod,
-                    date: Timestamp.now(),
-                    staffId: data.staffId,
-                    staffName: data.staffName,
-                    status: 'Completed',
-                });
-                
-                const paymentField = 'transfer'; // Paystack maps to transfer
+            if (data.paymentMethod === 'Cash' || data.paymentMethod === 'POS' || data.paymentMethod === 'Paystack') {
+                const paymentField = data.paymentMethod === 'Cash' ? 'cash' : (data.paymentMethod === 'POS' ? 'pos' : 'transfer');
                 if (salesDoc.exists()) {
                     transaction.update(salesDocRef, {
                         [paymentField]: increment(data.total),
@@ -2496,9 +2482,9 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                     transaction.set(salesDocRef, {
                         date: Timestamp.fromDate(startOfDay(today)),
                         description: `Daily Sales for ${salesDocId}`,
-                        cash: 0,
-                        pos: 0,
-                        transfer: data.total,
+                        cash: data.paymentMethod === 'Cash' ? data.total : 0,
+                        pos: data.paymentMethod === 'POS' ? data.total : 0,
+                        transfer: data.paymentMethod === 'Paystack' ? data.total : 0,
                         creditSales: 0,
                         shortage: 0,
                         total: data.total

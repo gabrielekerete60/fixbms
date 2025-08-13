@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -85,12 +86,14 @@ function SupplyDialog({
   isOpen,
   onOpenChange,
   onSave,
-  supply
+  supply,
+  user
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: Omit<OtherSupply, 'id'>) => void;
   supply: Partial<OtherSupply> | null;
+  user: { role: string } | null;
 }) {
     const { toast } = useToast();
     const [name, setName] = useState("");
@@ -98,6 +101,8 @@ function SupplyDialog({
     const [costPerUnit, setCostPerUnit] = useState(0);
     const [category, setCategory] = useState("Packaging");
     const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(10);
+    
+    const isStorekeeper = user?.role === 'Storekeeper';
 
 
     useEffect(() => {
@@ -152,7 +157,7 @@ function SupplyDialog({
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="costPerUnit" className="text-right">Cost/Unit (₦)</Label>
-                        <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" />
+                        <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" disabled={isStorekeeper} />
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="low-stock" className="text-right">Low Stock Threshold</Label>
@@ -282,6 +287,7 @@ function IncreaseSupplyDialog({ supplies, onStockIncreased }: { supplies: OtherS
 
 export default function OtherSuppliesPage() {
     const { toast } = useToast();
+    const [user, setUser] = useState<{ role: string } | null>(null);
     const [supplies, setSupplies] = useState<OtherSupply[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingSupply, setEditingSupply] = useState<Partial<OtherSupply> | null>(null);
@@ -303,6 +309,13 @@ export default function OtherSuppliesPage() {
             setIsLoading(false);
         }
     }, [toast]);
+    
+    useEffect(() => {
+        const storedUser = localStorage.getItem('loggedInUser');
+        if (storedUser) {
+            setUser(JSON.parse(storedUser));
+        }
+    }, [])
 
     useEffect(() => {
         fetchSupplies();
@@ -385,6 +398,7 @@ export default function OtherSuppliesPage() {
                 onOpenChange={setIsDialogOpen}
                 onSave={handleSaveSupply}
                 supply={editingSupply}
+                user={user}
             />
 
             <Card>

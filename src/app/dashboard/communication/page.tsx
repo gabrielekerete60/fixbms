@@ -422,10 +422,18 @@ export default function CommunicationPage() {
                 setNotificationCounts(prev => ({...prev, actionableReports: snapshot.size }));
             });
         }
+        
+        const handleAnnouncementsRead = () => {
+            setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
+            setShowMarkAsRead(false);
+        }
+        
+        window.addEventListener('announcementsRead', handleAnnouncementsRead);
 
         return () => {
             unsubAnnouncements();
             unsubReports();
+            window.removeEventListener('announcementsRead', handleAnnouncementsRead);
         };
     }, [toast, isLoading]);
 
@@ -451,7 +459,6 @@ export default function CommunicationPage() {
     const handleMarkAllRead = () => {
         if (!user) return;
         localStorage.setItem(`lastReadAnnouncement_${user.staff_id}`, new Date().toISOString());
-        setShowMarkAsRead(false);
         window.dispatchEvent(new Event('announcementsRead'));
         toast({ title: 'Messages Marked as Read' });
     }
