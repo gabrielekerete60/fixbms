@@ -1428,6 +1428,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
 
     try {
         await runTransaction(db, async (transaction) => {
+            // --- ALL READS FIRST ---
             const confirmationDoc = await transaction.get(confirmationRef);
             if (!confirmationDoc.exists() || confirmationDoc.data().status !== 'pending') {
                 throw new Error("This confirmation has already been processed.");
@@ -1436,10 +1437,25 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             const confirmationData = confirmationDoc.data() as PaymentConfirmation;
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
+            // Conditional reads based on approval action
             if (action === 'approve') {
                 const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
                 
-                // Create the official order document
+                if (isFromSalesRun) {
+                    const runRef = doc(db, 'transfers', confirmationData.runId);
+                    await transaction.get(runRef); // Read the run doc
+                } else if (confirmationData.runId.startsWith('pos-sale-')) {
+                    const today = new Date();
+                    const salesDocId = format(today, 'yyyy-MM-dd');
+                    const salesDocRef = doc(db, 'sales', salesDocId);
+                    await transaction.get(salesDocRef); // Read the sales doc
+                }
+            }
+
+            // --- ALL WRITES LAST ---
+            if (action === 'approve') {
+                const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
+                
                 const newOrderRef = doc(collection(db, 'orders'));
                 transaction.set(newOrderRef, {
                     salesRunId: confirmationData.runId,
@@ -1455,39 +1471,33 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     isDebtPayment: confirmationData.isDebtPayment || false,
                 });
                 
-                // If it's a debt payment for a registered customer, update their record
                 if (confirmationData.isDebtPayment && confirmationData.customerId) {
                     const customerRef = doc(db, 'customers', confirmationData.customerId);
                     transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                 }
 
-                // If it's from a sales run, update the run's collected amount
                 if (isFromSalesRun) {
                     const runRef = doc(db, 'transfers', confirmationData.runId);
-                    transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
-
-                    // -- START: Auto-complete run logic --
-                    const runDoc = await transaction.get(runRef);
+                    const runDoc = await transaction.get(runRef); // Re-get for safety, though already read
                     if (runDoc.exists()) {
                         const runData = runDoc.data();
                         const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
                         const totalRevenue = runData.totalRevenue || 0;
+                        
+                        let updateData: any = { totalCollected: increment(confirmationData.amount) };
 
                         if (newTotalCollected >= totalRevenue) {
-                            transaction.update(runRef, { 
-                                status: 'completed',
-                                time_completed: serverTimestamp()
-                            });
+                            updateData.status = 'completed';
+                            updateData.time_completed = serverTimestamp();
                         }
+                        transaction.update(runRef, updateData);
                     }
-                    // -- END: Auto-complete run logic --
                 } else if (confirmationData.runId.startsWith('pos-sale-')) {
-                    // This is a POS sale, update daily sales record
                     const today = new Date();
                     const salesDocId = format(today, 'yyyy-MM-dd');
                     const salesDocRef = doc(db, 'sales', salesDocId);
-                    const salesDoc = await transaction.get(salesDocRef);
-
+                    const salesDoc = await transaction.get(salesDocRef); // Re-get for safety
+                    
                     const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
                     if (salesDoc.exists()) {
                         transaction.update(salesDocRef, {
@@ -1508,8 +1518,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     }
                 }
             }
-
-            // Update the confirmation status regardless of action
+            
             transaction.update(confirmationRef, { status: newStatus });
         });
 
@@ -1519,6 +1528,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
         return { success: false, error: `Failed to ${action} payment. ${(error as Error).message}` };
     }
 }
+
 
 export type Announcement = {
     id: string;

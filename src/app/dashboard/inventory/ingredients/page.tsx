@@ -160,12 +160,10 @@ function IngredientDialog({
                         <Label htmlFor="unit" className="text-right">Unit</Label>
                         <Input id="unit" placeholder="e.g., kg, L, pcs" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" />
                     </div>
-                    {!isStorekeeper && (
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="costPerUnit" className="text-right">Cost/Unit (₦)</Label>
-                            <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" />
-                        </div>
-                    )}
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="costPerUnit" className="text-right">Cost/Unit (₦)</Label>
+                        <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" disabled={isStorekeeper} />
+                    </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="low-stock" className="text-right">Low Stock Threshold</Label>
                         <Input id="low-stock" type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} className="col-span-3" />
@@ -493,6 +491,7 @@ export default function IngredientsPage() {
 
     const canManageIngredients = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
     const isStorekeeper = user?.role === 'Storekeeper';
+    const isAccountant = user?.role === 'Accountant';
 
     return (
         <div className="flex flex-col gap-4">
@@ -542,8 +541,8 @@ export default function IngredientsPage() {
                                     <TableRow>
                                         <TableHead>Ingredient</TableHead>
                                         <TableHead>Stock</TableHead>
-                                        {!isStorekeeper && <TableHead>Cost/Unit</TableHead>}
-                                        {!isStorekeeper && <TableHead>Total Cost</TableHead>}
+                                        { (isStorekeeper || isAccountant) && <TableHead>Cost/Unit</TableHead>}
+                                        { (isStorekeeper || isAccountant) && <TableHead>Total Cost</TableHead>}
                                         <TableHead>Expiry</TableHead>
                                         <TableHead><span className="sr-only">Actions</span></TableHead>
                                     </TableRow>
@@ -551,7 +550,7 @@ export default function IngredientsPage() {
                                 <TableBody>
                                     {isLoading ? (
                                         <TableRow>
-                                            <TableCell colSpan={isStorekeeper ? 4 : 6} className="h-24 text-center">
+                                            <TableCell colSpan={isStorekeeper || isAccountant ? 4 : 6} className="h-24 text-center">
                                                 <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                                             </TableCell>
                                         </TableRow>
@@ -568,8 +567,8 @@ export default function IngredientsPage() {
                                                     }
                                                 </TableCell>
                                                 <TableCell>{(ingredient.stock || 0).toFixed(2)} {ingredient.unit}</TableCell>
-                                                {!isStorekeeper && <TableCell>₦{(ingredient.costPerUnit || 0).toFixed(2)}</TableCell>}
-                                                {!isStorekeeper && <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>}
+                                                {(isStorekeeper || isAccountant) && <TableCell>₦{(ingredient.costPerUnit || 0).toFixed(2)}</TableCell>}
+                                                {(isStorekeeper || isAccountant) && <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>}
                                                 <TableCell>{ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
                                                 <TableCell>
                                                    {canManageIngredients && (
@@ -593,13 +592,13 @@ export default function IngredientsPage() {
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={isStorekeeper ? 4 : 6} className="h-24 text-center">
+                                            <TableCell colSpan={isStorekeeper || isAccountant ? 4 : 6} className="h-24 text-center">
                                                 No ingredients found.
                                             </TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
-                                {!isStorekeeper && (
+                                {(isStorekeeper || isAccountant) && (
                                     <TableFooter>
                                         <TableRow>
                                             <TableCell colSpan={3} className="font-bold text-right">Grand Total</TableCell>
