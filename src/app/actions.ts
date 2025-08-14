@@ -1,5 +1,4 @@
 
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -1852,11 +1851,13 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
 
 export async function getReturnedStockTransfers(): Promise<Transfer[]> {
     try {
+        // Firestore doesn't support 'LIKE' or 'contains' queries directly.
+        // The common workaround is to use a range query with a known prefix.
         const q = query(
             collection(db, 'transfers'),
             where('status', '==', 'pending'),
             where('notes', '>=', 'Return from'),
-            where('notes', '<', 'Return from\uf8ff')
+            where('notes', '<=', 'Return from' + '\uf8ff')
         );
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => {
@@ -2772,21 +2773,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         const amountPaid = verificationData.data.amount / 100;
         const transactionDate = Timestamp.fromDate(new Date(verificationData.data.paid_at || verificationData.data.transaction_date));
 
-        // Debt Payment from Sales Run
-        if (metadata.isDebtPayment) {
-            if (!metadata.runId || !metadata.customerId) {
-                 return { success: false, error: 'Metadata for debt payment is incomplete.'}
-            }
-            await runTransaction(db, async (transaction) => {
-                const runRef = doc(db, 'transfers', metadata.runId);
-                const customerRef = doc(db, 'customers', metadata.customerId);
-                transaction.update(runRef, { totalCollected: increment(amountPaid) });
-                transaction.update(customerRef, { amountPaid: increment(amountPaid) });
-            });
-            return { success: true, orderId: `debt-payment-${reference}` };
-        }
-        
-        // POS sale
+        // This logic is now ordered to prevent misinterpretation
         if (metadata.isPosSale) {
             const posSaleData: PosSaleData = {
                 items: metadata.cart,
@@ -2799,8 +2786,20 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
             };
             return await handlePosSale(posSaleData);
         }
+        
+        if (metadata.isDebtPayment) {
+            if (!metadata.runId || !metadata.customerId) {
+                 return { success: false, error: 'Metadata for debt payment is incomplete.'}
+            }
+            await runTransaction(db, async (transaction) => {
+                const runRef = doc(db, 'transfers', metadata.runId);
+                const customerRef = doc(db, 'customers', metadata.customerId);
+                transaction.update(runRef, { totalCollected: increment(amountPaid) });
+                transaction.update(customerRef, { amountPaid: increment(amountPaid) });
+            });
+            return { success: true, orderId: `debt-payment-${reference}` };
+        }
 
-        // New Sale from Sales Run
         if (metadata.runId) {
              const saleData = {
                 runId: metadata.runId,
@@ -2808,7 +2807,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
                 customerId: metadata.customerId || 'walk-in',
                 customerName: metadata.customer_name,
                 paymentMethod: 'Paystack' as const,
-                staffId: metadata.staff_id, // Note: metadata key should be staffId, not staff_id
+                staffId: metadata.staff_id,
                 total: verificationData.data.amount / 100,
             };
             return await handleSellToCustomer(saleData);
@@ -3051,4 +3050,5 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
 
 
 
+    
     

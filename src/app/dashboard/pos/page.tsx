@@ -354,6 +354,12 @@ function POSPageContent() {
   const handlePaystackPayment = async () => {
     if (!user || !selectedStaffId) return;
 
+    const selectedStaff = allStaff.find(s => s.staff_id === selectedStaffId) || user;
+    if (!selectedStaff) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not identify the operating staff member.'});
+        return;
+    }
+
     setPaymentStatus('processing');
     setIsCheckoutOpen(false);
 
@@ -373,9 +379,10 @@ function POSPageContent() {
         total: total,
         customerName: customerName || 'Walk-in',
         staffId: selectedStaffId,
+        staffName: selectedStaff.name,
         items: itemsWithCost,
         isPosSale: true,
-        isDebtPayment: false, // Explicitly set to false for POS sales
+        isDebtPayment: false,
     });
     
     if (initResult.success && initResult.reference) {
@@ -861,3 +868,5 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
+
+    
