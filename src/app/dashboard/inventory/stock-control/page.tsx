@@ -59,7 +59,7 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts, getReturnedStockTransfers } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -510,6 +510,7 @@ export default function StockControlPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [initiatedTransfers, setInitiatedTransfers] = useState<Transfer[]>([]);
   const [pendingTransfers, setPendingTransfers] = useState<Transfer[]>([]);
+  const [productionTransfers, setProductionTransfers] = useState<Transfer[]>([]);
   const [returnedStock, setReturnedStock] = useState<Transfer[]>([]);
   const [pendingBatches, setPendingBatches] = useState<ProductionBatch[]>([]);
   const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([]);
@@ -615,7 +616,7 @@ export default function StockControlPage() {
             setIsLoadingBatches(false);
         });
         
-        const qReturnedStock = query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'), where('notes', '>=', 'Return from'), where('notes', '<=', 'Return from' + '\uf8ff'));
+        const qReturnedStock = query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'), where('notes', '>=', 'Return from Sales Run'), where('notes', '<=', 'Return from Sales Run' + '\uf8ff'));
         const unsubReturned = onSnapshot(qReturnedStock, (snapshot) => {
             const returned = snapshot.docs.map(docSnap => ({
                 id: docSnap.id,
@@ -625,11 +626,22 @@ export default function StockControlPage() {
             setReturnedStock(returned);
         });
 
+        const qProdTransfers = query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'), where('notes', '<=', 'Return from production batch' + '\uf8ff'));
+        const unsubProdTransfers = onSnapshot(qProdTransfers, (snapshot) => {
+            const prodTransfers = snapshot.docs.map(docSnap => ({
+                id: docSnap.id,
+                ...docSnap.data(),
+                date: (docSnap.data().date as Timestamp).toDate().toISOString(),
+            } as Transfer));
+            setProductionTransfers(prodTransfers);
+        });
+
 
         return () => {
             unsubTransfers();
             unsubBatches();
             unsubReturned();
+            unsubProdTransfers();
         };
     }
   }, [fetchPageData]);
