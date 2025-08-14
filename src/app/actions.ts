@@ -841,7 +841,7 @@ export async function getSalesStats(filter: 'daily' | 'weekly' | 'monthly' | 'ye
             collection(db, "transfers"),
             where("is_sales_run", "==", true),
             where("date", ">=", Timestamp.fromDate(fromDate)),
-            where("date", "<=", Timestamp.fromDate(fromDate)),
+            where("date", "<=", Timestamp.fromDate(now)),
             where("status", "in", ["completed", "active"])
         );
         const snapshot = await getDocs(q);
@@ -1685,24 +1685,23 @@ export async function handleReportWaste(data: ReportWasteData, user: { staff_id:
              for (const item of data.items) {
                 if (!item.productId || !item.quantity || item.quantity <= 0) continue;
                 
-                const productRef = doc(db, 'products', item.productId);
-                
+                let productRef;
+                let stockField = 'stock';
+
                 if (isAdminOrStorekeeper) {
-                    const productDoc = await transaction.get(productRef);
-                    if (!productDoc.exists()) throw new Error(`Product with ID ${item.productId} not found.`);
-                    
-                    if ((productDoc.data().stock || 0) < item.quantity) {
-                        throw new Error(`Not enough stock for ${productDoc.data().name} in main inventory.`);
-                    }
-                    transaction.update(productRef, { stock: increment(-item.quantity) });
+                    productRef = doc(db, 'products', item.productId);
                 } else {
-                    const personalStockRef = doc(db, 'staff', user.staff_id, 'personal_stock', item.productId);
-                    const staffStockDoc = await transaction.get(personalStockRef);
-                    if (!staffStockDoc.exists() || (staffStockDoc.data()?.stock || 0) < item.quantity) {
-                        throw new Error(`Not enough stock for ${item.productName} in your personal inventory.`);
-                    }
-                    transaction.update(personalStockRef, { stock: increment(-item.quantity) });
+                    productRef = doc(db, 'staff', user.staff_id, 'personal_stock', item.productId);
                 }
+                
+                const productDoc = await transaction.get(productRef);
+                if (!productDoc.exists()) throw new Error(`Product with ID ${item.productId} not found in relevant inventory.`);
+                
+                if ((productDoc.data()?.[stockField] || 0) < item.quantity) {
+                    throw new Error(`Not enough stock for ${item.productName} in your inventory.`);
+                }
+                transaction.update(productRef, { [stockField]: increment(-item.quantity) });
+
 
                 const wasteLogRef = doc(collection(db, 'waste_logs'));
                 transaction.set(wasteLogRef, {
@@ -1930,11 +1929,11 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
 
             const transfer = transferDoc.data() as Transfer;
             if (transfer.status !== 'pending') throw new Error("This transfer has already been processed.");
+            
+            const isReturn = transfer.notes?.startsWith('Return from');
 
-            const isProductionReturn = transfer.notes?.startsWith('Return from production batch') || transfer.notes?.startsWith('Return from Sales Run');
-
-            if (isProductionReturn) {
-                // Return from production or sales run goes back to main inventory
+            if (isReturn) {
+                 // Return from production or sales run goes back to main inventory
                 for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
                     transaction.update(productRef, { stock: increment(item.quantity) });
@@ -2761,7 +2760,7 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
 }
 
 export async function verifyPaystackOnServerAndFinalizeOrder(reference: string): Promise<{ success: boolean; error?: string, orderId?: string }> {
-    const secretKey = process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY;
+    const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) return { success: false, error: "Paystack secret key is not configured." };
 
     try {
