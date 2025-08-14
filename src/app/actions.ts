@@ -2720,6 +2720,7 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
             staff_id: data.staffId,
             cart: itemsWithCost,
             runId: data.runId || null,
+            isPosSale: !data.runId,
             customerId: data.customerId || null,
             isDebtPayment: data.isDebtPayment || false,
         };
@@ -2783,20 +2784,8 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
             return { success: true, orderId: `debt-payment-${reference}` };
         }
         
-        // New Sale (POS or Sales Run)
-        if (metadata.runId) {
-             const saleData = {
-                runId: metadata.runId,
-                items: metadata.cart,
-                customerId: metadata.customerId || 'walk-in',
-                customerName: metadata.customer_name,
-                paymentMethod: 'Paystack' as const,
-                staffId: metadata.staff_id,
-                total: verificationData.data.amount / 100,
-            };
-            return await handleSellToCustomer(saleData);
-        } else {
-            // It's a POS sale
+        // It's a POS sale
+        if (metadata.isPosSale) {
             const staffDoc = await getDoc(doc(db, "staff", metadata.staff_id));
             const staffName = staffDoc.exists() ? staffDoc.data().name : "Unknown";
 
@@ -2808,9 +2797,25 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
                 staffName: staffName,
                 total: verificationData.data.amount / 100,
             };
-
             return await handlePosSale(posSaleData);
         }
+
+        // New Sale from Sales Run
+        if (metadata.runId) {
+             const saleData = {
+                runId: metadata.runId,
+                items: metadata.cart,
+                customerId: metadata.customerId || 'walk-in',
+                customerName: metadata.customer_name,
+                paymentMethod: 'Paystack' as const,
+                staffId: metadata.staff_id,
+                total: verificationData.data.amount / 100,
+            };
+            return await handleSellToCustomer(saleData);
+        }
+        
+        return { success: false, error: 'Could not determine transaction type from metadata.'}
+
 
     } catch (error) {
         console.error("Error finalizing order:", error);
@@ -3043,3 +3048,4 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
