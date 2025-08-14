@@ -2709,19 +2709,16 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
     if (!secretKey) return { success: false, error: "Paystack secret key is not configured." };
     
     try {
-        const itemsWithCost = data.items.map((item: any) => ({
-            productId: item.productId,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            costPrice: item.costPrice || 0,
-        }));
+        
+        const staffDoc = await getDoc(doc(db, "staff", data.staffId));
+        const staffName = staffDoc.exists() ? staffDoc.data().name : "Unknown";
 
         const metadata = {
             customer_name: data.customerName,
             staff_id: data.staffId,
-            cart: itemsWithCost,
-            isPosSale: !data.runId, // True if runId is not present
+            staff_name: staffName,
+            cart: data.items,
+            isPosSale: data.isPosSale || false,
             runId: data.runId || null,
             customerId: data.customerId || null,
             isDebtPayment: data.isDebtPayment || false,
@@ -2774,7 +2771,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         }
         
         const amountPaid = verificationData.data.amount / 100;
-        const transactionTimestamp = Timestamp.now();
+        const transactionDate = new Date(verificationData.data.paid_at || verificationData.data.transaction_date);
 
         // Debt Payment from Sales Run
         if (metadata.isDebtPayment && metadata.runId && metadata.customerId) {
@@ -2789,17 +2786,14 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         
         // It's a POS sale
         if (metadata.isPosSale) {
-            const staffDoc = await getDoc(doc(db, "staff", metadata.staff_id));
-            const staffName = staffDoc.exists() ? staffDoc.data().name : "Unknown";
-
             const posSaleData: PosSaleData = {
                 items: metadata.cart,
                 customerName: metadata.customer_name,
                 paymentMethod: 'Paystack',
                 staffId: metadata.staff_id,
-                staffName: staffName,
+                staffName: metadata.staff_name,
                 total: verificationData.data.amount / 100,
-                date: transactionTimestamp.toDate()
+                date: transactionDate,
             };
             return await handlePosSale(posSaleData);
         }

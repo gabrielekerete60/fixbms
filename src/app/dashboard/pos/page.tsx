@@ -450,7 +450,7 @@ function POSPageContent() {
             : item
         );
       }
-      return [...prevCart, { id: product.id, name: product.name, price: productInStock.price, quantity: 1, costPrice: productInStock.costPrice }];
+      return [...prevCart, { id: product.id, name: product.name, price: product.price, quantity: 1, costPrice: productInStock.costPrice }];
     });
   };
 
