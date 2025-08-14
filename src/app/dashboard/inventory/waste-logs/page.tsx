@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -76,7 +75,7 @@ export default function WasteLogsPage() {
         if (!user) return;
         setIsLoading(true);
 
-        const isAdminOrStorekeeper = ['Manager', 'Developer', 'Supervisor', 'Storekeeper'].includes(user.role);
+        const isAdminOrStorekeeper = ['Manager', 'Developer', 'Supervisor', 'Storekeeper', 'Accountant'].includes(user.role);
 
         try {
             const logsData = isAdminOrStorekeeper ? await getWasteLogs() : await getWasteLogsForStaff(user.staff_id);
@@ -123,7 +122,7 @@ export default function WasteLogsPage() {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
     }
 
-    const isAdminOrStorekeeper = ['Manager', 'Developer', 'Supervisor', 'Storekeeper'].includes(user.role);
+    const isAdminOrStorekeeper = ['Manager', 'Developer', 'Supervisor', 'Storekeeper', 'Accountant'].includes(user.role);
 
     return (
         <div className="flex flex-col gap-4">

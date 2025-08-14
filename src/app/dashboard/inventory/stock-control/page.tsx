@@ -556,19 +556,23 @@ export default function StockControlPage() {
                 setProducts(personalStockSnapshot.docs.map(doc => ({ id: doc.data().productId, name: doc.data().productName, stock: doc.data().stock })));
             }
             
-             const [pendingData, completedData, wasteData, ingredientsSnapshot, initiatedTransfersSnapshot] = await Promise.all([
+             const [pendingData, completedData, wasteData, prodTransfers, ingredientsSnapshot, initiatedTransfersSnapshot, returnedStockData] = await Promise.all([
                 getPendingTransfersForStaff(currentUser.staff_id),
                 getCompletedTransfersForStaff(currentUser.staff_id),
                 getWasteLogsForStaff(currentUser.staff_id),
+                getDocs(query(collection(db, 'transfers'), where('notes', 'like', 'Return from production batch%'), where('status', '==', 'pending'))),
                 getDocs(collection(db, "ingredients")),
-                getDocs(query(collection(db, "transfers"), orderBy("date", "desc")))
+                getDocs(query(collection(db, "transfers"), orderBy("date", "desc"))),
+                getReturnedStockTransfers(),
             ]);
 
             setPendingTransfers(pendingData);
             setCompletedTransfers(completedData);
             setMyWasteLogs(wasteData);
+            setProductionTransfers(prodTransfers.docs.map(d => ({id: d.id, ...d.data(), date: (d.data().date as Timestamp).toDate().toISOString()} as Transfer)));
             setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock })));
             setInitiatedTransfers(initiatedTransfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
+            setReturnedStock(returnedStockData);
 
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -955,6 +959,16 @@ export default function StockControlPage() {
                     </TabsTrigger>
                 }
                  {userRole !== 'Manager' && 
+                    <TabsTrigger value="production-transfers" className="relative">
+                        <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
+                        {productionTransfers.length > 0 && (
+                            <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                                {productionTransfers.length}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
+                }
+                 {userRole !== 'Manager' && 
                     <TabsTrigger value="returned-stock" className="relative">
                         <Undo2 className="mr-2 h-4 w-4" /> Returned Stock
                         {returnedStock.length > 0 && (
@@ -1119,6 +1133,48 @@ export default function StockControlPage() {
                 </CardContent>
               </Card>
         </TabsContent>
+        <TabsContent value="production-transfers">
+              <Card>
+                <CardHeader>
+                    <CardTitle>Production Transfers</CardTitle>
+                    <CardDescription>Acknowledge finished goods transferred from the production unit to the main store.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>From</TableHead>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Quantity</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                             {isLoading ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : productionTransfers.length > 0 ? (
+                                productionTransfers.map(t => (
+                                    <TableRow key={t.id}>
+                                        <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                        <TableCell>{t.from_staff_name}</TableCell>
+                                        <TableCell>{t.items[0]?.productName}</TableCell>
+                                        <TableCell>{t.items[0]?.quantity}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button size="sm" onClick={() => handleAcknowledge(t.id, 'accept')}>
+                                                <Check className="mr-2 h-4 w-4" /> Accept
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers from production.</TableCell></TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+              </Card>
+          </TabsContent>
          <TabsContent value="returned-stock">
               <Card>
                 <CardHeader>

@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import Link from 'next/link';
@@ -27,6 +26,7 @@ import {
   HelpingHand,
   MessageSquare,
   Database,
+  Trash,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -392,7 +392,7 @@ export default function DashboardLayout({
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
           { href: "/dashboard/inventory/other-supplies", label: "Other Supplies", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", roles: ['Manager', 'Developer', 'Storekeeper', 'Delivery Staff', 'Showroom Staff'] },
+          { href: "/dashboard/inventory/waste-logs", label: "Waste Logs", roles: ['Manager', 'Developer', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Accountant'] },
         ]
       },
       {
