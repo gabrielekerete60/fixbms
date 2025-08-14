@@ -7,6 +7,7 @@ import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay,
 import { db } from "@/lib/firebase";
 import { randomUUID } from 'crypto';
 import speakeasy from 'speakeasy';
+import 'dotenv/config';
 
 type LoginResult = {
   success: boolean;
@@ -1853,9 +1854,9 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
     try {
         const q = query(
             collection(db, 'transfers'),
+            where('status', '==', 'pending'),
             where('notes', '>=', 'Return from'),
-            where('notes', '<', 'Return from' + '\uf8ff'),
-            where('status', '==', 'pending')
+            where('notes', '<', 'Return from' + '\uf8ff')
         );
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => {
@@ -2471,17 +2472,18 @@ type PosSaleData = {
     staffId: string;
     staffName: string;
     total: number;
-    date: Timestamp;
+    date: Date;
 }
 export async function handlePosSale(data: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
     const newOrderRef = doc(collection(db, 'orders'));
+    const orderDate = data.date;
 
     try {
         await runTransaction(db, async (transaction) => {
             // --- 1. READS ---
             const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
             const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
-            const salesDocId = format(data.date.toDate(), 'yyyy-MM-dd');
+            const salesDocId = format(orderDate, 'yyyy-MM-dd');
             const salesDocRef = doc(db, 'sales', salesDocId);
             const salesDoc = await transaction.get(salesDocRef);
 
@@ -2510,7 +2512,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                 items: data.items,
                 total: data.total,
                 paymentMethod: data.paymentMethod,
-                date: data.date,
+                date: orderDate,
                 staffId: data.staffId,
                 staffName: data.staffName,
                 status: 'Completed',
@@ -2527,7 +2529,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                     });
                 } else {
                     transaction.set(salesDocRef, {
-                        date: Timestamp.fromDate(startOfDay(data.date.toDate())),
+                        date: Timestamp.fromDate(startOfDay(orderDate)),
                         description: `Daily Sales for ${salesDocId}`,
                         cash: data.paymentMethod === 'Cash' ? data.total : 0,
                         pos: data.paymentMethod === 'POS' ? data.total : 0,
@@ -2797,7 +2799,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
                 staffId: metadata.staff_id,
                 staffName: staffName,
                 total: verificationData.data.amount / 100,
-                date: transactionTimestamp
+                date: transactionTimestamp.toDate()
             };
             return await handlePosSale(posSaleData);
         }
