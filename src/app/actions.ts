@@ -1851,8 +1851,6 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
 
 export async function getReturnedStockTransfers(): Promise<Transfer[]> {
     try {
-        // Firestore doesn't support 'LIKE' or 'contains' queries directly.
-        // The common workaround is to use a range query with a known prefix.
         const q = query(
             collection(db, 'transfers'),
             where('status', '==', 'pending'),
@@ -2299,8 +2297,7 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
         () => getDocs(query(collection(db, 'transfers'), where('is_sales_run', '==', true), where('to_staff_id', '==', 'test'), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'waste_logs'), where('staffId', '==', 'test'), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'pending'), orderBy('date', 'desc'))),
-        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'completed'), orderBy('date', 'desc'))),
-
+        () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', 'in', ['completed', 'active']), orderBy('date', 'desc'))),
     ];
 
     const missingIndexes = new Set<string>();
@@ -2388,35 +2385,19 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
     const newOrderRef = doc(collection(db, 'orders'));
 
     await runTransaction(db, async (transaction) => {
-      // --- 1. All READS must happen first ---
+      // --- READS ---
       const staffDoc = await transaction.get(doc(db, 'staff', data.staffId));
-      const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
-      const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
-      let customerRef: any; // Can't be a specific type because it might not exist
+      const runRef = doc(db, 'transfers', data.runId);
+      await transaction.get(runRef);
+      let customerRef: any; 
       if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
         customerRef = doc(db, 'customers', data.customerId);
         await transaction.get(customerRef);
       }
-      const runRef = doc(db, 'transfers', data.runId);
-      await transaction.get(runRef);
 
-      // --- 2. All VALIDATIONS happen next ---
-      for (let i = 0; i < data.items.length; i++) {
-        const item = data.items[i];
-        const stockDoc = stockDocs[i];
-        if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
-          throw new Error(`Not enough stock for ${item.name}.`);
-        }
-      }
+      // --- WRITES ---
       const driverName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
-
-      // --- 3. All WRITES happen last ---
-      for (let i = 0; i < data.items.length; i++) {
-          const item = data.items[i];
-          const stockRef = stockRefs[i];
-          transaction.update(stockRef, { stock: increment(-item.quantity) });
-      }
-
+      
       if (data.paymentMethod === 'Cash') {
           const confirmationRef = doc(collection(db, 'payment_confirmations'));
           transaction.set(confirmationRef, {
@@ -2442,12 +2423,20 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
             paymentMethod: data.paymentMethod,
             date: Timestamp.now(),
             staffId: data.staffId,
+            staffName: driverName,
             status: 'Completed',
             id: newOrderRef.id,
             isDebtPayment: false,
           };
           transaction.set(newOrderRef, orderData);
 
+           // Decrement personal stock
+            for (const item of data.items) {
+                const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
+                transaction.update(stockRef, { stock: increment(-item.quantity) });
+            }
+
+          // Update run totals for direct payments
           if (data.paymentMethod === 'Paystack') {
             transaction.update(runRef, { totalCollected: increment(data.total) });
           }
@@ -2481,24 +2470,14 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
 
     try {
         await runTransaction(db, async (transaction) => {
-            // --- 1. READS ---
             const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
-            const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
+            for(const ref of stockRefs) {
+                await transaction.get(ref);
+            }
             const salesDocId = format(orderDate, 'yyyy-MM-dd');
             const salesDocRef = doc(db, 'sales', salesDocId);
-            const salesDoc = await transaction.get(salesDocRef);
+            await transaction.get(salesDocRef);
 
-            // --- 2. VALIDATIONS ---
-            for (let i = 0; i < data.items.length; i++) {
-                const item = data.items[i];
-                const stockDoc = stockDocs[i];
-                if (!stockDoc.exists() || stockDoc.data().stock < item.quantity) {
-                    throw new Error(`Not enough stock for ${item.name}.`);
-                }
-            }
-
-            // --- 3. WRITES ---
-            // Decrement personal stock for all payment types
             for (let i = 0; i < data.items.length; i++) {
                 const item = data.items[i];
                 const stockRef = stockRefs[i];
@@ -2520,26 +2499,25 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
             };
             
             transaction.set(newOrderRef, orderData);
-
-            if (data.paymentMethod === 'Cash' || data.paymentMethod === 'POS' || data.paymentMethod === 'Paystack') {
-                const paymentField = data.paymentMethod === 'Cash' ? 'cash' : (data.paymentMethod === 'POS' ? 'pos' : 'transfer');
-                if (salesDoc.exists()) {
-                    transaction.update(salesDocRef, {
-                        [paymentField]: increment(data.total),
-                        total: increment(data.total)
-                    });
-                } else {
-                    transaction.set(salesDocRef, {
-                        date: Timestamp.fromDate(startOfDay(orderDate)),
-                        description: `Daily Sales for ${salesDocId}`,
-                        cash: data.paymentMethod === 'Cash' ? data.total : 0,
-                        pos: data.paymentMethod === 'POS' ? data.total : 0,
-                        transfer: data.paymentMethod === 'Paystack' ? data.total : 0,
-                        creditSales: 0,
-                        shortage: 0,
-                        total: data.total
-                    });
-                }
+            
+            const paymentField = data.paymentMethod === 'Cash' ? 'cash' : (data.paymentMethod === 'POS' ? 'pos' : 'transfer');
+            const salesDoc = await getDoc(salesDocRef);
+            if (salesDoc.exists()) {
+                transaction.update(salesDocRef, {
+                    [paymentField]: increment(data.total),
+                    total: increment(data.total)
+                });
+            } else {
+                transaction.set(salesDocRef, {
+                    date: Timestamp.fromDate(startOfDay(orderDate)),
+                    description: `Daily Sales for ${salesDocId}`,
+                    cash: data.paymentMethod === 'Cash' ? data.total : 0,
+                    pos: data.paymentMethod === 'POS' ? data.total : 0,
+                    transfer: data.paymentMethod === 'Paystack' ? data.total : 0,
+                    creditSales: 0,
+                    shortage: 0,
+                    total: data.total
+                });
             }
         });
 
@@ -2773,7 +2751,6 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         const amountPaid = verificationData.data.amount / 100;
         const transactionDate = Timestamp.fromDate(new Date(verificationData.data.paid_at || verificationData.data.transaction_date));
 
-        // This logic is now ordered to prevent misinterpretation
         if (metadata.isPosSale) {
             const posSaleData: PosSaleData = {
                 items: metadata.cart,
@@ -2801,14 +2778,14 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         }
 
         if (metadata.runId) {
-             const saleData = {
+             const saleData: SaleData = {
                 runId: metadata.runId,
                 items: metadata.cart,
                 customerId: metadata.customerId || 'walk-in',
                 customerName: metadata.customer_name,
-                paymentMethod: 'Paystack' as const,
+                paymentMethod: 'Paystack',
                 staffId: metadata.staff_id,
-                total: verificationData.data.amount / 100,
+                total: amountPaid,
             };
             return await handleSellToCustomer(saleData);
         }
