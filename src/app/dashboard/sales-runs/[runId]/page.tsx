@@ -951,7 +951,6 @@ function SalesRunDetails() {
     const [orders, setOrders] = useState<CompletedOrder[]>([]);
     const [customers, setCustomers] = useState<RunCustomer[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isRefreshing, setIsRefreshing] = useState(false);
     const [user, setUser] = useState<User | null>(null);
     const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
     const [viewingCustomer, setViewingCustomer] = useState<RunCustomer | null>(null);
@@ -1013,8 +1012,8 @@ function SalesRunDetails() {
         };
     }, [runId, isLoading]);
     
-    const handleRefresh = async () => {
-        setIsRefreshing(true);
+    const handleRefresh = useCallback(async () => {
+        setIsLoading(true);
         try {
             const runDetails = await getSalesRunDetails(runId as string);
             const customerDetails = await getCustomersForRun(runId as string);
@@ -1024,13 +1023,12 @@ function SalesRunDetails() {
         } catch (e) {
             toast({ variant: "destructive", title: "Error", description: "Could not refresh data." });
         } finally {
-            setIsRefreshing(false);
+            setIsLoading(false);
         }
-    };
+    }, [runId, toast]);
 
     const handleReturnStockAction = async () => {
         if (!run || !user) return;
-        setIsRefreshing(true);
         const unsold = getRemainingItems();
         const result = await handleReturnStock(run.id, unsold, user);
         if (result.success) {
@@ -1038,19 +1036,16 @@ function SalesRunDetails() {
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-        setIsRefreshing(false);
     }
 
     const handleCompleteRunAction = async () => {
         if (!run) return;
-        setIsRefreshing(true);
         const result = await handleCompleteRun(run.id);
         if (result.success) {
             toast({ title: 'Success!', description: 'Sales run has been completed and stock reconciled.'});
             router.push('/dashboard/deliveries');
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
-            setIsRefreshing(false);
         }
     }
     
@@ -1141,8 +1136,8 @@ function SalesRunDetails() {
             <div className="flex items-center justify-between">
                 <Link href="/dashboard/deliveries" className="flex items-center gap-2 text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to Deliveries</Link>
                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
-                        <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh
+                    <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => handlePrint(summaryReceiptRef.current)}>
                         <Printer className={`mr-2 h-4 w-4`} /> Print Run Summary

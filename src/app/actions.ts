@@ -2382,21 +2382,49 @@ type SaleData = {
 
 export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
   try {
-    const newOrderRef = doc(collection(db, 'orders'));
-
     await runTransaction(db, async (transaction) => {
-      // --- READS ---
       const staffDoc = await transaction.get(doc(db, 'staff', data.staffId));
+      if (!staffDoc.exists()) throw new Error("Operating staff not found.");
+      
+      const driverName = staffDoc.data()?.name || 'Unknown';
       const runRef = doc(db, 'transfers', data.runId);
-      await transaction.get(runRef);
-      let customerRef: any; 
-      if (data.paymentMethod === 'Credit' && data.customerId !== 'walk-in') {
-        customerRef = doc(db, 'customers', data.customerId);
-        await transaction.get(customerRef);
+      
+      // Create new order
+      const newOrderRef = doc(collection(db, 'orders'));
+      transaction.set(newOrderRef, {
+        salesRunId: data.runId,
+        customerId: data.customerId,
+        customerName: data.customerName,
+        items: data.items,
+        total: data.total,
+        paymentMethod: data.paymentMethod,
+        date: Timestamp.now(),
+        staffId: data.staffId,
+        staffName: driverName,
+        status: 'Completed',
+        id: newOrderRef.id,
+        isDebtPayment: false,
+      });
+
+      // Decrement personal stock
+      for (const item of data.items) {
+          const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
+          const stockDoc = await transaction.get(stockRef);
+          if (!stockDoc.exists() || (stockDoc.data()?.stock || 0) < item.quantity) {
+              throw new Error(`Not enough stock for ${item.name}.`);
+          }
+          transaction.update(stockRef, { stock: increment(-item.quantity) });
       }
 
-      // --- WRITES ---
-      const driverName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
+      // Update run totals for direct payments (Paystack) or credit
+      if (data.paymentMethod === 'Paystack') {
+        transaction.update(runRef, { totalCollected: increment(data.total) });
+      }
+      
+      if (data.paymentMethod === 'Credit') {
+        const customerRef = doc(db, 'customers', data.customerId);
+        transaction.update(customerRef, { amountOwed: increment(data.total) });
+      }
       
       if (data.paymentMethod === 'Cash') {
           const confirmationRef = doc(collection(db, 'payment_confirmations'));
@@ -2413,41 +2441,10 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
               paymentMethod: 'Cash',
               isDebtPayment: false,
           });
-      } else { // For Credit and Paystack, create the order directly
-          const orderData = {
-            salesRunId: data.runId,
-            customerId: data.customerId,
-            customerName: data.customerName,
-            items: data.items,
-            total: data.total,
-            paymentMethod: data.paymentMethod,
-            date: Timestamp.now(),
-            staffId: data.staffId,
-            staffName: driverName,
-            status: 'Completed',
-            id: newOrderRef.id,
-            isDebtPayment: false,
-          };
-          transaction.set(newOrderRef, orderData);
-
-           // Decrement personal stock
-            for (const item of data.items) {
-                const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
-                transaction.update(stockRef, { stock: increment(-item.quantity) });
-            }
-
-          // Update run totals for direct payments
-          if (data.paymentMethod === 'Paystack') {
-            transaction.update(runRef, { totalCollected: increment(data.total) });
-          }
-          
-          if (data.paymentMethod === 'Credit' && customerRef) {
-            transaction.update(customerRef, { amountOwed: increment(data.total) });
-          }
       }
     });
 
-    return { success: true, orderId: newOrderRef.id };
+    return { success: true, orderId: "created-in-transaction" }; // Order ID created inside transaction
 
   } catch (error) {
     console.error("Error selling to customer:", error);
@@ -2472,7 +2469,10 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
         await runTransaction(db, async (transaction) => {
             const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
             for(const ref of stockRefs) {
-                await transaction.get(ref);
+                const stockDoc = await transaction.get(ref);
+                 if (!stockDoc.exists()) {
+                    throw new Error(`Stock record not found for an item.`);
+                }
             }
             const salesDocId = format(orderDate, 'yyyy-MM-dd');
             const salesDocRef = doc(db, 'sales', salesDocId);
