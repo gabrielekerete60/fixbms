@@ -2689,7 +2689,7 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
     
     try {
         const staffDoc = await getDoc(doc(db, "staff", data.staffId));
-        const staffName = staffDoc.exists() ? staffDoc.data()?.name : "Unknown";
+        const staffName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
 
         const metadata = {
             customer_name: data.customerName,
