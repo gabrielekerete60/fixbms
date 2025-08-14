@@ -2471,6 +2471,7 @@ type PosSaleData = {
     staffId: string;
     staffName: string;
     total: number;
+    date: Timestamp;
 }
 export async function handlePosSale(data: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
     const newOrderRef = doc(collection(db, 'orders'));
@@ -2480,8 +2481,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
             // --- 1. READS ---
             const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
             const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
-            const today = new Date();
-            const salesDocId = format(today, 'yyyy-MM-dd');
+            const salesDocId = format(data.date.toDate(), 'yyyy-MM-dd');
             const salesDocRef = doc(db, 'sales', salesDocId);
             const salesDoc = await transaction.get(salesDocRef);
 
@@ -2510,7 +2510,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                 items: data.items,
                 total: data.total,
                 paymentMethod: data.paymentMethod,
-                date: Timestamp.now(),
+                date: data.date,
                 staffId: data.staffId,
                 staffName: data.staffName,
                 status: 'Completed',
@@ -2527,7 +2527,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                     });
                 } else {
                     transaction.set(salesDocRef, {
-                        date: Timestamp.fromDate(startOfDay(today)),
+                        date: Timestamp.fromDate(startOfDay(data.date.toDate())),
                         description: `Daily Sales for ${salesDocId}`,
                         cash: data.paymentMethod === 'Cash' ? data.total : 0,
                         pos: data.paymentMethod === 'POS' ? data.total : 0,
@@ -2772,6 +2772,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         }
         
         const amountPaid = verificationData.data.amount / 100;
+        const transactionTimestamp = Timestamp.now();
 
         // Debt Payment from Sales Run
         if (metadata.isDebtPayment && metadata.runId && metadata.customerId) {
@@ -2796,6 +2797,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
                 staffId: metadata.staff_id,
                 staffName: staffName,
                 total: verificationData.data.amount / 100,
+                date: transactionTimestamp
             };
             return await handlePosSale(posSaleData);
         }
@@ -2808,7 +2810,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
                 customerId: metadata.customerId || 'walk-in',
                 customerName: metadata.customer_name,
                 paymentMethod: 'Paystack' as const,
-                staffId: metadata.staff_id,
+                staffId: metadata.staffId,
                 total: verificationData.data.amount / 100,
             };
             return await handleSellToCustomer(saleData);
@@ -3049,3 +3051,6 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
     }
 }
 
+
+
+    

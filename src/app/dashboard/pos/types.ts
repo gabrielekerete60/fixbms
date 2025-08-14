@@ -1,4 +1,5 @@
 
+
 export type Product = {
   id: string;
   name: string;
@@ -23,7 +24,7 @@ export type CompletedOrder = {
   subtotal: number;
   tax: number;
   total: number;
-  date: string;
+  date: string; // Changed to string to ensure consistency
   paymentMethod: 'POS' | 'Cash' | 'Paystack' | 'Credit';
   customerName?: string;
   status: 'Completed' | 'Pending' | 'Cancelled';
@@ -41,3 +42,5 @@ export type SelectableStaff = {
     name: string;
     role: string;
 };
+
+    
