@@ -1856,7 +1856,7 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
             collection(db, 'transfers'),
             where('status', '==', 'pending'),
             where('notes', '>=', 'Return from'),
-            where('notes', '<', 'Return from' + '\uf8ff')
+            where('notes', '<', 'Return from\uf8ff')
         );
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => {
@@ -2472,11 +2472,11 @@ type PosSaleData = {
     staffId: string;
     staffName: string;
     total: number;
-    date: Date;
+    date: Timestamp;
 }
 export async function handlePosSale(data: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
     const newOrderRef = doc(collection(db, 'orders'));
-    const orderDate = data.date;
+    const orderDate = data.date.toDate();
 
     try {
         await runTransaction(db, async (transaction) => {
@@ -2512,7 +2512,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                 items: data.items,
                 total: data.total,
                 paymentMethod: data.paymentMethod,
-                date: orderDate,
+                date: data.date,
                 staffId: data.staffId,
                 staffName: data.staffName,
                 status: 'Completed',
@@ -2770,7 +2770,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         }
         
         const amountPaid = verificationData.data.amount / 100;
-        const transactionDate = new Date(verificationData.data.paid_at || verificationData.data.transaction_date);
+        const transactionDate = Timestamp.fromDate(new Date(verificationData.data.paid_at || verificationData.data.transaction_date));
 
         // Debt Payment from Sales Run
         if (metadata.isDebtPayment && metadata.runId && metadata.customerId) {
@@ -2791,7 +2791,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
                 paymentMethod: 'Paystack',
                 staffId: metadata.staff_id,
                 staffName: metadata.staff_name,
-                total: verificationData.data.amount / 100,
+                total: amountPaid,
                 date: transactionDate,
             };
             return await handlePosSale(posSaleData);
