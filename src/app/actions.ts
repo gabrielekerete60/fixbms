@@ -2382,7 +2382,7 @@ type SaleData = {
 
 export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
   try {
-    await runTransaction(db, async (transaction) => {
+    const orderId = await runTransaction(db, async (transaction) => {
       const staffDoc = await transaction.get(doc(db, 'staff', data.staffId));
       if (!staffDoc.exists()) throw new Error("Operating staff not found.");
       
@@ -2442,9 +2442,10 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
               isDebtPayment: false,
           });
       }
+      return newOrderRef.id;
     });
 
-    return { success: true, orderId: "created-in-transaction" }; // Order ID created inside transaction
+    return { success: true, orderId: orderId };
 
   } catch (error) {
     console.error("Error selling to customer:", error);
@@ -2689,7 +2690,7 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
     
     try {
         const staffDoc = await getDoc(doc(db, "staff", data.staffId));
-        const staffName = staffDoc.exists() ? staffDoc.data()?.name : 'Unknown';
+        const staffName = staffDoc.exists() ? staffDoc.data()?.name : "Unknown";
 
         const metadata = {
             customer_name: data.customerName,
