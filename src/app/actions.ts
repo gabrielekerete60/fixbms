@@ -1668,7 +1668,7 @@ export async function updateReportStatus(reportId: string, newStatus: Report['st
 }
 
 type ReportWasteData = {
-    items: { productId: string; quantity: number }[];
+    items: { productId: string; quantity: number; productName: string; productCategory: string; }[];
     reason: string;
     notes?: string;
 };
@@ -1687,11 +1687,6 @@ export async function handleReportWaste(data: ReportWasteData, user: { staff_id:
                 
                 const productRef = doc(db, 'products', item.productId);
                 
-                // Read product name and category before any writes.
-                const productDocForLog = await getDoc(productRef); // Can be outside transaction if just reading
-                const productName = productDocForLog.exists() ? productDocForLog.data().name : 'Unknown Product';
-                const productCategory = productDocForLog.exists() ? productDocForLog.data().category : 'Unknown';
-                
                 if (isAdminOrStorekeeper) {
                     const productDoc = await transaction.get(productRef);
                     if (!productDoc.exists()) throw new Error(`Product with ID ${item.productId} not found.`);
@@ -1704,7 +1699,7 @@ export async function handleReportWaste(data: ReportWasteData, user: { staff_id:
                     const personalStockRef = doc(db, 'staff', user.staff_id, 'personal_stock', item.productId);
                     const staffStockDoc = await transaction.get(personalStockRef);
                     if (!staffStockDoc.exists() || (staffStockDoc.data()?.stock || 0) < item.quantity) {
-                        throw new Error(`Not enough stock for ${productName} in your personal inventory.`);
+                        throw new Error(`Not enough stock for ${item.productName} in your personal inventory.`);
                     }
                     transaction.update(personalStockRef, { stock: increment(-item.quantity) });
                 }
@@ -1712,8 +1707,8 @@ export async function handleReportWaste(data: ReportWasteData, user: { staff_id:
                 const wasteLogRef = doc(collection(db, 'waste_logs'));
                 transaction.set(wasteLogRef, {
                     productId: item.productId,
-                    productName,
-                    productCategory,
+                    productName: item.productName,
+                    productCategory: item.productCategory,
                     quantity: item.quantity,
                     reason: data.reason,
                     notes: data.notes || '',
@@ -1860,7 +1855,8 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
     try {
         const q = query(
             collection(db, 'transfers'),
-            where('notes', 'like', 'Return from%'),
+            where('notes', '>=', 'Return from'),
+            where('notes', '<=', 'Return from' + '\uf8ff'),
             where('status', '==', 'pending')
         );
         const snapshot = await getDocs(q);
@@ -3011,22 +3007,24 @@ export async function handleReturnStock(runId: string, unsoldItems: { productId:
 
 export async function handleCompleteRun(runId: string): Promise<{success: boolean, error?: string}> {
     try {
-        const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId));
-        
         await runTransaction(db, async (transaction) => {
+            // All reads must come before all writes
             const runRef = doc(db, 'transfers', runId);
             const runDoc = await transaction.get(runRef);
-            const ordersSnapshot = await getDocs(ordersQuery);
-
+            
             if (!runDoc.exists()) throw new Error("Sales run not found.");
-
+            
             const runData = runDoc.data();
             if (runData.status !== 'active') throw new Error("This run is not active or has already been completed.");
+
+            const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId));
+            const ordersSnapshot = await getDocs(ordersQuery); // This read is now before writes.
 
             const salesDocId = format(runData.date.toDate(), 'yyyy-MM-dd');
             const salesDocRef = doc(db, 'sales', salesDocId);
             const salesDoc = await transaction.get(salesDocRef);
 
+            // Calculations based on reads
             const creditSales = ordersSnapshot.docs
                 .filter(doc => doc.data().paymentMethod === 'Credit')
                 .reduce((sum, doc) => sum + doc.data().total, 0);
@@ -3035,6 +3033,7 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
             const cashCollected = runData.totalCollected || 0;
             const shortage = expectedCash - cashCollected;
             
+            // All writes happen here at the end
             transaction.update(runRef, {
                 status: 'completed',
                 time_completed: serverTimestamp()
