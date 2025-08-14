@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -975,41 +974,6 @@ function SalesRunDetails() {
     }, [runId, toast]);
     
     useEffect(() => {
-        fetchRunData();
-    }, [fetchRunData])
-    
-    const handleRefresh = () => {
-        setIsRefreshing(true);
-        fetchRunData(true).finally(() => setIsRefreshing(false));
-    };
-
-    const handleReturnStockAction = async () => {
-        if (!run || !user) return;
-        setIsRefreshing(true);
-        const unsold = getRemainingItems();
-        const result = await handleReturnStock(run.id, unsold, user);
-        if (result.success) {
-            toast({ title: 'Success!', description: 'Unsold stock has been sent for acknowledgement.'});
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setIsRefreshing(false);
-    }
-
-    const handleCompleteRunAction = async () => {
-        if (!run) return;
-        setIsRefreshing(true);
-        const result = await handleCompleteRun(run.id);
-        if (result.success) {
-            toast({ title: 'Success!', description: 'Sales run has been completed and stock reconciled.'});
-            router.push('/dashboard/deliveries');
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-            setIsRefreshing(false);
-        }
-    }
-
-    useEffect(() => {
       const userJSON = localStorage.getItem('loggedInUser');
       if (userJSON) {
           setUser(JSON.parse(userJSON));
@@ -1061,6 +1025,37 @@ function SalesRunDetails() {
             unsubscribePaymentConfirmations();
         };
     }, [runId, isLoading]);
+    
+    const handleRefresh = () => {
+        setIsRefreshing(true);
+        fetchRunData(true).finally(() => setIsRefreshing(false));
+    };
+
+    const handleReturnStockAction = async () => {
+        if (!run || !user) return;
+        setIsRefreshing(true);
+        const unsold = getRemainingItems();
+        const result = await handleReturnStock(run.id, unsold, user);
+        if (result.success) {
+            toast({ title: 'Success!', description: 'Unsold stock has been sent for acknowledgement.'});
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsRefreshing(false);
+    }
+
+    const handleCompleteRunAction = async () => {
+        if (!run) return;
+        setIsRefreshing(true);
+        const result = await handleCompleteRun(run.id);
+        if (result.success) {
+            toast({ title: 'Success!', description: 'Sales run has been completed and stock reconciled.'});
+            router.push('/dashboard/deliveries');
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+            setIsRefreshing(false);
+        }
+    }
     
     const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
     const runStatus = useMemo(() => run?.status || 'inactive', [run]);
@@ -1286,13 +1281,13 @@ function SalesRunDetails() {
                         </TableHeader>
                         <TableBody>
                             {run.items.map(item => {
-                                const soldItem = orders.flatMap(o => o.items).filter(i => i.productId === item.productId).reduce((sum, i) => sum + i.quantity, 0);
-                                const remaining = item.quantity - soldItem;
+                                const soldQuantity = orders.flatMap(o => o.items).filter(i => i.productId === item.productId).reduce((sum, i) => sum + i.quantity, 0);
+                                const remaining = item.quantity - soldQuantity;
                                 return (
                                     <TableRow key={item.productId}>
                                         <TableCell>{item.productName}</TableCell>
                                         <TableCell className="text-right">{item.quantity}</TableCell>
-                                        <TableCell className="text-right">{soldItem}</TableCell>
+                                        <TableCell className="text-right">{soldQuantity}</TableCell>
                                         <TableCell className="text-right font-bold">{remaining}</TableCell>
                                     </TableRow>
                                 );
@@ -1444,3 +1439,5 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
+
+    
