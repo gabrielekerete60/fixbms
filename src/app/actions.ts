@@ -2773,7 +2773,10 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         const transactionDate = Timestamp.fromDate(new Date(verificationData.data.paid_at || verificationData.data.transaction_date));
 
         // Debt Payment from Sales Run
-        if (metadata.isDebtPayment && metadata.runId && metadata.customerId) {
+        if (metadata.isDebtPayment) {
+            if (!metadata.runId || !metadata.customerId) {
+                 return { success: false, error: 'Metadata for debt payment is incomplete.'}
+            }
             await runTransaction(db, async (transaction) => {
                 const runRef = doc(db, 'transfers', metadata.runId);
                 const customerRef = doc(db, 'customers', metadata.customerId);
@@ -2783,7 +2786,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
             return { success: true, orderId: `debt-payment-${reference}` };
         }
         
-        // It's a POS sale
+        // POS sale
         if (metadata.isPosSale) {
             const posSaleData: PosSaleData = {
                 items: metadata.cart,
@@ -2805,7 +2808,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
                 customerId: metadata.customerId || 'walk-in',
                 customerName: metadata.customer_name,
                 paymentMethod: 'Paystack' as const,
-                staffId: metadata.staffId,
+                staffId: metadata.staff_id, // Note: metadata key should be staffId, not staff_id
                 total: verificationData.data.amount / 100,
             };
             return await handleSellToCustomer(saleData);

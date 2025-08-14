@@ -323,7 +323,7 @@ function POSPageContent() {
         customerName: customerName || 'Walk-in',
         staffId: selectedStaffId,
         staffName: staffName,
-        date: Timestamp.now().toDate()
+        date: Timestamp.now()
     };
     
     const result = await handlePosSale(saleData);
@@ -358,12 +358,23 @@ function POSPageContent() {
     setPaymentStatus('processing');
     setIsCheckoutOpen(false);
 
+    const itemsWithCost = cart.map(item => {
+        const productDetails = products.find(p => p.id === item.id);
+        return {
+            productId: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            costPrice: productDetails?.costPrice || 0,
+        };
+    });
+
     const initResult = await initializePaystackTransaction({
         email: customerEmail || user.email,
         total: total,
         customerName: customerName || 'Walk-in',
         staffId: selectedStaffId,
-        items: cart,
+        items: itemsWithCost,
         isPosSale: true,
     });
     
