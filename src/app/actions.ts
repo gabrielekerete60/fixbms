@@ -1855,7 +1855,7 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
             collection(db, 'transfers'),
             where('status', '==', 'pending'),
             where('notes', '>=', 'Return from'),
-            where('notes', '<=', 'Return from' + '\uf8ff')
+            where('notes', '<', 'Return from' + '\uf8ff')
         );
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => {
