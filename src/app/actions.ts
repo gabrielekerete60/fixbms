@@ -1667,7 +1667,7 @@ export async function updateReportStatus(reportId: string, newStatus: Report['st
 }
 
 type ReportWasteData = {
-    items: { productId: string; quantity: number; productName: string; productCategory: string; }[];
+    items: { productId: string; quantity: number; productName?: string; productCategory?: string; }[];
     reason: string;
     notes?: string;
 };
@@ -1705,8 +1705,8 @@ export async function handleReportWaste(data: ReportWasteData, user: { staff_id:
                 const wasteLogRef = doc(collection(db, 'waste_logs'));
                 transaction.set(wasteLogRef, {
                     productId: item.productId,
-                    productName: item.productName,
-                    productCategory: item.productCategory,
+                    productName: item.productName || 'Unknown',
+                    productCategory: item.productCategory || 'Unknown',
                     quantity: item.quantity,
                     reason: data.reason,
                     notes: data.notes || '',
@@ -2719,8 +2719,8 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
             customer_name: data.customerName,
             staff_id: data.staffId,
             cart: itemsWithCost,
+            isPosSale: !data.runId, // True if runId is not present
             runId: data.runId || null,
-            isPosSale: !data.runId,
             customerId: data.customerId || null,
             isDebtPayment: data.isDebtPayment || false,
         };

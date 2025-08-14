@@ -16,6 +16,7 @@ export type CartItem = {
   name: string;
   price: number;
   quantity: number;
+  costPrice?: number;
 };
 
 export type CompletedOrder = {

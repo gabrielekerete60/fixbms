@@ -47,7 +47,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, query, where, onSnapshot, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { handlePosSale, initializePaystackTransaction, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -322,6 +322,7 @@ function POSPageContent() {
         customerName: customerName || 'Walk-in',
         staffId: selectedStaffId,
         staffName: staffName,
+        date: Timestamp.now()
     };
     
     const result = await handlePosSale(saleData);
@@ -443,11 +444,11 @@ function POSPageContent() {
         }
         return prevCart.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: item.quantity + 1, price: productInStock.price } // Always update price
+            ? { ...item, quantity: item.quantity + 1, price: productInStock.price, costPrice: productInStock.costPrice } // Always update price & costPrice
             : item
         );
       }
-      return [...prevCart, { id: product.id, name: product.name, price: productInStock.price, quantity: 1 }];
+      return [...prevCart, { id: product.id, name: product.name, price: productInStock.price, quantity: 1, costPrice: productInStock.costPrice }];
     });
   };
 
