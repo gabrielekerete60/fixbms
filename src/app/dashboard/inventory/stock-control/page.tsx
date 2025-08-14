@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -39,6 +39,7 @@ import {
   CheckCircle,
   XCircle,
   History,
+  Undo2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -58,7 +59,7 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -509,7 +510,7 @@ export default function StockControlPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [initiatedTransfers, setInitiatedTransfers] = useState<Transfer[]>([]);
   const [pendingTransfers, setPendingTransfers] = useState<Transfer[]>([]);
-  const [productionTransfers, setProductionTransfers] = useState<Transfer[]>([]);
+  const [returnedStock, setReturnedStock] = useState<Transfer[]>([]);
   const [pendingBatches, setPendingBatches] = useState<ProductionBatch[]>([]);
   const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([]);
   const [myWasteLogs, setMyWasteLogs] = useState<WasteLog[]>([]);
@@ -605,7 +606,7 @@ export default function StockControlPage() {
                     date: (data.date as Timestamp).toDate().toISOString(),
                  } as Transfer;
             }));
-            setPendingTransfers(transfers);
+            setPendingTransfers(transfers.filter(t => !t.notes?.startsWith('Return from')));
         });
         
         const qPendingBatches = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
@@ -614,25 +615,24 @@ export default function StockControlPage() {
             setIsLoadingBatches(false);
         });
         
-        const unsubProdTransfers = onSnapshot(query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('notes', '>=', 'Return from production batch'), where('notes', '<=', 'Return from production batch' + '\uf8ff'), where('status', '==', 'pending')), (snapshot) => {
-            const transfersData = snapshot.docs.map(docSnap => {
-                const data = docSnap.data();
-                return {
-                    id: docSnap.id,
-                    ...data,
-                    date: (data.date as Timestamp).toDate().toISOString(),
-                } as Transfer;
-            });
-            setProductionTransfers(transfersData);
+        const qReturnedStock = query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'), where('notes', '>=', 'Return from'), where('notes', '<=', 'Return from' + '\uf8ff'));
+        const unsubReturned = onSnapshot(qReturnedStock, (snapshot) => {
+            const returned = snapshot.docs.map(docSnap => ({
+                id: docSnap.id,
+                ...docSnap.data(),
+                date: (docSnap.data().date as Timestamp).toDate().toISOString(),
+            } as Transfer));
+            setReturnedStock(returned);
         });
+
 
         return () => {
             unsubTransfers();
             unsubBatches();
-            unsubProdTransfers();
+            unsubReturned();
         };
     }
-  }, [fetchPageData]);
+  }, []);
 
   const handleTransferToChange = (staffId: string) => {
     setTransferTo(staffId);
@@ -943,11 +943,11 @@ export default function StockControlPage() {
                     </TabsTrigger>
                 }
                  {userRole !== 'Manager' && 
-                    <TabsTrigger value="production-transfers" className="relative">
-                        <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
-                        {productionTransfers.length > 0 && (
-                            <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
-                                {productionTransfers.length}
+                    <TabsTrigger value="returned-stock" className="relative">
+                        <Undo2 className="mr-2 h-4 w-4" /> Returned Stock
+                        {returnedStock.length > 0 && (
+                            <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                                {returnedStock.length}
                             </Badge>
                         )}
                     </TabsTrigger>
@@ -1107,11 +1107,11 @@ export default function StockControlPage() {
                 </CardContent>
               </Card>
         </TabsContent>
-         <TabsContent value="production-transfers">
+         <TabsContent value="returned-stock">
               <Card>
                 <CardHeader>
-                    <CardTitle>Production Transfers</CardTitle>
-                    <CardDescription>Acknowledge finished goods transferred from the production unit to the main store.</CardDescription>
+                    <CardTitle>Returned Stock</CardTitle>
+                    <CardDescription>Acknowledge unsold stock transferred from drivers to the main store.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -1119,30 +1119,28 @@ export default function StockControlPage() {
                             <TableRow>
                                 <TableHead>Date</TableHead>
                                 <TableHead>From</TableHead>
-                                <TableHead>Product</TableHead>
-                                <TableHead>Quantity</TableHead>
+                                <TableHead>Items</TableHead>
                                 <TableHead className="text-right">Action</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                              {isLoading ? (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                            ) : productionTransfers.length > 0 ? (
-                                productionTransfers.map(t => (
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : returnedStock.length > 0 ? (
+                                returnedStock.map(t => (
                                     <TableRow key={t.id}>
                                         <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
                                         <TableCell>{t.from_staff_name}</TableCell>
-                                        <TableCell>{t.items[0]?.productName}</TableCell>
-                                        <TableCell>{t.items[0]?.quantity}</TableCell>
+                                        <TableCell>{t.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
                                         <TableCell className="text-right">
                                             <Button size="sm" onClick={() => handleAcknowledge(t.id, 'accept')}>
-                                                <Check className="mr-2 h-4 w-4" /> Accept
+                                                <Check className="mr-2 h-4 w-4" /> Acknowledge
                                             </Button>
                                         </TableCell>
                                     </TableRow>
                                 ))
                             ) : (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers from production.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center">No pending returns from drivers.</TableCell></TableRow>
                             )}
                         </TableBody>
                     </Table>

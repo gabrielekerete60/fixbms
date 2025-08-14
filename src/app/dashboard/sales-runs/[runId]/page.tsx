@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -1061,7 +1062,6 @@ function SalesRunDetails() {
         };
     }, [runId, isLoading]);
     
-    const totalSold = useMemo(() => orders.reduce((sum, order) => sum + order.total, 0), [orders]);
     const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
     const runStatus = useMemo(() => run?.status || 'inactive', [run]);
 
@@ -1245,7 +1245,7 @@ function SalesRunDetails() {
                         <CardDescription>Manage this sales run.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid grid-cols-2 gap-4">
-                        {canPerformSales ? (
+                        {(canPerformSales && isRunActive) ? (
                             <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
                         ) : (
                              <Button variant="outline" className="h-20 flex-col gap-1" disabled>
@@ -1253,7 +1253,7 @@ function SalesRunDetails() {
                                 <span>Sell to Customer</span>
                             </Button>
                         )}
-                         {canPerformSales && <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} /> }
+                         {(canPerformSales && isRunActive) && <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} /> }
                          {isRunActive && canPerformSales ? (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
@@ -1265,17 +1265,6 @@ function SalesRunDetails() {
                                 </AlertDialogContent>
                             </AlertDialog>
                          ) : <Button variant="secondary" disabled>Return Unsold Stock</Button>}
-                         {isRunActive && canPerformSales ? (
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive"><CheckCircle className="mr-2 h-4 w-4"/>Mark as Complete</Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action should only be taken after all cash has been submitted and all stock has been returned and acknowledged. This will finalize the run. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleCompleteRunAction}>Yes, Mark as Complete</AlertDialogAction></AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                         ) : <Button variant="destructive" disabled>Mark as Complete</Button>}
                     </CardContent>
                 </Card>
             </div>
@@ -1357,7 +1346,7 @@ function SalesRunDetails() {
                                                     {outstanding > 0 ? formatCurrency(outstanding) : '-'}
                                                 </TableCell>
                                                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                    {canPerformSales ? (
+                                                    {(canPerformSales && isRunActive) ? (
                                                         <RecordPaymentDialog customer={customer} run={run} user={user} />
                                                     ) : (
                                                         <Button size="sm" variant="outline" disabled>Record Payment</Button>

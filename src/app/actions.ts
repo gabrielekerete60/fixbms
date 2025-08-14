@@ -1465,11 +1465,14 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             
             const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
             let customerRef, runRef, salesDoc;
+            let runData: SalesRun | null = null;
             
             if (isFromSalesRun) {
                 runRef = doc(db, 'transfers', confirmationData.runId);
-                // Pre-read runRef inside the transaction
-                await transaction.get(runRef);
+                const runDoc = await transaction.get(runRef);
+                if (runDoc.exists()) {
+                    runData = runDoc.data() as SalesRun;
+                }
             }
             if (confirmationData.isDebtPayment && confirmationData.customerId) {
                 customerRef = doc(db, 'customers', confirmationData.customerId);
@@ -1502,8 +1505,18 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                 }
 
-                if (isFromSalesRun && runRef) {
-                    transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+                if (isFromSalesRun && runRef && runData) {
+                    const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
+                    transaction.update(runRef, { totalCollected: newTotalCollected });
+                    
+                    // Auto-complete run if total collected matches total revenue
+                    if (newTotalCollected >= (runData.totalRevenue || 0)) {
+                        transaction.update(runRef, {
+                            status: 'completed',
+                            time_completed: serverTimestamp()
+                        });
+                    }
+
                 } else if (salesDocRef) {
                     const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
                     
@@ -1843,27 +1856,24 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
     }
 }
 
-export async function getProductionTransfers(): Promise<Transfer[]> {
-     try {
+export async function getReturnedStockTransfers(): Promise<Transfer[]> {
+    try {
         const q = query(
             collection(db, 'transfers'),
-            where('notes', '>=', 'Return from production batch'),
-            where('notes', '<=', 'Return from production batch' + '\uf8ff'),
+            where('notes', 'like', 'Return from%'),
             where('status', '==', 'pending')
         );
-        const querySnapshot = await getDocs(q);
-
-        return querySnapshot.docs.map(docSnap => {
-            const data = docSnap.data();
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
             return {
-                id: docSnap.id,
                 ...data,
+                id: doc.id,
                 date: (data.date as Timestamp).toDate().toISOString(),
             } as Transfer;
         });
-
-    } catch (error) {
-        console.error("Error fetching production transfers:", error);
+    } catch(error) {
+        console.error("Error getting returned stock transfers:", error);
         return [];
     }
 }
@@ -3001,15 +3011,13 @@ export async function handleReturnStock(runId: string, unsoldItems: { productId:
 
 export async function handleCompleteRun(runId: string): Promise<{success: boolean, error?: string}> {
     try {
-        // This is a non-transactional read, it happens before the transaction starts.
         const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId));
-        const ordersSnapshot = await getDocs(ordersQuery);
-
+        
         await runTransaction(db, async (transaction) => {
-            // All reads must happen first.
             const runRef = doc(db, 'transfers', runId);
             const runDoc = await transaction.get(runRef);
-            
+            const ordersSnapshot = await getDocs(ordersQuery);
+
             if (!runDoc.exists()) throw new Error("Sales run not found.");
 
             const runData = runDoc.data();
@@ -3019,7 +3027,6 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
             const salesDocRef = doc(db, 'sales', salesDocId);
             const salesDoc = await transaction.get(salesDocRef);
 
-            // Now, perform calculations with the data we've read.
             const creditSales = ordersSnapshot.docs
                 .filter(doc => doc.data().paymentMethod === 'Credit')
                 .reduce((sum, doc) => sum + doc.data().total, 0);
@@ -3028,7 +3035,6 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
             const cashCollected = runData.totalCollected || 0;
             const shortage = expectedCash - cashCollected;
             
-            // All writes happen last.
             transaction.update(runRef, {
                 status: 'completed',
                 time_completed: serverTimestamp()
