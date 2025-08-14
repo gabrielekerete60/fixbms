@@ -2709,9 +2709,8 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
     if (!secretKey) return { success: false, error: "Paystack secret key is not configured." };
     
     try {
-        
         const staffDoc = await getDoc(doc(db, "staff", data.staffId));
-        const staffName = staffDoc.exists() ? staffDoc.data().name : "Unknown";
+        const staffName = staffDoc.exists() ? staffDoc.data()?.name : "Unknown";
 
         const metadata = {
             customer_name: data.customerName,
