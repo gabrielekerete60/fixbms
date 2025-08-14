@@ -421,8 +421,8 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                 <Button variant="outline" className="h-20 flex-col gap-1">
-                    <User className="h-5 w-5"/>
+                 <Button variant="outline" className="w-full">
+                    <User className="mr-2 h-5 w-5"/>
                     <span>Sell to Customer</span>
                 </Button>
             </DialogTrigger>
@@ -607,8 +607,8 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button variant="secondary" className="h-20 flex-col gap-1" disabled={remainingItems.length === 0}>
-                    <Trash className="h-5 w-5"/>
+                <Button variant="secondary" className="w-full" disabled={remainingItems.length === 0}>
+                    <Trash className="mr-2 h-5 w-5"/>
                     <span>Report Waste</span>
                 </Button>
             </DialogTrigger>
@@ -1137,6 +1137,7 @@ function SalesRunDetails() {
     const runComplete = runStatus === 'completed';
     const isRunActive = runStatus === 'active';
     const canPerformSales = user?.staff_id === run?.to_staff_id;
+    const allDebtsPaid = run.totalOutstanding <= 0;
 
     return (
         <div className="flex flex-col gap-4">
@@ -1239,28 +1240,51 @@ function SalesRunDetails() {
                         <CardTitle>Actions</CardTitle>
                         <CardDescription>Manage this sales run.</CardDescription>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-2 gap-4">
-                        {(canPerformSales && isRunActive) ? (
-                            <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
+                    <CardContent className="flex-grow space-y-4">
+                         {(canPerformSales && isRunActive) ? (
+                            <>
+                                <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
+                                <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
+                            </>
                         ) : (
-                             <Button variant="outline" className="h-20 flex-col gap-1" disabled>
-                                <User className="h-5 w-5"/>
-                                <span>Sell to Customer</span>
-                            </Button>
+                            <div className="space-y-4">
+                                <Button variant="outline" className="w-full h-20 flex-col gap-1" disabled>
+                                    <User className="h-5 w-5"/>
+                                    <span>Sell to Customer</span>
+                                </Button>
+                                <Button variant="secondary" className="w-full" disabled>
+                                    <Trash className="mr-2 h-5 w-5"/>
+                                    <span>Report Waste</span>
+                                </Button>
+                            </div>
                         )}
-                         {(canPerformSales && isRunActive) && <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} /> }
-                         {isRunActive && canPerformSales ? (
+                    </CardContent>
+                     {isRunActive && canPerformSales && (
+                        <CardFooter className="flex-col gap-2">
+                            {remainingItems.length > 0 && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="secondary" className="w-full"><Undo2 className="mr-2 h-4 w-4"/>Return Unsold Stock</Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader><AlertDialogTitle>Confirm Stock Return</AlertDialogTitle><AlertDialogDescription>This will create a transfer request for all unsold items to be returned to the storekeeper. Are you sure?</AlertDialogDescription></AlertDialogHeader>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleReturnStockAction}>Confirm Return</AlertDialogAction></AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="secondary" disabled={remainingItems.length === 0}><Undo2 className="mr-2 h-4 w-4"/>Return Unsold Stock</Button>
+                                    <Button disabled={!allDebtsPaid || remainingItems.length > 0} className="w-full">
+                                        <CheckCircle className="mr-2 h-4 w-4"/> Complete Run
+                                    </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Confirm Stock Return</AlertDialogTitle><AlertDialogDescription>This will create a transfer request for all unsold items to be returned to the storekeeper. Are you sure?</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleReturnStockAction}>Confirm Return</AlertDialogAction></AlertDialogFooter>
+                                     <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will complete the sales run. All stock and finances will be reconciled. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleCompleteRunAction}>Yes, Complete Run</AlertDialogAction></AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                         ) : <Button variant="secondary" disabled>Return Unsold Stock</Button>}
-                    </CardContent>
+                        </CardFooter>
+                    )}
                 </Card>
             </div>
             
