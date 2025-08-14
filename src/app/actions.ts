@@ -1464,7 +1464,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             }
             
             const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
-            let customerRef, runRef, salesDoc;
+            let customerRef, runRef;
             let runData: SalesRun | null = null;
             
             if (isFromSalesRun) {
@@ -1478,10 +1478,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                 customerRef = doc(db, 'customers', confirmationData.customerId);
                 await transaction.get(customerRef);
             }
-            
-            const salesDocId = format(new Date(), 'yyyy-MM-dd');
-            const salesDocRef = doc(db, 'sales', salesDocId);
-            salesDoc = await transaction.get(salesDocRef); 
             
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
@@ -1517,7 +1513,10 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         });
                     }
 
-                } else if (salesDocRef) {
+                } else if (!isFromSalesRun) {
+                     const salesDocId = format(new Date(), 'yyyy-MM-dd');
+                    const salesDocRef = doc(db, 'sales', salesDocId);
+                    const salesDoc = await transaction.get(salesDocRef); 
                     const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
                     
                     if (salesDoc.exists()) {
@@ -1855,7 +1854,7 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
         const q = query(
             collection(db, 'transfers'),
             where('notes', '>=', 'Return from'),
-            where('notes', '<=', 'Return from' + '\uf8ff'),
+            where('notes', '<', 'Return from' + '\uf8ff'),
             where('status', '==', 'pending')
         );
         const snapshot = await getDocs(q);
@@ -2708,26 +2707,18 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
     if (!secretKey) return { success: false, error: "Paystack secret key is not configured." };
     
     try {
-        // Fetch cost price for each item in the cart
-        const productIds = data.items.map((item: any) => item.id || item.productId);
-        const productDocs = await Promise.all(productIds.map((id: string) => getDoc(doc(db, 'products', id))));
-        
-        const itemsWithCost = data.items.map((item: any, index: number) => {
-            const productDoc = productDocs[index];
-            const costPrice = productDoc.exists() ? productDoc.data()?.costPrice : 0;
-            return {
-                productId: item.id || item.productId,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                costPrice: costPrice || 0,
-            };
-        });
+        const itemsWithCost = data.items.map((item: any) => ({
+            productId: item.productId,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            costPrice: item.costPrice || 0,
+        }));
 
         const metadata = {
             customer_name: data.customerName,
             staff_id: data.staffId,
-            cart: data.items, // Original cart data
+            cart: itemsWithCost,
             runId: data.runId || null,
             customerId: data.customerId || null,
             isDebtPayment: data.isDebtPayment || false,
@@ -2817,13 +2808,6 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
                 staffName: staffName,
                 total: verificationData.data.amount / 100,
             };
-            
-            for (const item of posSaleData.items) {
-                if (typeof item.costPrice !== 'number') {
-                    const productDoc = await getDoc(doc(db, 'products', item.productId));
-                    item.costPrice = productDoc.exists() ? productDoc.data()?.costPrice || 0 : 0;
-                }
-            }
 
             return await handlePosSale(posSaleData);
         }
