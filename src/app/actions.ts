@@ -809,7 +809,9 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
     } catch (error: any) {
         console.error("Error fetching all sales runs:", error);
         if (error.code === 'failed-precondition') {
-            return { active: [], completed: [], error: error.message, indexUrl: error.message.match(/(https?:\/\/[^\s]+)/)?.[0] };
+            const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
+            const indexUrl = urlMatch ? urlMatch[0] : undefined;
+            return { active: [], completed: [], error: `A database index is required: ${urlMatch ? urlMatch[0] : 'Check logs.'}`, indexUrl };
         }
         return { active: [], completed: [], error: 'An unexpected error occurred.' };
     }
@@ -1653,7 +1655,7 @@ export async function updateReportStatus(reportId: string, newStatus: Report['st
 }
 
 type ReportWasteData = {
-    items: { productId: string; quantity: number, productName: string }[];
+    items: { productId: string; quantity: number }[];
     reason: string;
     notes?: string;
 };
@@ -1672,6 +1674,11 @@ export async function handleReportWaste(data: ReportWasteData, user: { staff_id:
                 
                 const productRef = doc(db, 'products', item.productId);
                 
+                // Read product name and category before any writes.
+                const productDocForLog = await getDoc(productRef); // Can be outside transaction if just reading
+                const productName = productDocForLog.exists() ? productDocForLog.data().name : 'Unknown Product';
+                const productCategory = productDocForLog.exists() ? productDocForLog.data().category : 'Unknown';
+                
                 if (isAdminOrStorekeeper) {
                     const productDoc = await transaction.get(productRef);
                     if (!productDoc.exists()) throw new Error(`Product with ID ${item.productId} not found.`);
@@ -1684,17 +1691,10 @@ export async function handleReportWaste(data: ReportWasteData, user: { staff_id:
                     const personalStockRef = doc(db, 'staff', user.staff_id, 'personal_stock', item.productId);
                     const staffStockDoc = await transaction.get(personalStockRef);
                     if (!staffStockDoc.exists() || (staffStockDoc.data()?.stock || 0) < item.quantity) {
-                         const productDoc = await transaction.get(productRef);
-                         const productName = productDoc.exists() ? productDoc.data().name : item.productId;
                         throw new Error(`Not enough stock for ${productName} in your personal inventory.`);
                     }
                     transaction.update(personalStockRef, { stock: increment(-item.quantity) });
                 }
-
-                // This read needs to be after potential transaction reads for product name.
-                const productDocForLog = await getDoc(productRef);
-                const productName = productDocForLog.exists() ? productDocForLog.data().name : 'Unknown Product';
-                const productCategory = productDocForLog.exists() ? productDocForLog.data().category : 'Unknown';
 
                 const wasteLogRef = doc(collection(db, 'waste_logs'));
                 transaction.set(wasteLogRef, {
@@ -1833,7 +1833,9 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
 
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
-            console.error("Firestore index missing for getPendingTransfersForStaff. Please create it in the Firebase console.", error.message);
+            const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
+            const indexUrl = urlMatch ? urlMatch[0] : undefined;
+            return [];
         } else {
             console.error("Error fetching pending transfers:", error);
         }

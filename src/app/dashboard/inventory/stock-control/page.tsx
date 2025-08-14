@@ -1,7 +1,8 @@
 
+
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -905,9 +906,6 @@ export default function StockControlPage() {
                             <PaginationControls visibleRows={visibleHistoryRows} setVisibleRows={setVisibleHistoryRows} totalRows={completedTransfers.length} />
                         </CardFooter>
                     </Card>
-                </div>
-                <div className="flex-1">
-                    <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
                 </div>
             </div>
          </div>

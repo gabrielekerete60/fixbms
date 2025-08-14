@@ -6,8 +6,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle } from 'lucide-react';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste } from '@/app/actions';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -531,6 +531,154 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         </Dialog>
     );
 }
+
+function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run: SalesRun, user: User, onWasteReported: () => void, remainingItems: { productId: string; productName: string; price: number; quantity: number }[] }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [items, setItems] = useState<{ productId: string, quantity: number | string }[]>([{ productId: '', quantity: 1 }]);
+    const [reason, setReason] = useState("");
+    const [notes, setNotes] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        if(isOpen) {
+            setItems([{ productId: '', quantity: 1 }]);
+            setReason('');
+            setNotes('');
+        }
+    }, [isOpen]);
+
+    const handleItemChange = (index: number, field: 'productId' | 'quantity', value: string) => {
+        const newItems = [...items];
+        if (field === 'quantity') {
+            const numValue = Number(value);
+            const productInfo = remainingItems.find(p => p.productId === newItems[index].productId);
+            if (productInfo && numValue > productInfo.quantity) {
+                toast({ variant: 'destructive', title: 'Error', description: `Cannot report more than ${productInfo.quantity} units of waste for this item.` });
+                newItems[index][field] = productInfo.quantity;
+            } else {
+                newItems[index][field] = value === '' ? '' : numValue;
+            }
+        } else {
+            newItems[index][field] = value;
+        }
+        setItems(newItems);
+    };
+
+    const handleAddItem = () => {
+        setItems([...items, { productId: '', quantity: 1 }]);
+    };
+
+    const handleRemoveItem = (index: number) => {
+        setItems(items.filter((_, i) => i !== index));
+    };
+
+    const handleSubmit = async () => {
+        if (items.some(item => !item.productId || !item.quantity || Number(item.quantity) <= 0) || !reason) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all product and reason fields correctly.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        const dataToSubmit = {
+            items: items.map(item => ({ ...item, quantity: Number(item.quantity) })),
+            reason,
+            notes,
+        };
+
+        const result = await handleReportWaste(dataToSubmit, user);
+
+        if (result.success) {
+            toast({ title: 'Success', description: 'Waste reported successfully. Your inventory has been updated.' });
+            onWasteReported();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    };
+
+    const getAvailableProductsForRow = (rowIndex: number) => {
+        const selectedIdsInOtherRows = new Set(
+            items.filter((_, i) => i !== rowIndex).map(item => item.productId)
+        );
+        return remainingItems.filter(p => !selectedIdsInOtherRows.has(p.productId));
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="secondary" className="h-20 flex-col gap-1" disabled={remainingItems.length === 0}>
+                    <Trash className="h-5 w-5"/>
+                    <span>Report Waste</span>
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                 <DialogHeader>
+                    <DialogTitle>Report Spoiled or Damaged Stock</DialogTitle>
+                    <DialogDescription>
+                        Select items from this sales run that are no longer sellable. This will deduct them from your personal inventory.
+                    </DialogDescription>
+                </DialogHeader>
+                 <div className="space-y-6 py-4">
+                    <div className="space-y-2">
+                        <Label>Items to Report</Label>
+                        <div className="space-y-2">
+                            {items.map((item, index) => {
+                                const availableProducts = getAvailableProductsForRow(index);
+                                return (
+                                    <div key={index} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
+                                        <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
+                                            <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
+                                            <SelectContent>
+                                                {availableProducts.map((p) => (
+                                                    <SelectItem key={p.productId} value={p.productId}>
+                                                        {p.productName} (Avail: {p.quantity})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
+                                        <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                        <Button variant="outline" size="sm" className="mt-2" onClick={handleAddItem}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add Another Item
+                        </Button>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="waste-reason">Reason for Waste</Label>
+                        <Select value={reason} onValueChange={setReason}>
+                            <SelectTrigger id="waste-reason">
+                                <SelectValue placeholder="Select a reason" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            <SelectItem value="Spoiled">Spoiled / Expired</SelectItem>
+                            <SelectItem value="Damaged">Damaged</SelectItem>
+                            <SelectItem value="Error">Error (Mistake)</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="waste-notes">Additional Notes (Optional)</Label>
+                        <Input id="waste-notes" value={notes} onChange={e => setNotes(e.target.value)} />
+                    </div>
+                </div>
+                 <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Submit Report
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, run: SalesRun, user: User | null }) {
     const { toast } = useToast();
@@ -1097,7 +1245,7 @@ function SalesRunDetails() {
                         <CardTitle>Actions</CardTitle>
                         <CardDescription>Manage this sales run.</CardDescription>
                     </CardHeader>
-                    <CardContent className="flex flex-col gap-4">
+                    <CardContent className="grid grid-cols-2 gap-4">
                         {canPerformSales ? (
                             <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
                         ) : (
@@ -1106,6 +1254,7 @@ function SalesRunDetails() {
                                 <span>Sell to Customer</span>
                             </Button>
                         )}
+                         {canPerformSales && <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} /> }
                          {isRunActive && canPerformSales ? (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
