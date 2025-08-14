@@ -2697,10 +2697,10 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
             staff_id: data.staffId,
             staff_name: staffName,
             cart: data.items,
-            isPosSale: data.isPosSale || false,
+            isPosSale: data.isPosSale,
+            isDebtPayment: data.isDebtPayment,
             runId: data.runId || null,
             customerId: data.customerId || null,
-            isDebtPayment: data.isDebtPayment || false,
         };
 
         const response = await fetch('https://api.paystack.co/transaction/initialize', {
@@ -3028,5 +3028,4 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
 
 
 
-    
     

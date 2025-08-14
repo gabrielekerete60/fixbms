@@ -348,6 +348,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                 runId: run.id,
                 customerId: customerId,
                 isDebtPayment: false,
+                isPosSale: false,
             });
 
             loadingToast.dismiss();
@@ -767,6 +768,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
                 runId: run.id,
                 customerId: customer.customerId,
                 items: [], // No new items for debt payment
+                isPosSale: false,
             });
             loadingToast.dismiss();
 
