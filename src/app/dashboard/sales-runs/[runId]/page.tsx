@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -1280,6 +1279,39 @@ function SalesRunDetails() {
                     </CardContent>
                 </Card>
             </div>
+            
+            <Card>
+                <CardHeader>
+                    <CardTitle>Stock for this Run</CardTitle>
+                    <CardDescription>Initial stock and remaining items for this sales run.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-right">Initial Qty</TableHead>
+                                <TableHead className="text-right">Sold</TableHead>
+                                <TableHead className="text-right">Remaining</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {run.items.map(item => {
+                                const soldItem = orders.flatMap(o => o.items).filter(i => i.productId === item.productId).reduce((sum, i) => sum + i.quantity, 0);
+                                const remaining = item.quantity - soldItem;
+                                return (
+                                    <TableRow key={item.productId}>
+                                        <TableCell>{item.productName}</TableCell>
+                                        <TableCell className="text-right">{item.quantity}</TableCell>
+                                        <TableCell className="text-right">{soldItem}</TableCell>
+                                        <TableCell className="text-right font-bold">{remaining}</TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
 
             <Tabs defaultValue="customers" className="space-y-4">
                 <TabsList>
