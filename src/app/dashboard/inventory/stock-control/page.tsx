@@ -525,7 +525,8 @@ export default function StockControlPage() {
   const [viewingTransfer, setViewingTransfer] = useState<Transfer | null>(null);
 
   const [visiblePendingRows, setVisiblePendingRows] = useState<number | 'all'>(10);
-  const [visibleHistoryRows, setVisibleHistoryRows] = useState<number | 'all'>(10);
+  const [visibleHistoryRows, setVisibleHistoryRows, 
+] = useState<number | 'all'>(10);
   const [visibleLogRows, setVisibleLogRows] = useState<number | 'all'>(10);
   const [visibleAllPendingRows, setVisibleAllPendingRows] = useState<number | 'all'>(10);
   
@@ -560,7 +561,7 @@ export default function StockControlPage() {
                 getPendingTransfersForStaff(currentUser.staff_id),
                 getCompletedTransfersForStaff(currentUser.staff_id),
                 getWasteLogsForStaff(currentUser.staff_id),
-                getDocs(query(collection(db, 'transfers'), where('notes', 'like', 'Return from production batch%'), where('status', '==', 'pending'))),
+                getDocs(query(collection(db, 'transfers'), where('notes', '>=', 'Return from production batch'), where('notes', '<', 'Return from production batch' + '\uf8ff'), where('status', '==', 'pending'))),
                 getDocs(collection(db, "ingredients")),
                 getDocs(query(collection(db, "transfers"), orderBy("date", "desc"))),
                 getReturnedStockTransfers(),
@@ -620,7 +621,7 @@ export default function StockControlPage() {
             setIsLoadingBatches(false);
         });
         
-        const qReturnedStock = query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'), where('notes', '>=', 'Return from Sales Run'), where('notes', '<=', 'Return from Sales Run' + '\uf8ff'));
+        const qReturnedStock = query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'), where('notes', '>=', 'Return from Sales Run'), where('notes', '<', 'Return from Sales Run' + '\uf8ff'));
         const unsubReturned = onSnapshot(qReturnedStock, (snapshot) => {
             const returned = snapshot.docs.map(docSnap => ({
                 id: docSnap.id,
@@ -630,7 +631,7 @@ export default function StockControlPage() {
             setReturnedStock(returned);
         });
 
-        const qProdTransfers = query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'), where('notes', '<=', 'Return from production batch' + '\uf8ff'));
+        const qProdTransfers = query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'), where('notes', '<', 'Return from production batch' + '\uf8ff'));
         const unsubProdTransfers = onSnapshot(qProdTransfers, (snapshot) => {
             const prodTransfers = snapshot.docs.map(docSnap => ({
                 id: docSnap.id,
@@ -1322,3 +1323,5 @@ export default function StockControlPage() {
     </div>
   );
 }
+
+    
