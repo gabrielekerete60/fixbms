@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
@@ -376,6 +375,7 @@ function POSPageContent() {
         staffId: selectedStaffId,
         items: itemsWithCost,
         isPosSale: true,
+        isDebtPayment: false, // Explicitly set to false for POS sales
     });
     
     if (initResult.success && initResult.reference) {
