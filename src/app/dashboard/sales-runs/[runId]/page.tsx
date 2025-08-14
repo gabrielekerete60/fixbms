@@ -959,20 +959,6 @@ function SalesRunDetails() {
     const [paymentConfirmations, setPaymentConfirmations] = useState<any[]>([]);
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'outstanding', direction: 'desc' });
 
-
-    const fetchRunData = useCallback(async (showToast = false) => {
-        if (!runId) return;
-        
-        try {
-            const runDetails = await getSalesRunDetails(runId as string);
-            setRun(runDetails);
-            if(showToast) toast({ title: "Refreshed", description: "Sales run data has been updated."});
-        } catch (error) {
-            console.error("Failed to fetch run details:", error);
-            if(showToast) toast({ variant: "destructive", title: "Error", description: "Could not refresh data." });
-        }
-    }, [runId, toast]);
-    
     useEffect(() => {
       const userJSON = localStorage.getItem('loggedInUser');
       if (userJSON) {
@@ -981,12 +967,15 @@ function SalesRunDetails() {
     }, []);
 
     useEffect(() => {
+        if (!runId) return;
+
         const runDocRef = doc(db, "transfers", runId as string);
         const unsubscribeRun = onSnapshot(runDocRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const runDetails = await getSalesRunDetails(runId as string);
                 setRun(runDetails);
             }
+             if (isLoading) setIsLoading(false);
         });
 
         const runOrdersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
@@ -1017,8 +1006,6 @@ function SalesRunDetails() {
             setPaymentConfirmations(payments);
         });
         
-        if (isLoading) setIsLoading(false);
-        
         return () => {
             unsubscribeRun();
             unsubscribeOrders();
@@ -1026,9 +1013,19 @@ function SalesRunDetails() {
         };
     }, [runId, isLoading]);
     
-    const handleRefresh = () => {
+    const handleRefresh = async () => {
         setIsRefreshing(true);
-        fetchRunData(true).finally(() => setIsRefreshing(false));
+        try {
+            const runDetails = await getSalesRunDetails(runId as string);
+            const customerDetails = await getCustomersForRun(runId as string);
+            setRun(runDetails);
+            setCustomers(customerDetails);
+            toast({ title: "Refreshed", description: "Sales run data has been updated."});
+        } catch (e) {
+            toast({ variant: "destructive", title: "Error", description: "Could not refresh data." });
+        } finally {
+            setIsRefreshing(false);
+        }
     };
 
     const handleReturnStockAction = async () => {
@@ -1235,7 +1232,7 @@ function SalesRunDetails() {
                     </CardContent>
                 </Card>
 
-                <Card className="flex flex-col">
+                 <Card className="flex flex-col">
                     <CardHeader>
                         <CardTitle>Actions</CardTitle>
                         <CardDescription>Manage this sales run.</CardDescription>
@@ -1244,7 +1241,7 @@ function SalesRunDetails() {
                          {(canPerformSales && isRunActive) ? (
                             <>
                                 <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
-                                <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
+                                <ReportWasteDialog run={run} user={user!} onWasteReported={handleRefresh} remainingItems={remainingItems} />
                             </>
                         ) : (
                             <div className="space-y-4">
