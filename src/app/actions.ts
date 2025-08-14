@@ -2697,8 +2697,8 @@ export async function initializePaystackTransaction(data: any): Promise<{ succes
             staff_id: data.staffId,
             staff_name: staffName,
             cart: data.items,
-            isPosSale: data.isPosSale,
-            isDebtPayment: data.isDebtPayment,
+            isPosSale: data.isPosSale || false,
+            isDebtPayment: data.isDebtPayment || false,
             runId: data.runId || null,
             customerId: data.customerId || null,
         };
