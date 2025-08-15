@@ -421,7 +421,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                 <Button variant="outline" className="w-full">
+                 <Button variant="outline" className="w-full" disabled={run.status !== 'active'}>
                     <User className="mr-2 h-5 w-5"/>
                     <span>Sell to Customer</span>
                 </Button>
@@ -620,7 +620,7 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button variant="secondary" className="w-full" disabled={remainingItems.length === 0}>
+                <Button variant="secondary" className="w-full" disabled={run.status !== 'active' || remainingItems.length === 0}>
                     <Trash className="mr-2 h-5 w-5"/>
                     <span>Report Waste</span>
                 </Button>
@@ -996,7 +996,7 @@ function SalesRunDetails() {
             // Initial fetch to stop loading state quickly
             getSalesRunDetails(runId as string).then(initialRun => {
                 setRun(initialRun);
-                setIsLoading(false);
+                if (isLoading) setIsLoading(false);
             });
             
             const runDocRef = doc(db, "transfers", runId as string);
@@ -1028,7 +1028,7 @@ function SalesRunDetails() {
             unsubOrders?.();
             unsubPayments?.();
         };
-    }, [runId]);
+    }, [runId, isLoading]);
     
     const handleReturnStockAction = async () => {
         if (!run || !user) return;
@@ -1129,8 +1129,8 @@ function SalesRunDetails() {
             </div>
         );
     }
+    
     const runComplete = runStatus === 'completed';
-    const isRunActive = runStatus === 'active';
     const canPerformSales = user?.staff_id === run?.to_staff_id;
     const allDebtsPaid = run.totalOutstanding <= 0;
 
@@ -1236,32 +1236,25 @@ function SalesRunDetails() {
                         <CardDescription>Manage this sales run.</CardDescription>
                     </CardHeader>
                     <CardContent className="flex-grow space-y-4">
-                         {(canPerformSales && isRunActive) ? (
-                            <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
-                        ) : (
-                            <Button variant="outline" className="w-full h-20 flex-col gap-1" disabled>
-                                <User className="h-5 w-5"/>
-                                <span>Sell to Customer</span>
-                            </Button>
-                        )}
+                        <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
                     </CardContent>
-                     {isRunActive && canPerformSales && (
+                    {canPerformSales && (
                         <CardFooter className="flex-col gap-2">
-                             <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
-                            {remainingItems.length > 0 && (
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="secondary" className="w-full"><Undo2 className="mr-2 h-4 w-4"/>Return Unsold Stock</Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader><AlertDialogTitle>Confirm Stock Return</AlertDialogTitle><AlertDialogDescription>This will create a transfer request for all unsold items to be returned to the storekeeper. Are you sure?</AlertDialogDescription></AlertDialogHeader>
-                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleReturnStockAction}>Confirm Return</AlertDialogAction></AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            )}
+                            <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button disabled={!allDebtsPaid || remainingItems.length > 0} className="w-full">
+                                    <Button variant="secondary" className="w-full" disabled={runComplete || remainingItems.length === 0}>
+                                        <Undo2 className="mr-2 h-4 w-4"/>Return Unsold Stock
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader><AlertDialogTitle>Confirm Stock Return</AlertDialogTitle><AlertDialogDescription>This will create a transfer request for all unsold items to be returned to the storekeeper. Are you sure?</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleReturnStockAction}>Confirm Return</AlertDialogAction></AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button disabled={runComplete || !allDebtsPaid || remainingItems.length > 0} className="w-full">
                                         <CheckCircle className="mr-2 h-4 w-4"/> Complete Run
                                     </Button>
                                 </AlertDialogTrigger>
@@ -1271,7 +1264,7 @@ function SalesRunDetails() {
                                 </AlertDialogContent>
                             </AlertDialog>
                         </CardFooter>
-                    )}
+                     )}
                 </Card>
             </div>
             
@@ -1352,7 +1345,7 @@ function SalesRunDetails() {
                                                     {outstanding > 0 ? formatCurrency(outstanding) : '-'}
                                                 </TableCell>
                                                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                    {(canPerformSales && isRunActive) ? (
+                                                    {(canPerformSales && !runComplete) ? (
                                                         <RecordPaymentDialog customer={customer} run={run} user={user} />
                                                     ) : (
                                                         <Button size="sm" variant="outline" disabled>Record Payment</Button>
