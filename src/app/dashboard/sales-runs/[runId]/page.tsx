@@ -338,7 +338,8 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             }));
             
             const loadingToast = toast({ title: "Initializing Payment...", description: "Please wait.", duration: Infinity });
-            
+            setIsOpen(false);
+
             const paystackResult = await initializePaystackTransaction({
                 email: customerEmail,
                 total: total,
@@ -354,7 +355,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             loadingToast.dismiss();
             
             if (paystackResult.success && paystackResult.reference) {
-                setIsOpen(false);
+                
                 const PaystackPop = (await import('@paystack/inline-js')).default;
                 const paystack = new PaystackPop();
                 
@@ -1235,7 +1236,7 @@ function SalesRunDetails() {
                     </CardContent>
                      {isRunActive && canPerformSales && (
                         <CardFooter className="flex-col gap-2">
-                             <ReportWasteDialog run={run} user={user!} onWasteReported={handleRefresh} remainingItems={remainingItems} />
+                             <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
                             {remainingItems.length > 0 && (
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
