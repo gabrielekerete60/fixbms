@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, Pos, SquareTerminal } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -354,8 +354,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             loadingToast.dismiss();
             
             if (paystackResult.success && paystackResult.reference) {
-                // Do not close the dialog here, let Paystack popup open
-                // setIsOpen(false); 
+                // Keep dialog open, let Paystack handle UI
                 const PaystackPop = (await import('@paystack/inline-js')).default;
                 const paystack = new PaystackPop();
                 
@@ -970,16 +969,8 @@ function SalesRunDetails() {
 
     const fetchRunData = useCallback(async () => {
         if (!runId) return;
-        setIsLoading(true);
-        // This function can be called to force a refresh of all data for the run
         const runDetails = await getSalesRunDetails(runId as string);
-        const customerDetails = await getCustomersForRun(runId as string);
-        const orderDetails = await getOrdersForRun(runId as string);
-
         setRun(runDetails);
-        setCustomers(customerDetails);
-        setOrders(orderDetails.map(o => ({...o, date: new Date(o.date)})));
-        setIsLoading(false);
     }, [runId]);
 
     useEffect(() => {
@@ -989,39 +980,46 @@ function SalesRunDetails() {
 
         if (runId) {
             setIsLoading(true);
-            const runDocRef = doc(db, "transfers", runId as string);
-            unsubRun = onSnapshot(runDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    getSalesRunDetails(runId as string).then(setRun);
-                } else {
-                    setRun(null);
-                }
+
+            // Fetch main run details once, then set up listeners
+            getSalesRunDetails(runId as string).then(initialRun => {
+                setRun(initialRun);
+                setIsLoading(false); // Stop loading after main details are fetched
+
+                // Listener for the run document itself
+                const runDocRef = doc(db, "transfers", runId as string);
+                unsubRun = onSnapshot(runDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        getSalesRunDetails(runId as string).then(setRun);
+                    } else {
+                        setRun(null);
+                    }
+                });
             });
 
+            // Listener for orders
             const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
-            unsubOrders = onSnapshot(ordersQuery, async (snapshot) => {
-                const customerDetails = await getCustomersForRun(runId as string);
+            unsubOrders = onSnapshot(ordersQuery, async () => {
+                const [customerDetails, orderDetails] = await Promise.all([
+                    getCustomersForRun(runId as string),
+                    getOrdersForRun(runId as string)
+                ]);
                 setCustomers(customerDetails);
-                const orderDetails = snapshot.docs.map(doc => ({
-                    ...doc.data(),
-                    id: doc.id,
-                    date: (doc.data().date as Timestamp)?.toDate() || new Date()
-                } as CompletedOrder)).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                setOrders(orderDetails);
-                if (isLoading) setIsLoading(false); // Set loading false after orders are fetched.
+                setOrders(orderDetails.map(o => ({...o, date: new Date(o.date)})));
             });
 
+            // Listener for payment confirmations
             unsubPayments = onSnapshot(query(collection(db, 'payment_confirmations'), where('runId', '==', runId as string), where('status', '==', 'pending')), (snapshot) => {
                 setPaymentConfirmations(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
             });
         }
         
         return () => {
-            unsubRun && unsubRun();
-            unsubOrders && unsubOrders();
-            unsubPayments && unsubPayments();
+            unsubRun?.();
+            unsubOrders?.();
+            unsubPayments?.();
         };
-    }, [runId, isLoading]);
+    }, [runId]);
     
     const handleReturnStockAction = async () => {
         if (!run || !user) return;
