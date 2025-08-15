@@ -338,8 +338,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             }));
             
             const loadingToast = toast({ title: "Initializing Payment...", description: "Please wait.", duration: Infinity });
-            setIsOpen(false);
-
+            
             const paystackResult = await initializePaystackTransaction({
                 email: customerEmail,
                 total: total,
@@ -355,7 +354,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             loadingToast.dismiss();
             
             if (paystackResult.success && paystackResult.reference) {
-                
+                setIsOpen(false);
                 const PaystackPop = (await import('@paystack/inline-js')).default;
                 const paystack = new PaystackPop();
                 
@@ -380,12 +379,10 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                             onSaleMade(completedOrder);
                         } else {
                             toast({ variant: 'destructive', title: 'Order processing failed', description: verifyResult.error });
-                            setIsOpen(true);
                         }
                     },
                     onClose: () => {
                         toast({ variant: "destructive", title: "Payment Cancelled" });
-                        setIsOpen(true);
                     }
                 });
             } else {
@@ -971,53 +968,57 @@ function SalesRunDetails() {
     const fetchRunData = useCallback(async () => {
         if (!runId) return;
 
-        const runDocRef = doc(db, "transfers", runId as string);
-        const unsubscribeRun = onSnapshot(runDocRef, async (docSnap) => {
-            if (docSnap.exists()) {
-                const runDetails = await getSalesRunDetails(runId as string);
-                setRun(runDetails);
-            } else {
-                setRun(null);
-            }
-             if (isLoading) setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching run details:", error);
-            if (isLoading) setIsLoading(false);
-        });
+        setIsLoading(true);
+        const runDetails = await getSalesRunDetails(runId as string);
+        setRun(runDetails);
 
-        const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
-        const unsubscribeOrders = onSnapshot(ordersQuery, async (snapshot) => {
-            const customerDetails = await getCustomersForRun(runId as string);
-            setCustomers(customerDetails);
-            
-            const orderDetails = snapshot.docs.map(doc => ({
-                ...doc.data(),
-                id: doc.id,
-                date: (doc.data().date as Timestamp)?.toDate() || new Date()
-            } as CompletedOrder)).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            setOrders(orderDetails);
-        }, (error) => {
-            console.error("Error fetching orders:", error);
-        });
-        
-        const unsubscribePaymentConfirmations = onSnapshot(query(collection(db, 'payment_confirmations'), where('runId', '==', runId as string), where('status', '==', 'pending')), (snapshot) => {
-            const payments = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-            setPaymentConfirmations(payments);
-        });
+        const customerDetails = await getCustomersForRun(runId as string);
+        setCustomers(customerDetails);
 
-        return () => {
-            unsubscribeRun();
-            unsubscribeOrders();
-            unsubscribePaymentConfirmations();
-        };
-    }, [runId, isLoading]);
+        const orderDetails = await getOrdersForRun(runId as string);
+        setOrders(orderDetails.map(o => ({...o, date: new Date(o.date)})));
+        setIsLoading(false);
+    }, [runId]);
 
     useEffect(() => {
-        const unsubscribePromise = fetchRunData();
-        return () => {
-            unsubscribePromise.then(unsub => unsub && unsub());
+        let unsubRun: (() => void) | undefined;
+        let unsubOrders: (() => void) | undefined;
+        let unsubPayments: (() => void) | undefined;
+
+        if (runId) {
+            const runDocRef = doc(db, "transfers", runId as string);
+            unsubRun = onSnapshot(runDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    getSalesRunDetails(runId as string).then(setRun);
+                } else {
+                    setRun(null);
+                }
+                if (isLoading) setIsLoading(false);
+            });
+
+            const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
+            unsubOrders = onSnapshot(ordersQuery, async (snapshot) => {
+                const customerDetails = await getCustomersForRun(runId as string);
+                setCustomers(customerDetails);
+                const orderDetails = snapshot.docs.map(doc => ({
+                    ...doc.data(),
+                    id: doc.id,
+                    date: (doc.data().date as Timestamp)?.toDate() || new Date()
+                } as CompletedOrder)).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                setOrders(orderDetails);
+            });
+
+            unsubPayments = onSnapshot(query(collection(db, 'payment_confirmations'), where('runId', '==', runId as string), where('status', '==', 'pending')), (snapshot) => {
+                setPaymentConfirmations(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+            });
         }
-    }, [fetchRunData]);
+        
+        return () => {
+            unsubRun && unsubRun();
+            unsubOrders && unsubOrders();
+            unsubPayments && unsubPayments();
+        };
+    }, [runId, isLoading]);
     
     const handleReturnStockAction = async () => {
         if (!run || !user) return;

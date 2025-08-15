@@ -2381,76 +2381,76 @@ type SaleData = {
 }
 
 export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
-  try {
-    const orderId = await runTransaction(db, async (transaction) => {
-      const staffDoc = await transaction.get(doc(db, 'staff', data.staffId));
-      if (!staffDoc.exists()) throw new Error("Operating staff not found.");
-      
-      const driverName = staffDoc.data()?.name || 'Unknown';
-      const runRef = doc(db, 'transfers', data.runId);
-      
-      // Create new order
-      const newOrderRef = doc(collection(db, 'orders'));
-      transaction.set(newOrderRef, {
-        salesRunId: data.runId,
-        customerId: data.customerId,
-        customerName: data.customerName,
-        items: data.items,
-        total: data.total,
-        paymentMethod: data.paymentMethod,
-        date: Timestamp.now(),
-        staffId: data.staffId,
-        staffName: driverName,
-        status: 'Completed',
-        id: newOrderRef.id,
-        isDebtPayment: false,
-      });
+    try {
+        const orderId = await runTransaction(db, async (transaction) => {
+            const staffDoc = await transaction.get(doc(db, 'staff', data.staffId));
+            if (!staffDoc.exists()) throw new Error("Operating staff not found.");
+            
+            const driverName = staffDoc.data()?.name || 'Unknown';
+            const runRef = doc(db, 'transfers', data.runId);
+            
+            // Create new order
+            const newOrderRef = doc(collection(db, 'orders'));
+            transaction.set(newOrderRef, {
+                salesRunId: data.runId,
+                customerId: data.customerId,
+                customerName: data.customerName,
+                items: data.items,
+                total: data.total,
+                paymentMethod: data.paymentMethod,
+                date: Timestamp.now(),
+                staffId: data.staffId,
+                staffName: driverName,
+                status: 'Completed',
+                id: newOrderRef.id,
+                isDebtPayment: false,
+            });
 
-      // Decrement personal stock
-      for (const item of data.items) {
-          const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
-          const stockDoc = await transaction.get(stockRef);
-          if (!stockDoc.exists() || (stockDoc.data()?.stock || 0) < item.quantity) {
-              throw new Error(`Not enough stock for ${item.name}.`);
-          }
-          transaction.update(stockRef, { stock: increment(-item.quantity) });
-      }
+            // Decrement personal stock
+            for (const item of data.items) {
+                const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
+                const stockDoc = await transaction.get(stockRef);
+                if (!stockDoc.exists() || (stockDoc.data()?.stock || 0) < item.quantity) {
+                    throw new Error(`Not enough stock for ${item.name}.`);
+                }
+                transaction.update(stockRef, { stock: increment(-item.quantity) });
+            }
 
-      // Update run totals for direct payments (Paystack) or credit
-      if (data.paymentMethod === 'Paystack') {
-        transaction.update(runRef, { totalCollected: increment(data.total) });
-      }
-      
-      if (data.paymentMethod === 'Credit') {
-        const customerRef = doc(db, 'customers', data.customerId);
-        transaction.update(customerRef, { amountOwed: increment(data.total) });
-      }
-      
-      if (data.paymentMethod === 'Cash') {
-          const confirmationRef = doc(collection(db, 'payment_confirmations'));
-          transaction.set(confirmationRef, {
-              runId: data.runId,
-              customerId: data.customerId,
-              customerName: data.customerName,
-              items: data.items,
-              amount: data.total,
-              driverId: data.staffId,
-              driverName: driverName,
-              date: serverTimestamp(),
-              status: 'pending',
-              paymentMethod: 'Cash',
-              isDebtPayment: false,
-          });
-      }
-      return newOrderRef.id;
-    });
+            // Update run totals for direct payments (Paystack) or credit
+            if (data.paymentMethod === 'Paystack') {
+                transaction.update(runRef, { totalCollected: increment(data.total) });
+            }
+            
+            if (data.paymentMethod === 'Credit') {
+                const customerRef = doc(db, 'customers', data.customerId);
+                transaction.update(customerRef, { amountOwed: increment(data.total) });
+            }
+            
+            if (data.paymentMethod === 'Cash') {
+                const confirmationRef = doc(collection(db, 'payment_confirmations'));
+                transaction.set(confirmationRef, {
+                    runId: data.runId,
+                    customerId: data.customerId,
+                    customerName: data.customerName,
+                    items: data.items,
+                    amount: data.total,
+                    driverId: data.staffId,
+                    driverName: driverName,
+                    date: serverTimestamp(),
+                    status: 'pending',
+                    paymentMethod: 'Cash',
+                    isDebtPayment: false,
+                });
+            }
+            return newOrderRef.id;
+        });
 
-    return { success: true, orderId: orderId };
+        return { success: true, orderId };
 
-  } catch (error) {
-    console.error("Error selling to customer:", error);
-    return { success: false, error: (error as Error).message };
-  }
+    } catch (error) {
+        console.error("Error selling to customer:", error);
+        return { success: false, error: (error as Error).message };
+    }
 }
 
 type PosSaleData = {
