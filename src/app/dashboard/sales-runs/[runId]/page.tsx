@@ -595,7 +595,7 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-        setIsSubmitting(false);
+        setIsSubmitting(true);
     };
 
     const getAvailableProductsForRow = (rowIndex: number) => {
@@ -975,14 +975,12 @@ function SalesRunDetails() {
             if (docSnap.exists()) {
                 const runDetails = await getSalesRunDetails(runId as string);
                 setRun(runDetails);
-                if (isLoading) setIsLoading(false);
             } else {
                 setRun(null);
-                setIsLoading(false);
             }
+            if (isLoading) setIsLoading(false);
         }, (error) => {
             console.error("Error fetching run details:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales run data.' });
             setIsLoading(false);
         });
 
@@ -1011,7 +1009,7 @@ function SalesRunDetails() {
             unsubscribeOrders();
             unsubscribePaymentConfirmations();
         };
-    }, [runId, toast, isLoading]);
+    }, [runId, isLoading]);
     
     const handleRefresh = useCallback(async () => {
         setIsLoading(true);
