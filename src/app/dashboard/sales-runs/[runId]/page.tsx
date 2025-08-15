@@ -967,67 +967,71 @@ function SalesRunDetails() {
       }
     }, []);
 
+    const fetchData = useCallback(async () => {
+        if (!runId) return;
+        setIsLoading(true);
+        try {
+            const runDetails = await getSalesRunDetails(runId as string);
+            setRun(runDetails);
+            
+            const ordersData = await getOrdersForRun(runId as string);
+            setOrders(ordersData.map((o: any) => ({ ...o, date: new Date(o.date) })));
+            
+            const customerDetails = await getCustomersForRun(runId as string);
+            setCustomers(customerDetails);
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch run data.' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [runId, toast]);
+
     useEffect(() => {
         if (!runId) return;
 
-        const runDocRef = doc(db, "transfers", runId as string);
-        const unsubscribeRun = onSnapshot(runDocRef, async (docSnap) => {
+        const unsubscribeRun = onSnapshot(doc(db, "transfers", runId as string), async (docSnap) => {
             if (docSnap.exists()) {
                 const runDetails = await getSalesRunDetails(runId as string);
                 setRun(runDetails);
             }
-             if (isLoading) setIsLoading(false);
         });
 
-        const runOrdersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
-        const unsubscribeOrders = onSnapshot(runOrdersQuery, async (snapshot) => {
-            const orderDetails = snapshot.docs.map(doc => {
-                const data = doc.data();
-                return { 
-                    ...data, 
-                    id: doc.id,
-                    date: (data.date as Timestamp)?.toDate() || new Date()
-                } as CompletedOrder
-            }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const unsubscribeOrders = onSnapshot(query(collection(db, 'orders'), where('salesRunId', '==', runId as string)), async (snapshot) => {
+            const orderDetails = snapshot.docs.map(doc => ({
+                ...doc.data(),
+                id: doc.id,
+                date: (doc.data().date as Timestamp)?.toDate() || new Date()
+            } as CompletedOrder)).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setOrders(orderDetails);
 
+            // Re-calculate customer data when orders change
             const customerDetails = await getCustomersForRun(runId as string);
             setCustomers(customerDetails);
         });
         
-        const paymentConfirmationCollection = collection(db, 'payment_confirmations');
-        const unsubscribePaymentConfirmations = onSnapshot(paymentConfirmationCollection, (snapshot) => {
-            const payments = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(payment => payment.runId === runId && payment.status === 'pending')
-                .sort((a, b) => {
-                    const dateA = a.date?.toDate ? a.date.toDate() : new Date(0);
-                    const dateB = b.date?.toDate ? b.date.toDate() : new Date(0);
-                    return dateB.getTime() - dateA.getTime();
-                });
+        const unsubscribePaymentConfirmations = onSnapshot(query(collection(db, 'payment_confirmations'), where('runId', '==', runId as string), where('status', '==', 'pending')), (snapshot) => {
+            const payments = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
             setPaymentConfirmations(payments);
         });
-        
+
         return () => {
             unsubscribeRun();
             unsubscribeOrders();
             unsubscribePaymentConfirmations();
         };
-    }, [runId, isLoading]);
+    }, [runId]);
     
     const handleRefresh = useCallback(async () => {
         setIsLoading(true);
         try {
-            const runDetails = await getSalesRunDetails(runId as string);
-            const customerDetails = await getCustomersForRun(runId as string);
-            setRun(runDetails);
-            setCustomers(customerDetails);
+            await fetchData();
             toast({ title: "Refreshed", description: "Sales run data has been updated."});
         } catch (e) {
             toast({ variant: "destructive", title: "Error", description: "Could not refresh data." });
         } finally {
             setIsLoading(false);
         }
-    }, [runId, toast]);
+    }, [fetchData, toast]);
 
     const handleReturnStockAction = async () => {
         if (!run || !user) return;
