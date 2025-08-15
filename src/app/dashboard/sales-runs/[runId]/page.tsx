@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, Pos, SquareTerminal } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -39,7 +39,7 @@ type CompletedOrder = {
   items: OrderItem[];
   total: number;
   date: Date;
-  paymentMethod: 'Paystack' | 'Cash' | 'Credit';
+  paymentMethod: 'Paystack' | 'Cash' | 'Credit' | 'POS';
   customerName?: string;
   subtotal: number;
   tax: number;
@@ -240,7 +240,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
     // Form state
     const [selectedCustomerId, setSelectedCustomerId] = useState('walk-in');
     const [cart, setCart] = useState<OrderItem[]>([]);
-    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Paystack'>('Cash');
+    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Paystack' | 'POS'>('Cash');
     const [itemQuantities, setItemQuantities] = useState<Record<string, number | string>>({});
 
 
@@ -354,7 +354,8 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             loadingToast.dismiss();
             
             if (paystackResult.success && paystackResult.reference) {
-                setIsOpen(false);
+                // Do not close the dialog here, let Paystack popup open
+                // setIsOpen(false); 
                 const PaystackPop = (await import('@paystack/inline-js')).default;
                 const paystack = new PaystackPop();
                 
@@ -377,6 +378,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                                 subtotal: 0, tax: 0, status: 'Completed'
                             }
                             onSaleMade(completedOrder);
+                            setIsOpen(false);
                         } else {
                             toast({ variant: 'destructive', title: 'Order processing failed', description: verifyResult.error });
                         }
@@ -392,7 +394,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             return;
         }
         
-        // For Cash and Credit
+        // For Cash, POS and Credit
         const saleData = {
             runId: run.id,
             items: cart.map(item => ({...item, productId: item.productId || '' })),
@@ -407,8 +409,8 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
 
         if (result.success && result.orderId) {
             toast({ 
-                title: paymentMethod === 'Cash' ? 'Pending Approval' : 'Success', 
-                description: paymentMethod === 'Cash' ? 'Cash payment has been submitted for accountant approval.' : 'Credit sale recorded successfully.' 
+                title: paymentMethod === 'Cash' || paymentMethod === 'POS' ? 'Pending Approval' : 'Success', 
+                description: paymentMethod === 'Cash' || paymentMethod === 'POS' ? 'Payment has been submitted for accountant approval.' : 'Credit sale recorded successfully.' 
             });
             setIsOpen(false);
         } else {
@@ -504,12 +506,13 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                          {/* Payment Options */}
                          <div className="space-y-2">
                             <Label>Payment Method</Label>
-                            <Select onValueChange={(value) => setPaymentMethod(value as 'Cash' | 'Credit' | 'Paystack')} defaultValue={paymentMethod}>
+                            <Select onValueChange={(value) => setPaymentMethod(value as 'Cash' | 'Credit' | 'Paystack' | 'POS')} defaultValue={paymentMethod}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select payment method" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</SelectItem>
+                                    <SelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</SelectItem>
                                     <SelectItem value="Paystack"><ArrowRightLeft className="mr-2 h-4 w-4"/> Pay with Paystack</SelectItem>
                                     <SelectItem value="Credit" disabled={selectedCustomerId === 'walk-in'}><CreditCard className="mr-2 h-4 w-4"/> Credit</SelectItem>
                                 </SelectContent>
@@ -967,16 +970,16 @@ function SalesRunDetails() {
 
     const fetchRunData = useCallback(async () => {
         if (!runId) return;
-
-        // No need to set isLoading here, onSnapshot will handle it.
+        setIsLoading(true);
+        // This function can be called to force a refresh of all data for the run
         const runDetails = await getSalesRunDetails(runId as string);
-        setRun(runDetails);
-
         const customerDetails = await getCustomersForRun(runId as string);
-        setCustomers(customerDetails);
-
         const orderDetails = await getOrdersForRun(runId as string);
+
+        setRun(runDetails);
+        setCustomers(customerDetails);
         setOrders(orderDetails.map(o => ({...o, date: new Date(o.date)})));
+        setIsLoading(false);
     }, [runId]);
 
     useEffect(() => {
@@ -985,7 +988,7 @@ function SalesRunDetails() {
         let unsubPayments: (() => void) | undefined;
 
         if (runId) {
-            setIsLoading(true); // Set loading true when listeners are being set up
+            setIsLoading(true);
             const runDocRef = doc(db, "transfers", runId as string);
             unsubRun = onSnapshot(runDocRef, (docSnap) => {
                 if (docSnap.exists()) {
@@ -993,7 +996,6 @@ function SalesRunDetails() {
                 } else {
                     setRun(null);
                 }
-                setIsLoading(false); // Set loading to false once we get the first snapshot
             });
 
             const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
@@ -1006,6 +1008,7 @@ function SalesRunDetails() {
                     date: (doc.data().date as Timestamp)?.toDate() || new Date()
                 } as CompletedOrder)).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
                 setOrders(orderDetails);
+                if (isLoading) setIsLoading(false); // Set loading false after orders are fetched.
             });
 
             unsubPayments = onSnapshot(query(collection(db, 'payment_confirmations'), where('runId', '==', runId as string), where('status', '==', 'pending')), (snapshot) => {
@@ -1018,7 +1021,7 @@ function SalesRunDetails() {
             unsubOrders && unsubOrders();
             unsubPayments && unsubPayments();
         };
-    }, [runId]);
+    }, [runId, isLoading]);
     
     const handleReturnStockAction = async () => {
         if (!run || !user) return;

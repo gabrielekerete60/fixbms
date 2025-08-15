@@ -2375,7 +2375,7 @@ type SaleData = {
     items: { productId: string; quantity: number; price: number, name: string }[];
     customerId: string;
     customerName: string;
-    paymentMethod: 'Cash' | 'Credit' | 'Paystack';
+    paymentMethod: 'Cash' | 'Credit' | 'Paystack' | 'POS';
     staffId: string;
     total: number;
 }
@@ -2388,7 +2388,9 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
             
             const driverName = staffDoc.data()?.name || 'Unknown';
             const runRef = doc(db, 'transfers', data.runId);
-            
+            const runDoc = await transaction.get(runRef);
+            if (!runDoc.exists()) throw new Error("Sales run not found.");
+
             const newOrderRef = doc(collection(db, 'orders'));
             transaction.set(newOrderRef, {
                 salesRunId: data.runId,
@@ -2414,8 +2416,9 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                 transaction.update(stockRef, { stock: increment(-item.quantity) });
             }
 
-            if (data.paymentMethod === 'Paystack') {
-                transaction.update(runRef, { totalCollected: increment(data.total) });
+            if (data.paymentMethod === 'Paystack' || data.paymentMethod === 'POS') {
+                const currentCollected = runDoc.data()?.totalCollected || 0;
+                transaction.update(runRef, { totalCollected: currentCollected + data.total });
             }
             
             if (data.paymentMethod === 'Credit') {
@@ -2785,7 +2788,6 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
                 staffId: metadata.staff_id,
                 total: amountPaid,
             };
-            // This is the critical fix: ensure the function call is awaited
             return await handleSellToCustomer(saleData);
         }
         
