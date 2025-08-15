@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -111,7 +110,7 @@ async function saveRecipe(recipeData: Omit<Recipe, 'id'>, user: User, recipeId?:
             await createProductionLog('Recipe Updated', `Updated recipe: ${recipeData.name}`, user);
         } else {
             const newRecipeRef = doc(collection(db, "recipes"));
-            await updateDoc(newRecipeRef, { ...recipeData, id: newRecipeRef.id });
+            await setDoc(newRecipeRef, { ...recipeData, id: newRecipeRef.id });
              await createProductionLog('Recipe Created', `Created new recipe: ${recipeData.name}`, user);
         }
         return { success: true };

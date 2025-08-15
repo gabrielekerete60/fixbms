@@ -60,10 +60,19 @@ const recipesData = [
        productId: "prod_1",
        productName: "Family Loaf",
        ingredients: [
-           { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 0.5, unit: "kg" },
-           { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.01, unit: "kg" },
-           { ingredientId: "ing_2", ingredientName: "Granulated Sugar", quantity: 0.02, unit: "kg" },
-           { ingredientId: "ing_7", ingredientName: "Salt", quantity: 0.005, unit: "kg" },
+           { ingredientId: "ing_1", ingredientName: "Flour", quantity: 50000, unit: "g" },
+           { ingredientId: "ing_2", ingredientName: "Sugar", quantity: 4500, unit: "g" },
+           { ingredientId: "ing_3", ingredientName: "Salt", quantity: 450, unit: "g" },
+           { ingredientId: "ing_4", ingredientName: "Yeast", quantity: 500, unit: "g" },
+           { ingredientId: "ing_5", ingredientName: "Preservative", quantity: 150, unit: "g" },
+           { ingredientId: "ing_6", ingredientName: "Tin Milk", quantity: 6, unit: "TIN" },
+           { ingredientId: "ing_7", ingredientName: "Butter", quantity: 5000, unit: "g" },
+           { ingredientId: "ing_8", ingredientName: "Butterscotch Flavor", quantity: 100, unit: "g" },
+           { ingredientId: "ing_9", ingredientName: "Zeast Flavor", quantity: 60, unit: "g" },
+           { ingredientId: "ing_10", ingredientName: "Lux Essence", quantity: 100, unit: "g" },
+           { ingredientId: "ing_11", ingredientName: "Eggs", quantity: 12, unit: "pcs" },
+           { ingredientId: "ing_12", ingredientName: "Water", quantity: 20000, unit: "ml" },
+           { ingredientId: "ing_13", ingredientName: "Vegetable Oil", quantity: 300, unit: "ml" },
        ]
     },
     {
@@ -73,9 +82,9 @@ const recipesData = [
        productId: "prod_5",
        productName: "Croissant",
        ingredients: [
-           { ingredientId: "ing_1", ingredientName: "All-Purpose Flour", quantity: 0.25, unit: "kg" },
-           { ingredientId: "ing_3", ingredientName: "Unsalted Butter", quantity: 0.15, unit: "kg" },
-           { ingredientId: "ing_6", ingredientName: "Yeast", quantity: 0.007, unit: "kg" },
+           { ingredientId: "ing_1", ingredientName: "Flour", quantity: 250, unit: "g" },
+           { ingredientId: "ing_7", ingredientName: "Butter", quantity: 150, unit: "g" },
+           { ingredientId: "ing_4", ingredientName: "Yeast", quantity: 7, unit: "g" },
        ]
     },
 ];
@@ -210,6 +219,19 @@ export async function clearMultipleCollections(collectionNames: string[]): Promi
 
 // --- INDIVIDUAL SEEDING FUNCTIONS ---
 
+export async function seedDeveloperData(): Promise<ActionResult> {
+    try {
+        const devUser = staffData.find(s => s.role === 'Developer');
+        if (!devUser) {
+            return { success: false, error: "Developer user not found in seed data." };
+        }
+        await batchCommit([devUser], "staff");
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: (e as Error).message };
+    }
+}
+
 export async function seedUsersAndConfig(): Promise<ActionResult> {
     try {
         await batchCommit(staffData, "staff");
@@ -226,13 +248,19 @@ export async function seedProductsAndIngredients(): Promise<ActionResult> {
         await batchCommit(productsData, "products");
         await batchCommit(recipesData, "recipes");
         await batchCommit([
-            { id: "ing_1", name: "All-Purpose Flour", stock: 100.00, unit: 'kg', costPerUnit: 500.00, expiryDate: null, lowStockThreshold: 20 },
-            { id: "ing_2", name: "Granulated Sugar", stock: 50.00, unit: 'kg', costPerUnit: 800.00, expiryDate: null, lowStockThreshold: 10 },
-            { id: "ing_3", name: "Unsalted Butter", stock: 20.00, unit: 'kg', costPerUnit: 6000.00, expiryDate: null, lowStockThreshold: 5 },
-            { id: "ing_4", name: "Large Eggs", stock: 200.00, unit: 'pcs', costPerUnit: 50.00, expiryDate: null, lowStockThreshold: 50 },
-            { id: "ing_5", name: "Whole Milk", stock: 30.00, unit: 'L', costPerUnit: 900.00, expiryDate: null, lowStockThreshold: 10 },
-            { id: "ing_6", name: "Yeast", stock: 10.00, unit: 'kg', costPerUnit: 2500.00, expiryDate: null, lowStockThreshold: 2 },
-            { id: "ing_7", name: "Salt", stock: 10.00, unit: 'kg', costPerUnit: 200.00, expiryDate: null, lowStockThreshold: 2 },
+            { id: "ing_1", name: "Flour", stock: 100000, unit: 'g', costPerUnit: 15, expiryDate: null, lowStockThreshold: 10000 },
+            { id: "ing_2", name: "Sugar", stock: 10000, unit: 'g', costPerUnit: 20, expiryDate: null, lowStockThreshold: 1000 },
+            { id: "ing_3", name: "Salt", stock: 5000, unit: 'g', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
+            { id: "ing_4", name: "Yeast", stock: 2000, unit: 'g', costPerUnit: 50, expiryDate: null, lowStockThreshold: 200 },
+            { id: "ing_5", name: "Preservative", stock: 1000, unit: 'g', costPerUnit: 100, expiryDate: null, lowStockThreshold: 100 },
+            { id: "ing_6", name: "Tin Milk", stock: 100, unit: 'TIN', costPerUnit: 500, expiryDate: null, lowStockThreshold: 10 },
+            { id: "ing_7", name: "Butter", stock: 10000, unit: 'g', costPerUnit: 30, expiryDate: null, lowStockThreshold: 1000 },
+            { id: "ing_8", name: "Butterscotch Flavor", stock: 500, unit: 'g', costPerUnit: 80, expiryDate: null, lowStockThreshold: 50 },
+            { id: "ing_9", name: "Zeast Flavor", stock: 500, unit: 'g', costPerUnit: 70, expiryDate: null, lowStockThreshold: 50 },
+            { id: "ing_10", name: "Lux Essence", stock: 500, unit: 'g', costPerUnit: 90, expiryDate: null, lowStockThreshold: 50 },
+            { id: "ing_11", name: "Eggs", stock: 200, unit: 'pcs', costPerUnit: 50, expiryDate: null, lowStockThreshold: 24 },
+            { id: "ing_12", name: "Water", stock: 50000, unit: 'ml', costPerUnit: 0.1, expiryDate: null, lowStockThreshold: 5000 },
+            { id: "ing_13", name: "Vegetable Oil", stock: 5000, unit: 'ml', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
         ], "ingredients");
         await batchCommit([
             { id: "cat_1", name: 'Flour', type: 'direct' },

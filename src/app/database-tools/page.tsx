@@ -16,6 +16,7 @@ import {
     seedCommunicationData,
     seedFullData,
     clearMultipleCollections,
+    seedDeveloperData,
 } from "@/app/seed/actions";
 import { Loader2, DatabaseZap, Trash2, ArrowLeft } from "lucide-react";
 import {
@@ -167,6 +168,15 @@ export default function DatabaseToolsPage() {
                             {currentlySeeding === "Full Database" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
                             Seed Full Demo Data
                         </Button>
+                         <Button 
+                            variant="outline"
+                            onClick={() => handleSeedAction("Developer Account", seedDeveloperData)}
+                            disabled={isPending}
+                            className="w-full"
+                        >
+                            {currentlySeeding === "Developer Account" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                            Seed Developer Account Only
+                        </Button>
                         <Separator className="my-2" />
                          <div className="grid grid-cols-2 gap-2">
                             <Button 
@@ -292,4 +302,3 @@ export default function DatabaseToolsPage() {
     </div>
   );
 }
-
