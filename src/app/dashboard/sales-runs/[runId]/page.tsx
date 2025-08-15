@@ -968,7 +968,7 @@ function SalesRunDetails() {
     const fetchRunData = useCallback(async () => {
         if (!runId) return;
 
-        setIsLoading(true);
+        // No need to set isLoading here, onSnapshot will handle it.
         const runDetails = await getSalesRunDetails(runId as string);
         setRun(runDetails);
 
@@ -977,7 +977,6 @@ function SalesRunDetails() {
 
         const orderDetails = await getOrdersForRun(runId as string);
         setOrders(orderDetails.map(o => ({...o, date: new Date(o.date)})));
-        setIsLoading(false);
     }, [runId]);
 
     useEffect(() => {
@@ -986,6 +985,7 @@ function SalesRunDetails() {
         let unsubPayments: (() => void) | undefined;
 
         if (runId) {
+            setIsLoading(true); // Set loading true when listeners are being set up
             const runDocRef = doc(db, "transfers", runId as string);
             unsubRun = onSnapshot(runDocRef, (docSnap) => {
                 if (docSnap.exists()) {
@@ -993,7 +993,7 @@ function SalesRunDetails() {
                 } else {
                     setRun(null);
                 }
-                if (isLoading) setIsLoading(false);
+                setIsLoading(false); // Set loading to false once we get the first snapshot
             });
 
             const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
@@ -1018,7 +1018,7 @@ function SalesRunDetails() {
             unsubOrders && unsubOrders();
             unsubPayments && unsubPayments();
         };
-    }, [runId, isLoading]);
+    }, [runId]);
     
     const handleReturnStockAction = async () => {
         if (!run || !user) return;

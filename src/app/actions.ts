@@ -2388,10 +2388,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
             
             const driverName = staffDoc.data()?.name || 'Unknown';
             const runRef = doc(db, 'transfers', data.runId);
-            const runDoc = await transaction.get(runRef); // Read the run document
-            if (!runDoc.exists()) throw new Error("Sales run not found.");
             
-            // Create new order
             const newOrderRef = doc(collection(db, 'orders'));
             transaction.set(newOrderRef, {
                 salesRunId: data.runId,
@@ -2408,7 +2405,6 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                 isDebtPayment: false,
             });
 
-            // Decrement personal stock
             for (const item of data.items) {
                 const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
                 const stockDoc = await transaction.get(stockRef);
@@ -2418,11 +2414,8 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                 transaction.update(stockRef, { stock: increment(-item.quantity) });
             }
 
-            // Update run totals for direct payments (Paystack) or credit
             if (data.paymentMethod === 'Paystack') {
-                const runData = runDoc.data();
-                const newTotalCollected = (runData.totalCollected || 0) + data.total;
-                transaction.update(runRef, { totalCollected: newTotalCollected });
+                transaction.update(runRef, { totalCollected: increment(data.total) });
             }
             
             if (data.paymentMethod === 'Credit') {
@@ -2792,6 +2785,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
                 staffId: metadata.staff_id,
                 total: amountPaid,
             };
+            // This is the critical fix: ensure the function call is awaited
             return await handleSellToCustomer(saleData);
         }
         
