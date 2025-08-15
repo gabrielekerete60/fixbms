@@ -2383,14 +2383,34 @@ type SaleData = {
 export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
     try {
         const orderId = await runTransaction(db, async (transaction) => {
+            // --- ALL READS MUST HAPPEN FIRST ---
             const staffDoc = await transaction.get(doc(db, 'staff', data.staffId));
             if (!staffDoc.exists()) throw new Error("Operating staff not found.");
-            
-            const driverName = staffDoc.data()?.name || 'Unknown';
+
             const runRef = doc(db, 'transfers', data.runId);
             const runDoc = await transaction.get(runRef);
             if (!runDoc.exists()) throw new Error("Sales run not found.");
 
+            let customerRef = null;
+            if (data.paymentMethod === 'Credit') {
+                customerRef = doc(db, 'customers', data.customerId);
+                const customerDoc = await transaction.get(customerRef);
+                if (!customerDoc.exists()) throw new Error("Customer not found for credit sale.");
+            }
+            
+            const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
+            const stockDocs = await Promise.all(stockRefs.map(ref => transaction.get(ref)));
+
+            for (let i = 0; i < data.items.length; i++) {
+                const item = data.items[i];
+                const stockDoc = stockDocs[i];
+                if (!stockDoc.exists() || (stockDoc.data()?.stock || 0) < item.quantity) {
+                    throw new Error(`Not enough stock for ${item.name}.`);
+                }
+            }
+
+            // --- ALL WRITES HAPPEN AFTER READS ---
+            const driverName = staffDoc.data()?.name || 'Unknown';
             const newOrderRef = doc(collection(db, 'orders'));
             transaction.set(newOrderRef, {
                 salesRunId: data.runId,
@@ -2402,31 +2422,27 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                 date: Timestamp.now(),
                 staffId: data.staffId,
                 staffName: driverName,
-                status: 'Completed',
+                status: (data.paymentMethod === 'Cash' || data.paymentMethod === 'POS') ? 'Pending' : 'Completed',
                 id: newOrderRef.id,
                 isDebtPayment: false,
             });
 
-            for (const item of data.items) {
-                const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
-                const stockDoc = await transaction.get(stockRef);
-                if (!stockDoc.exists() || (stockDoc.data()?.stock || 0) < item.quantity) {
-                    throw new Error(`Not enough stock for ${item.name}.`);
-                }
+            for (let i = 0; i < data.items.length; i++) {
+                const item = data.items[i];
+                const stockRef = stockRefs[i];
                 transaction.update(stockRef, { stock: increment(-item.quantity) });
             }
 
-            if (data.paymentMethod === 'Paystack' || data.paymentMethod === 'POS') {
-                const currentCollected = runDoc.data()?.totalCollected || 0;
-                transaction.update(runRef, { totalCollected: currentCollected + data.total });
+            if (data.paymentMethod === 'Paystack' || data.paymentMethod === 'Credit') {
+                 const currentCollected = runDoc.data()?.totalCollected || 0;
+                 transaction.update(runRef, { totalCollected: currentCollected + data.total });
             }
             
-            if (data.paymentMethod === 'Credit') {
-                const customerRef = doc(db, 'customers', data.customerId);
+            if (data.paymentMethod === 'Credit' && customerRef) {
                 transaction.update(customerRef, { amountOwed: increment(data.total) });
             }
             
-            if (data.paymentMethod === 'Cash') {
+            if (data.paymentMethod === 'Cash' || data.paymentMethod === 'POS') {
                 const confirmationRef = doc(collection(db, 'payment_confirmations'));
                 transaction.set(confirmationRef, {
                     runId: data.runId,
@@ -2438,7 +2454,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                     driverName: driverName,
                     date: serverTimestamp(),
                     status: 'pending',
-                    paymentMethod: 'Cash',
+                    paymentMethod: data.paymentMethod,
                     isDebtPayment: false,
                 });
             }
@@ -2452,6 +2468,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
         return { success: false, error: (error as Error).message };
     }
 }
+
 
 type PosSaleData = {
     items: { productId: string; quantity: number; price: number, name: string, costPrice: number }[];

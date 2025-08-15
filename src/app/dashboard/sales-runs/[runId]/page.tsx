@@ -517,14 +517,26 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                                 </SelectContent>
                             </Select>
                         </div>
-
-                        <DialogFooter>
-                            <Button type="button" variant="outline" disabled={isLoading} onClick={() => setIsOpen(false)}>Cancel</Button>
-                            <Button type="submit" disabled={isLoading || cart.length === 0} onClick={handleSubmit}>
-                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Record Sale
-                            </Button>
-                        </DialogFooter>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button className="w-full" disabled={isLoading || cart.length === 0}>
+                                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Record Sale
+                                </Button>
+                            </AlertDialogTrigger>
+                             <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Confirm {paymentMethod} Sale</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will finalize the sale of <strong>{formatCurrency(total)}</strong>. For Cash/POS payments, it will be sent for approval. For Credit/Paystack, it will complete immediately. Are you sure?
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleSubmit}>Yes, Record Sale</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     </div>
                 </div>
             </DialogContent>
@@ -969,8 +981,10 @@ function SalesRunDetails() {
 
     const fetchRunData = useCallback(async () => {
         if (!runId) return;
+        setIsLoading(true);
         const runDetails = await getSalesRunDetails(runId as string);
         setRun(runDetails);
+        setIsLoading(false);
     }, [runId]);
 
     useEffect(() => {
@@ -979,25 +993,21 @@ function SalesRunDetails() {
         let unsubPayments: (() => void) | undefined;
 
         if (runId) {
-            setIsLoading(true);
-
-            // Fetch main run details once, then set up listeners
+            // Initial fetch to stop loading state quickly
             getSalesRunDetails(runId as string).then(initialRun => {
                 setRun(initialRun);
-                setIsLoading(false); // Stop loading after main details are fetched
-
-                // Listener for the run document itself
-                const runDocRef = doc(db, "transfers", runId as string);
-                unsubRun = onSnapshot(runDocRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        getSalesRunDetails(runId as string).then(setRun);
-                    } else {
-                        setRun(null);
-                    }
-                });
+                setIsLoading(false);
+            });
+            
+            const runDocRef = doc(db, "transfers", runId as string);
+            unsubRun = onSnapshot(runDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    getSalesRunDetails(runId as string).then(setRun);
+                } else {
+                    setRun(null);
+                }
             });
 
-            // Listener for orders
             const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
             unsubOrders = onSnapshot(ordersQuery, async () => {
                 const [customerDetails, orderDetails] = await Promise.all([
@@ -1008,7 +1018,6 @@ function SalesRunDetails() {
                 setOrders(orderDetails.map(o => ({...o, date: new Date(o.date)})));
             });
 
-            // Listener for payment confirmations
             unsubPayments = onSnapshot(query(collection(db, 'payment_confirmations'), where('runId', '==', runId as string), where('status', '==', 'pending')), (snapshot) => {
                 setPaymentConfirmations(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
             });
