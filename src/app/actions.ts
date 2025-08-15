@@ -2388,6 +2388,8 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
             
             const driverName = staffDoc.data()?.name || 'Unknown';
             const runRef = doc(db, 'transfers', data.runId);
+            const runDoc = await transaction.get(runRef); // Read the run document
+            if (!runDoc.exists()) throw new Error("Sales run not found.");
             
             // Create new order
             const newOrderRef = doc(collection(db, 'orders'));
@@ -2418,7 +2420,9 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
 
             // Update run totals for direct payments (Paystack) or credit
             if (data.paymentMethod === 'Paystack') {
-                transaction.update(runRef, { totalCollected: increment(data.total) });
+                const runData = runDoc.data();
+                const newTotalCollected = (runData.totalCollected || 0) + data.total;
+                transaction.update(runRef, { totalCollected: newTotalCollected });
             }
             
             if (data.paymentMethod === 'Credit') {
