@@ -360,12 +360,28 @@ type InitiateTransferResult = {
 
 export async function handleInitiateTransfer(data: any, user: { staff_id: string, name: string }): Promise<InitiateTransferResult> {
     try {
+        let totalRevenue = 0;
+        if (data.is_sales_run && data.items) {
+            const productIds = data.items.map((item: any) => item.productId);
+            if (productIds.length > 0) {
+                const productsQuery = query(collection(db, 'products'), where('__name__', 'in', productIds));
+                const productsSnapshot = await getDocs(productsQuery);
+                const priceMap = new Map(productsSnapshot.docs.map(doc => [doc.id, doc.data().price]));
+                
+                totalRevenue = data.items.reduce((sum: number, item: any) => {
+                    const price = priceMap.get(item.productId) || 0;
+                    return sum + (price * item.quantity);
+                }, 0);
+            }
+        }
+        
         await addDoc(collection(db, "transfers"), {
             ...data,
             from_staff_id: user.staff_id,
             from_staff_name: user.name,
             date: serverTimestamp(),
-            status: 'pending'
+            status: 'pending',
+            totalRevenue: totalRevenue // Store the calculated total revenue
         });
         return { success: true };
     } catch (error) {
@@ -718,13 +734,14 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
 
         const runs = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
             const data = transferDoc.data();
-
-            let totalRevenue = 0;
+            const totalRevenue = data.totalRevenue || 0; // Use stored totalRevenue
+            
+            // Get prices for items that don't have them (for display)
             const itemsWithPrices = await Promise.all(
               (data.items || []).map(async (item: any) => {
+                if (item.price !== undefined) return item;
                 const productDoc = await getDoc(doc(db, 'products', item.productId));
                 const price = productDoc.exists() ? productDoc.data().price : 0;
-                totalRevenue += price * item.quantity;
                 return { ...item, price };
               })
             );
@@ -772,12 +789,14 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
         const querySnapshot = await getDocs(q);
         const runs = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
             const data = transferDoc.data();
-            let totalRevenue = 0;
+            const totalRevenue = data.totalRevenue || 0; // Use stored totalRevenue
+
+             // Get prices for items that don't have them (for display)
             const itemsWithPrices = await Promise.all(
                 (data.items || []).map(async (item: any) => {
+                    if (item.price !== undefined) return item;
                     const productDoc = await getDoc(doc(db, 'products', item.productId));
                     const price = productDoc.exists() ? productDoc.data().price : 0;
-                    totalRevenue += price * item.quantity;
                     return { ...item, price };
                 })
             );
@@ -1465,18 +1484,12 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             
             const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
             let customerRef, runRef;
-            let runData: SalesRun | null = null;
             
             if (isFromSalesRun) {
                 runRef = doc(db, 'transfers', confirmationData.runId);
-                const runDoc = await transaction.get(runRef);
-                if (runDoc.exists()) {
-                    runData = runDoc.data() as SalesRun;
-                }
             }
             if (confirmationData.isDebtPayment && confirmationData.customerId) {
                 customerRef = doc(db, 'customers', confirmationData.customerId);
-                await transaction.get(customerRef);
             }
             
             const newStatus = action === 'approve' ? 'approved' : 'declined';
@@ -1501,18 +1514,21 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                 }
 
-                if (isFromSalesRun && runRef && runData) {
-                    const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
-                    transaction.update(runRef, { totalCollected: newTotalCollected });
-                    
-                    // Auto-complete run if total collected matches total revenue
-                    if (newTotalCollected >= (runData.totalRevenue || 0)) {
-                        transaction.update(runRef, {
-                            status: 'completed',
-                            time_completed: serverTimestamp()
-                        });
+                if (isFromSalesRun && runRef) {
+                    const runDoc = await transaction.get(runRef);
+                    if (runDoc.exists()) {
+                      const runData = runDoc.data();
+                      const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
+                      transaction.update(runRef, { totalCollected: newTotalCollected });
+                      
+                      // Auto-complete run if total collected matches total revenue
+                      if (runData.totalRevenue && newTotalCollected >= runData.totalRevenue) {
+                          transaction.update(runRef, {
+                              status: 'completed',
+                              time_completed: serverTimestamp()
+                          });
+                      }
                     }
-
                 } else if (!isFromSalesRun) {
                      const salesDocId = format(new Date(), 'yyyy-MM-dd');
                     const salesDocRef = doc(db, 'sales', salesDocId);
@@ -2256,12 +2272,14 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
         }
 
         const data = runDoc.data();
-        let totalRevenue = 0;
+        const totalRevenue = data.totalRevenue || 0; // Use stored totalRevenue
+        
+        // Get prices for items that don't have them (for display)
         const itemsWithPrices = await Promise.all(
           (data.items || []).map(async (item: any) => {
+            if (item.price !== undefined) return item;
             const productDoc = await getDoc(doc(db, 'products', item.productId));
             const price = productDoc.exists() ? productDoc.data().price : 0;
-            totalRevenue += price * item.quantity;
             return { ...item, price };
           })
         );
@@ -3042,5 +3060,7 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
+    
 
     
