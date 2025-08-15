@@ -2788,7 +2788,6 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
                 staffId: metadata.staff_id,
                 total: amountPaid,
             };
-            // This is the critical fix: `await` the result of the function call.
             return await handleSellToCustomer(saleData);
         }
         

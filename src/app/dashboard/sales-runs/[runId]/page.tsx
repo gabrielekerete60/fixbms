@@ -967,7 +967,7 @@ function SalesRunDetails() {
       }
     }, []);
 
-    useEffect(() => {
+    const fetchRunData = useCallback(async () => {
         if (!runId) return;
 
         const runDocRef = doc(db, "transfers", runId as string);
@@ -978,10 +978,10 @@ function SalesRunDetails() {
             } else {
                 setRun(null);
             }
-            if (isLoading) setIsLoading(false);
+             if (isLoading) setIsLoading(false);
         }, (error) => {
             console.error("Error fetching run details:", error);
-            setIsLoading(false);
+            if (isLoading) setIsLoading(false);
         });
 
         const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
@@ -1010,24 +1010,14 @@ function SalesRunDetails() {
             unsubscribePaymentConfirmations();
         };
     }, [runId, isLoading]);
-    
-    const handleRefresh = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const runDetails = await getSalesRunDetails(runId as string);
-            setRun(runDetails);
-            const ordersData = await getOrdersForRun(runId as string);
-            setOrders(ordersData.map((o: any) => ({ ...o, date: new Date(o.date) })));
-            const customerDetails = await getCustomersForRun(runId as string);
-            setCustomers(customerDetails);
-            toast({ title: "Refreshed", description: "Sales run data has been updated."});
-        } catch (e) {
-            toast({ variant: "destructive", title: "Error", description: "Could not refresh data." });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [runId, toast]);
 
+    useEffect(() => {
+        const unsubscribePromise = fetchRunData();
+        return () => {
+            unsubscribePromise.then(unsub => unsub && unsub());
+        }
+    }, [fetchRunData]);
+    
     const handleReturnStockAction = async () => {
         if (!run || !user) return;
         const unsold = getRemainingItems();
@@ -1137,7 +1127,7 @@ function SalesRunDetails() {
             <div className="flex items-center justify-between">
                 <Link href="/dashboard/deliveries" className="flex items-center gap-2 text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to Deliveries</Link>
                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+                    <Button variant="outline" size="sm" onClick={() => fetchRunData()} disabled={isLoading}>
                         <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => handlePrint(summaryReceiptRef.current)}>
