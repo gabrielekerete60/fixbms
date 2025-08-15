@@ -967,46 +967,38 @@ function SalesRunDetails() {
       }
     }, []);
 
-    const fetchData = useCallback(async () => {
-        if (!runId) return;
-        setIsLoading(true);
-        try {
-            const runDetails = await getSalesRunDetails(runId as string);
-            setRun(runDetails);
-            
-            const ordersData = await getOrdersForRun(runId as string);
-            setOrders(ordersData.map((o: any) => ({ ...o, date: new Date(o.date) })));
-            
-            const customerDetails = await getCustomersForRun(runId as string);
-            setCustomers(customerDetails);
-        } catch (e) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch run data.' });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [runId, toast]);
-
     useEffect(() => {
         if (!runId) return;
 
-        const unsubscribeRun = onSnapshot(doc(db, "transfers", runId as string), async (docSnap) => {
+        const runDocRef = doc(db, "transfers", runId as string);
+        const unsubscribeRun = onSnapshot(runDocRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const runDetails = await getSalesRunDetails(runId as string);
                 setRun(runDetails);
+                if (isLoading) setIsLoading(false);
+            } else {
+                setRun(null);
+                setIsLoading(false);
             }
+        }, (error) => {
+            console.error("Error fetching run details:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales run data.' });
+            setIsLoading(false);
         });
 
-        const unsubscribeOrders = onSnapshot(query(collection(db, 'orders'), where('salesRunId', '==', runId as string)), async (snapshot) => {
+        const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
+        const unsubscribeOrders = onSnapshot(ordersQuery, async (snapshot) => {
+            const customerDetails = await getCustomersForRun(runId as string);
+            setCustomers(customerDetails);
+            
             const orderDetails = snapshot.docs.map(doc => ({
                 ...doc.data(),
                 id: doc.id,
                 date: (doc.data().date as Timestamp)?.toDate() || new Date()
             } as CompletedOrder)).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setOrders(orderDetails);
-
-            // Re-calculate customer data when orders change
-            const customerDetails = await getCustomersForRun(runId as string);
-            setCustomers(customerDetails);
+        }, (error) => {
+            console.error("Error fetching orders:", error);
         });
         
         const unsubscribePaymentConfirmations = onSnapshot(query(collection(db, 'payment_confirmations'), where('runId', '==', runId as string), where('status', '==', 'pending')), (snapshot) => {
@@ -1019,19 +1011,24 @@ function SalesRunDetails() {
             unsubscribeOrders();
             unsubscribePaymentConfirmations();
         };
-    }, [runId]);
+    }, [runId, toast, isLoading]);
     
     const handleRefresh = useCallback(async () => {
         setIsLoading(true);
         try {
-            await fetchData();
+            const runDetails = await getSalesRunDetails(runId as string);
+            setRun(runDetails);
+            const ordersData = await getOrdersForRun(runId as string);
+            setOrders(ordersData.map((o: any) => ({ ...o, date: new Date(o.date) })));
+            const customerDetails = await getCustomersForRun(runId as string);
+            setCustomers(customerDetails);
             toast({ title: "Refreshed", description: "Sales run data has been updated."});
         } catch (e) {
             toast({ variant: "destructive", title: "Error", description: "Could not refresh data." });
         } finally {
             setIsLoading(false);
         }
-    }, [fetchData, toast]);
+    }, [runId, toast]);
 
     const handleReturnStockAction = async () => {
         if (!run || !user) return;
@@ -1240,25 +1237,17 @@ function SalesRunDetails() {
                     </CardHeader>
                     <CardContent className="flex-grow space-y-4">
                          {(canPerformSales && isRunActive) ? (
-                            <>
-                                <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
-                                <ReportWasteDialog run={run} user={user!} onWasteReported={handleRefresh} remainingItems={remainingItems} />
-                            </>
+                            <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
                         ) : (
-                            <div className="space-y-4">
-                                <Button variant="outline" className="w-full h-20 flex-col gap-1" disabled>
-                                    <User className="h-5 w-5"/>
-                                    <span>Sell to Customer</span>
-                                </Button>
-                                <Button variant="secondary" className="w-full" disabled>
-                                    <Trash className="mr-2 h-5 w-5"/>
-                                    <span>Report Waste</span>
-                                </Button>
-                            </div>
+                            <Button variant="outline" className="w-full h-20 flex-col gap-1" disabled>
+                                <User className="h-5 w-5"/>
+                                <span>Sell to Customer</span>
+                            </Button>
                         )}
                     </CardContent>
                      {isRunActive && canPerformSales && (
                         <CardFooter className="flex-col gap-2">
+                             <ReportWasteDialog run={run} user={user!} onWasteReported={handleRefresh} remainingItems={remainingItems} />
                             {remainingItems.length > 0 && (
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
