@@ -607,6 +607,7 @@ export default function RecipesPage() {
 
     const canApproveBatches = user.role === 'Manager' || user.role === 'Developer' || user.role === 'Storekeeper';
     const canCompleteBatches = user.role === 'Baker' || user.role === 'Chief Baker';
+    const isBaker = user.role === 'Baker' || user.role === 'Chief Baker';
 
     const getStatusVariant = (status: string) => {
         switch(status) {
@@ -690,16 +691,18 @@ export default function RecipesPage() {
                              <div className="flex items-center justify-between gap-4 pt-4">
                                 <CardDescription>A complete audit trail of all recipe and production activities.</CardDescription>
                                 <div className="flex items-center gap-2">
-                                     <Select value={logStaffFilter} onValueChange={setLogStaffFilter}>
-                                        <SelectTrigger className="w-[180px]">
-                                            <SelectValue placeholder="Filter by staff" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {logStaffMembers.map(staff => (
-                                                <SelectItem key={staff} value={staff} className="capitalize">{staff}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                     {!isBaker && (
+                                         <Select value={logStaffFilter} onValueChange={setLogStaffFilter}>
+                                            <SelectTrigger className="w-[180px]">
+                                                <SelectValue placeholder="Filter by staff" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {logStaffMembers.map(staff => (
+                                                    <SelectItem key={staff} value={staff} className="capitalize">{staff}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                     )}
                                     <Select value={logActionFilter} onValueChange={setLogActionFilter}>
                                         <SelectTrigger className="w-[180px]">
                                             <SelectValue placeholder="Filter by action" />
@@ -718,13 +721,13 @@ export default function RecipesPage() {
                                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Staff</TableHead><TableHead>Action</TableHead><TableHead>Details</TableHead><TableHead>View</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                      {filteredLogs.length > 0 ? filteredLogs.map(log => (
-                                        <TableRow key={log.id}>
+                                        <TableRow key={log.id} className="cursor-pointer" onClick={() => setViewingLog(log)}>
                                             <TableCell>{log.timestamp ? format(new Date(log.timestamp), 'Pp') : 'N/A'}</TableCell>
                                             <TableCell>{log.staffName}</TableCell>
                                             <TableCell><Badge>{log.action}</Badge></TableCell>
                                             <TableCell className="max-w-[300px] truncate">{log.details}</TableCell>
                                             <TableCell>
-                                                <Button variant="ghost" size="icon" onClick={() => setViewingLog(log)}>
+                                                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setViewingLog(log); }}>
                                                     <Eye className="h-4 w-4" />
                                                 </Button>
                                             </TableCell>
