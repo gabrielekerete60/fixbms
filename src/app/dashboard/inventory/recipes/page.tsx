@@ -41,6 +41,14 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type User = {
     name: string;
@@ -129,7 +137,8 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
             return;
         }
 
-        const finalItems = producedItems.filter(p => p.productId && p.quantity).map(p => ({ ...p, quantity: Number(p.quantity) }));
+        const finalItems = producedItems.filter(p => p.productId && p.quantity).map(p => ({ ...p, quantity: Number(p.quantity), productName: p.productName || 'Unknown Product' }));
+
 
         if(finalItems.length === 0) {
             toast({ variant: 'destructive', title: 'Error', description: 'Please add at least one produced item.'});
@@ -140,7 +149,9 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
         if(!user) return;
         const result = await completeProductionBatch({
             batchId: batch.id,
-            producedItems: finalItems,
+            productId: 'multi-product', // Placeholder for multi-product batch
+            productName: 'General Production',
+            successfullyProduced: finalItems.reduce((acc, item) => acc + item.quantity, 0),
             wasted: Number(wasted),
             storekeeperId: storekeepers[0].id // Assuming first storekeeper
         }, user);
@@ -309,8 +320,11 @@ function StartProductionDialog({
         const batchData = {
             recipeId: recipe.id,
             recipeName: recipe.name,
+            productId: 'multi-product',
+            productName: 'General Production',
             requestedById: user.staff_id,
             requestedByName: user.name,
+            quantityToProduce: 1, // Represents one batch
             ingredients: recipe.ingredients,
         };
         
