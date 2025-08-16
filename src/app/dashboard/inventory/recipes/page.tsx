@@ -85,7 +85,7 @@ type Recipe = {
   ingredients: RecipeIngredient[];
 };
 
-type ProducedItem = {
+type BatchItem = {
     productId: string;
     productName: string;
     quantity: number | string;
@@ -96,8 +96,8 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [storekeepers, setStorekeepers] = useState<any[]>([]);
-    const [producedItems, setProducedItems] = useState<ProducedItem[]>([{ productId: '', productName: '', quantity: '' }]);
-    const [wasted, setWasted] = useState<number | string>(0);
+    const [producedItems, setProducedItems] = useState<BatchItem[]>([{ productId: '', productName: '', quantity: '' }]);
+    const [wastedItems, setWastedItems] = useState<BatchItem[]>([{ productId: '', productName: '', quantity: '' }]);
     
     useEffect(() => {
         if (isOpen) {
@@ -107,28 +107,36 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
             };
             fetchStorekeepers();
             setProducedItems([{ productId: '', productName: '', quantity: '' }]);
-            setWasted(0);
+            setWastedItems([]);
         }
     }, [isOpen]);
 
-    const handleItemChange = (index: number, field: keyof ProducedItem, value: string) => {
-        const newItems = [...producedItems];
-        if (field === 'productId') {
-            const product = products.find(p => p.id === value);
-            newItems[index].productId = value;
-            newItems[index].productName = product?.name || '';
-        } else {
-            newItems[index].quantity = value;
-        }
-        setProducedItems(newItems);
+    const handleItemChange = (index: number, field: keyof BatchItem, value: string, type: 'produced' | 'wasted') => {
+        const setItems = type === 'produced' ? setProducedItems : setWastedItems;
+        setItems(prevItems => {
+            const newItems = [...prevItems];
+            const currentItem = { ...newItems[index] };
+
+            if (field === 'productId') {
+                const product = products.find(p => p.id === value);
+                currentItem.productId = value;
+                currentItem.productName = product?.name || '';
+            } else {
+                currentItem.quantity = value;
+            }
+            newItems[index] = currentItem;
+            return newItems;
+        });
     }
     
-    const handleAddItem = () => {
-        setProducedItems([...producedItems, { productId: '', productName: '', quantity: '' }]);
+    const handleAddItem = (type: 'produced' | 'wasted') => {
+        const setItems = type === 'produced' ? setProducedItems : setWastedItems;
+        setItems(prev => [...prev, { productId: '', productName: '', quantity: '' }]);
     }
 
-    const handleRemoveItem = (index: number) => {
-        setProducedItems(producedItems.filter((_, i) => i !== index));
+    const handleRemoveItem = (index: number, type: 'produced' | 'wasted') => {
+        const setItems = type === 'produced' ? setProducedItems : setWastedItems;
+        setItems(prev => prev.filter((_, i) => i !== index));
     }
 
 
@@ -138,22 +146,21 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
             return;
         }
 
-        const finalItems = producedItems.filter(p => p.productId && p.quantity).map(p => ({ ...p, quantity: Number(p.quantity), productName: p.productName || 'Unknown Product' }));
+        const finalProducedItems = producedItems.filter(p => p.productId && p.quantity && Number(p.quantity) > 0).map(p => ({ ...p, quantity: Number(p.quantity) }));
+        const finalWastedItems = wastedItems.filter(p => p.productId && p.quantity && Number(p.quantity) > 0).map(p => ({ ...p, quantity: Number(p.quantity) }));
 
-
-        if(finalItems.length === 0) {
+        if(finalProducedItems.length === 0) {
             toast({ variant: 'destructive', title: 'Error', description: 'Please add at least one produced item.'});
             return;
         }
 
         setIsLoading(true);
         if(!user) return;
+        
         const result = await completeProductionBatch({
             batchId: batch.id,
-            productId: 'multi-product', // Placeholder for multi-product batch
-            productName: 'General Production',
-            successfullyProduced: finalItems.reduce((acc, item) => acc + item.quantity, 0),
-            wasted: Number(wasted),
+            producedItems: finalProducedItems,
+            wastedItems: finalWastedItems,
             storekeeperId: storekeepers[0].id // Assuming first storekeeper
         }, user);
 
@@ -166,6 +173,12 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
         }
         setIsLoading(false);
     }
+    
+    const getAvailableProducts = (type: 'produced' | 'wasted', index: number) => {
+        const currentList = type === 'produced' ? producedItems : wastedItems;
+        const selectedIds = new Set(currentList.filter((_, i) => i !== index).map(item => item.productId));
+        return products.filter(p => !selectedIds.has(p.id) && p.category === 'Breads');
+    };
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -179,36 +192,59 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
                      <DialogClose />
                 </DialogHeader>
                 <div className="py-4 space-y-4">
+                    {/* Items Produced Section */}
                     <div className="space-y-2">
                         <Label>Items Produced</Label>
-                        <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                        <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
                             {producedItems.map((item, index) => (
-                                <div key={index} className="grid grid-cols-[1fr_100px_auto] gap-2 items-center">
-                                    <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
+                                <div key={`prod-${index}`} className="grid grid-cols-[1fr_100px_auto] gap-2 items-center">
+                                    <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val, 'produced')}>
                                         <SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger>
                                         <SelectContent>
-                                            {products.filter(p => p.category === 'Breads').map(p => (
+                                            {getAvailableProducts('produced', index).map(p => (
                                                 <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                    <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
-                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
+                                    <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value, 'produced')} />
+                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index, 'produced')}>
                                         <Trash2 className="h-4 w-4 text-destructive" />
                                     </Button>
                                 </div>
                             ))}
                         </div>
-                         <Button variant="outline" size="sm" className="mt-2" onClick={handleAddItem}>
+                         <Button variant="outline" size="sm" className="mt-2" onClick={() => handleAddItem('produced')}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Add Product
                         </Button>
                     </div>
                     <Separator />
-                    <div className="grid gap-2">
-                         <Label htmlFor="wasted">Wasted Dough (grams)</Label>
-                         <Input id="wasted" type="number" value={wasted} onChange={(e) => setWasted(e.target.value)} />
+                    {/* Wasted Products Section */}
+                     <div className="space-y-2">
+                        <Label>Wasted Products (Optional)</Label>
+                         <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                            {wastedItems.map((item, index) => (
+                                <div key={`waste-${index}`} className="grid grid-cols-[1fr_100px_auto] gap-2 items-center">
+                                     <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val, 'wasted')}>
+                                        <SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger>
+                                        <SelectContent>
+                                            {getAvailableProducts('wasted', index).map(p => (
+                                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value, 'wasted')} />
+                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index, 'wasted')}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                        <Button variant="outline" size="sm" className="mt-2" onClick={() => handleAddItem('wasted')}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add Wasted Product
+                        </Button>
                     </div>
-                    <p className="text-sm text-muted-foreground">Completed items will be sent to the main store for acknowledgement. Wasted dough will be logged.</p>
+
+                    <p className="text-sm text-muted-foreground">Completed items will be sent to the main store for acknowledgement. Wasted items will be logged.</p>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>

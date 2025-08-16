@@ -2078,7 +2078,7 @@ export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 's
             status: 'pending_approval',
             createdAt: serverTimestamp()
         });
-        await createProductionLog('Batch Requested', `Requested ${data.quantityToProduce} of ${data.productName} for batch ${newBatchRef.id}`, user);
+        await createProductionLog('Batch Requested', `Requested batch ${newBatchRef.id} for General Production`, user);
         return { success: true };
     } catch (error) {
         console.error("Error starting production batch:", error);
@@ -2167,10 +2167,8 @@ export async function declineProductionBatch(batchId: string, user: { staff_id: 
 
 type CompleteBatchData = {
     batchId: string;
-    productId: string;
-    productName: string;
-    successfullyProduced: number;
-    wasted: number;
+    producedItems: { productId: string, productName: string, quantity: number }[];
+    wastedItems: { productId: string, productName: string, quantity: number }[];
     storekeeperId: string; // ID for the storekeeper role
 }
 
@@ -2183,25 +2181,28 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
             if (!storekeeperDoc.exists()) {
                 throw new Error("Target storekeeper does not exist.");
             }
+            
+            const totalProduced = data.producedItems.reduce((sum, item) => sum + item.quantity, 0);
+            const totalWasted = data.wastedItems.reduce((sum, item) => sum + item.quantity, 0);
 
             transaction.update(batchRef, {
                 status: 'completed',
-                successfullyProduced: data.successfullyProduced,
-                wasted: data.wasted
+                successfullyProduced: totalProduced,
+                wasted: totalWasted
             });
 
-            if (data.successfullyProduced > 0) {
+            if (data.producedItems.length > 0) {
                 const transferRef = doc(collection(db, 'transfers'));
                 transaction.set(transferRef, {
                     from_staff_id: user.staff_id,
                     from_staff_name: user.name,
                     to_staff_id: data.storekeeperId,
                     to_staff_name: storekeeperDoc.data().name,
-                    items: [{
-                        productId: data.productId,
-                        productName: data.productName,
-                        quantity: data.successfullyProduced
-                    }],
+                    items: data.producedItems.map(item => ({
+                        productId: item.productId,
+                        productName: item.productName,
+                        quantity: item.quantity
+                    })),
                     date: serverTimestamp(),
                     status: 'pending',
                     is_sales_run: false,
@@ -2209,23 +2210,25 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
                 });
             }
 
-            if (data.wasted > 0) {
-                const wasteLogRef = doc(collection(db, 'waste_logs'));
-                transaction.set(wasteLogRef, {
-                    productId: data.productId,
-                    productName: data.productName,
-                    productCategory: 'Breads', // TODO: This should be dynamic
-                    quantity: data.wasted,
-                    reason: 'Production Waste',
-                    notes: `From production batch ${data.batchId}`,
-                    staffId: user.staff_id,
-                    staffName: user.name,
-                    date: serverTimestamp()
-                });
+            if (data.wastedItems.length > 0) {
+                for (const item of data.wastedItems) {
+                    const wasteLogRef = doc(collection(db, 'waste_logs'));
+                    transaction.set(wasteLogRef, {
+                        productId: item.productId,
+                        productName: item.productName,
+                        productCategory: 'Breads', // TODO: This should be dynamic
+                        quantity: item.quantity,
+                        reason: 'Production Waste',
+                        notes: `From production batch ${data.batchId}`,
+                        staffId: user.staff_id,
+                        staffName: user.name,
+                        date: serverTimestamp()
+                    });
+                }
             }
         });
         
-        await createProductionLog('Batch Completed', `Completed batch of ${data.productName} with ${data.successfullyProduced} produced and ${data.wasted} wasted: ${data.batchId}`, user);
+        await createProductionLog('Batch Completed', `Completed batch of ${data.batchId} with ${data.producedItems.reduce((s,i) => s+i.quantity,0)} produced items.`, user);
 
         return { success: true };
     } catch (error) {
