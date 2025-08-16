@@ -8,6 +8,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye, Edit, Rocket, CookingPot, CalendarIcon } from "lucide-react";
