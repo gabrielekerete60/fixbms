@@ -19,16 +19,16 @@ const generateRandomDate = (startDaysAgo: number, endDaysAgo: number): Timestamp
 };
 
 const productsData = [
-    { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 500, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300, lowStockThreshold: 50 },
-    { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 300, category: 'Breads', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250, lowStockThreshold: 50 },
-    { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 250, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500, lowStockThreshold: 25 },
-    { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 400, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280, lowStockThreshold: 40 },
-    { id: "prod_5", name: "Croissant", price: 400.00, stock: 600, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'croissant pastry', costPrice: 220, lowStockThreshold: 60 },
-    { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 450, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350, lowStockThreshold: 45 },
-    { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 1000, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200, lowStockThreshold: 100 },
-    { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 1500, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100, lowStockThreshold: 150 },
-    { id: "prod_9", name: "Fanta (50cl)", price: 300.00, stock: 800, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'fanta drink', costPrice: 200, lowStockThreshold: 80 },
-    { id: "prod_10", name: "Freshyo", price: 700.00, stock: 600, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550, lowStockThreshold: 60 },
+    { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300, lowStockThreshold: 50 },
+    { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 0, category: 'Breads', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250, lowStockThreshold: 50 },
+    { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500, lowStockThreshold: 25 },
+    { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280, lowStockThreshold: 40 },
+    { id: "prod_5", name: "Croissant", price: 400.00, stock: 0, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'croissant pastry', costPrice: 220, lowStockThreshold: 60 },
+    { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 0, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350, lowStockThreshold: 45 },
+    { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200, lowStockThreshold: 100 },
+    { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100, lowStockThreshold: 150 },
+    { id: "prod_9", name: "Fanta (50cl)", price: 300.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'fanta drink', costPrice: 200, lowStockThreshold: 80 },
+    { id: "prod_10", name: "Freshyo", price: 700.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550, lowStockThreshold: 60 },
 ];
 
 const staffData = [
@@ -50,6 +50,22 @@ const staffData = [
     { staff_id: '800002', name: 'Nsikak Udo Essiet', email: 'nsikak.essiet@example.com', password: 'SecurityPass2!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "U.B.A", account_number: "2304484777", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '800003', name: 'Aniefon Udo Bassey', email: 'aniefon.bassey@example.com', password: 'SecurityPass3!', role: 'Security', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "First Bank", account_number: "3090572411", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '000000', name: 'Gabriel Developer', email: 'gabriel.dev@example.com', password: 'DevPassword1!', role: 'Developer', is_active: true, pay_type: 'Salary', pay_rate: 500000, bank_name: "Kuda Bank", account_number: "8901234567", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+];
+
+const ingredientsData = [
+    { id: "ing_1", name: "Flour", stock: 100000, unit: 'g', costPerUnit: 15, expiryDate: null, lowStockThreshold: 10000 },
+    { id: "ing_2", name: "Sugar", stock: 10000, unit: 'g', costPerUnit: 20, expiryDate: null, lowStockThreshold: 1000 },
+    { id: "ing_3", name: "Salt", stock: 5000, unit: 'g', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
+    { id: "ing_4", name: "Yeast", stock: 2000, unit: 'g', costPerUnit: 50, expiryDate: null, lowStockThreshold: 200 },
+    { id: "ing_5", name: "Preservative", stock: 1000, unit: 'g', costPerUnit: 100, expiryDate: null, lowStockThreshold: 100 },
+    { id: "ing_6", name: "Tin Milk", stock: 100, unit: 'pcs', costPerUnit: 500, expiryDate: null, lowStockThreshold: 10 },
+    { id: "ing_7", name: "Butter", stock: 10000, unit: 'g', costPerUnit: 30, expiryDate: null, lowStockThreshold: 1000 },
+    { id: "ing_8", name: "Butterscotch Flavor", stock: 500, unit: 'g', costPerUnit: 80, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_9", name: "Zeast Flavor", stock: 500, unit: 'g', costPerUnit: 70, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_10", name: "Lux Essence", stock: 500, unit: 'g', costPerUnit: 90, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_11", name: "Eggs", stock: 200, unit: 'pcs', costPerUnit: 50, expiryDate: null, lowStockThreshold: 24 },
+    { id: "ing_12", name: "Water", stock: 50000, unit: 'ml', costPerUnit: 0.1, expiryDate: null, lowStockThreshold: 5000 },
+    { id: "ing_13", name: "Vegetable Oil", stock: 5000, unit: 'ml', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
 ];
 
 const recipesData = [
@@ -235,21 +251,7 @@ export async function seedProductsAndIngredients(): Promise<ActionResult> {
      try {
         await batchCommit(productsData, "products");
         await batchCommit(recipesData, "recipes");
-        await batchCommit([
-            { id: "ing_1", name: "Flour", stock: 100000, unit: 'g', costPerUnit: 15, expiryDate: null, lowStockThreshold: 10000 },
-            { id: "ing_2", name: "Sugar", stock: 10000, unit: 'g', costPerUnit: 20, expiryDate: null, lowStockThreshold: 1000 },
-            { id: "ing_3", name: "Salt", stock: 5000, unit: 'g', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
-            { id: "ing_4", name: "Yeast", stock: 2000, unit: 'g', costPerUnit: 50, expiryDate: null, lowStockThreshold: 200 },
-            { id: "ing_5", name: "Preservative", stock: 1000, unit: 'g', costPerUnit: 100, expiryDate: null, lowStockThreshold: 100 },
-            { id: "ing_6", name: "Tin Milk", stock: 100, unit: 'pcs', costPerUnit: 500, expiryDate: null, lowStockThreshold: 10 },
-            { id: "ing_7", name: "Butter", stock: 10000, unit: 'g', costPerUnit: 30, expiryDate: null, lowStockThreshold: 1000 },
-            { id: "ing_8", name: "Butterscotch Flavor", stock: 500, unit: 'g', costPerUnit: 80, expiryDate: null, lowStockThreshold: 50 },
-            { id: "ing_9", name: "Zeast Flavor", stock: 500, unit: 'g', costPerUnit: 70, expiryDate: null, lowStockThreshold: 50 },
-            { id: "ing_10", name: "Lux Essence", stock: 500, unit: 'g', costPerUnit: 90, expiryDate: null, lowStockThreshold: 50 },
-            { id: "ing_11", name: "Eggs", stock: 200, unit: 'pcs', costPerUnit: 50, expiryDate: null, lowStockThreshold: 24 },
-            { id: "ing_12", name: "Water", stock: 50000, unit: 'ml', costPerUnit: 0.1, expiryDate: null, lowStockThreshold: 5000 },
-            { id: "ing_13", name: "Vegetable Oil", stock: 5000, unit: 'ml', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
-        ], "ingredients");
+        await batchCommit(ingredientsData, "ingredients");
         await batchCommit([
             { id: "cat_1", name: 'Flour', type: 'direct' },
             { id: 'cat_2', name: 'Sugar', type: 'direct' },
@@ -326,7 +328,7 @@ export async function seedOperationalData(): Promise<ActionResult> {
         }), "orders");
         
         await batchCommit(Array.from({ length: 10 }, (_, i) => ({ id: `waste_${i + 1}`, productId: `prod_${(i % 10) + 1}`, productName: productsData[i % 10].name, productCategory: productsData[i % 10].category, quantity: Math.floor(Math.random() * 5) + 1, reason: ['Spoiled', 'Damaged', 'Burnt', 'Error'][i % 4], notes: 'Generated seed data', date: generateRandomDate(0, 30), staffId: `500002`, staffName: `Mary Felix Ating` })), "waste_logs");
-        await batchCommit(Array.from({ length: 10 }, (_, i) => ({ id: `batch_${i + 1}`, recipeId: `rec_${(i % 2) + 1}`, recipeName: recipesData[i % 2].name, productId: recipesData[i % 2].productId, productName: recipesData[i % 2].productName, requestedById: '300001', requestedByName: 'MR Bassey OFFIONG', quantityToProduce: Math.floor(Math.random() * 50) + 20, status: i < 2 ? 'pending_approval' : (i < 4 ? 'in_production' : 'completed'), createdAt: generateRandomDate(0, 30), approvedAt: generateRandomDate(0, 30), successfullyProduced: Math.floor(Math.random() * 45) + 15, wasted: Math.floor(Math.random() * 5), ingredients: recipesData[i % 2].ingredients })), "production_batches");
+        await batchCommit(Array.from({ length: 5 }, (_, i) => ({ id: `batch_${i + 1}`, recipeId: `rec_general`, recipeName: 'General Bread Production', productId: 'multi-product', productName: 'General Production', requestedById: '300001', requestedByName: 'MR Bassey OFFIONG', quantityToProduce: 1, status: i < 2 ? 'pending_approval' : (i < 4 ? 'in_production' : 'completed'), createdAt: generateRandomDate(0, 30), approvedAt: generateRandomDate(0, 30), successfullyProduced: Math.floor(Math.random() * 45) + 15, wasted: Math.floor(Math.random() * 5), ingredients: recipesData[0].ingredients })), "production_batches");
         return { success: true };
     } catch(e) { return { success: false, error: (e as Error).message } }
 }
