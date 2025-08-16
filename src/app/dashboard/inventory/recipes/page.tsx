@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye, Edit, Rocket, CookingPot } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye, Edit, Rocket, CookingPot, CalendarIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -40,16 +40,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getProducts, getIngredients, getStaffByRole, getProductionBatch } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DateRange } from "react-day-picker";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 type User = {
     name: string;
@@ -91,13 +88,85 @@ type BatchItem = {
     quantity: number | string;
 }
 
+function PaginationControls({
+    visibleRows,
+    setVisibleRows,
+    totalRows
+}: {
+    visibleRows: number | 'all',
+    setVisibleRows: (val: number | 'all') => void,
+    totalRows: number
+}) {
+    const [inputValue, setInputValue] = useState<string>('');
+
+    const handleApply = () => {
+        const num = parseInt(inputValue, 10);
+        if (!isNaN(num) && num > 0) {
+            setVisibleRows(num);
+        }
+    };
+
+    return (
+        <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+            <span>Show:</span>
+            <Button variant={visibleRows === 10 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(10)}>10</Button>
+            <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
+            <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
+            <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
+             <div className="flex items-center gap-1">
+                <Input 
+                    type="number" 
+                    className="h-8 w-16" 
+                    placeholder="Custom"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleApply()}
+                />
+                <Button size="sm" onClick={handleApply}>Apply</Button>
+            </div>
+        </div>
+    )
+}
+
+function DateRangeFilter({ date, setDate, align = 'end' }: { date: DateRange | undefined, setDate: (date: DateRange | undefined) => void, align?: "start" | "center" | "end" }) {
+    const [tempDate, setTempDate] = useState<DateRange | undefined>(date);
+    const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => {
+        setTempDate(date);
+    }, [date]);
+
+    const handleApply = () => {
+        setDate(tempDate);
+        setIsOpen(false);
+    }
+
+    return (
+         <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <PopoverTrigger asChild>
+                <Button id="date" variant={"outline"} className={cn("w-full sm:w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Filter by date range</span>)}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align={align}>
+                <Calendar initialFocus mode="range" defaultMonth={tempDate?.from} selected={tempDate} onSelect={setTempDate} numberOfMonths={2}/>
+                <div className="p-2 border-t flex justify-end">
+                    <Button onClick={handleApply}>Apply</Button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    )
+}
+
+
 function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batch: ProductionBatch, user: User, onBatchCompleted: () => void, products: Product[] }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [storekeepers, setStorekeepers] = useState<any[]>([]);
     const [producedItems, setProducedItems] = useState<BatchItem[]>([{ productId: '', productName: '', quantity: '' }]);
-    const [wastedItems, setWastedItems] = useState<BatchItem[]>([{ productId: '', productName: '', quantity: '' }]);
+    const [wastedItems, setWastedItems] = useState<BatchItem[]>([]);
     
     useEffect(() => {
         if (isOpen) {
@@ -517,6 +586,8 @@ export default function RecipesPage() {
     
     const [logActionFilter, setLogActionFilter] = useState('all');
     const [logStaffFilter, setLogStaffFilter] = useState('all');
+    const [logDate, setLogDate] = useState<DateRange | undefined>();
+    const [visibleLogRows, setVisibleLogRows] = useState<number | 'all'>(10);
 
     const fetchStaticData = useCallback(async () => {
         setIsLoading(true);
@@ -597,9 +668,21 @@ export default function RecipesPage() {
         return productionLogs.filter(log => {
             const staffMatch = logStaffFilter === 'all' || log.staffName === logStaffFilter;
             const actionMatch = logActionFilter === 'all' || log.action === logActionFilter;
-            return staffMatch && actionMatch;
+            
+            let dateMatch = true;
+            if (logDate?.from) {
+                const from = startOfDay(logDate.from);
+                const to = logDate.to ? endOfDay(logDate.to) : endOfDay(logDate.from);
+                const logTimestamp = new Date(log.timestamp);
+                dateMatch = logTimestamp >= from && logTimestamp <= to;
+            }
+            return staffMatch && actionMatch && dateMatch;
         });
-    }, [productionLogs, logStaffFilter, logActionFilter]);
+    }, [productionLogs, logStaffFilter, logActionFilter, logDate]);
+
+    const paginatedLogs = useMemo(() => {
+        return visibleLogRows === 'all' ? filteredLogs : filteredLogs.slice(0, visibleLogRows);
+    }, [filteredLogs, visibleLogRows]);
     
     if (!user) {
          return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
@@ -664,7 +747,7 @@ export default function RecipesPage() {
                                 <TableHeader><TableRow><TableHead>Time Started</TableHead><TableHead>Recipe</TableHead><TableHead>Requested By</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                      {productionBatches.length > 0 ? productionBatches.map(batch => (
-                                        <TableRow key={batch.id}>
+                                        <TableRow key={batch.id} onClick={() => { if(!isBaker) setViewingLog({ action: 'Batch Details', details: `Details for batch ${batch.id}`, staffId: batch.requestedById, staffName: batch.requestedByName, timestamp: batch.createdAt, id: batch.id })}} className={cn(!isBaker && "cursor-pointer")}>
                                             <TableCell>{batch.approvedAt ? format(new Date(batch.approvedAt), 'Pp') : format(new Date(batch.createdAt), 'Pp')}</TableCell>
                                             <TableCell>{batch.recipeName}</TableCell>
                                             <TableCell>{batch.requestedByName}</TableCell>
@@ -688,12 +771,12 @@ export default function RecipesPage() {
                      <Card>
                         <CardHeader>
                             <CardTitle>Production Logs</CardTitle>
-                             <div className="flex items-center justify-between gap-4 pt-4">
+                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pt-4">
                                 <CardDescription>A complete audit trail of all recipe and production activities.</CardDescription>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                      {!isBaker && (
                                          <Select value={logStaffFilter} onValueChange={setLogStaffFilter}>
-                                            <SelectTrigger className="w-[180px]">
+                                            <SelectTrigger className="w-full sm:w-[180px]">
                                                 <SelectValue placeholder="Filter by staff" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -704,7 +787,7 @@ export default function RecipesPage() {
                                         </Select>
                                      )}
                                     <Select value={logActionFilter} onValueChange={setLogActionFilter}>
-                                        <SelectTrigger className="w-[180px]">
+                                        <SelectTrigger className="w-full sm:w-[180px]">
                                             <SelectValue placeholder="Filter by action" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -713,6 +796,7 @@ export default function RecipesPage() {
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    <DateRangeFilter date={logDate} setDate={setLogDate} />
                                 </div>
                             </div>
                         </CardHeader>
@@ -720,7 +804,7 @@ export default function RecipesPage() {
                              <Table>
                                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Staff</TableHead><TableHead>Action</TableHead><TableHead>Details</TableHead><TableHead>View</TableHead></TableRow></TableHeader>
                                 <TableBody>
-                                     {filteredLogs.length > 0 ? filteredLogs.map(log => (
+                                     {paginatedLogs.length > 0 ? paginatedLogs.map(log => (
                                         <TableRow key={log.id} className="cursor-pointer" onClick={() => setViewingLog(log)}>
                                             <TableCell>{log.timestamp ? format(new Date(log.timestamp), 'Pp') : 'N/A'}</TableCell>
                                             <TableCell>{log.staffName}</TableCell>
@@ -736,6 +820,9 @@ export default function RecipesPage() {
                                 </TableBody>
                             </Table>
                         </CardContent>
+                        <CardFooter>
+                            <PaginationControls visibleRows={visibleLogRows} setVisibleRows={setVisibleLogRows} totalRows={filteredLogs.length} />
+                        </CardFooter>
                     </Card>
                 </TabsContent>
             </Tabs>

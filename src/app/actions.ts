@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour, startOfYear as dateFnsStartOfYear } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour, startOfYear as dateFnsStartOfYear } from "date-fns";
 import { db } from "@/lib/firebase";
 import { randomUUID } from 'crypto';
 import speakeasy from 'speakeasy';
@@ -580,8 +580,6 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
     const now = new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-    const weekStartTimestamp = Timestamp.fromDate(weekStart);
-    const weekEndTimestamp = Timestamp.fromDate(weekEnd);
 
     try {
         const activeBatchesQuery = query(collection(db, 'production_batches'), where('status', 'in', ['in_production', 'pending_approval']));
@@ -590,8 +588,8 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
         const recentCompletedQuery = query(
             collection(db, 'production_batches'),
             where('status', '==', 'completed'),
-            where('approvedAt', '>=', weekStartTimestamp),
-            where('approvedAt', '<=', weekEndTimestamp)
+            where('completedAt', '>=', Timestamp.fromDate(weekStart)),
+            where('completedAt', '<=', Timestamp.fromDate(weekEnd))
         );
         const recentCompletedSnapshot = await getDocs(recentCompletedQuery);
         
@@ -606,10 +604,10 @@ export async function getBakerDashboardStats(): Promise<BakerDashboardStats> {
             const produced = batch.successfullyProduced || 0;
             producedThisWeek += produced;
 
-            if (batch.approvedAt) {
-                const approvedDate = (batch.approvedAt as Timestamp).toDate();
-                 if (approvedDate >= weekStart) {
-                    const dayOfWeek = format(approvedDate, 'E');
+            if (batch.completedAt) {
+                const completedDate = (batch.completedAt as Timestamp).toDate();
+                 if (completedDate >= weekStart) {
+                    const dayOfWeek = format(completedDate, 'E');
                     const index = weeklyProductionData.findIndex(d => d.day === dayOfWeek);
                     if (index !== -1) {
                         weeklyProductionData[index].quantity += produced;
@@ -2018,6 +2016,7 @@ export type ProductionBatch = {
     status: 'pending_approval' | 'in_production' | 'completed' | 'declined';
     createdAt: string; 
     approvedAt?: string;
+    completedAt?: string;
     ingredients: { 
         ingredientId: string; 
         quantity: number; 
@@ -2191,7 +2190,8 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
             transaction.update(batchRef, {
                 status: 'completed',
                 successfullyProduced: totalProduced,
-                wasted: totalWasted
+                wasted: totalWasted,
+                completedAt: serverTimestamp(), // Add completed timestamp
             });
 
             if (data.producedItems.length > 0) {
