@@ -8,26 +8,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye, Edit, Rocket } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from "@/components/ui/dropdown-menu";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye, Edit, Rocket, CookingPot } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +18,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
 import {
@@ -47,12 +29,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { collection, onSnapshot, query, orderBy, where, doc, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, where, doc, addDoc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -93,192 +73,21 @@ type Recipe = {
   id: string;
   name: string;
   description: string;
-  productId: string;
-  productName: string;
   ingredients: RecipeIngredient[];
 };
 
-// This is a client-side helper to call the server actions for recipe CRUD
-async function saveRecipe(recipeData: Omit<Recipe, 'id'>, user: User, recipeId?: string) {
-    if (!user) {
-        throw new Error("User not authenticated.");
-    }
-    
-    try {
-        if (recipeId) {
-            await updateDoc(doc(db, "recipes", recipeId), recipeData);
-            await createProductionLog('Recipe Updated', `Updated recipe: ${recipeData.name}`, user);
-        } else {
-            const newRecipeRef = doc(collection(db, "recipes"));
-            await setDoc(newRecipeRef, { ...recipeData, id: newRecipeRef.id });
-             await createProductionLog('Recipe Created', `Created new recipe: ${recipeData.name}`, user);
-        }
-        return { success: true };
-    } catch (error) {
-        console.error("Error saving recipe:", error);
-        return { success: false, error: "Could not save recipe." };
-    }
+type ProducedItem = {
+    productId: string;
+    productName: string;
+    quantity: number | string;
 }
 
-async function createProductionLog(action: string, details: string, user: User) {
-    await addDoc(collection(db, "production_logs"), {
-        action,
-        details,
-        staffId: user.staff_id,
-        staffName: user.name,
-        timestamp: new Date()
-    });
-}
-
-
-function RecipeDialog({
-  isOpen,
-  onOpenChange,
-  recipe,
-  products,
-  ingredients: allIngredients,
-  user
-}: {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  recipe: Partial<Recipe> | null;
-  products: Product[];
-  ingredients: Ingredient[];
-  user: User;
-}) {
-    const { toast } = useToast();
-    const [name, setName] = useState("");
-    const [description, setDescription] = useState("");
-    const [selectedProductId, setSelectedProductId] = useState("");
-    const [recipeIngredients, setRecipeIngredients] = useState<RecipeIngredient[]>([]);
-
-    useEffect(() => {
-        if (recipe) {
-            setName(recipe.name || "");
-            setDescription(recipe.description || "");
-            setSelectedProductId(recipe.productId || "");
-            setRecipeIngredients(recipe.ingredients || []);
-        } else {
-            setName("");
-            setDescription("");
-            setSelectedProductId("");
-            setRecipeIngredients([]);
-        }
-    }, [recipe]);
-
-    const handleAddIngredient = () => {
-        setRecipeIngredients([...recipeIngredients, { ingredientId: '', ingredientName: '', quantity: 1, unit: 'g' }]);
-    };
-
-    const handleRemoveIngredient = (index: number) => {
-        setRecipeIngredients(recipeIngredients.filter((_, i) => i !== index));
-    };
-
-    const handleIngredientChange = (index: number, field: keyof RecipeIngredient, value: string | number) => {
-        const newIngredients = [...recipeIngredients];
-        if (field === 'ingredientId') {
-            const ingredient = allIngredients.find(i => i.id === value);
-            newIngredients[index].ingredientId = value as string;
-            newIngredients[index].ingredientName = ingredient?.name || '';
-            newIngredients[index].unit = ingredient?.unit || '';
-        } else if (field === 'quantity') {
-            newIngredients[index].quantity = Number(value);
-        } else {
-            newIngredients[index][field as 'unit' | 'ingredientName'] = value as string;
-        }
-        setRecipeIngredients(newIngredients);
-    };
-
-    const handleSubmit = async () => {
-        if (!name || !selectedProductId || recipeIngredients.some(i => !i.ingredientId)) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Recipe name, product, and all ingredients must be filled.' });
-            return;
-        }
-        const selectedProduct = products.find(p => p.id === selectedProductId);
-        if (!user) return;
-
-        const result = await saveRecipe({ 
-            name, 
-            description, 
-            productId: selectedProductId,
-            productName: selectedProduct?.name || '',
-            ingredients: recipeIngredients,
-        }, user, recipe?.id);
-
-        if (result.success) {
-            toast({ title: "Success", description: "Recipe saved successfully." });
-            onOpenChange(false);
-        } else {
-            toast({ variant: "destructive", title: "Error", description: result.error });
-        }
-    };
-    
-    return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                    <DialogTitle>{recipe?.id ? 'Edit Recipe' : 'Add New Recipe'}</DialogTitle>
-                     <DialogClose />
-                </DialogHeader>
-                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="name">Recipe Name</Label>
-                        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
-                    </div>
-                     <div className="grid gap-2">
-                        <Label htmlFor="product">Product</Label>
-                         <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-                            <SelectTrigger><SelectValue placeholder="Select product this recipe makes" /></SelectTrigger>
-                            <SelectContent>
-                                {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="description">Description</Label>
-                        <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
-                    </div>
-                    <div>
-                        <Label className="mb-2 block">Ingredients</Label>
-                        <div className="space-y-3">
-                            {recipeIngredients.map((ing, index) => (
-                                <div key={index} className="grid grid-cols-[1fr_100px_100px_auto] gap-2 items-center">
-                                    <Select value={ing.ingredientId} onValueChange={(val) => handleIngredientChange(index, 'ingredientId', val)}>
-                                        <SelectTrigger><SelectValue placeholder="Select ingredient" /></SelectTrigger>
-                                        <SelectContent>
-                                            {allIngredients.map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    <Input type="number" placeholder="Qty" value={ing.quantity} onChange={(e) => handleIngredientChange(index, 'quantity', e.target.value)} />
-                                    <Input placeholder="Unit" value={ing.unit} readOnly />
-                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveIngredient(index)}>
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
-                        <Button variant="outline" size="sm" className="mt-4" onClick={handleAddIngredient}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Add Ingredient
-                        </Button>
-                    </div>
-                </div>
-                <DialogFooter className="justify-between">
-                    <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                        <Button onClick={handleSubmit}>{recipe?.id ? 'Save Changes' : 'Create Recipe'}</Button>
-                    </div>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-function CompleteBatchDialog({ batch, user, onBatchCompleted }: { batch: ProductionBatch, user: User, onBatchCompleted: () => void }) {
+function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batch: ProductionBatch, user: User, onBatchCompleted: () => void, products: Product[] }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [storekeepers, setStorekeepers] = useState<any[]>([]);
-    const [successfullyProduced, setSuccessfullyProduced] = useState<number | string>(batch.quantityToProduce);
+    const [producedItems, setProducedItems] = useState<ProducedItem[]>([{ productId: '', productName: '', quantity: '' }]);
     const [wasted, setWasted] = useState<number | string>(0);
     
     useEffect(() => {
@@ -288,60 +97,30 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted }: { batch: Product
                 setStorekeepers(staff);
             };
             fetchStorekeepers();
-            setSuccessfullyProduced(batch.quantityToProduce);
+            setProducedItems([{ productId: '', productName: '', quantity: '' }]);
             setWasted(0);
         }
-    }, [isOpen, batch.quantityToProduce]);
+    }, [isOpen]);
 
-    const handleProducedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        if (value === '') {
-            setSuccessfullyProduced('');
-            return;
+    const handleItemChange = (index: number, field: keyof ProducedItem, value: string) => {
+        const newItems = [...producedItems];
+        if (field === 'productId') {
+            const product = products.find(p => p.id === value);
+            newItems[index].productId = value;
+            newItems[index].productName = product?.name || '';
+        } else {
+            newItems[index].quantity = value;
         }
+        setProducedItems(newItems);
+    }
+    
+    const handleAddItem = () => {
+        setProducedItems([...producedItems, { productId: '', productName: '', quantity: '' }]);
+    }
 
-        let produced = Number(value);
-        if (isNaN(produced) || produced < 0) {
-             setSuccessfullyProduced(0);
-             return;
-        }
-
-        if (produced > batch.quantityToProduce) {
-            produced = batch.quantityToProduce;
-            toast({ variant: 'destructive', title: 'Error', description: `Cannot produce more than the requested quantity of ${batch.quantityToProduce}.` });
-        }
-
-        setSuccessfullyProduced(produced);
-        const wastedQty = batch.quantityToProduce - produced;
-        if (!isNaN(wastedQty) && wastedQty >= 0) {
-            setWasted(wastedQty);
-        }
-    };
-
-    const handleWastedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-         if (value === '') {
-            setWasted('');
-            return;
-        }
-
-        let wastedQty = Number(value);
-        if (isNaN(wastedQty) || wastedQty < 0) {
-            setWasted(0);
-            return;
-        }
-        
-        if (wastedQty > batch.quantityToProduce) {
-            wastedQty = batch.quantityToProduce;
-             toast({ variant: 'destructive', title: 'Error', description: `Cannot waste more than the requested quantity of ${batch.quantityToProduce}.` });
-        }
-
-        setWasted(wastedQty);
-        const produced = batch.quantityToProduce - wastedQty;
-        if (!isNaN(produced) && produced >= 0) {
-            setSuccessfullyProduced(produced);
-        }
-    };
+    const handleRemoveItem = (index: number) => {
+        setProducedItems(producedItems.filter((_, i) => i !== index));
+    }
 
 
     const handleComplete = async () => {
@@ -350,14 +129,10 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted }: { batch: Product
             return;
         }
 
-        const produced = Number(successfullyProduced);
-        const wastedQty = Number(wasted);
-        if (isNaN(produced) || isNaN(wastedQty) || produced < 0 || wastedQty < 0) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please enter valid numbers for produced and wasted quantities.'});
-            return;
-        }
-        if ((produced + wastedQty) > batch.quantityToProduce) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Produced + Wasted cannot be greater than the quantity requested.'});
+        const finalItems = producedItems.filter(p => p.productId && p.quantity).map(p => ({ ...p, quantity: Number(p.quantity) }));
+
+        if(finalItems.length === 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please add at least one produced item.'});
             return;
         }
 
@@ -365,10 +140,8 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted }: { batch: Product
         if(!user) return;
         const result = await completeProductionBatch({
             batchId: batch.id,
-            productId: batch.productId,
-            productName: batch.productName,
-            successfullyProduced: produced,
-            wasted: wastedQty,
+            producedItems: finalItems,
+            wasted: Number(wasted),
             storekeeperId: storekeepers[0].id // Assuming first storekeeper
         }, user);
 
@@ -385,26 +158,45 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted }: { batch: Product
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild><Button size="sm">Complete Batch</Button></DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Complete Production Batch</DialogTitle>
                     <DialogDescription>
-                        Enter the final counts for <strong>{batch.quantityToProduce} x {batch.productName}</strong>.
+                        Enter the final counts for batch <strong>{batch.id.substring(0,6)}...</strong>.
                     </DialogDescription>
                      <DialogClose />
                 </DialogHeader>
                 <div className="py-4 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                             <Label htmlFor="produced">Successfully Produced</Label>
-                             <Input id="produced" type="number" value={successfullyProduced} onChange={handleProducedChange} />
+                    <div className="space-y-2">
+                        <Label>Items Produced</Label>
+                        <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                            {producedItems.map((item, index) => (
+                                <div key={index} className="grid grid-cols-[1fr_100px_auto] gap-2 items-center">
+                                    <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
+                                        <SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger>
+                                        <SelectContent>
+                                            {products.filter(p => p.category === 'Breads').map(p => (
+                                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
+                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                </div>
+                            ))}
                         </div>
-                        <div className="grid gap-2">
-                             <Label htmlFor="wasted">Wasted / Damaged</Label>
-                             <Input id="wasted" type="number" value={wasted} onChange={handleWastedChange} />
-                        </div>
+                         <Button variant="outline" size="sm" className="mt-2" onClick={handleAddItem}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add Product
+                        </Button>
                     </div>
-                    <p className="text-sm text-muted-foreground">Completed items will be sent to the main store for acknowledgement. Wasted items will be logged.</p>
+                    <Separator />
+                    <div className="grid gap-2">
+                         <Label htmlFor="wasted">Wasted Dough (grams)</Label>
+                         <Input id="wasted" type="number" value={wasted} onChange={(e) => setWasted(e.target.value)} />
+                    </div>
+                    <p className="text-sm text-muted-foreground">Completed items will be sent to the main store for acknowledgement. Wasted dough will be logged.</p>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
@@ -504,18 +296,11 @@ function StartProductionDialog({
     user: User | null;
 }) {
     const { toast } = useToast();
-    const [quantity, setQuantity] = useState<number | string>(1);
     const [isLoading, setIsLoading] = useState(false);
     
-    useEffect(() => {
-        if (isOpen) {
-            setQuantity(1);
-        }
-    }, [isOpen]);
-
     const handleStartProduction = async () => {
-        if (!recipe || !user || !quantity || Number(quantity) <= 0) {
-            toast({ variant: 'destructive', title: 'Invalid input', description: 'Please enter a valid quantity.' });
+        if (!recipe || !user) {
+            toast({ variant: 'destructive', title: 'Invalid input', description: 'Recipe or user not found.' });
             return;
         }
         
@@ -524,11 +309,8 @@ function StartProductionDialog({
         const batchData = {
             recipeId: recipe.id,
             recipeName: recipe.name,
-            productId: recipe.productId,
-            productName: recipe.productName,
             requestedById: user.staff_id,
             requestedByName: user.name,
-            quantityToProduce: Number(quantity),
             ingredients: recipe.ingredients,
         };
         
@@ -550,19 +332,23 @@ function StartProductionDialog({
                 <DialogHeader>
                     <DialogTitle>Start Production: {recipe.name}</DialogTitle>
                     <DialogDescription>
-                        Enter the quantity of "{recipe.productName}" you want to produce. This will send an ingredient request to the storekeeper.
+                        This will send a request for the standard set of ingredients to the storekeeper.
                     </DialogDescription>
                      <DialogClose />
                 </DialogHeader>
-                 <div className="py-4">
-                    <Label htmlFor="quantity-to-produce">Quantity to Produce</Label>
-                    <Input 
-                        id="quantity-to-produce"
-                        type="number"
-                        value={quantity}
-                        onChange={(e) => setQuantity(e.target.value)}
-                        min="1"
-                    />
+                 <div className="py-4 max-h-80 overflow-y-auto">
+                    <Label>Ingredients to be Requested</Label>
+                     <Table>
+                        <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead className="text-right">Quantity</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {recipe.ingredients.map(ing => (
+                                <TableRow key={ing.ingredientId}>
+                                    <TableCell>{ing.ingredientName}</TableCell>
+                                    <TableCell className="text-right">{ing.quantity} {ing.unit}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                     </Table>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -626,7 +412,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
                     <DialogTitle>Approve Production Batch?</DialogTitle>
                     <DialogDescription>
                         Batch ID: {batch.id.substring(0,6)}...<br/>
-                        Request for <strong>{batch.quantityToProduce} x {batch.productName}</strong>. This will deduct ingredients from inventory.
+                        Request for <strong>{batch.recipeName}</strong>. This will deduct ingredients from inventory.
                     </DialogDescription>
                     <DialogClose />
                 </DialogHeader>
@@ -666,7 +452,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
 export default function RecipesPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
-    const [recipes, setRecipes] = useState<Recipe[]>([]);
+    const [generalRecipe, setGeneralRecipe] = useState<Recipe | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     
@@ -675,11 +461,7 @@ export default function RecipesPage() {
     const [productionLogs, setProductionLogs] = useState<ProductionLog[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
-    const [editingRecipe, setEditingRecipe] = useState<Partial<Recipe> | null>(null);
-    const [recipeToProduce, setRecipeToProduce] = useState<Recipe | null>(null);
-    const [isRecipeDialogOpen, setIsRecipeDialogOpen] = useState(false);
     const [isProductionDialogOpen, setIsProductionDialogOpen] = useState(false);
-    const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
     const [viewingLog, setViewingLog] = useState<ProductionLog | null>(null);
     
     const [logActionFilter, setLogActionFilter] = useState('all');
@@ -694,7 +476,7 @@ export default function RecipesPage() {
                 getIngredients(),
             ]);
 
-            setRecipes(recipeData.map((r: any) => ({ ...r, ingredients: r.ingredients || [] })));
+            setGeneralRecipe(recipeData.find((r: Recipe) => r.name === "General Bread Production") || null);
             setProducts(productData);
             setIngredients(ingredientData);
 
@@ -742,44 +524,19 @@ export default function RecipesPage() {
              });
             setProductionLogs(logs);
         });
-        
-        const qRecipes = query(collection(db, "recipes"));
-        const unsubRecipes = onSnapshot(qRecipes, (snapshot) => {
-             setRecipes(snapshot.docs.map((r: any) => ({ ...r.data(), id: r.id, ingredients: r.data().ingredients || [] })));
-        });
 
         return () => {
             unsubBatches();
             unsubLogs();
-            unsubRecipes();
         }
     }, []);
-
-    const handleDelete = async () => {
-        if (!recipeToDelete || !user) return;
-        try {
-            await deleteDoc(doc(db, "recipes", recipeToDelete.id));
-            await createProductionLog('Recipe Deleted', `Deleted recipe: ${recipeToDelete.name}`, user);
-            toast({ title: "Success", description: "Recipe deleted successfully." });
-        } catch (error) {
-            toast({ variant: "destructive", title: "Error", description: "Could not delete recipe." });
-        }
-        setRecipeToDelete(null);
-    };
-
-    const openAddDialog = () => {
-        setEditingRecipe({});
-        setIsRecipeDialogOpen(true);
-    };
-
-    const openEditDialog = (recipe: Recipe) => {
-        setEditingRecipe(recipe);
-        setIsRecipeDialogOpen(true);
-    };
     
-    const openProductionDialog = (recipe: Recipe) => {
-        setRecipeToProduce(recipe);
-        setIsProductionDialogOpen(true);
+    const openProductionDialog = () => {
+        if (generalRecipe) {
+            setIsProductionDialogOpen(true);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: 'General production recipe not found. Please re-seed the database.'})
+        }
     };
 
     const logStaffMembers = useMemo(() => ['all', ...new Set(productionLogs.map(log => log.staffName))], [productionLogs]);
@@ -797,9 +554,8 @@ export default function RecipesPage() {
          return <div className="flex justify-center items-center h-full"><Loader2 className="h-16 w-16 animate-spin" /></div>;
     }
 
-    const canManageRecipes = user.role === 'Manager' || user.role === 'Developer';
     const canApproveBatches = user.role === 'Manager' || user.role === 'Developer' || user.role === 'Storekeeper';
-    const canCompleteBatches = user.role === 'Baker';
+    const canCompleteBatches = user.role === 'Baker' || user.role === 'Chief Baker';
 
     const getStatusVariant = (status: string) => {
         switch(status) {
@@ -812,28 +568,13 @@ export default function RecipesPage() {
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold font-headline">Recipes &amp; Production</h1>
-                 {canManageRecipes && (
-                    <Button onClick={openAddDialog}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add Recipe
-                    </Button>
-                )}
+                <h1 className="text-2xl font-bold font-headline">Production</h1>
             </div>
 
-            {isRecipeDialogOpen && (
-                <RecipeDialog
-                    isOpen={isRecipeDialogOpen}
-                    onOpenChange={setIsRecipeDialogOpen}
-                    recipe={editingRecipe}
-                    products={products}
-                    ingredients={ingredients}
-                    user={user}
-                />
-            )}
             <StartProductionDialog
                 isOpen={isProductionDialogOpen}
                 onOpenChange={setIsProductionDialogOpen}
-                recipe={recipeToProduce}
+                recipe={generalRecipe}
                 user={user}
             />
              <ProductionLogDetailsDialog 
@@ -843,9 +584,8 @@ export default function RecipesPage() {
                 user={user}
             />
             
-            <Tabs defaultValue="recipes">
+            <Tabs defaultValue="production">
                 <TabsList>
-                    <TabsTrigger value="recipes">Recipes</TabsTrigger>
                     <TabsTrigger value="production" className="relative">
                         Production Batches
                         {productionBatches.length > 0 && (
@@ -856,74 +596,25 @@ export default function RecipesPage() {
                     </TabsTrigger>
                     <TabsTrigger value="logs">Production Logs</TabsTrigger>
                 </TabsList>
-                <TabsContent value="recipes">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>All Recipes</CardTitle>
-                            <CardDescription>Manage your product recipes and their ingredients. Bakers can start production from here.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {isLoading ? (
-                                <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                            ) : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Recipe Name</TableHead>
-                                        <TableHead>Creates Product</TableHead>
-                                        <TableHead>No. of Ingredients</TableHead>
-                                        <TableHead><span className="sr-only">Actions</span></TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {recipes.map(recipe => (
-                                        <TableRow key={recipe.id}>
-                                            <TableCell className="font-medium">{recipe.name}</TableCell>
-                                            <TableCell>{recipe.productName}</TableCell>
-                                            <TableCell>{recipe.ingredients?.length || 0}</TableCell>
-                                            <TableCell>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button aria-haspopup="true" size="icon" variant="ghost">
-                                                            <MoreHorizontal className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                        <DropdownMenuItem onSelect={() => openProductionDialog(recipe)}><Rocket className="mr-2 h-4 w-4"/>Start Production</DropdownMenuItem>
-                                                        {canManageRecipes && (
-                                                            <>
-                                                                <DropdownMenuItem onSelect={() => openEditDialog(recipe)}><Edit className="mr-2 h-4 w-4"/>Edit Recipe</DropdownMenuItem>
-                                                                <DropdownMenuSeparator />
-                                                                <DropdownMenuItem className="text-destructive" onSelect={() => setRecipeToDelete(recipe)}><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
-                                                            </>
-                                                        )}
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                            )}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
                 <TabsContent value="production">
                      <Card>
-                        <CardHeader>
-                            <CardTitle>Active Production Batches</CardTitle>
-                            <CardDescription>Batches that are pending approval or are currently being produced.</CardDescription>
+                        <CardHeader className="flex flex-row justify-between items-center">
+                            <div>
+                                <CardTitle>Active Production Batches</CardTitle>
+                                <CardDescription>Batches that are pending approval or are currently being produced.</CardDescription>
+                            </div>
+                             <Button onClick={openProductionDialog}>
+                                <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
+                            </Button>
                         </CardHeader>
                         <CardContent>
                              <Table>
-                                <TableHeader><TableRow><TableHead>Time Started</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead>Requested By</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+                                <TableHeader><TableRow><TableHead>Time Started</TableHead><TableHead>Recipe</TableHead><TableHead>Requested By</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                      {productionBatches.length > 0 ? productionBatches.map(batch => (
                                         <TableRow key={batch.id}>
                                             <TableCell>{batch.approvedAt ? format(new Date(batch.approvedAt), 'Pp') : format(new Date(batch.createdAt), 'Pp')}</TableCell>
-                                            <TableCell>{batch.productName}</TableCell>
-                                            <TableCell>{batch.quantityToProduce}</TableCell>
+                                            <TableCell>{batch.recipeName}</TableCell>
                                             <TableCell>{batch.requestedByName}</TableCell>
                                             <TableCell><Badge variant={getStatusVariant(batch.status)}>{batch.status.replace('_', ' ')}</Badge></TableCell>
                                             <TableCell>
@@ -931,7 +622,7 @@ export default function RecipesPage() {
                                                     <ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchStaticData} />
                                                 )}
                                                 {batch.status === 'in_production' && canCompleteBatches && (
-                                                    <CompleteBatchDialog batch={batch} user={user} onBatchCompleted={fetchStaticData} />
+                                                    <CompleteBatchDialog batch={batch} user={user} onBatchCompleted={fetchStaticData} products={products} />
                                                 )}
                                             </TableCell>
                                         </TableRow>
@@ -994,22 +685,6 @@ export default function RecipesPage() {
                     </Card>
                 </TabsContent>
             </Tabs>
-           
-
-            <AlertDialog open={!!recipeToDelete} onOpenChange={(open) => !open && setRecipeToDelete(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This will permanently delete the recipe "{recipeToDelete?.name}". This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </div>
     );
 }
