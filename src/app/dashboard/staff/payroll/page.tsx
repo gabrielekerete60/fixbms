@@ -57,36 +57,32 @@ function PayrollTab() {
         }, {} as Record<string, PayrollEntry>);
         setPayrollData(initialPayroll);
     }, []);
-
+    
     useEffect(() => {
-        const fetchStaff = async () => {
+        const fetchStaffAndPayrollStatus = async () => {
             setIsLoading(true);
             try {
                 const staff = await getStaffList();
                 setStaffList(staff);
-                initializePayroll(staff);
+                
+                if (staff.length > 0) {
+                    initializePayroll(staff);
+                    const periodString = format(new Date(payrollPeriod + '-02'), 'MMMM yyyy');
+                    const alreadyProcessed = await hasPayrollBeenProcessed(periodString);
+                    setIsPayrollProcessed(alreadyProcessed);
+                } else {
+                    setIsPayrollProcessed(false);
+                }
             } catch (error) {
-                console.error("Error fetching staff list:", error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Failed to load staff data.' });
+                console.error("Error fetching staff or payroll status:", error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Failed to load initial data.' });
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchStaff();
-    }, [toast, initializePayroll]);
-    
-    useEffect(() => {
-        const checkStatus = async () => {
-            if (staffList.length > 0) {
-                const periodString = format(new Date(payrollPeriod + '-02'), 'MMMM yyyy');
-                const alreadyProcessed = await hasPayrollBeenProcessed(periodString);
-                setIsPayrollProcessed(alreadyProcessed);
-            } else {
-                setIsPayrollProcessed(false);
-            }
-        };
-        checkStatus();
-    }, [payrollPeriod, staffList]);
+
+        fetchStaffAndPayrollStatus();
+    }, [payrollPeriod, toast, initializePayroll]);
 
 
     const handleTempChange = (staffId: string, field: 'additions' | 'deductions', value: string) => {
@@ -350,8 +346,8 @@ function AdvanceSalaryTab() {
     
     if (isLoading) {
         return (
-             <div className="flex justify-center items-center h-full">
-                <Loader2 className="h-16 w-16 animate-spin" />
+             <div className="flex justify-center items-center h-48">
+                <Loader2 className="h-8 w-8 animate-spin" />
             </div>
         )
     }
