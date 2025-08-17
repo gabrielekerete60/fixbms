@@ -33,83 +33,12 @@ type DeductionDetails = {
 type PayrollEntry = {
     staffId: string;
     staffName: string;
+    role: string;
     basePay: number;
     additions: number;
     deductions: DeductionDetails;
+    totalDeductions: number;
 };
-
-function ManageDeductionsDialog({ entry, onSave, children }: { entry: PayrollEntry, onSave: (deductions: DeductionDetails) => void, children: React.ReactNode }) {
-    const [isOpen, setIsOpen] = useState(false);
-    const [deductions, setDeductions] = useState<DeductionDetails>({
-        shortages: 0,
-        advanceSalary: 0,
-        debt: 0,
-        fine: 0,
-    });
-
-    useEffect(() => {
-        if (isOpen) {
-            setDeductions(entry.deductions);
-        }
-    }, [isOpen, entry.deductions]);
-
-    const handleSave = () => {
-        onSave(deductions);
-        setIsOpen(false);
-    }
-    
-    const handleDeductionChange = (field: keyof DeductionDetails, value: string) => {
-        const numValue = Number(value);
-        if (isNaN(numValue)) return;
-        setDeductions(prev => ({...prev, [field]: numValue }));
-    }
-
-    const totalDeductions = Object.values(deductions).reduce((sum, val) => sum + val, 0);
-
-    return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Manage Deductions for {entry.staffName}</DialogTitle>
-                    <DialogDescription>
-                        Specify the breakdown of any deductions from the gross pay.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="shortages">Shortages (₦)</Label>
-                            <Input id="shortages" type="number" value={deductions.shortages} onChange={e => handleDeductionChange('shortages', e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="advanceSalary">Advance Salary (₦)</Label>
-                            <Input id="advanceSalary" type="number" value={deductions.advanceSalary} onChange={e => handleDeductionChange('advanceSalary', e.target.value)} />
-                        </div>
-                    </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="debt">Debt (₦)</Label>
-                            <Input id="debt" type="number" value={deductions.debt} onChange={e => handleDeductionChange('debt', e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="fine">Fines (₦)</Label>
-                            <Input id="fine" type="number" value={deductions.fine} onChange={e => handleDeductionChange('fine', e.target.value)} />
-                        </div>
-                    </div>
-                    <div className="pt-4 font-bold text-lg flex justify-between border-t">
-                        <span>Total Deductions:</span>
-                        <span>₦{totalDeductions.toLocaleString()}</span>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSave}>Save Deductions</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
 
 export default function PayrollPage() {
     const { toast } = useToast();
@@ -126,9 +55,11 @@ export default function PayrollPage() {
                 const initialPayroll = staffList.map(s => ({
                     staffId: s.id,
                     staffName: s.name,
+                    role: s.role,
                     basePay: s.pay_rate || 0,
                     additions: 0,
                     deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
+                    totalDeductions: 0,
                 }));
                 setPayroll(initialPayroll);
             } else {
@@ -147,20 +78,16 @@ export default function PayrollPage() {
         fetchStaffAndInitPayroll();
     }, [fetchStaffAndInitPayroll]);
 
-    const handlePayrollChange = (staffId: string, field: 'additions', value: string) => {
+    const handlePayrollChange = (staffId: string, field: 'additions' | 'totalDeductions', value: string) => {
         const numValue = Number(value);
         if (isNaN(numValue)) return;
         setPayroll(prev => prev ? prev.map(p => p.staffId === staffId ? { ...p, [field]: numValue } : p) : null);
-    };
-    
-    const handleDeductionsSave = (staffId: string, deductions: DeductionDetails) => {
-        setPayroll(prev => prev ? prev.map(p => p.staffId === staffId ? { ...p, deductions } : p) : null);
     };
 
     const calculateTotals = (entry: PayrollEntry) => {
         const basePay = entry.basePay || 0;
         const additions = entry.additions || 0;
-        const totalDeductions = Object.values(entry.deductions).reduce((sum, val) => sum + Number(val), 0);
+        const totalDeductions = entry.totalDeductions || 0;
         const grossPay = basePay + additions;
         const netPay = grossPay - totalDeductions;
         return { grossPay, netPay, totalDeductions };
@@ -175,9 +102,17 @@ export default function PayrollPage() {
         setIsProcessing(true);
         const payrollDataToProcess = payroll.map(p => {
             const { netPay } = calculateTotals(p);
+            // This structure is now simplified as we only have total deductions from input
+            const simplifiedDeductions = {
+                shortages: p.totalDeductions, // Put all deductions into one category or keep it simple
+                advanceSalary: 0,
+                debt: 0,
+                fine: 0,
+            };
             return {
                 ...p,
                 netPay,
+                deductions: simplifiedDeductions,
                 month: format(new Date(payrollPeriod), 'MMMM yyyy'),
             };
         });
@@ -257,7 +192,7 @@ export default function PayrollPage() {
                                         </TableCell>
                                     </TableRow>
                                 ) : payroll.map(entry => {
-                                    const { grossPay, netPay, totalDeductions } = calculateTotals(entry);
+                                    const { grossPay, netPay } = calculateTotals(entry);
                                     return (
                                         <TableRow key={entry.staffId}>
                                             <TableCell>{entry.staffName}</TableCell>
@@ -273,14 +208,13 @@ export default function PayrollPage() {
                                             </TableCell>
                                             <TableCell className="text-right">{grossPay.toLocaleString()}</TableCell>
                                             <TableCell className="text-right">
-                                                <ManageDeductionsDialog 
-                                                    entry={entry} 
-                                                    onSave={(deductions) => handleDeductionsSave(entry.staffId, deductions)}
-                                                >
-                                                    <Button variant="link" className="p-0 h-auto text-destructive hover:underline">
-                                                        {totalDeductions.toLocaleString()}
-                                                    </Button>
-                                                </ManageDeductionsDialog>
+                                                 <Input 
+                                                    type="number"
+                                                    className="min-w-24 text-right"
+                                                    value={entry.totalDeductions}
+                                                    onChange={(e) => handlePayrollChange(entry.staffId, 'totalDeductions', e.target.value)}
+                                                    placeholder="0"
+                                                />
                                             </TableCell>
                                             <TableCell className="text-right font-bold">{netPay.toLocaleString()}</TableCell>
                                         </TableRow>
