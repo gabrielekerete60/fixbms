@@ -52,7 +52,7 @@ function PayrollTab() {
 
             setIsPayrollProcessed(alreadyProcessed);
 
-            if (staffList) {
+            if (staffList && staffList.length > 0) {
                 const initialPayroll = staffList.map(s => ({
                     staffId: s.id,
                     staffName: s.name,
@@ -190,7 +190,7 @@ function PayrollTab() {
                     <div>
                         <CardTitle>Staff Payroll</CardTitle>
                         <CardDescription>
-                            Manage staff salaries for the current period.
+                            Manage staff salaries for the selected period.
                         </CardDescription>
                     </div>
                      <div className="flex items-center gap-2">
@@ -397,10 +397,10 @@ export default function PayrollPageContainer() {
                     <TabsTrigger value="payroll">Monthly Payroll</TabsTrigger>
                     <TabsTrigger value="advance">Advance Salary</TabsTrigger>
                 </TabsList>
-                <TabsContent value="payroll">
+                <TabsContent value="payroll" className="mt-4">
                     <PayrollTab />
                 </TabsContent>
-                <TabsContent value="advance">
+                <TabsContent value="advance" className="mt-4">
                     <AdvanceSalaryTab />
                 </TabsContent>
             </Tabs>
