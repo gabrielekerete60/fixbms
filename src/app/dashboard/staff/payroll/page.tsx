@@ -98,9 +98,18 @@ export default function PayrollPage() {
         const numValue = Number(valueStr);
         if (isNaN(numValue)) return;
         
-        setPayroll(prev => prev ? prev.map(p => p.staffId === staffId ? { ...p, [field]: numValue } : p) : null);
+        setPayroll(prev => {
+            if (!prev) return null;
+            return prev.map(p => {
+                if (p.staffId === staffId) {
+                    const currentValue = p[field] || 0;
+                    const newValue = currentValue + numValue;
+                    return { ...p, [field]: newValue };
+                }
+                return p;
+            });
+        });
 
-        // Clear the temp value after applying
         setTempValues(prev => ({
             ...prev,
             [staffId]: {
@@ -128,9 +137,8 @@ export default function PayrollPage() {
         setIsProcessing(true);
         const payrollDataToProcess = payroll.map(p => {
             const { netPay } = calculateTotals(p);
-            // This structure is now simplified as we only have total deductions from input
             const simplifiedDeductions = {
-                shortages: p.totalDeductions, // Put all deductions into one category or keep it simple
+                shortages: p.totalDeductions,
                 advanceSalary: 0,
                 debt: 0,
                 fine: 0,
@@ -227,7 +235,7 @@ export default function PayrollPage() {
                                                 <div className="flex items-center gap-1">
                                                     <Input 
                                                         type="number"
-                                                        className="min-w-24 text-right"
+                                                        className="min-w-24"
                                                         value={tempValues[entry.staffId]?.additions || ''}
                                                         onChange={(e) => handleTempChange(entry.staffId, 'additions', e.target.value)}
                                                         placeholder={entry.additions.toLocaleString()}
@@ -240,7 +248,7 @@ export default function PayrollPage() {
                                                 <div className="flex items-center gap-1">
                                                     <Input 
                                                         type="number"
-                                                        className="min-w-24 text-right"
+                                                        className="min-w-24"
                                                         value={tempValues[entry.staffId]?.deductions || ''}
                                                         onChange={(e) => handleTempChange(entry.staffId, 'deductions', e.target.value)}
                                                         placeholder={entry.totalDeductions.toLocaleString()}
