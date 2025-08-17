@@ -494,6 +494,50 @@ function TransferDetailsDialog({ transfer, isOpen, onOpenChange }: { transfer: T
     )
 }
 
+function ProductionTransferDialog({ transfer, onAccept }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                 <Button size="sm" variant="outline">Review</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>Acknowledge Production Transfer</DialogTitle>
+                    <DialogDescription>
+                        Accepting this will add the following items to your main inventory.
+                    </DialogDescription>
+                </DialogHeader>
+                 <div className="py-4 max-h-80 overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-right">Quantity</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {transfer.items.map(item => (
+                                <TableRow key={item.productId}>
+                                    <TableCell>{item.productName}</TableCell>
+                                    <TableCell className="text-right">{item.quantity}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={() => { onAccept(transfer.id, 'accept'); setIsOpen(false); }}>
+                        <Check className="mr-2 h-4 w-4"/> Acknowledge & Add to Stock
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function StockControlPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -1146,30 +1190,26 @@ export default function StockControlPage() {
                             <TableRow>
                                 <TableHead>Date</TableHead>
                                 <TableHead>From</TableHead>
-                                <TableHead>Product</TableHead>
-                                <TableHead>Quantity</TableHead>
+                                <TableHead>Items</TableHead>
                                 <TableHead className="text-right">Action</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                              {isLoading ? (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
                             ) : productionTransfers.length > 0 ? (
                                 productionTransfers.map(t => (
                                     <TableRow key={t.id}>
                                         <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
                                         <TableCell>{t.from_staff_name}</TableCell>
-                                        <TableCell>{t.items[0]?.productName}</TableCell>
-                                        <TableCell>{t.items[0]?.quantity}</TableCell>
+                                        <TableCell>{t.items.reduce((acc, item) => acc + item.quantity, 0)} items</TableCell>
                                         <TableCell className="text-right">
-                                            <Button size="sm" onClick={() => handleAcknowledge(t.id, 'accept')}>
-                                                <Check className="mr-2 h-4 w-4" /> Accept
-                                            </Button>
+                                            <ProductionTransferDialog transfer={t} onAccept={handleAcknowledge} />
                                         </TableCell>
                                     </TableRow>
                                 ))
                             ) : (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers from production.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center">No pending transfers from production.</TableCell></TableRow>
                             )}
                         </TableBody>
                     </Table>

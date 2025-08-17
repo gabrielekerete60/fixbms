@@ -1946,15 +1946,21 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             const transfer = transferDoc.data() as Transfer;
             if (transfer.status !== 'pending') throw new Error("This transfer has already been processed.");
             
-            const isReturn = transfer.notes?.startsWith('Return from');
+            const isReturnFromProduction = transfer.notes?.startsWith('Return from production batch');
 
-            if (isReturn) {
-                 // Return from production or sales run goes back to main inventory
+            if (isReturnFromProduction) {
+                 // Return from production goes back to main product inventory
                 for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
-            } else { // This is for both regular stock transfers and sales runs
+            } else if (transfer.notes?.startsWith('Return from Sales Run')) {
+                 // Return from sales run goes back to main product inventory
+                 for (const item of transfer.items) {
+                    const productRef = doc(db, 'products', item.productId);
+                    transaction.update(productRef, { stock: increment(item.quantity) });
+                }
+            } else { // This is for regular stock transfers and sales runs
                 // These reads must happen before any writes
                 const productRefs = transfer.items.map(item => doc(db, 'products', item.productId));
                 const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
@@ -2071,7 +2077,7 @@ async function createProductionLog(action: string, details: string, user: { staf
     }
 }
 
-export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 'status' | 'createdAt' | 'approvedAt'>, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 'status' | 'createdAt' | 'approvedAt' | 'completedAt'>, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
     try {
         const newBatchRef = doc(collection(db, "production_batches"));
         await setDoc(newBatchRef, {
@@ -2678,6 +2684,7 @@ export async function getProductionBatch(batchId: string): Promise<ProductionBat
                 ...data,
                 createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
                 approvedAt: data.approvedAt ? (data.approvedAt as Timestamp).toDate().toISOString() : undefined,
+                completedAt: data.completedAt ? (data.completedAt as Timestamp).toDate().toISOString() : undefined,
             } as ProductionBatch;
         }
         return null;
