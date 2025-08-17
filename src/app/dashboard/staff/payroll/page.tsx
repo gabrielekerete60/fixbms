@@ -79,6 +79,7 @@ function PayrollTab() {
                 const staff = await getStaffList();
                 setStaffList(staff);
                 initializePayroll(staff);
+                // Check status for the initial period after staff is loaded
                 await checkPayrollStatus(payrollPeriod);
             } catch (error) {
                 console.error("Error fetching staff list:", error);
@@ -147,7 +148,6 @@ function PayrollTab() {
         setIsProcessing(true);
         const payrollDataToProcess = Object.values(payrollData).map(p => {
             const { netPay } = calculateTotals(p);
-            // This is a simplified mapping for the demo.
             const simplifiedDeductions = {
                 shortages: p.totalDeductions,
                 advanceSalary: 0,
@@ -165,7 +165,7 @@ function PayrollTab() {
         const result = await processPayroll(payrollDataToProcess, format(new Date(payrollPeriod), 'MMMM yyyy'));
         if (result.success) {
             toast({ title: 'Success!', description: 'Payroll has been processed and expenses logged.'});
-            setIsPayrollProcessed(true); // Lock the UI after processing
+            setIsPayrollProcessed(true);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -189,8 +189,8 @@ function PayrollTab() {
 
     if (isLoading) {
         return (
-            <div className="flex justify-center items-center h-full">
-                <Loader2 className="h-16 w-16 animate-spin" />
+            <div className="flex justify-center items-center h-48">
+                <Loader2 className="h-8 w-8 animate-spin" />
             </div>
         )
     }
@@ -198,7 +198,7 @@ function PayrollTab() {
     return (
         <Card>
             <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <CardTitle>Staff Payroll</CardTitle>
                         <CardDescription>
@@ -206,8 +206,9 @@ function PayrollTab() {
                         </CardDescription>
                     </div>
                      <div className="flex items-center gap-2">
-                         <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                         <Label htmlFor="payroll-month" className="sr-only">Payroll Period</Label>
                          <Input 
+                            id="payroll-month"
                             type="month"
                             value={payrollPeriod}
                             onChange={(e) => {
