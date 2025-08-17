@@ -299,7 +299,7 @@ function PayrollTab() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleProcessPayroll}>Confirm &amp; Process</AlertDialogAction>
+                            <AlertDialogAction onClick={handleProcessPayroll}>Confirm & Process</AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
@@ -414,5 +414,3 @@ export default function PayrollPageContainer() {
         </div>
     )
 }
-
-    
