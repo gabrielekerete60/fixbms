@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getStaffList, processPayroll } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar as CalendarIcon } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, Check } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
@@ -46,6 +46,7 @@ export default function PayrollPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [payrollPeriod, setPayrollPeriod] = useState(format(new Date(), 'yyyy-MM'));
+    const [tempValues, setTempValues] = useState<Record<string, { additions?: string, deductions?: string }>>({});
 
     const fetchStaffAndInitPayroll = useCallback(async () => {
         setIsLoading(true);
@@ -78,10 +79,35 @@ export default function PayrollPage() {
         fetchStaffAndInitPayroll();
     }, [fetchStaffAndInitPayroll]);
 
-    const handlePayrollChange = (staffId: string, field: 'additions' | 'totalDeductions', value: string) => {
-        const numValue = Number(value);
+    const handleTempChange = (staffId: string, field: 'additions' | 'deductions', value: string) => {
+        setTempValues(prev => ({
+            ...prev,
+            [staffId]: {
+                ...prev[staffId],
+                [field]: value
+            }
+        }));
+    };
+    
+    const applyChange = (staffId: string, field: 'additions' | 'totalDeductions') => {
+        const tempFieldKey = field === 'additions' ? 'additions' : 'deductions';
+        const valueStr = tempValues[staffId]?.[tempFieldKey];
+        
+        if (valueStr === undefined || valueStr === '') return;
+
+        const numValue = Number(valueStr);
         if (isNaN(numValue)) return;
+        
         setPayroll(prev => prev ? prev.map(p => p.staffId === staffId ? { ...p, [field]: numValue } : p) : null);
+
+        // Clear the temp value after applying
+        setTempValues(prev => ({
+            ...prev,
+            [staffId]: {
+                ...prev[staffId],
+                [tempFieldKey]: ''
+            }
+        }));
     };
 
     const calculateTotals = (entry: PayrollEntry) => {
@@ -178,9 +204,9 @@ export default function PayrollPage() {
                                 <TableRow>
                                     <TableHead>Staff Name</TableHead>
                                     <TableHead className="text-right">Base Pay (₦)</TableHead>
-                                    <TableHead className="text-right">Additions (₦)</TableHead>
+                                    <TableHead>Additions (₦)</TableHead>
                                     <TableHead className="text-right">Gross Pay (₦)</TableHead>
-                                    <TableHead className="text-right">Total Deductions (₦)</TableHead>
+                                    <TableHead>Total Deductions (₦)</TableHead>
                                     <TableHead className="text-right font-bold">Net Pay (₦)</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -197,24 +223,30 @@ export default function PayrollPage() {
                                         <TableRow key={entry.staffId}>
                                             <TableCell>{entry.staffName}</TableCell>
                                             <TableCell className="text-right">{entry.basePay.toLocaleString()}</TableCell>
-                                            <TableCell className="text-right">
-                                                <Input 
-                                                    type="number"
-                                                    className="min-w-24 text-right"
-                                                    value={entry.additions}
-                                                    onChange={(e) => handlePayrollChange(entry.staffId, 'additions', e.target.value)}
-                                                    placeholder="0"
-                                                />
+                                            <TableCell>
+                                                <div className="flex items-center gap-1">
+                                                    <Input 
+                                                        type="number"
+                                                        className="min-w-24 text-right"
+                                                        value={tempValues[entry.staffId]?.additions || ''}
+                                                        onChange={(e) => handleTempChange(entry.staffId, 'additions', e.target.value)}
+                                                        placeholder={entry.additions.toLocaleString()}
+                                                    />
+                                                    <Button size="sm" variant="ghost" onClick={() => applyChange(entry.staffId, 'additions')}><Check className="h-4 w-4"/></Button>
+                                                </div>
                                             </TableCell>
                                             <TableCell className="text-right">{grossPay.toLocaleString()}</TableCell>
-                                            <TableCell className="text-right">
-                                                 <Input 
-                                                    type="number"
-                                                    className="min-w-24 text-right"
-                                                    value={entry.totalDeductions}
-                                                    onChange={(e) => handlePayrollChange(entry.staffId, 'totalDeductions', e.target.value)}
-                                                    placeholder="0"
-                                                />
+                                            <TableCell>
+                                                <div className="flex items-center gap-1">
+                                                    <Input 
+                                                        type="number"
+                                                        className="min-w-24 text-right"
+                                                        value={tempValues[entry.staffId]?.deductions || ''}
+                                                        onChange={(e) => handleTempChange(entry.staffId, 'deductions', e.target.value)}
+                                                        placeholder={entry.totalDeductions.toLocaleString()}
+                                                    />
+                                                    <Button size="sm" variant="ghost" onClick={() => applyChange(entry.staffId, 'totalDeductions')}><Check className="h-4 w-4"/></Button>
+                                                </div>
                                             </TableCell>
                                             <TableCell className="text-right font-bold">{netPay.toLocaleString()}</TableCell>
                                         </TableRow>
