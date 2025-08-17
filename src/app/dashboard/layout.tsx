@@ -107,7 +107,7 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
                 <link.icon className="h-4 w-4" />
                 {link.label}
                  {link.notificationKey && notificationCounts[link.notificationKey] > 0 && (
-                    <Badge variant="destructive" className="ml-2">{notificationCounts[link.notificationKey]}</Badge>
+                    <Badge variant="destructive" className="ml-auto">{notificationCounts[link.notificationKey]}</Badge>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -463,7 +463,7 @@ export default function DashboardLayout({
           stockControl: stockControlCount,
           activeRuns: notificationCounts.activeRuns,
           pendingBatches: notificationCounts.pendingBatches,
-          inventory: stockControlCount,
+          inventory: stockControlCount + notificationCounts.pendingBatches, // Aggregate for main inventory badge
           accounting: accountingCount,
           payments: notificationCounts.pendingPayments,
           approvals: notificationCounts.pendingApprovals,
