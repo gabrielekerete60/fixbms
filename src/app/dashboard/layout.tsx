@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -294,8 +295,11 @@ export default function DashboardLayout({
     const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
     const unsubBatches = onSnapshot(pendingBatchesQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingBatches: snap.size })));
     
-    const inProductionBatchesQuery = query(collection(db, 'production_batches'), where('requestedById', '==', user.staff_id), where('status', '==', 'in_production'));
-    const unsubInProduction = onSnapshot(inProductionBatchesQuery, (snap) => setNotificationCounts(prev => ({ ...prev, inProductionBatches: snap.size })));
+    const inProductionBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
+    const unsubInProduction = onSnapshot(inProductionBatchesQuery, (snap) => {
+        const bakerBatches = snap.docs.filter(d => d.data().requestedById === user.staff_id);
+        setNotificationCounts(prev => ({ ...prev, inProductionBatches: bakerBatches.length }));
+    });
 
 
     const pendingPaymentsQuery = query(collection(db, 'payment_confirmations'), where('status', '==', 'pending'));
@@ -458,8 +462,14 @@ export default function DashboardLayout({
     const isBaker = ['Baker', 'Chief Baker'].includes(user.role);
     const isManagerial = ['Manager', 'Developer', 'Supervisor'].includes(user.role);
     
+    let productionCount = 0;
+    if (isBaker) {
+        productionCount = notificationCounts.inProductionBatches;
+    } else if (canApproveBatches) {
+        productionCount = notificationCounts.pendingBatches;
+    }
+
     const stockControlCount = notificationCounts.pendingTransfers + (canApproveBatches ? notificationCounts.pendingBatches : 0);
-    const productionCount = (isBaker ? notificationCounts.inProductionBatches : 0) + (canApproveBatches ? notificationCounts.pendingBatches : 0);
     const inventoryCount = productionCount + notificationCounts.pendingTransfers;
     const accountingCount = notificationCounts.pendingPayments + notificationCounts.pendingApprovals;
     
