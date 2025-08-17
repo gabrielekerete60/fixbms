@@ -462,10 +462,10 @@ function TransferDetailsDialog({ transfer, isOpen, onOpenChange }: { transfer: T
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4">
-                    <div className="text-sm">
-                        <p><strong>Status:</strong> <Badge variant={transfer.status === 'pending' ? 'secondary' : transfer.status === 'completed' || transfer.status === 'active' ? 'default' : 'destructive'}>{transfer.status}</Badge></p>
-                        {transfer.is_sales_run && <p><strong>Type:</strong> Sales Run</p>}
-                        {transfer.notes && <p><strong>Notes:</strong> {transfer.notes}</p>}
+                    <div className="text-sm space-y-1">
+                        <div><strong>Status:</strong> <Badge variant={transfer.status === 'pending' ? 'secondary' : transfer.status === 'completed' || transfer.status === 'active' ? 'default' : 'destructive'}>{transfer.status}</Badge></div>
+                        {transfer.is_sales_run && <div><strong>Type:</strong> Sales Run</div>}
+                        {transfer.notes && <div><strong>Notes:</strong> {transfer.notes}</div>}
                     </div>
                     <Separator />
                     <h4 className="font-semibold">Items Transferred</h4>
@@ -1363,5 +1363,3 @@ export default function StockControlPage() {
     </div>
   );
 }
-
-    
