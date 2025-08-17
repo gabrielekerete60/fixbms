@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getStaffList, processPayroll, hasPayrollBeenProcessed, requestAdvanceSalary } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar as CalendarIcon, Check, DollarSign } from "lucide-react";
+import { Loader2, Check } from "lucide-react";
 import { format } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -60,15 +60,12 @@ function PayrollTab() {
     }, []);
 
     const checkPayrollStatus = useCallback(async (period: string) => {
-        setIsLoading(true);
         try {
             const alreadyProcessed = await hasPayrollBeenProcessed(format(new Date(period + '-02'), 'MMMM yyyy'));
             setIsPayrollProcessed(alreadyProcessed);
         } catch (error) {
             console.error("Error checking payroll status:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to check payroll status.' });
-        } finally {
-            setIsLoading(false);
         }
     }, [toast]);
     
@@ -78,9 +75,10 @@ function PayrollTab() {
             try {
                 const staff = await getStaffList();
                 setStaffList(staff);
-                initializePayroll(staff);
-                // Check status for the initial period after staff is loaded
-                await checkPayrollStatus(payrollPeriod);
+                if (staff.length > 0) {
+                    initializePayroll(staff);
+                    await checkPayrollStatus(payrollPeriod);
+                }
             } catch (error) {
                 console.error("Error fetching staff list:", error);
                 toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch staff list.' });
@@ -186,7 +184,6 @@ function PayrollTab() {
         }, { basePay: 0, additions: 0, totalDeductions: 0, grossPay: 0, netPay: 0 });
     }, [payrollArray]);
 
-
     if (isLoading) {
         return (
             <div className="flex justify-center items-center h-48">
@@ -234,7 +231,7 @@ function PayrollTab() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {payrollArray.length === 0 ? (
+                            {staffList.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">
                                         No staff members found. Please add staff in the "Staff Management" section.
@@ -423,5 +420,3 @@ export default function PayrollPageContainer() {
         </div>
     )
 }
-
-    
