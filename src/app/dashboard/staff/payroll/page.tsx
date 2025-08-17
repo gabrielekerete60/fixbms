@@ -35,48 +35,61 @@ type PayrollEntry = {
 
 function PayrollTab() {
     const { toast } = useToast();
-    const [payroll, setPayroll] = useState<PayrollEntry[] | null>(null);
+    const [staffList, setStaffList] = useState<StaffMember[]>([]);
+    const [payrollData, setPayrollData] = useState<Record<string, PayrollEntry>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [payrollPeriod, setPayrollPeriod] = useState(format(new Date(), 'yyyy-MM'));
     const [tempValues, setTempValues] = useState<Record<string, { additions?: string, deductions?: string }>>({});
     const [isPayrollProcessed, setIsPayrollProcessed] = useState(false);
+    
+    const initializePayroll = useCallback((staff: StaffMember[]) => {
+        const initialPayroll = staff.reduce((acc, s) => {
+            acc[s.id] = {
+                staffId: s.id,
+                staffName: s.name,
+                role: s.role,
+                basePay: s.pay_rate || 0,
+                additions: 0,
+                totalDeductions: 0,
+            };
+            return acc;
+        }, {} as Record<string, PayrollEntry>);
+        setPayrollData(initialPayroll);
+        setTempValues({});
+    }, []);
 
-    const fetchStaffAndInitPayroll = useCallback(async (period: string) => {
+    const checkPayrollStatus = useCallback(async (period: string) => {
         setIsLoading(true);
         try {
-            const [staffList, alreadyProcessed] = await Promise.all([
-                getStaffList(),
-                hasPayrollBeenProcessed(format(new Date(period + '-02'), 'MMMM yyyy'))
-            ]);
-
+            const alreadyProcessed = await hasPayrollBeenProcessed(format(new Date(period + '-02'), 'MMMM yyyy'));
             setIsPayrollProcessed(alreadyProcessed);
-
-            if (staffList && staffList.length > 0) {
-                const initialPayroll = staffList.map(s => ({
-                    staffId: s.id,
-                    staffName: s.name,
-                    role: s.role,
-                    basePay: s.pay_rate || 0,
-                    additions: 0,
-                    totalDeductions: 0,
-                }));
-                setPayroll(initialPayroll);
-            } else {
-                 setPayroll([]);
-            }
         } catch (error) {
-            console.error("Error fetching staff list:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch staff list.' });
-            setPayroll([]);
+            console.error("Error checking payroll status:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to check payroll status.' });
         } finally {
             setIsLoading(false);
         }
     }, [toast]);
     
     useEffect(() => {
-        fetchStaffAndInitPayroll(payrollPeriod);
-    }, [fetchStaffAndInitPayroll, payrollPeriod]);
+        async function fetchInitialData() {
+            setIsLoading(true);
+            try {
+                const staff = await getStaffList();
+                setStaffList(staff);
+                initializePayroll(staff);
+                await checkPayrollStatus(payrollPeriod);
+            } catch (error) {
+                console.error("Error fetching staff list:", error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch staff list.' });
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchInitialData();
+    }, [initializePayroll, checkPayrollStatus, payrollPeriod, toast]);
+
 
     const handleTempChange = (staffId: string, field: 'additions' | 'deductions', value: string) => {
         setTempValues(prev => ({
@@ -97,16 +110,14 @@ function PayrollTab() {
         const numValue = Number(valueStr);
         if (isNaN(numValue)) return;
         
-        setPayroll(prev => {
-            if (!prev) return null;
-            return prev.map(p => {
-                if (p.staffId === staffId) {
-                    const currentValue = p[field] || 0;
-                    const newValue = currentValue + numValue;
-                    return { ...p, [field]: newValue };
-                }
-                return p;
-            });
+        setPayrollData(prev => {
+            const newPayroll = { ...prev };
+            const currentEntry = newPayroll[staffId];
+            if (currentEntry) {
+                const currentValue = currentEntry[field] || 0;
+                newPayroll[staffId] = { ...currentEntry, [field]: currentValue + numValue };
+            }
+            return newPayroll;
         });
 
         setTempValues(prev => ({
@@ -128,13 +139,13 @@ function PayrollTab() {
     };
     
     const handleProcessPayroll = async () => {
-        if (!payroll || payroll.length === 0) {
+        if (!payrollData || Object.keys(payrollData).length === 0) {
             toast({ variant: 'destructive', title: 'Error', description: 'No payroll data to process.'});
             return;
         }
 
         setIsProcessing(true);
-        const payrollDataToProcess = payroll.map(p => {
+        const payrollDataToProcess = Object.values(payrollData).map(p => {
             const { netPay } = calculateTotals(p);
             // This is a simplified mapping for the demo.
             const simplifiedDeductions = {
@@ -161,9 +172,10 @@ function PayrollTab() {
         setIsProcessing(false);
     }
     
+    const payrollArray = useMemo(() => Object.values(payrollData), [payrollData]);
+
     const grandTotals = useMemo(() => {
-        if (!payroll) return { basePay: 0, additions: 0, totalDeductions: 0, grossPay: 0, netPay: 0 };
-        return payroll.reduce((acc, entry) => {
+        return payrollArray.reduce((acc, entry) => {
             const { grossPay, netPay, totalDeductions } = calculateTotals(entry);
             acc.basePay += entry.basePay || 0;
             acc.additions += entry.additions || 0;
@@ -172,7 +184,7 @@ function PayrollTab() {
             acc.netPay += netPay;
             return acc;
         }, { basePay: 0, additions: 0, totalDeductions: 0, grossPay: 0, netPay: 0 });
-    }, [payroll]);
+    }, [payrollArray]);
 
 
     if (isLoading) {
@@ -198,7 +210,10 @@ function PayrollTab() {
                          <Input 
                             type="month"
                             value={payrollPeriod}
-                            onChange={(e) => setPayrollPeriod(e.target.value)}
+                            onChange={(e) => {
+                                setPayrollPeriod(e.target.value);
+                                checkPayrollStatus(e.target.value);
+                            }}
                             className="w-[200px]"
                          />
                     </div>
@@ -218,13 +233,13 @@ function PayrollTab() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {!payroll || payroll.length === 0 ? (
+                            {payrollArray.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">
                                         No staff members found. Please add staff in the "Staff Management" section.
                                     </TableCell>
                                 </TableRow>
-                            ) : payroll.map(entry => {
+                            ) : payrollArray.map(entry => {
                                 const { grossPay, netPay, totalDeductions } = calculateTotals(entry);
                                 return (
                                     <TableRow key={entry.staffId}>
@@ -240,7 +255,7 @@ function PayrollTab() {
                                                     placeholder={entry.additions.toLocaleString()}
                                                     disabled={isPayrollProcessed}
                                                 />
-                                                <Button size="sm" variant="ghost" onClick={() => applyChange(entry.staffId, 'additions')} disabled={isPayrollProcessed}><Check className="h-4 w-4"/></Button>
+                                                <Button size="icon" variant="ghost" onClick={() => applyChange(entry.staffId, 'additions')} disabled={isPayrollProcessed}><Check className="h-4 w-4"/></Button>
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right">{grossPay.toLocaleString()}</TableCell>
@@ -254,7 +269,7 @@ function PayrollTab() {
                                                     placeholder={totalDeductions.toLocaleString()}
                                                     disabled={isPayrollProcessed}
                                                 />
-                                                <Button size="sm" variant="ghost" onClick={() => applyChange(entry.staffId, 'totalDeductions')} disabled={isPayrollProcessed}><Check className="h-4 w-4"/></Button>
+                                                <Button size="icon" variant="ghost" onClick={() => applyChange(entry.staffId, 'totalDeductions')} disabled={isPayrollProcessed}><Check className="h-4 w-4"/></Button>
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right font-bold">{netPay.toLocaleString()}</TableCell>
@@ -278,7 +293,7 @@ function PayrollTab() {
             <CardFooter>
                  <AlertDialog>
                     <AlertDialogTrigger asChild>
-                         <Button disabled={isProcessing || isLoading || !payroll || payroll.length === 0 || isPayrollProcessed}>
+                         <Button disabled={isProcessing || isLoading || payrollArray.length === 0 || isPayrollProcessed}>
                             {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {isPayrollProcessed ? 'Payroll Processed' : `Process Payroll for ${format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')}`}
                         </Button>
@@ -407,3 +422,5 @@ export default function PayrollPageContainer() {
         </div>
     )
 }
+
+    
