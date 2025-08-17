@@ -42,45 +42,48 @@ function PayrollTab() {
     const [payrollPeriod, setPayrollPeriod] = useState(format(new Date(), 'yyyy-MM'));
     const [tempValues, setTempValues] = useState<Record<string, { additions?: string, deductions?: string }>>({});
     const [isPayrollProcessed, setIsPayrollProcessed] = useState(false);
-    
-    const initializePayroll = useCallback((staff: StaffMember[]) => {
-        const initialPayroll = staff.reduce((acc, s) => {
-            acc[s.id] = {
-                staffId: s.id,
-                staffName: s.name,
-                role: s.role,
-                basePay: s.pay_rate || 0,
-                additions: 0,
-                totalDeductions: 0,
-            };
-            return acc;
-        }, {} as Record<string, PayrollEntry>);
-        setPayrollData(initialPayroll);
-        setTempValues({});
-    }, []);
-    
+
     useEffect(() => {
-        async function fetchInitialData() {
+        const fetchStaff = async () => {
             setIsLoading(true);
             try {
                 const staff = await getStaffList();
                 setStaffList(staff);
-                if (staff.length > 0) {
-                    initializePayroll(staff);
-                }
-                const periodString = format(new Date(payrollPeriod + '-02'), 'MMMM yyyy');
-                const alreadyProcessed = await hasPayrollBeenProcessed(periodString);
-                setIsPayrollProcessed(alreadyProcessed);
+                
+                // Initialize payrollData based on fetched staff
+                const initialPayroll = staff.reduce((acc, s) => {
+                    acc[s.id] = {
+                        staffId: s.id,
+                        staffName: s.name,
+                        role: s.role,
+                        basePay: s.pay_rate || 0,
+                        additions: 0,
+                        totalDeductions: 0,
+                    };
+                    return acc;
+                }, {} as Record<string, PayrollEntry>);
+                setPayrollData(initialPayroll);
 
             } catch (error) {
-                console.error("Error fetching initial data:", error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Failed to load payroll data.' });
+                console.error("Error fetching staff list:", error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Failed to load staff data.' });
             } finally {
                 setIsLoading(false);
             }
-        }
-        fetchInitialData();
-    }, [initializePayroll, payrollPeriod, toast]);
+        };
+        fetchStaff();
+    }, [toast]);
+
+    useEffect(() => {
+        const checkStatus = async () => {
+            if (staffList.length > 0) { // Only check status if there's staff
+                const periodString = format(new Date(payrollPeriod + '-02'), 'MMMM yyyy');
+                const alreadyProcessed = await hasPayrollBeenProcessed(periodString);
+                setIsPayrollProcessed(alreadyProcessed);
+            }
+        };
+        checkStatus();
+    }, [payrollPeriod, staffList]);
 
 
     const handleTempChange = (staffId: string, field: 'additions' | 'deductions', value: string) => {
@@ -150,11 +153,11 @@ function PayrollTab() {
                 ...p,
                 netPay,
                 deductions: simplifiedDeductions,
-                month: format(new Date(payrollPeriod), 'MMMM yyyy'),
+                month: format(new Date(payrollPeriod + '-02'), 'MMMM yyyy'),
             };
         });
             
-        const result = await processPayroll(payrollDataToProcess, format(new Date(payrollPeriod), 'MMMM yyyy'));
+        const result = await processPayroll(payrollDataToProcess, format(new Date(payrollPeriod + '-02'), 'MMMM yyyy'));
         if (result.success) {
             toast({ title: 'Success!', description: 'Payroll has been processed and expenses logged.'});
             setIsPayrollProcessed(true);
