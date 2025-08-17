@@ -88,12 +88,16 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "clock_out_time",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "staff_id",
           "order": "ASCENDING"
         },
         {
           "fieldPath": "clock_in_time",
-          "order": "DESCENDING"
+          "order": "ASCENDING"
         }
       ]
     },
