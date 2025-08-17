@@ -31,6 +31,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -577,7 +578,8 @@ export default function RecipesPage() {
                     id: doc.id,
                     ...data,
                     createdAt: data.createdAt.toDate().toISOString(),
-                    approvedAt: data.approvedAt ? (data.approvedAt)?.toDate().toISOString() : null
+                    approvedAt: data.approvedAt ? (data.approvedAt)?.toDate().toISOString() : null,
+                    completedAt: data.completedAt ? (data.completedAt)?.toDate().toISOString() : null,
                 } as ProductionBatch
             }));
         });
