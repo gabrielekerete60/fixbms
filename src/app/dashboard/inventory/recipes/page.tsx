@@ -183,6 +183,7 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
 
     const handleItemChange = (index: number, field: keyof BatchItem, value: string, type: 'produced' | 'wasted') => {
         const setItems = type === 'produced' ? setProducedItems : setWastedItems;
+        const currentList = type === 'produced' ? producedItems : wastedItems;
         setItems(prevItems => {
             const newItems = [...prevItems];
             const currentItem = { ...newItems[index] };
@@ -403,83 +404,29 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange, user }: { log: 
 }
 
 function StartProductionDialog({
-    isOpen,
-    onOpenChange,
+    onConfirm,
     recipe,
     user
 }: {
-    isOpen: boolean;
-    onOpenChange: (open: boolean) => void;
+    onConfirm: () => void;
     recipe: Recipe | null;
     user: User | null;
 }) {
-    const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState(false);
-    
-    const handleStartProduction = async () => {
-        if (!recipe || !user) {
-            toast({ variant: 'destructive', title: 'Invalid input', description: 'Recipe or user not found.' });
-            return;
-        }
-        
-        setIsLoading(true);
-
-        const batchData = {
-            recipeId: recipe.id,
-            recipeName: recipe.name,
-            productId: 'multi-product',
-            productName: 'General Production',
-            requestedById: user.staff_id,
-            requestedByName: user.name,
-            quantityToProduce: 1, // Represents one batch
-            ingredients: recipe.ingredients,
-        };
-        
-        const result = await startProductionBatch(batchData, user);
-        if (result.success) {
-            toast({ title: 'Success', description: 'Production batch requested for approval.'});
-            onOpenChange(false);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error});
-        }
-        setIsLoading(false);
-    }
-
-    if (!recipe) return null;
+    if (!recipe || !user) return null;
 
     return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Start Production: {recipe.name}</DialogTitle>
-                    <DialogDescription>
-                        This will send a request for the standard set of ingredients to the storekeeper.
-                    </DialogDescription>
-                     <DialogClose />
-                </DialogHeader>
-                 <div className="py-4 max-h-80 overflow-y-auto">
-                    <Label>Ingredients to be Requested</Label>
-                     <Table>
-                        <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead className="text-right">Quantity</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            {recipe.ingredients.map(ing => (
-                                <TableRow key={ing.ingredientId}>
-                                    <TableCell>{ing.ingredientName}</TableCell>
-                                    <TableCell className="text-right">{ing.quantity} {ing.unit}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                     </Table>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleStartProduction} disabled={isLoading}>
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Request Ingredients
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Start Production: {recipe.name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will send a request for the standard set of ingredients to the storekeeper. Are you sure you want to proceed?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onConfirm}>Request Ingredients</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
     )
 }
 
@@ -584,6 +531,7 @@ export default function RecipesPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isProductionDialogOpen, setIsProductionDialogOpen] = useState(false);
     const [viewingLog, setViewingLog] = useState<ProductionLog | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     
     const [logActionFilter, setLogActionFilter] = useState('all');
     const [logStaffFilter, setLogStaffFilter] = useState('all');
@@ -654,13 +602,34 @@ export default function RecipesPage() {
         }
     }, []);
     
-    const openProductionDialog = () => {
-        if (generalRecipe) {
-            setIsProductionDialogOpen(true);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: 'General production recipe not found. Please re-seed the database.'})
+    const handleStartProduction = async () => {
+        if (!generalRecipe || !user) {
+            toast({ variant: 'destructive', title: 'Invalid input', description: 'Recipe or user not found.' });
+            return;
         }
-    };
+        
+        setIsSubmitting(true);
+
+        const batchData = {
+            recipeId: generalRecipe.id,
+            recipeName: generalRecipe.name,
+            productId: 'multi-product',
+            productName: 'General Production',
+            requestedById: user.staff_id,
+            requestedByName: user.name,
+            quantityToProduce: 1, // Represents one batch
+            ingredients: generalRecipe.ingredients,
+        };
+        
+        const result = await startProductionBatch(batchData, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Production batch requested for approval.'});
+            setIsProductionDialogOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error});
+        }
+        setIsSubmitting(false);
+    }
 
     const logStaffMembers = useMemo(() => ['all', ...new Set(productionLogs.map(log => log.staffName))], [productionLogs]);
     const logActionTypes = useMemo(() => ['all', ...new Set(productionLogs.map(log => log.action))], [productionLogs]);
@@ -707,12 +676,17 @@ export default function RecipesPage() {
                 <h1 className="text-2xl font-bold font-headline">Production</h1>
             </div>
 
-            <StartProductionDialog
-                isOpen={isProductionDialogOpen}
-                onOpenChange={setIsProductionDialogOpen}
-                recipe={generalRecipe}
-                user={user}
-            />
+            <AlertDialog open={isProductionDialogOpen} onOpenChange={setIsProductionDialogOpen}>
+                <AlertDialogTrigger asChild>
+                    <div />
+                </AlertDialogTrigger>
+                <StartProductionDialog
+                    onConfirm={handleStartProduction}
+                    recipe={generalRecipe}
+                    user={user}
+                />
+            </AlertDialog>
+            
              <ProductionLogDetailsDialog 
                 log={viewingLog}
                 isOpen={!!viewingLog}
@@ -739,7 +713,7 @@ export default function RecipesPage() {
                                 <CardTitle>Active Production Batches</CardTitle>
                                 <CardDescription>Batches that are pending approval or are currently being produced.</CardDescription>
                             </div>
-                             <Button onClick={openProductionDialog}>
+                             <Button onClick={() => setIsProductionDialogOpen(true)}>
                                 <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
                             </Button>
                         </CardHeader>
