@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -190,6 +189,7 @@ export default function DashboardLayout({
       pendingTransfers: 0,
       activeRuns: 0,
       pendingBatches: 0,
+      inProductionBatches: 0, // New state for baker
       pendingPayments: 0,
       newReports: 0,
       inProgressReports: 0,
@@ -293,6 +293,10 @@ export default function DashboardLayout({
 
     const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
     const unsubBatches = onSnapshot(pendingBatchesQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingBatches: snap.size })));
+    
+    const inProductionBatchesQuery = query(collection(db, 'production_batches'), where('requestedById', '==', user.staff_id), where('status', '==', 'in_production'));
+    const unsubInProduction = onSnapshot(inProductionBatchesQuery, (snap) => setNotificationCounts(prev => ({ ...prev, inProductionBatches: snap.size })));
+
 
     const pendingPaymentsQuery = query(collection(db, 'payment_confirmations'), where('status', '==', 'pending'));
     const unsubPayments = onSnapshot(pendingPaymentsQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingPayments: snap.size })));
@@ -337,6 +341,7 @@ export default function DashboardLayout({
         unsubPending();
         unsubActiveRuns();
         unsubBatches();
+        unsubInProduction();
         unsubPayments();
         unsubReports();
         unsubAnnouncements();
@@ -387,7 +392,7 @@ export default function DashboardLayout({
       {
         icon: Package, label: "Inventory", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Accountant', 'Showroom Staff', 'Developer', 'Delivery Staff'], notificationKey: "inventory", sublinks: [
           { href: "/dashboard/inventory/products", label: "Products", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
-          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'], notificationKey: "pendingBatches" },
+          { href: "/dashboard/inventory/recipes", label: "Recipes & Production", roles: ['Manager', 'Supervisor', 'Baker', 'Storekeeper', 'Developer'], notificationKey: "production" },
           { href: "/dashboard/inventory/ingredients", label: "Ingredients", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/suppliers", label: "Suppliers", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Accountant', 'Developer'] },
           { href: "/dashboard/inventory/stock-control", label: "Stock Control", notificationKey: "stockControl", roles: ['Manager', 'Supervisor', 'Storekeeper', 'Delivery Staff', 'Showroom Staff', 'Baker', 'Developer'] },
@@ -450,9 +455,12 @@ export default function DashboardLayout({
   const combinedNotificationCounts = useMemo(() => {
     if (!user) return {};
     const canApproveBatches = ['Manager', 'Developer', 'Storekeeper'].includes(user.role);
+    const isBaker = ['Baker', 'Chief Baker'].includes(user.role);
     const isManagerial = ['Manager', 'Developer', 'Supervisor'].includes(user.role);
     
     const stockControlCount = notificationCounts.pendingTransfers + (canApproveBatches ? notificationCounts.pendingBatches : 0);
+    const productionCount = (isBaker ? notificationCounts.inProductionBatches : 0) + (canApproveBatches ? notificationCounts.pendingBatches : 0);
+    const inventoryCount = productionCount + notificationCounts.pendingTransfers;
     const accountingCount = notificationCounts.pendingPayments + notificationCounts.pendingApprovals;
     
     const communicationCount = isManagerial 
@@ -462,8 +470,8 @@ export default function DashboardLayout({
       return {
           stockControl: stockControlCount,
           activeRuns: notificationCounts.activeRuns,
-          pendingBatches: notificationCounts.pendingBatches,
-          inventory: stockControlCount + notificationCounts.pendingBatches, // Aggregate for main inventory badge
+          production: productionCount,
+          inventory: inventoryCount, // Aggregate for main inventory badge
           accounting: accountingCount,
           payments: notificationCounts.pendingPayments,
           approvals: notificationCounts.pendingApprovals,
