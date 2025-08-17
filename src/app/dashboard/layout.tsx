@@ -27,6 +27,7 @@ import {
   MessageSquare,
   Database,
   Trash,
+  Wrench,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -190,7 +191,7 @@ export default function DashboardLayout({
       pendingTransfers: 0,
       activeRuns: 0,
       pendingBatches: 0,
-      inProductionBatches: 0, // New state for baker
+      inProductionBatches: 0, 
       pendingPayments: 0,
       newReports: 0,
       inProgressReports: 0,
@@ -470,7 +471,7 @@ export default function DashboardLayout({
     }
 
     const stockControlCount = notificationCounts.pendingTransfers + (canApproveBatches ? notificationCounts.pendingBatches : 0);
-    const inventoryCount = productionCount + notificationCounts.pendingTransfers;
+    const inventoryCount = stockControlCount + productionCount;
     const accountingCount = notificationCounts.pendingPayments + notificationCounts.pendingApprovals;
     
     const communicationCount = isManagerial 
