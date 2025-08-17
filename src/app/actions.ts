@@ -1233,7 +1233,7 @@ export async function addIndirectCost(data: IndirectCostData) {
 
 export async function getStaffList() {
     try {
-        const q = query(collection(db, "staff"), where("is_active", "==", true));
+        const q = query(collection(db, "staff"), where("is_active", "==", true), where("role", "!=", "Developer"));
         const snapshot = await getDocs(q);
         return snapshot.docs.map(docSnap => ({
             id: docSnap.id,
@@ -1247,6 +1247,52 @@ export async function getStaffList() {
         return [];
     }
 }
+
+export async function hasPayrollBeenProcessed(period: string): Promise<boolean> {
+    try {
+        const q = query(collection(db, 'wages'), where('month', '==', period), limit(1));
+        const snapshot = await getDocs(q);
+        return !snapshot.empty;
+    } catch (error) {
+        console.error("Error checking payroll status:", error);
+        return false; // Fail safe
+    }
+}
+
+export async function requestAdvanceSalary(staffId: string, amount: number, staffName: string): Promise<{ success: boolean; error?: string }> {
+    if (!staffId || !amount || amount <= 0) {
+        return { success: false, error: "Invalid staff ID or amount." };
+    }
+
+    try {
+        await addDoc(collection(db, "advance_requests"), {
+            staffId,
+            staffName,
+            amount,
+            date: serverTimestamp(),
+            status: 'approved', // Auto-approved for now
+            month: format(new Date(), 'MMMM yyyy'),
+        });
+
+        // This would typically go through an approval flow, but for now we auto-approve
+        const wageRef = doc(collection(db, 'wages'));
+        await setDoc(wageRef, {
+            staffId,
+            staffName,
+            description: `Salary advance for ${format(new Date(), 'MMMM yyyy')}`,
+            date: serverTimestamp(),
+            deductions: { advanceSalary: amount },
+            netPay: -amount, // It's a debit
+            isAdvance: true,
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error requesting advance salary:", error);
+        return { success: false, error: "Failed to request advance salary." };
+    }
+}
+
 
 type PayrollData = {
     staffId: string;

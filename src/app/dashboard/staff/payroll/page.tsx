@@ -7,12 +7,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getStaffList, processPayroll } from "@/app/actions";
+import { getStaffList, processPayroll, hasPayrollBeenProcessed, requestAdvanceSalary } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar as CalendarIcon, Check } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, Check, DollarSign } from "lucide-react";
 import { format } from "date-fns";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 type StaffMember = {
@@ -23,35 +24,34 @@ type StaffMember = {
     pay_type: 'Salary' | 'Hourly';
 };
 
-type DeductionDetails = {
-    shortages: number;
-    advanceSalary: number;
-    debt: number;
-    fine: number;
-}
-
 type PayrollEntry = {
     staffId: string;
     staffName: string;
     role: string;
     basePay: number;
     additions: number;
-    deductions: DeductionDetails;
     totalDeductions: number;
 };
 
-export default function PayrollPage() {
+function PayrollTab() {
     const { toast } = useToast();
     const [payroll, setPayroll] = useState<PayrollEntry[] | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [payrollPeriod, setPayrollPeriod] = useState(format(new Date(), 'yyyy-MM'));
     const [tempValues, setTempValues] = useState<Record<string, { additions?: string, deductions?: string }>>({});
+    const [isPayrollProcessed, setIsPayrollProcessed] = useState(false);
 
-    const fetchStaffAndInitPayroll = useCallback(async () => {
+    const fetchStaffAndInitPayroll = useCallback(async (period: string) => {
         setIsLoading(true);
         try {
-            const staffList = await getStaffList();
+            const [staffList, alreadyProcessed] = await Promise.all([
+                getStaffList(),
+                hasPayrollBeenProcessed(format(new Date(period + '-02'), 'MMMM yyyy'))
+            ]);
+
+            setIsPayrollProcessed(alreadyProcessed);
+
             if (staffList) {
                 const initialPayroll = staffList.map(s => ({
                     staffId: s.id,
@@ -59,7 +59,6 @@ export default function PayrollPage() {
                     role: s.role,
                     basePay: s.pay_rate || 0,
                     additions: 0,
-                    deductions: { shortages: 0, advanceSalary: 0, debt: 0, fine: 0 },
                     totalDeductions: 0,
                 }));
                 setPayroll(initialPayroll);
@@ -76,8 +75,8 @@ export default function PayrollPage() {
     }, [toast]);
     
     useEffect(() => {
-        fetchStaffAndInitPayroll();
-    }, [fetchStaffAndInitPayroll]);
+        fetchStaffAndInitPayroll(payrollPeriod);
+    }, [fetchStaffAndInitPayroll, payrollPeriod]);
 
     const handleTempChange = (staffId: string, field: 'additions' | 'deductions', value: string) => {
         setTempValues(prev => ({
@@ -137,6 +136,7 @@ export default function PayrollPage() {
         setIsProcessing(true);
         const payrollDataToProcess = payroll.map(p => {
             const { netPay } = calculateTotals(p);
+            // This is a simplified mapping for the demo.
             const simplifiedDeductions = {
                 shortages: p.totalDeductions,
                 advanceSalary: 0,
@@ -154,6 +154,7 @@ export default function PayrollPage() {
         const result = await processPayroll(payrollDataToProcess, format(new Date(payrollPeriod), 'MMMM yyyy'));
         if (result.success) {
             toast({ title: 'Success!', description: 'Payroll has been processed and expenses logged.'});
+            setIsPayrollProcessed(true); // Lock the UI after processing
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -183,120 +184,226 @@ export default function PayrollPage() {
     }
 
     return (
-        <div className="flex flex-col gap-4">
-            <h1 className="text-2xl font-bold font-headline">Payroll</h1>
-            <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <CardTitle>Staff Payroll</CardTitle>
-                            <CardDescription>
-                                Manage staff salaries for the current period.
-                            </CardDescription>
-                        </div>
-                         <div className="flex items-center gap-2">
-                             <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                             <Input 
-                                type="month"
-                                value={payrollPeriod}
-                                onChange={(e) => setPayrollPeriod(e.target.value)}
-                                className="w-[200px]"
-                             />
-                        </div>
+        <Card>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>Staff Payroll</CardTitle>
+                        <CardDescription>
+                            Manage staff salaries for the current period.
+                        </CardDescription>
                     </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
+                     <div className="flex items-center gap-2">
+                         <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                         <Input 
+                            type="month"
+                            value={payrollPeriod}
+                            onChange={(e) => setPayrollPeriod(e.target.value)}
+                            className="w-[200px]"
+                         />
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Staff Name</TableHead>
+                                <TableHead className="text-right">Base Pay (₦)</TableHead>
+                                <TableHead>Additions (₦)</TableHead>
+                                <TableHead className="text-right">Gross Pay (₦)</TableHead>
+                                <TableHead>Total Deductions (₦)</TableHead>
+                                <TableHead className="text-right font-bold">Net Pay (₦)</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {!payroll || payroll.length === 0 ? (
                                 <TableRow>
-                                    <TableHead>Staff Name</TableHead>
-                                    <TableHead className="text-right">Base Pay (₦)</TableHead>
-                                    <TableHead>Additions (₦)</TableHead>
-                                    <TableHead className="text-right">Gross Pay (₦)</TableHead>
-                                    <TableHead>Total Deductions (₦)</TableHead>
-                                    <TableHead className="text-right font-bold">Net Pay (₦)</TableHead>
+                                    <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">
+                                        No staff members found. Please add staff in the "Staff Management" section.
+                                    </TableCell>
                                 </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {!payroll || payroll.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">
-                                            No staff members found. Please add staff in the "Staff Management" section.
+                            ) : payroll.map(entry => {
+                                const { grossPay, netPay, totalDeductions } = calculateTotals(entry);
+                                return (
+                                    <TableRow key={entry.staffId}>
+                                        <TableCell>{entry.staffName}</TableCell>
+                                        <TableCell className="text-right">{entry.basePay.toLocaleString()}</TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-1">
+                                                <Input 
+                                                    type="number"
+                                                    className="min-w-24"
+                                                    value={tempValues[entry.staffId]?.additions || ''}
+                                                    onChange={(e) => handleTempChange(entry.staffId, 'additions', e.target.value)}
+                                                    placeholder={entry.additions.toLocaleString()}
+                                                    disabled={isPayrollProcessed}
+                                                />
+                                                <Button size="sm" variant="ghost" onClick={() => applyChange(entry.staffId, 'additions')} disabled={isPayrollProcessed}><Check className="h-4 w-4"/></Button>
+                                            </div>
                                         </TableCell>
+                                        <TableCell className="text-right">{grossPay.toLocaleString()}</TableCell>
+                                        <TableCell>
+                                             <div className="flex items-center gap-1">
+                                                <Input 
+                                                    type="number"
+                                                    className="min-w-24"
+                                                    value={tempValues[entry.staffId]?.deductions || ''}
+                                                    onChange={(e) => handleTempChange(entry.staffId, 'deductions', e.target.value)}
+                                                    placeholder={totalDeductions.toLocaleString()}
+                                                    disabled={isPayrollProcessed}
+                                                />
+                                                <Button size="sm" variant="ghost" onClick={() => applyChange(entry.staffId, 'totalDeductions')} disabled={isPayrollProcessed}><Check className="h-4 w-4"/></Button>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right font-bold">{netPay.toLocaleString()}</TableCell>
                                     </TableRow>
-                                ) : payroll.map(entry => {
-                                    const { grossPay, netPay } = calculateTotals(entry);
-                                    return (
-                                        <TableRow key={entry.staffId}>
-                                            <TableCell>{entry.staffName}</TableCell>
-                                            <TableCell className="text-right">{entry.basePay.toLocaleString()}</TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-1">
-                                                    <Input 
-                                                        type="number"
-                                                        className="min-w-24"
-                                                        value={tempValues[entry.staffId]?.additions || ''}
-                                                        onChange={(e) => handleTempChange(entry.staffId, 'additions', e.target.value)}
-                                                        placeholder={entry.additions.toLocaleString()}
-                                                    />
-                                                    <Button size="sm" variant="ghost" onClick={() => applyChange(entry.staffId, 'additions')}><Check className="h-4 w-4"/></Button>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-right">{grossPay.toLocaleString()}</TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-1">
-                                                    <Input 
-                                                        type="number"
-                                                        className="min-w-24"
-                                                        value={tempValues[entry.staffId]?.deductions || ''}
-                                                        onChange={(e) => handleTempChange(entry.staffId, 'deductions', e.target.value)}
-                                                        placeholder={entry.totalDeductions.toLocaleString()}
-                                                    />
-                                                    <Button size="sm" variant="ghost" onClick={() => applyChange(entry.staffId, 'totalDeductions')}><Check className="h-4 w-4"/></Button>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-right font-bold">{netPay.toLocaleString()}</TableCell>
-                                        </TableRow>
-                                    )
-                                })}
-                            </TableBody>
-                             <TableFooter>
-                                <TableRow className="bg-muted/50 font-bold">
-                                    <TableCell>Grand Totals</TableCell>
-                                    <TableCell className="text-right">{grandTotals.basePay.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right">{grandTotals.additions.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right">{grandTotals.grossPay.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right text-destructive">{grandTotals.totalDeductions.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right">{grandTotals.netPay.toLocaleString()}</TableCell>
-                                </TableRow>
-                            </TableFooter>
-                        </Table>
+                                )
+                            })}
+                        </TableBody>
+                         <TableFooter>
+                            <TableRow className="bg-muted/50 font-bold">
+                                <TableCell>Grand Totals</TableCell>
+                                <TableCell className="text-right">{grandTotals.basePay.toLocaleString()}</TableCell>
+                                <TableCell className="text-right">{grandTotals.additions.toLocaleString()}</TableCell>
+                                <TableCell className="text-right">{grandTotals.grossPay.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-destructive">{grandTotals.totalDeductions.toLocaleString()}</TableCell>
+                                <TableCell className="text-right">{grandTotals.netPay.toLocaleString()}</TableCell>
+                            </TableRow>
+                        </TableFooter>
+                    </Table>
+                </div>
+            </CardContent>
+            <CardFooter>
+                 <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                         <Button disabled={isProcessing || isLoading || !payroll || payroll.length === 0 || isPayrollProcessed}>
+                            {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isPayrollProcessed ? 'Payroll Processed' : `Process Payroll for ${format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')}`}
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This will finalize the payroll for {format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')} and log it as an expense. This action cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleProcessPayroll}>Confirm & Process</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </CardFooter>
+        </Card>
+    );
+}
+
+function AdvanceSalaryTab() {
+    const { toast } = useToast();
+    const [staffList, setStaffList] = useState<StaffMember[]>([]);
+    const [selectedStaff, setSelectedStaff] = useState('');
+    const [amount, setAmount] = useState<number | string>('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        getStaffList().then(list => {
+            setStaffList(list);
+            setIsLoading(false);
+        });
+    }, []);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedStaff || !amount || Number(amount) <= 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please select a staff member and enter a valid amount.' });
+            return;
+        }
+        setIsSubmitting(true);
+        const staffMember = staffList.find(s => s.id === selectedStaff);
+        const result = await requestAdvanceSalary(selectedStaff, Number(amount), staffMember?.name || 'Unknown');
+        if (result.success) {
+            toast({ title: 'Success', description: 'Salary advance has been recorded.' });
+            setSelectedStaff('');
+            setAmount('');
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    }
+    
+    if (isLoading) {
+        return (
+             <div className="flex justify-center items-center h-full">
+                <Loader2 className="h-16 w-16 animate-spin" />
+            </div>
+        )
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Request Salary Advance</CardTitle>
+                <CardDescription>
+                    Record an advance payment for a staff member. This will be deducted from their next payroll.
+                </CardDescription>
+            </CardHeader>
+            <form onSubmit={handleSubmit}>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="staff-select">Select Staff Member</Label>
+                        <Select value={selectedStaff} onValueChange={setSelectedStaff}>
+                            <SelectTrigger id="staff-select">
+                                <SelectValue placeholder="Select a staff member..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {staffList.map(staff => (
+                                    <SelectItem key={staff.id} value={staff.id}>{staff.name} ({staff.role})</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="advance-amount">Amount (₦)</Label>
+                        <Input 
+                            id="advance-amount" 
+                            type="number"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            placeholder="e.g., 10000"
+                        />
                     </div>
                 </CardContent>
                 <CardFooter>
-                     <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                             <Button disabled={isProcessing || isLoading || !payroll || payroll.length === 0}>
-                                {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Process Payroll for {format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')}
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This will finalize the payroll for {format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')} and log it as an expense. This action cannot be undone.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleProcessPayroll}>Confirm & Process</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Record Advance
+                    </Button>
                 </CardFooter>
-            </Card>
+            </form>
+        </Card>
+    )
+}
+
+export default function PayrollPageContainer() {
+    return (
+        <div className="flex flex-col gap-4">
+            <h1 className="text-2xl font-bold font-headline">Payroll</h1>
+            <Tabs defaultValue="payroll">
+                <TabsList>
+                    <TabsTrigger value="payroll">Monthly Payroll</TabsTrigger>
+                    <TabsTrigger value="advance">Advance Salary</TabsTrigger>
+                </TabsList>
+                <TabsContent value="payroll">
+                    <PayrollTab />
+                </TabsContent>
+                <TabsContent value="advance">
+                    <AdvanceSalaryTab />
+                </TabsContent>
+            </Tabs>
         </div>
-    );
+    )
 }
