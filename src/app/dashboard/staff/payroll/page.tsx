@@ -43,27 +43,28 @@ function PayrollTab() {
     const [tempValues, setTempValues] = useState<Record<string, { additions?: string, deductions?: string }>>({});
     const [isPayrollProcessed, setIsPayrollProcessed] = useState(false);
 
+    const initializePayroll = useCallback((staff: StaffMember[]) => {
+        const initialPayroll = staff.reduce((acc, s) => {
+            acc[s.id] = {
+                staffId: s.id,
+                staffName: s.name,
+                role: s.role,
+                basePay: s.pay_rate || 0,
+                additions: 0,
+                totalDeductions: 0,
+            };
+            return acc;
+        }, {} as Record<string, PayrollEntry>);
+        setPayrollData(initialPayroll);
+    }, []);
+
     useEffect(() => {
         const fetchStaff = async () => {
             setIsLoading(true);
             try {
                 const staff = await getStaffList();
                 setStaffList(staff);
-                
-                // Initialize payrollData based on fetched staff
-                const initialPayroll = staff.reduce((acc, s) => {
-                    acc[s.id] = {
-                        staffId: s.id,
-                        staffName: s.name,
-                        role: s.role,
-                        basePay: s.pay_rate || 0,
-                        additions: 0,
-                        totalDeductions: 0,
-                    };
-                    return acc;
-                }, {} as Record<string, PayrollEntry>);
-                setPayrollData(initialPayroll);
-
+                initializePayroll(staff);
             } catch (error) {
                 console.error("Error fetching staff list:", error);
                 toast({ variant: 'destructive', title: 'Error', description: 'Failed to load staff data.' });
@@ -72,14 +73,16 @@ function PayrollTab() {
             }
         };
         fetchStaff();
-    }, [toast]);
-
+    }, [toast, initializePayroll]);
+    
     useEffect(() => {
         const checkStatus = async () => {
-            if (staffList.length > 0) { // Only check status if there's staff
+            if (staffList.length > 0) {
                 const periodString = format(new Date(payrollPeriod + '-02'), 'MMMM yyyy');
                 const alreadyProcessed = await hasPayrollBeenProcessed(periodString);
                 setIsPayrollProcessed(alreadyProcessed);
+            } else {
+                setIsPayrollProcessed(false);
             }
         };
         checkStatus();
@@ -234,7 +237,7 @@ function PayrollTab() {
                                 </TableRow>
                             ) : staffList.map(staff => {
                                 const entry = payrollData[staff.id];
-                                if (!entry) return null; // Should not happen if initialized correctly
+                                if (!entry) return null;
                                 const { grossPay, netPay, totalDeductions } = calculateTotals(entry);
                                 return (
                                     <TableRow key={entry.staffId}>
