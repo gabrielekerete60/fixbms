@@ -135,6 +135,8 @@ function SupplierDialog({
     const [amountPaid, setAmountPaid] = useState(0);
 
     const isStorekeeper = user?.role === 'Storekeeper';
+    const isDeveloper = user?.role === 'Developer';
+
 
     useEffect(() => {
         if (supplier) {
@@ -197,11 +199,11 @@ function SupplierDialog({
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="amountOwed" className="text-right">Amount Owed (₦)</Label>
-                        <Input id="amountOwed" type="number" value={amountOwed} onChange={(e) => setAmountOwed(Number(e.target.value))} className="col-span-3" disabled={isStorekeeper} />
+                        <Input id="amountOwed" type="number" value={amountOwed} onChange={(e) => setAmountOwed(Number(e.target.value))} className="col-span-3" disabled={!isDeveloper} />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="amountPaid" className="text-right">Amount Paid (₦)</Label>
-                        <Input id="amountPaid" type="number" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} className="col-span-3" disabled={isStorekeeper} />
+                        <Input id="amountPaid" type="number" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} className="col-span-3" disabled={!isDeveloper} />
                     </div>
                 </div>
                 <DialogFooter>
@@ -309,7 +311,7 @@ function SupplyLogDialog({
     )
 }
 
-function LogPaymentDialog({ supplier, user, onPaymentLogged }: { supplier: Supplier, user: User, onPaymentLogged: () => void }) {
+function LogPaymentDialog({ supplier, user, onPaymentLogged, disabled }: { supplier: Supplier, user: User, onPaymentLogged: () => void, disabled?: boolean }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [amount, setAmount] = useState<number | string>('');
@@ -396,7 +398,7 @@ function LogPaymentDialog({ supplier, user, onPaymentLogged }: { supplier: Suppl
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button>
+                <Button disabled={disabled}>
                     <PlusCircle className="mr-2 h-4 w-4"/> Log Payment
                 </Button>
             </DialogTrigger>
@@ -453,7 +455,8 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
     const [searchTerm, setSearchTerm] = useState("");
     
     const canManageSupplies = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper' || user?.role === 'Accountant';
-    const canLogPayments = user?.role === 'Accountant';
+    const canLogPayments = user?.role === 'Accountant' || user?.role === 'Developer';
+    const isReadOnly = user?.role === 'Manager';
 
 
     const fetchDetails = useCallback(async () => {
@@ -601,7 +604,7 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
                 </CardContent>
             </Card>
             
-            {canManageSupplies && (
+            {canManageSupplies && !isReadOnly && (
               <SupplyLogDialog 
                   isOpen={isLogDialogOpen}
                   onOpenChange={setIsLogDialogOpen}
@@ -625,10 +628,10 @@ function SupplierDetail({ supplier, onBack, user }: { supplier: Supplier, onBack
                                 <Input placeholder="Search logs..." className="pl-10 w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
                             {canLogPayments && user && (
-                                <LogPaymentDialog supplier={supplier} user={user} onPaymentLogged={fetchDetails} />
+                                <LogPaymentDialog supplier={supplier} user={user} onPaymentLogged={fetchDetails} disabled={isReadOnly} />
                             )}
                             {canManageSupplies && !canLogPayments && (
-                              <Button onClick={() => setIsLogDialogOpen(true)}>
+                              <Button onClick={() => setIsLogDialogOpen(true)} disabled={isReadOnly}>
                                   <PlusCircle className="mr-2 h-4 w-4"/> Add Supply Log
                               </Button>
                             )}
@@ -748,6 +751,8 @@ export default function SuppliersPage() {
     
     const canManageSuppliers = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper' || user?.role === 'Accountant';
     const isStorekeeper = user?.role === 'Storekeeper';
+    const isReadOnly = user?.role === 'Manager';
+
 
     if (selectedSupplier) {
         return <SupplierDetail supplier={selectedSupplier} onBack={() => setSelectedSupplier(null)} user={user} />;
@@ -758,7 +763,7 @@ export default function SuppliersPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold font-headline">Suppliers</h1>
                 {canManageSuppliers && (
-                  <Button onClick={openAddDialog}>
+                  <Button onClick={openAddDialog} disabled={isReadOnly}>
                       <PlusCircle className="mr-2 h-4 w-4" /> Add Supplier
                   </Button>
                 )}
@@ -828,9 +833,9 @@ export default function SuppliersPage() {
                                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                     {canManageSuppliers && (
                                                       <>
-                                                        <DropdownMenuItem onSelect={() => openEditDialog(supplier)}>Edit</DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => openEditDialog(supplier)} disabled={isReadOnly}>Edit</DropdownMenuItem>
                                                         <DropdownMenuSeparator />
-                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setSupplierToDelete(supplier)}>Delete</DropdownMenuItem>
+                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setSupplierToDelete(supplier)} disabled={isReadOnly}>Delete</DropdownMenuItem>
                                                       </>
                                                     )}
                                                 </DropdownMenuContent>

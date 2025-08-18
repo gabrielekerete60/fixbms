@@ -662,6 +662,9 @@ export default function RecipesPage() {
     const canApproveBatches = user.role === 'Manager' || user.role === 'Developer' || user.role === 'Storekeeper';
     const canCompleteBatches = user.role === 'Baker' || user.role === 'Chief Baker';
     const isBaker = user.role === 'Baker' || user.role === 'Chief Baker';
+    const canStartProduction = isBaker || user.role === 'Developer';
+    const isManager = user.role === 'Manager';
+
 
     const getStatusVariant = (status: string) => {
         switch(status) {
@@ -697,6 +700,7 @@ export default function RecipesPage() {
             
             <Tabs defaultValue="production">
                 <TabsList>
+                    {isManager && <TabsTrigger value="recipes">Recipes</TabsTrigger>}
                     <TabsTrigger value="production" className="relative">
                         Production Batches
                         {productionBatches.length > 0 && (
@@ -707,6 +711,36 @@ export default function RecipesPage() {
                     </TabsTrigger>
                     <TabsTrigger value="logs">Production Logs</TabsTrigger>
                 </TabsList>
+                {isManager && (
+                    <TabsContent value="recipes">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>General Production Recipe</CardTitle>
+                                <CardDescription>This recipe is used for all bread production batches.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {generalRecipe ? (
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Ingredient</TableHead>
+                                                <TableHead className="text-right">Quantity</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {generalRecipe.ingredients.map(ing => (
+                                                <TableRow key={ing.ingredientId}>
+                                                    <TableCell>{ing.ingredientName}</TableCell>
+                                                    <TableCell className="text-right">{ing.quantity.toLocaleString()} {ing.unit}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                ) : <p>General recipe not found.</p>}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                )}
                 <TabsContent value="production">
                      <Card>
                         <CardHeader className="flex flex-row justify-between items-center">
@@ -714,9 +748,11 @@ export default function RecipesPage() {
                                 <CardTitle>Active Production Batches</CardTitle>
                                 <CardDescription>Batches that are pending approval or are currently being produced.</CardDescription>
                             </div>
-                             <Button onClick={() => setIsProductionDialogOpen(true)}>
-                                <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
-                            </Button>
+                             {canStartProduction && (
+                                <Button onClick={() => setIsProductionDialogOpen(true)}>
+                                    <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
+                                </Button>
+                             )}
                         </CardHeader>
                         <CardContent>
                              <Table>

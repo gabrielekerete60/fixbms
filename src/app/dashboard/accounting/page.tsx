@@ -160,7 +160,7 @@ function ExpenseDetailDialog({ cost, onOpenChange, isOpen }: { cost: DirectCost 
 }
 
 // --- DIALOGS FOR ADDING DATA ---
-function ManageCategoriesDialog({ categories, onAdd, onDelete }: { categories: CostCategory[], onAdd: (name: string, type: 'direct' | 'indirect') => void, onDelete: (id: string) => void }) {
+function ManageCategoriesDialog({ categories, onAdd, onDelete, disabled }: { categories: CostCategory[], onAdd: (name: string, type: 'direct' | 'indirect') => void, onDelete: (id: string) => void, disabled?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [newCategoryType, setNewCategoryType] = useState<'direct' | 'indirect'>('indirect');
@@ -178,7 +178,7 @@ function ManageCategoriesDialog({ categories, onAdd, onDelete }: { categories: C
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button size="sm" variant="outline"><Settings2 className="mr-2 h-4 w-4" /> Manage Categories</Button>
+                <Button size="sm" variant="outline" disabled={disabled}><Settings2 className="mr-2 h-4 w-4" /> Manage Categories</Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
@@ -239,7 +239,7 @@ function ManageCategoriesDialog({ categories, onAdd, onDelete }: { categories: C
     )
 }
 
-function AddDirectCostDialog({ onCostAdded, categories }: { onCostAdded: () => void, categories: CostCategory[] }) {
+function AddDirectCostDialog({ onCostAdded, categories, disabled }: { onCostAdded: () => void, categories: CostCategory[], disabled?: boolean }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -269,7 +269,7 @@ function AddDirectCostDialog({ onCostAdded, categories }: { onCostAdded: () => v
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button size="sm"><PenSquare className="mr-2 h-4 w-4" /> Add Direct Cost</Button>
+                <Button size="sm" disabled={disabled}><PenSquare className="mr-2 h-4 w-4" /> Add Direct Cost</Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
@@ -301,7 +301,7 @@ function AddDirectCostDialog({ onCostAdded, categories }: { onCostAdded: () => v
     );
 }
 
-function AddIndirectCostDialog({ onCostAdded, categories }: { onCostAdded: () => void, categories: CostCategory[] }) {
+function AddIndirectCostDialog({ onCostAdded, categories, disabled }: { onCostAdded: () => void, categories: CostCategory[], disabled?: boolean }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -330,7 +330,7 @@ function AddIndirectCostDialog({ onCostAdded, categories }: { onCostAdded: () =>
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button size="sm"><PenSquare className="mr-2 h-4 w-4" /> Add Indirect Cost</Button>
+                <Button size="sm" disabled={disabled}><PenSquare className="mr-2 h-4 w-4" /> Add Indirect Cost</Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
@@ -359,7 +359,7 @@ function AddIndirectCostDialog({ onCostAdded, categories }: { onCostAdded: () =>
     );
 }
 
-function LogPaymentDialog({ creditor, onPaymentLogged }: { creditor: Creditor, onPaymentLogged: () => void }) {
+function LogPaymentDialog({ creditor, onPaymentLogged, disabled }: { creditor: Creditor, onPaymentLogged: () => void, disabled?: boolean }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -390,7 +390,7 @@ function LogPaymentDialog({ creditor, onPaymentLogged }: { creditor: Creditor, o
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button size="sm" variant="outline"><HandCoins className="h-4 w-4"/></Button>
+                <Button size="sm" variant="outline" disabled={disabled}><HandCoins className="h-4 w-4"/></Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
@@ -612,7 +612,7 @@ function FinancialsTab() {
     );
 }
 
-function DebtorsCreditorsTab() {
+function DebtorsCreditorsTab({ isReadOnly }: { isReadOnly?: boolean }) {
     const [creditors, setCreditors] = useState<Creditor[]>([]);
     const [debtors, setDebtors] = useState<Debtor[]>([]);
     const [debtLedger, setDebtLedger] = useState<DebtRecord[]>([]);
@@ -680,7 +680,7 @@ function DebtorsCreditorsTab() {
                                         <TableCell>{c.name}</TableCell>
                                         <TableCell>{c.contactPerson}</TableCell>
                                         <TableCell className="text-right font-medium">{formatCurrency(c.balance)}</TableCell>
-                                        <TableCell className="text-center"><LogPaymentDialog creditor={c} onPaymentLogged={fetchData} /></TableCell>
+                                        <TableCell className="text-center"><LogPaymentDialog creditor={c} onPaymentLogged={fetchData} disabled={isReadOnly} /></TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -774,7 +774,7 @@ function DebtorsCreditorsTab() {
     );
 }
 
-function DirectCostsTab({ categories }: { categories: CostCategory[] }) {
+function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[], isReadOnly?: boolean }) {
     const [costs, setCosts] = useState<DirectCost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -868,7 +868,7 @@ function DirectCostsTab({ categories }: { categories: CostCategory[] }) {
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
-                            <AddDirectCostDialog onCostAdded={fetchCosts} categories={categories} />
+                            <AddDirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly} />
                             <DateRangeFilter date={date} setDate={setDate} />
                         </div>
                     </CardHeader>
@@ -924,7 +924,7 @@ function DirectCostsTab({ categories }: { categories: CostCategory[] }) {
     );
 }
 
-function IndirectCostsTab({ categories }: { categories: CostCategory[] }) {
+function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[], isReadOnly?: boolean }) {
     const [costs, setCosts] = useState<IndirectCost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -1017,7 +1017,7 @@ function IndirectCostsTab({ categories }: { categories: CostCategory[] }) {
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
-                            <AddIndirectCostDialog onCostAdded={fetchCosts} categories={categories} />
+                            <AddIndirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly}/>
                             <DateRangeFilter date={date} setDate={setDate} />
                         </div>
                     </CardHeader>
@@ -1072,7 +1072,7 @@ function IndirectCostsTab({ categories }: { categories: CostCategory[] }) {
 }
 
 // --- New Payments & Requests Tab ---
-function PaymentsRequestsTab({ notificationBadge }: { notificationBadge?: React.ReactNode }) {
+function PaymentsRequestsTab({ notificationBadge, isReadOnly }: { notificationBadge?: React.ReactNode, isReadOnly?: boolean }) {
     const { toast } = useToast();
     const [confirmations, setConfirmations] = useState<PaymentConfirmation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -1154,13 +1154,13 @@ function PaymentsRequestsTab({ notificationBadge }: { notificationBadge?: React.
                                 <TableCell className="text-right">
                                      <div className="flex gap-2 justify-end">
                                         <AlertDialog>
-                                            <AlertDialogTrigger asChild><Button variant="destructive" size="sm" disabled={!!actioningId}>Decline</Button></AlertDialogTrigger>
+                                            <AlertDialogTrigger asChild><Button variant="destructive" size="sm" disabled={!!actioningId || isReadOnly}>Decline</Button></AlertDialogTrigger>
                                             <AlertDialogContent>
                                                 <AlertDialogHeader><AlertDialogTitle>Are you sure you want to decline?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
                                                 <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleAction(c.id, 'decline')}>Decline</AlertDialogAction></AlertDialogFooter>
                                             </AlertDialogContent>
                                         </AlertDialog>
-                                        <Button size="sm" onClick={() => handleAction(c.id, 'approve')} disabled={actioningId === c.id}>{actioningId === c.id ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Approve'}</Button>
+                                        <Button size="sm" onClick={() => handleAction(c.id, 'approve')} disabled={actioningId === c.id || isReadOnly}>{actioningId === c.id ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Approve'}</Button>
                                     </div>
                                 </TableCell>
                             </TableRow>
@@ -1967,7 +1967,7 @@ function BusinessHealthTab() {
     );
 }
 
-function ApprovalsTab({ user, notificationBadge }: { user: { staff_id: string, name: string }, notificationBadge?: React.ReactNode }) {
+function ApprovalsTab({ user, notificationBadge, isReadOnly }: { user: { staff_id: string, name: string }, notificationBadge?: React.ReactNode, isReadOnly?: boolean }) {
     const { toast } = useToast();
     const [requests, setRequests] = useState<SupplyRequest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -2072,7 +2072,7 @@ function ApprovalsTab({ user, notificationBadge }: { user: { staff_id: string, n
                                         <div className="flex gap-2 justify-end">
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
-                                                    <Button variant="destructive" size="sm" disabled={!!actioningId}>Decline</Button>
+                                                    <Button variant="destructive" size="sm" disabled={!!actioningId || isReadOnly}>Decline</Button>
                                                 </AlertDialogTrigger>
                                                 <AlertDialogContent>
                                                     <AlertDialogHeader>
@@ -2085,7 +2085,7 @@ function ApprovalsTab({ user, notificationBadge }: { user: { staff_id: string, n
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
-                                            <Button size="sm" onClick={() => setSelectedRequest(req)}>Approve</Button>
+                                            <Button size="sm" onClick={() => setSelectedRequest(req)} disabled={isReadOnly}>Approve</Button>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -2131,7 +2131,7 @@ export default function AccountingPage() {
   const [notificationCounts, setNotificationCounts] = useState({ payments: 0, approvals: 0 });
   const [costCategories, setCostCategories] = useState<CostCategory[]>([]);
   const { toast } = useToast();
-  const [user, setUser] = useState<{staff_id: string; name: string} | null>(null);
+  const [user, setUser] = useState<{staff_id: string; name: string, role: string} | null>(null);
 
   useEffect(() => {
     const userStr = localStorage.getItem('loggedInUser');
@@ -2176,6 +2176,9 @@ export default function AccountingPage() {
     
     const directCategories = costCategories.filter(c => c.type === 'direct');
     const indirectCategories = costCategories.filter(c => c.type === 'indirect');
+    
+    const isReadOnly = user?.role === 'Manager';
+
 
   if (!user) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
@@ -2215,10 +2218,11 @@ export default function AccountingPage() {
                         categories={costCategories}
                         onAdd={handleAddCategory}
                         onDelete={handleDeleteCategory}
+                        disabled={isReadOnly}
                     />
                 </div>
-                <TabsContent value="indirect"><IndirectCostsTab categories={indirectCategories} /></TabsContent>
-                <TabsContent value="direct"><DirectCostsTab categories={directCategories} /></TabsContent>
+                <TabsContent value="indirect"><IndirectCostsTab categories={indirectCategories} isReadOnly={isReadOnly} /></TabsContent>
+                <TabsContent value="direct"><DirectCostsTab categories={directCategories} isReadOnly={isReadOnly} /></TabsContent>
             </Tabs>
         </TabsContent>
         <TabsContent value="sales">
@@ -2232,7 +2236,7 @@ export default function AccountingPage() {
             </Tabs>
         </TabsContent>
         <TabsContent value="debt-payments">
-            <DebtorsCreditorsTab />
+            <DebtorsCreditorsTab isReadOnly={isReadOnly} />
         </TabsContent>
          <TabsContent value="assets-wages">
             <Tabs defaultValue="closing-stock" className="space-y-4">
@@ -2257,10 +2261,10 @@ export default function AccountingPage() {
                     </TabsTrigger>
                 </TabsList>
                 <TabsContent value="stock-requests">
-                    <ApprovalsTab user={user} notificationBadge={null} />
+                    <ApprovalsTab user={user} notificationBadge={null} isReadOnly={isReadOnly}/>
                 </TabsContent>
                 <TabsContent value="payment-requests">
-                    <PaymentsRequestsTab notificationBadge={null} />
+                    <PaymentsRequestsTab notificationBadge={null} isReadOnly={isReadOnly}/>
                 </TabsContent>
             </Tabs>
         </TabsContent>

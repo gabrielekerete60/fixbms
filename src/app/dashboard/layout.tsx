@@ -387,7 +387,7 @@ export default function DashboardLayout({
   const navLinks = useMemo(() => {
     const allLinks = [
       { href: "/dashboard", icon: Home, label: "Dashboard", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
-      { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Developer'] },
+      { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Supervisor', 'Showroom Staff', 'Developer'] },
       {
         icon: Inbox, label: "Orders", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Accountant', 'Developer'], sublinks: [
           { href: "/dashboard/orders/regular", label: "Regular Orders" },

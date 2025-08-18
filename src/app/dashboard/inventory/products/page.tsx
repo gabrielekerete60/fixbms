@@ -119,6 +119,7 @@ function ProductDialog({ product, onSave, onOpenChange, categories, user }: { pr
     const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(20);
     
     const isAccountant = user?.role === 'Accountant';
+    const isDeveloper = user?.role === 'Developer';
 
     const handleSubmit = () => {
         const newProductData = {
@@ -214,7 +215,7 @@ function ProductDialog({ product, onSave, onOpenChange, categories, user }: { pr
                     <div className="grid grid-cols-2 gap-4">
                          <div className="grid gap-2">
                             <Label htmlFor="stock">Stock</Label>
-                            <Input id="stock" type="number" value={stock} onChange={(e) => setStock(parseInt(e.target.value))} disabled={true}/>
+                            <Input id="stock" type="number" value={stock} onChange={(e) => setStock(parseInt(e.target.value))} disabled={!isDeveloper}/>
                          </div>
                          <div className="grid gap-2">
                             <Label htmlFor="unit">Unit</Label>
@@ -299,8 +300,9 @@ export default function ProductsPage() {
   const handleSaveProduct = async (productData: Omit<Product, 'id'>) => {
     try {
         if (editingProduct && editingProduct.id) {
-            const { stock, ...updateData } = productData;
-            await updateDoc(doc(db, "products", editingProduct.id), updateData);
+            // Keep existing stock if not developer
+            const finalData = (user?.role === 'Developer') ? productData : {...productData, stock: editingProduct.stock || 0};
+            await updateDoc(doc(db, "products", editingProduct.id), finalData);
             toast({ title: "Success", description: "Product updated successfully." });
         } else {
             await addDoc(collection(db, "products"), { ...productData, stock: 0 });
@@ -397,6 +399,7 @@ export default function ProductsPage() {
   const categories = useMemo(() => ['All', ...new Set(products.map(p => p.category))], [products]);
   const canManageProducts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
   const canViewFinancials = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer' || user?.role === 'Accountant';
+  const canAddProducts = user?.role === 'Manager' || user?.role === 'Developer';
 
   return (
     <div className="flex flex-col gap-4">
@@ -407,6 +410,15 @@ export default function ProductsPage() {
             categories={categories}
             user={user}
         />
+
+      <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold font-headline">Products</h1>
+            {canAddProducts && (
+                <Button onClick={() => setEditingProduct({})}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
+                </Button>
+            )}
+        </div>
 
         <Card>
             <CardHeader>
@@ -451,7 +463,9 @@ export default function ProductsPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Selling Price</TableHead>
+                    {canViewFinancials && <TableHead>Cost Price</TableHead>}
                     <TableHead>Stock</TableHead>
+                    {canViewFinancials && <TableHead>Total Value</TableHead>}
                     <TableHead>
                       <span className="sr-only">Actions</span>
                     </TableHead>
@@ -460,7 +474,7 @@ export default function ProductsPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
+                      <TableCell colSpan={canViewFinancials ? 7 : 5} className="h-24 text-center">
                         <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                       </TableCell>
                     </TableRow>
@@ -484,7 +498,9 @@ export default function ProductsPage() {
                         </TableCell>
                         <TableCell>{getStatusBadge(product.stock, product.lowStockThreshold)}</TableCell>
                         <TableCell>₦{product.price.toFixed(2)}</TableCell>
+                        {canViewFinancials && <TableCell>₦{(product.costPrice || 0).toFixed(2)}</TableCell>}
                         <TableCell>{product.stock > 0 ? `${product.stock} ${product.unit || ''}`.trim() : '--'}</TableCell>
+                        {canViewFinancials && <TableCell>₦{product.totalValue.toFixed(2)}</TableCell>}
                         <TableCell>
                             <DropdownMenu onOpenChange={(open) => setMenuOpenId(open ? product.id : null)}>
                                 <DropdownMenuTrigger asChild>
@@ -515,12 +531,19 @@ export default function ProductsPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
+                      <TableCell colSpan={canViewFinancials ? 7 : 5} className="h-24 text-center">
                         No products found for this filter.
                       </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
+                {canViewFinancials && (
+                    <TableRow>
+                        <TableCell colSpan={5} className="text-right font-bold">Grand Total Value</TableCell>
+                        <TableCell className="font-bold">₦{grandTotalValue.toFixed(2)}</TableCell>
+                        <TableCell></TableCell>
+                    </TableRow>
+                )}
               </Table>
               </div>
             </CardContent>

@@ -1261,7 +1261,7 @@ function SalesRunDetails() {
     
     const runComplete = runStatus === 'completed';
     const canPerformSales = user?.staff_id === run?.to_staff_id;
-    const isAdmin = user && ['Manager', 'Supervisor', 'Developer'].includes(user.role);
+    const isReadOnly = user?.role === 'Manager';
     const allDebtsPaid = run.totalOutstanding <= 0;
 
     return (
