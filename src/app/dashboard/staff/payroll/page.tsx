@@ -46,6 +46,46 @@ type WageRecord = {
     netPay: number;
 }
 
+function PaginationControls({
+    visibleRows,
+    setVisibleRows,
+    totalRows
+}: {
+    visibleRows: number | 'all',
+    setVisibleRows: (val: number | 'all') => void,
+    totalRows: number
+}) {
+    const [inputValue, setInputValue] = useState<string>('');
+
+    const handleApply = () => {
+        const num = parseInt(inputValue, 10);
+        if (!isNaN(num) && num > 0) {
+            setVisibleRows(num);
+        }
+    };
+    
+    return (
+        <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+            <span>Show:</span>
+            <Button variant={visibleRows === 10 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(10)}>10</Button>
+            <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
+            <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
+            <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
+            <div className="flex items-center gap-1">
+                <Input 
+                    type="number" 
+                    className="h-8 w-16" 
+                    placeholder="Custom"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleApply()}
+                />
+                <Button size="sm" onClick={handleApply}>Apply</Button>
+            </div>
+        </div>
+    )
+}
+
 function PayrollTab() {
     const { toast } = useToast();
     const [staffList, setStaffList] = useState<StaffMember[]>([]);
@@ -165,12 +205,11 @@ function PayrollTab() {
 
         setIsProcessing(true);
         const payrollDataToProcess = Object.values(payrollData).map(p => {
-            const { netPay } = calculateTotals(p);
-            // In a real app, this would be a more detailed object.
-            // For now, lumping all deductions into shortages for simplicity.
+            const { netPay, totalDeductions } = calculateTotals(p);
+            // This structure is simplified but allows for future deduction types.
             const simplifiedDeductions = {
-                shortages: p.totalDeductions,
-                advanceSalary: 0,
+                shortages: 0, 
+                advanceSalary: totalDeductions, // All deductions are advances for now
                 debt: 0,
                 fine: 0,
             };
@@ -506,6 +545,7 @@ function AdvanceSalaryLogTab() {
     const [logs, setLogs] = useState<WageRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [period, setPeriod] = useState(new Date());
+    const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
 
     useEffect(() => {
         const fetchLogs = async () => {
@@ -517,6 +557,10 @@ function AdvanceSalaryLogTab() {
         }
         fetchLogs();
     }, [period]);
+
+    const paginatedLogs = useMemo(() => {
+        return visibleRows === 'all' ? logs : logs.slice(0, visibleRows);
+    }, [logs, visibleRows]);
 
     return (
         <Card>
@@ -568,14 +612,14 @@ function AdvanceSalaryLogTab() {
                                     <Loader2 className="h-8 w-8 animate-spin" />
                                 </TableCell>
                             </TableRow>
-                        ) : logs.length === 0 ? (
+                        ) : paginatedLogs.length === 0 ? (
                              <TableRow>
                                 <TableCell colSpan={4} className="h-24 text-center">
                                     No salary advances recorded for this period.
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            logs.map(log => (
+                            paginatedLogs.map(log => (
                                 <TableRow key={log.id}>
                                     <TableCell>{format(new Date(log.date), 'Pp')}</TableCell>
                                     <TableCell>{log.staffName}</TableCell>
@@ -587,6 +631,9 @@ function AdvanceSalaryLogTab() {
                     </TableBody>
                 </Table>
             </CardContent>
+             <CardFooter>
+                <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={logs.length} />
+            </CardFooter>
         </Card>
     );
 }
