@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
@@ -46,8 +46,8 @@ const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(u
 type CostCategory = { id: string; name: string; type: 'direct' | 'indirect' };
 type AccountSummary = Record<string, number>;
 type DebtRecord = { id: string; date: string; description: string; debit: number; credit: number; };
-type DirectCost = { id: string; date: string; description: string; category: string; quantity: number; total: number; };
-type IndirectCost = { id: string; date: string; description: string; category: string; amount: number; };
+type DirectCost = { id: string; date: string; description: string; category: string; quantity: number; total: number; details?: { name: string, amount: number }[] };
+type IndirectCost = { id: string; date: string; description: string; category: string; amount: number; details?: { name: string, amount: number }[] };
 type ClosingStock = { name: string; value: number; quantity: number; unit: string; };
 type DiscountRecord = { id: string; bread_type: string; amount: number };
 type Wage = { id: string; date: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
@@ -102,6 +102,61 @@ function PaginationControls({
                 <Button size="sm" onClick={handleApply}>Apply</Button>
             </div>
         </div>
+    )
+}
+
+function ExpenseDetailDialog({ cost, onOpenChange, isOpen }: { cost: DirectCost | IndirectCost | null, onOpenChange: (open: boolean) => void, isOpen: boolean }) {
+    if (!cost) return null;
+    const isDirect = 'total' in cost;
+    const amount = isDirect ? cost.total : cost.amount;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Expense Details</DialogTitle>
+                    <DialogDescription>
+                        {cost.description} on {format(new Date(cost.date), 'PPP')}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Category</span>
+                        <Badge variant="outline">{cost.category}</Badge>
+                    </div>
+                     <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Total Amount</span>
+                        <span className="font-semibold">{formatCurrency(amount)}</span>
+                    </div>
+
+                    {cost.details && cost.details.length > 0 && (
+                        <>
+                            <Separator />
+                            <h4 className="font-medium">Breakdown</h4>
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Staff Name</TableHead>
+                                        <TableHead className="text-right">Amount Paid</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {cost.details.map((detail, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell>{detail.name}</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(detail.amount)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }
 
@@ -726,6 +781,7 @@ function DirectCostsTab({ categories }: { categories: CostCategory[] }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [date, setDate] = useState<DateRange | undefined>();
     const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
+    const [viewingCost, setViewingCost] = useState<DirectCost | null>(null);
 
     const fetchCosts = useCallback(() => {
         setIsLoading(true);
@@ -777,6 +833,7 @@ function DirectCostsTab({ categories }: { categories: CostCategory[] }) {
 
     return (
         <div className="space-y-6">
+            <ExpenseDetailDialog isOpen={!!viewingCost} onOpenChange={() => setViewingCost(null)} cost={viewingCost} />
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -830,7 +887,7 @@ function DirectCostsTab({ categories }: { categories: CostCategory[] }) {
                                 </TableHeader>
                                 <TableBody>
                                     {paginatedCosts.map(c => (
-                                        <TableRow key={c.id}>
+                                        <TableRow key={c.id} className="cursor-pointer hover:bg-muted" onClick={() => setViewingCost(c)}>
                                             <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
                                             <TableCell>{c.description}</TableCell>
                                             <TableCell><Badge variant="outline">{c.category}</Badge></TableCell>
@@ -874,6 +931,7 @@ function IndirectCostsTab({ categories }: { categories: CostCategory[] }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [date, setDate] = useState<DateRange | undefined>();
     const [visibleRows, setVisibleRows] = useState<number | 'all'>(10);
+    const [viewingCost, setViewingCost] = useState<IndirectCost | null>(null);
 
     const fetchCosts = useCallback(() => {
         setIsLoading(true);
@@ -924,6 +982,7 @@ function IndirectCostsTab({ categories }: { categories: CostCategory[] }) {
 
     return (
         <div className="space-y-6">
+            <ExpenseDetailDialog isOpen={!!viewingCost} onOpenChange={() => setViewingCost(null)} cost={viewingCost} />
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -976,7 +1035,7 @@ function IndirectCostsTab({ categories }: { categories: CostCategory[] }) {
                                 </TableHeader>
                                 <TableBody>
                                     {paginatedCosts.map(c => (
-                                        <TableRow key={c.id}>
+                                        <TableRow key={c.id} className="cursor-pointer hover:bg-muted" onClick={() => setViewingCost(c)}>
                                             <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
                                             <TableCell>{c.description}</TableCell>
                                             <TableCell><Badge variant="outline">{c.category}</Badge></TableCell>
