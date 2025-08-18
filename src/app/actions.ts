@@ -1259,7 +1259,7 @@ export async function hasPayrollBeenProcessed(period: string): Promise<boolean> 
     }
 }
 
-export async function requestAdvanceSalary(staffId: string, amount: number, staffName: string, staffRole: string): Promise<{ success: boolean; error?: string }> {
+export async function requestAdvanceSalary(staffId: string, amount: number, staffName: string, staffRole: string, period: string): Promise<{ success: boolean; error?: string }> {
     if (!staffId || !amount || amount <= 0) {
         return { success: false, error: "Invalid staff ID or amount." };
     }
@@ -1272,12 +1272,12 @@ export async function requestAdvanceSalary(staffId: string, amount: number, staf
         batch.set(wageRef, {
             staffId,
             staffName,
-            description: `Salary advance for ${format(new Date(), 'MMMM yyyy')}`,
+            description: `Salary advance for ${period}`,
             date: serverTimestamp(),
             deductions: { advanceSalary: amount },
             netPay: -amount, // It's a debit from the company's perspective
             isAdvance: true,
-            month: format(new Date(), 'MMMM yyyy'),
+            month: period,
         });
         
         // Log the advance as a direct or indirect cost
@@ -1288,7 +1288,7 @@ export async function requestAdvanceSalary(staffId: string, amount: number, staf
         const expenseRef = doc(expenseCollectionRef);
 
         const expenseData: any = {
-            description: `Salary advance for ${staffName}`,
+            description: `Salary advance for ${staffName} (${period})`,
             category: 'Salary Advance',
             date: serverTimestamp(),
         };
@@ -3138,3 +3138,4 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+

@@ -17,6 +17,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 
 type StaffMember = {
@@ -54,7 +56,18 @@ function PayrollTab() {
     const [tempValues, setTempValues] = useState<Record<string, { additions?: string, deductions?: string }>>({});
     const [isPayrollProcessed, setIsPayrollProcessed] = useState(false);
 
-    const initializePayroll = useCallback((staff: StaffMember[]) => {
+    const initializePayroll = useCallback(async (staff: StaffMember[], period: Date) => {
+        const periodString = format(period, 'MMMM yyyy');
+        
+        // Fetch advances for the selected period
+        const advancesQuery = query(collection(db, 'wages'), where('month', '==', periodString), where('isAdvance', '==', true));
+        const advancesSnapshot = await getDocs(advancesQuery);
+        const advancesByStaff: Record<string, number> = {};
+        advancesSnapshot.forEach(doc => {
+            const data = doc.data();
+            advancesByStaff[data.staffId] = (advancesByStaff[data.staffId] || 0) + Math.abs(data.netPay);
+        });
+
         const initialPayroll = staff.reduce((acc, s) => {
             acc[s.id] = {
                 staffId: s.id,
@@ -62,7 +75,7 @@ function PayrollTab() {
                 role: s.role,
                 basePay: s.pay_rate || 0,
                 additions: 0,
-                totalDeductions: 0,
+                totalDeductions: advancesByStaff[s.id] || 0,
             };
             return acc;
         }, {} as Record<string, PayrollEntry>);
@@ -77,7 +90,7 @@ function PayrollTab() {
                 setStaffList(staff);
                 
                 if (staff.length > 0) {
-                    initializePayroll(staff);
+                    await initializePayroll(staff, payrollPeriod);
                     const periodString = format(payrollPeriod, 'MMMM yyyy');
                     const alreadyProcessed = await hasPayrollBeenProcessed(periodString);
                     setIsPayrollProcessed(alreadyProcessed);
@@ -153,6 +166,8 @@ function PayrollTab() {
         setIsProcessing(true);
         const payrollDataToProcess = Object.values(payrollData).map(p => {
             const { netPay } = calculateTotals(p);
+            // In a real app, this would be a more detailed object.
+            // For now, lumping all deductions into shortages for simplicity.
             const simplifiedDeductions = {
                 shortages: p.totalDeductions,
                 advanceSalary: 0,
@@ -220,12 +235,13 @@ function PayrollTab() {
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
                                 <Calendar
+                                    mode="single"
                                     month={payrollPeriod}
                                     onMonthChange={setPayrollPeriod}
                                     captionLayout="dropdown-buttons"
                                     fromYear={2020}
-                                    toYear={new Date().getFullYear() + 1}
-                                    className="p-0"
+                                    toYear={new Date().getFullYear() + 5}
+                                    className="p-0 [&_td]:hidden [&_th]:text-muted-foreground"
                                 />
                             </PopoverContent>
                         </Popover>
@@ -379,9 +395,10 @@ function AdvanceSalaryTab() {
             return;
         }
         setIsSubmitting(true);
-        const result = await requestAdvanceSalary(selectedStaffId, Number(amount), selectedStaffMember?.name || 'Unknown', selectedStaffMember?.role || 'Unknown');
+        const periodString = format(advancePeriod, 'MMMM yyyy');
+        const result = await requestAdvanceSalary(selectedStaffId, Number(amount), selectedStaffMember?.name || 'Unknown', selectedStaffMember?.role || 'Unknown', periodString);
         if (result.success) {
-            toast({ title: 'Success', description: `Salary advance for ${format(advancePeriod, 'MMMM yyyy')} has been recorded.` });
+            toast({ title: 'Success', description: `Salary advance for ${periodString} has been recorded.` });
             setSelectedStaffId('');
             setAmount('');
         } else {
@@ -419,12 +436,13 @@ function AdvanceSalaryTab() {
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
                                 <Calendar
+                                    mode="single"
                                     month={advancePeriod}
                                     onMonthChange={setAdvancePeriod}
                                     captionLayout="dropdown-buttons"
                                     fromYear={new Date().getFullYear()}
                                     toYear={new Date().getFullYear() + 5}
-                                    className="p-0"
+                                    className="p-0 [&_td]:hidden [&_th]:text-muted-foreground"
                                 />
                             </PopoverContent>
                         </Popover>
@@ -509,12 +527,13 @@ function AdvanceSalaryLogTab() {
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
                                 <Calendar
+                                    mode="single"
                                     month={period}
                                     onMonthChange={setPeriod}
                                     captionLayout="dropdown-buttons"
                                     fromYear={2020}
                                     toYear={new Date().getFullYear() + 5}
-                                    className="p-0"
+                                    className="p-0 [&_td]:hidden [&_th]:text-muted-foreground"
                                 />
                             </PopoverContent>
                         </Popover>
@@ -547,7 +566,7 @@ function AdvanceSalaryLogTab() {
                         ) : (
                             logs.map(log => (
                                 <TableRow key={log.id}>
-                                    <TableCell>{format(new Date(log.date), 'PPP')}</TableCell>
+                                    <TableCell>{format(new Date(log.date), 'Pp')}</TableCell>
                                     <TableCell>{log.staffName}</TableCell>
                                     <TableCell>{log.description}</TableCell>
                                     <TableCell className="text-right text-destructive">{Math.abs(log.netPay).toLocaleString()}</TableCell>
@@ -584,3 +603,4 @@ export default function PayrollPageContainer() {
         </div>
     )
 }
+
