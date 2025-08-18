@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
+import { Textarea } from '@/components/ui/textarea';
 
 
 type Customer = {
@@ -270,7 +271,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         }
     }, [isOpen]);
 
-    const handleAddToCart = (item: { productId: string, productName: string, price: number, quantity: number, costPrice?: number }) => {
+    const handleAddToCart = (item: { productId: string, productName: string, price: number, quantity: number, costPrice?: number, minPrice?: number, maxPrice?: number }) => {
         const quantityToAdd = Number(itemQuantities[item.productId] || 1);
         if (isNaN(quantityToAdd) || quantityToAdd <= 0) {
             toast({ variant: 'destructive', title: 'Invalid Quantity', description: 'Please enter a valid number.' });
@@ -292,7 +293,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
             if (existing) {
                 return prev.map(p => p.productId === item.productId ? { ...p, price: item.price, quantity: p.quantity + quantityToAdd } : p);
             }
-            return [...prev, { productId: item.productId, price: item.price, name: item.productName, quantity: quantityToAdd, costPrice: item.costPrice || 0 }];
+            return [...prev, { productId: item.productId, price: item.price, name: item.productName, quantity: quantityToAdd, costPrice: item.costPrice || 0, minPrice: item.minPrice, maxPrice: item.maxPrice }];
         });
         setItemQuantities(prev => ({...prev, [item.productId]: ''}));
     };
@@ -437,7 +438,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                 <Button variant="outline" className="w-full" disabled={run.status !== 'active' || !canPerformSales && !isAdmin}>
+                 <Button variant="outline" className="w-full" disabled={run.status !== 'active' || (canPerformSales ? false : !isAdmin) }>
                     <User className="mr-2 h-5 w-5"/>
                     <span>Sell to Customer</span>
                 </Button>
@@ -555,6 +556,93 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                         </AlertDialog>
                     </div>
                 </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: OrderItem[] }) {
+    // This is a placeholder. Full implementation is needed.
+     return (
+        <div className="hidden">Log Custom Sale Dialog Placeholder</div>
+    )
+}
+
+function LogExpenseDialog({ run, user }: { run: SalesRun, user: User | null }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [amount, setAmount] = useState<number | string>('');
+    const [description, setDescription] = useState('');
+    const [category, setCategory] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async () => {
+        if (!amount || !description || !category || !user) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all fields.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        const result = await logRunExpense({
+            runId: run.id,
+            driverId: user.staff_id,
+            driverName: user.name,
+            amount: Number(amount),
+            category,
+            description,
+        });
+
+        if (result.success) {
+            toast({ title: 'Expense Submitted', description: 'Your expense has been sent for approval.' });
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                 <Button variant="secondary" className="w-full" disabled={run.status !== 'active'}>
+                    <Fuel className="mr-2 h-5 w-5"/>
+                    <span>Log Run Expense</span>
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Log Run Expense</DialogTitle>
+                    <DialogDescription>Record an expense incurred during this sales run. It will be submitted for approval.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                     <div className="space-y-2">
+                        <Label htmlFor="expense-category">Expense Category</Label>
+                        <Select value={category} onValueChange={setCategory}>
+                            <SelectTrigger><SelectValue placeholder="Select a category..."/></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Fuel">Fuel</SelectItem>
+                                <SelectItem value="Toll">Toll / Levies</SelectItem>
+                                <SelectItem value="Vehicle-Repairs">Vehicle Repairs</SelectItem>
+                                <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="expense-description">Description</Label>
+                        <Textarea id="expense-description" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Bought 10L of petrol at XYZ station"/>
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="expense-amount">Amount (₦)</Label>
+                        <Input id="expense-amount" type="number" value={amount} onChange={e => setAmount(e.target.value)} />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Submit for Approval
+                    </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
@@ -706,15 +794,6 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
         </Dialog>
     );
 }
-
-function LogCustomSaleDialog() {
-    return <div>Log Custom Sale Dialog Placeholder</div>
-}
-
-function LogExpenseDialog() {
-     return <div>Log Expense Dialog Placeholder</div>
-}
-
 
 function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, run: SalesRun, user: User | null }) {
     const { toast } = useToast();
@@ -1260,14 +1339,14 @@ function SalesRunDetails() {
                         <CardTitle>Actions</CardTitle>
                         <CardDescription>Manage this sales run.</CardDescription>
                     </CardHeader>
-                    <CardContent className="flex-grow space-y-4">
+                    <CardContent className="flex-grow grid grid-cols-2 gap-2">
                         <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
-                        <LogCustomSaleDialog />
+                        <LogCustomSaleDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
+                        <LogExpenseDialog run={run} user={user} />
+                        <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
                     </CardContent>
                     {canPerformSales && (
                         <CardFooter className="flex-col gap-2">
-                            <LogExpenseDialog />
-                            <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button variant="secondary" className="w-full" disabled={runComplete || remainingItems.length === 0}>
