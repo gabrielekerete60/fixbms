@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal, FileSignature, Car, Fuel } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -437,7 +437,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                 <Button variant="outline" className="w-full" disabled={run.status !== 'active' || !canPerformSales}>
+                 <Button variant="outline" className="w-full" disabled={run.status !== 'active' || !canPerformSales && !isAdmin}>
                     <User className="mr-2 h-5 w-5"/>
                     <span>Sell to Customer</span>
                 </Button>
@@ -623,7 +623,7 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-        setIsSubmitting(true);
+        setIsSubmitting(false);
     };
 
     const getAvailableProductsForRow = (rowIndex: number) => {
@@ -634,7 +634,7 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+       <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                 <Button variant="secondary" className="w-full" disabled={run.status !== 'active' || remainingItems.length === 0}>
                     <Trash className="mr-2 h-5 w-5"/>
