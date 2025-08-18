@@ -77,6 +77,8 @@ type Product = {
   "data-ai-hint": string;
   costPrice?: number;
   lowStockThreshold?: number;
+  minPrice?: number;
+  maxPrice?: number;
 };
 
 type User = {
@@ -110,6 +112,8 @@ function ProductDialog({ product, onSave, onOpenChange, categories, user }: { pr
     const [category, setCategory] = useState("");
     const [costPrice, setCostPrice] = useState(0);
     const [price, setPrice] = useState(0);
+    const [minPrice, setMinPrice] = useState<number | string>('');
+    const [maxPrice, setMaxPrice] = useState<number | string>('');
     const [stock, setStock] = useState(0);
     const [unit, setUnit] = useState("");
     const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(20);
@@ -122,6 +126,8 @@ function ProductDialog({ product, onSave, onOpenChange, categories, user }: { pr
             category,
             costPrice: Number(costPrice),
             price: Number(price),
+            minPrice: Number(minPrice) || Number(price),
+            maxPrice: Number(maxPrice) || Number(price),
             stock: Number(stock),
             unit: unit,
             image: product?.image || "https://placehold.co/150x150.png",
@@ -138,6 +144,8 @@ function ProductDialog({ product, onSave, onOpenChange, categories, user }: { pr
             setCategory(product.category || "");
             setCostPrice(product.costPrice || 0);
             setPrice(product.price || 0);
+            setMinPrice(product.minPrice || '');
+            setMaxPrice(product.maxPrice || '');
             setStock(product.stock || 0);
             setUnit(product.unit || "");
             setLowStockThreshold(product.lowStockThreshold || 20);
@@ -146,6 +154,8 @@ function ProductDialog({ product, onSave, onOpenChange, categories, user }: { pr
             setCategory(categories[0] || "");
             setCostPrice(0);
             setPrice(0);
+            setMinPrice('');
+            setMaxPrice('');
             setStock(0);
             setUnit("");
             setLowStockThreshold(20);
@@ -181,13 +191,25 @@ function ProductDialog({ product, onSave, onOpenChange, categories, user }: { pr
                             </SelectContent>
                         </Select>
                     </div>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="costPrice" className="text-right">Cost Price (₦)</Label>
-                        <Input id="costPrice" type="number" value={costPrice} onChange={(e) => setCostPrice(parseFloat(e.target.value))} className="col-span-3" />
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="costPrice">Cost Price (₦)</Label>
+                            <Input id="costPrice" type="number" value={costPrice} onChange={(e) => setCostPrice(parseFloat(e.target.value))} />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="price">Selling Price (₦)</Label>
+                            <Input id="price" type="number" value={price} onChange={(e) => setPrice(parseFloat(e.target.value))} />
+                        </div>
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="price" className="text-right">Selling Price (₦)</Label>
-                        <Input id="price" type="number" value={price} onChange={(e) => setPrice(parseFloat(e.target.value))} className="col-span-3" />
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="minPrice">Min Price (₦)</Label>
+                            <Input id="minPrice" type="number" placeholder="e.g. 500" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="maxPrice">Max Price (₦)</Label>
+                            <Input id="maxPrice" type="number" placeholder="e.g. 600" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} />
+                        </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                          <div className="grid gap-2">
