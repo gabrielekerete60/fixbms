@@ -9,11 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getStaffList, processPayroll, hasPayrollBeenProcessed, requestAdvanceSalary, getWages } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Check } from "lucide-react";
+import { Loader2, Check, Calendar as CalendarIcon } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 
 type StaffMember = {
@@ -47,7 +50,7 @@ function PayrollTab() {
     const [payrollData, setPayrollData] = useState<Record<string, PayrollEntry>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [payrollPeriod, setPayrollPeriod] = useState(format(new Date(), 'yyyy-MM'));
+    const [payrollPeriod, setPayrollPeriod] = useState<Date>(new Date());
     const [tempValues, setTempValues] = useState<Record<string, { additions?: string, deductions?: string }>>({});
     const [isPayrollProcessed, setIsPayrollProcessed] = useState(false);
 
@@ -75,7 +78,7 @@ function PayrollTab() {
                 
                 if (staff.length > 0) {
                     initializePayroll(staff);
-                    const periodString = format(new Date(payrollPeriod + '-02'), 'MMMM yyyy');
+                    const periodString = format(payrollPeriod, 'MMMM yyyy');
                     const alreadyProcessed = await hasPayrollBeenProcessed(periodString);
                     setIsPayrollProcessed(alreadyProcessed);
                 } else {
@@ -160,11 +163,11 @@ function PayrollTab() {
                 ...p,
                 netPay,
                 deductions: simplifiedDeductions,
-                month: format(new Date(payrollPeriod + '-02'), 'MMMM yyyy'),
+                month: format(payrollPeriod, 'MMMM yyyy'),
             };
         });
             
-        const result = await processPayroll(payrollDataToProcess, format(new Date(payrollPeriod + '-02'), 'MMMM yyyy'));
+        const result = await processPayroll(payrollDataToProcess, format(payrollPeriod, 'MMMM yyyy'));
         if (result.success) {
             toast({ title: 'Success!', description: 'Payroll has been processed and expenses logged.'});
             setIsPayrollProcessed(true);
@@ -208,14 +211,25 @@ function PayrollTab() {
                         </CardDescription>
                     </div>
                      <div className="flex items-center gap-2">
-                         <Label htmlFor="payroll-month" className="sr-only">Payroll Period</Label>
-                         <Input 
-                            id="payroll-month"
-                            type="month"
-                            value={payrollPeriod}
-                            onChange={(e) => setPayrollPeriod(e.target.value)}
-                            className="w-[200px]"
-                         />
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant={"outline"} className={cn("w-[240px] justify-start text-left font-normal")}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {format(payrollPeriod, 'MMMM yyyy')}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    mode="single"
+                                    month={payrollPeriod}
+                                    onMonthChange={setPayrollPeriod}
+                                    captionLayout="dropdown-buttons"
+                                    fromYear={2020}
+                                    toYear={new Date().getFullYear() + 1}
+                                    className="p-0"
+                                />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                 </div>
             </CardHeader>
@@ -297,14 +311,14 @@ function PayrollTab() {
                     <AlertDialogTrigger asChild>
                          <Button disabled={isProcessing || isLoading || staffList.length === 0 || isPayrollProcessed}>
                             {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {isPayrollProcessed ? 'Payroll Processed' : `Process Payroll for ${format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')}`}
+                            {isPayrollProcessed ? 'Payroll Processed' : `Process Payroll for ${format(payrollPeriod, 'MMMM yyyy')}`}
                         </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                         <AlertDialogHeader>
                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                             <AlertDialogDescription>
-                                This will finalize the payroll for {format(new Date(payrollPeriod + '-02'), 'MMMM yyyy')} and log it as an expense. This action cannot be undone.
+                                This will finalize the payroll for {format(payrollPeriod, 'MMMM yyyy')} and log it as an expense. This action cannot be undone.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -441,13 +455,12 @@ function AdvanceSalaryTab() {
 function AdvanceSalaryLogTab() {
     const [logs, setLogs] = useState<WageRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [period, setPeriod] = useState(format(new Date(), 'yyyy-MM'));
+    const [period, setPeriod] = useState(new Date());
 
     useEffect(() => {
         const fetchLogs = async () => {
             setIsLoading(true);
-            const selectedMonth = new Date(period + '-02');
-            const range = { from: startOfMonth(selectedMonth), to: endOfMonth(selectedMonth) };
+            const range = { from: startOfMonth(period), to: endOfMonth(period) };
             const wageLogs = await getWages(range);
             setLogs(wageLogs.filter(w => (w as any).isAdvance) as WageRecord[]);
             setIsLoading(false);
@@ -466,14 +479,25 @@ function AdvanceSalaryLogTab() {
                         </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Label htmlFor="log-month" className="sr-only">Period</Label>
-                        <Input 
-                            id="log-month"
-                            type="month"
-                            value={period}
-                            onChange={(e) => setPeriod(e.target.value)}
-                            className="w-[200px]"
-                        />
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant={"outline"} className={cn("w-[240px] justify-start text-left font-normal")}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {format(period, 'MMMM yyyy')}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    mode="single"
+                                    month={period}
+                                    onMonthChange={setPeriod}
+                                    captionLayout="dropdown-buttons"
+                                    fromYear={2020}
+                                    toYear={new Date().getFullYear() + 1}
+                                    className="p-0"
+                                />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                 </div>
             </CardHeader>
