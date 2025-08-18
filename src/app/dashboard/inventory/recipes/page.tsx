@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { collection, onSnapshot, query, orderBy, where, doc, addDoc, getDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, where, doc, addDoc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -261,7 +261,7 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
                     <DialogDescription>
                         Enter the final counts for batch <strong>{batch.id.substring(0,6)}...</strong>.
                     </DialogDescription>
-                     <DialogClose />
+                    <DialogClose />
                 </DialogHeader>
                 <div className="py-4 space-y-4">
                     {/* Items Produced Section */}
@@ -523,6 +523,8 @@ export default function RecipesPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
     const [generalRecipe, setGeneralRecipe] = useState<Recipe | null>(null);
+    const [editedRecipe, setEditedRecipe] = useState<Recipe | null>(null);
+    const [isEditing, setIsEditing] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     
@@ -549,7 +551,9 @@ export default function RecipesPage() {
                 getIngredients(),
             ]);
 
-            setGeneralRecipe(recipeData.find((r: Recipe) => r.name === "General Bread Production") || null);
+            const general = recipeData.find((r: Recipe) => r.name === "General Bread Production") || null
+            setGeneralRecipe(general);
+            setEditedRecipe(general ? JSON.parse(JSON.stringify(general)) : null);
             setProducts(productData);
             setIngredients(ingredientData);
 
@@ -631,6 +635,36 @@ export default function RecipesPage() {
         }
         setIsSubmitting(false);
     }
+    
+     const handleRecipeEdit = (index: number, quantity: string) => {
+        if (!editedRecipe) return;
+        const newIngredients = [...editedRecipe.ingredients];
+        newIngredients[index].quantity = Number(quantity);
+        setEditedRecipe({ ...editedRecipe, ingredients: newIngredients });
+    };
+
+    const handleSaveRecipe = async () => {
+        if (!editedRecipe) return;
+        setIsSubmitting(true);
+        try {
+            await updateDoc(doc(db, 'recipes', editedRecipe.id), {
+                ingredients: editedRecipe.ingredients
+            });
+            toast({ title: "Recipe Saved", description: "The general production recipe has been updated." });
+            setGeneralRecipe(editedRecipe);
+            setIsEditing(false);
+        } catch (error) {
+            console.error("Error saving recipe:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not save the recipe.' });
+        }
+        setIsSubmitting(false);
+    };
+
+    const handleCancelEdit = () => {
+        setEditedRecipe(generalRecipe ? JSON.parse(JSON.stringify(generalRecipe)) : null);
+        setIsEditing(false);
+    };
+
 
     const logStaffMembers = useMemo(() => ['all', ...new Set(productionLogs.map(log => log.staffName))], [productionLogs]);
     const logActionTypes = useMemo(() => ['all', ...new Set(productionLogs.map(log => log.action))], [productionLogs]);
@@ -664,6 +698,7 @@ export default function RecipesPage() {
     const isBaker = user.role === 'Baker' || user.role === 'Chief Baker';
     const canStartProduction = isBaker || user.role === 'Developer';
     const isManager = user.role === 'Manager';
+    const isDeveloper = user.role === 'Developer';
 
 
     const getStatusVariant = (status: string) => {
@@ -700,7 +735,7 @@ export default function RecipesPage() {
             
             <Tabs defaultValue="production">
                 <TabsList>
-                    {isManager && <TabsTrigger value="recipes">Recipes</TabsTrigger>}
+                    {(isManager || isDeveloper) && <TabsTrigger value="recipes">Recipes</TabsTrigger>}
                     <TabsTrigger value="production" className="relative">
                         Production Batches
                         {productionBatches.length > 0 && (
@@ -711,15 +746,30 @@ export default function RecipesPage() {
                     </TabsTrigger>
                     <TabsTrigger value="logs">Production Logs</TabsTrigger>
                 </TabsList>
-                {isManager && (
+                 {(isManager || isDeveloper) && (
                     <TabsContent value="recipes">
                         <Card>
-                            <CardHeader>
-                                <CardTitle>General Production Recipe</CardTitle>
-                                <CardDescription>This recipe is used for all bread production batches.</CardDescription>
+                            <CardHeader className="flex flex-row justify-between items-start">
+                                <div>
+                                    <CardTitle>General Production Recipe</CardTitle>
+                                    <CardDescription>This recipe is used for all bread production batches.</CardDescription>
+                                </div>
+                                {isEditing ? (
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
+                                        <Button onClick={handleSaveRecipe} disabled={isSubmitting}>
+                                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                                            Save Recipe
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <Button variant="outline" onClick={() => setIsEditing(true)}>
+                                        <Edit className="mr-2 h-4 w-4" /> Edit Recipe
+                                    </Button>
+                                )}
                             </CardHeader>
                             <CardContent>
-                                {generalRecipe ? (
+                                {editedRecipe ? (
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
@@ -728,10 +778,24 @@ export default function RecipesPage() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {generalRecipe.ingredients.map(ing => (
+                                            {editedRecipe.ingredients.map((ing, index) => (
                                                 <TableRow key={ing.ingredientId}>
                                                     <TableCell>{ing.ingredientName}</TableCell>
-                                                    <TableCell className="text-right">{ing.quantity.toLocaleString()} {ing.unit}</TableCell>
+                                                    <TableCell className="text-right flex justify-end items-center gap-2">
+                                                        {isEditing ? (
+                                                            <>
+                                                                <Input 
+                                                                    type="number" 
+                                                                    value={ing.quantity}
+                                                                    onChange={(e) => handleRecipeEdit(index, e.target.value)}
+                                                                    className="w-32 text-right"
+                                                                />
+                                                                 <span>{ing.unit}</span>
+                                                            </>
+                                                        ) : (
+                                                            <span>{ing.quantity.toLocaleString()} {ing.unit}</span>
+                                                        )}
+                                                    </TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
