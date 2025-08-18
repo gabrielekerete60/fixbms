@@ -1531,7 +1531,7 @@ export type PaymentConfirmation = {
   items: { productId: string; quantity: number, price: number, name: string }[];
   isDebtPayment?: boolean;
   customerId?: string;
-  paymentMethod: 'Cash' | 'POS' | 'Paystack';
+  paymentMethod: 'Cash' | 'POS' | 'Paystack' | 'Custom';
 };
 
 
@@ -2165,16 +2165,37 @@ async function createProductionLog(action: string, details: string, user: { staf
     }
 }
 
-export async function startProductionBatch(data: Omit<ProductionBatch, 'id' | 'status' | 'createdAt' | 'approvedAt' | 'completedAt'>, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+type StartProductionData = {
+  recipeId: string;
+  recipeName: string;
+  productName: string;
+  productId: string;
+  quantityToProduce: number;
+  batchSize: 'full' | 'half';
+}
+
+export async function startProductionBatch(data: StartProductionData, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
     try {
+        const recipeDoc = await getDoc(doc(db, "recipes", data.recipeId));
+        if (!recipeDoc.exists()) {
+            return { success: false, error: "Recipe not found." };
+        }
+
+        const baseIngredients = recipeDoc.data().ingredients;
+        const finalIngredients = baseIngredients.map((ing: any) => ({
+            ...ing,
+            quantity: data.batchSize === 'half' ? ing.quantity / 2 : ing.quantity
+        }));
+
         const newBatchRef = doc(collection(db, "production_batches"));
         await setDoc(newBatchRef, {
             ...data,
             id: newBatchRef.id,
             status: 'pending_approval',
-            createdAt: serverTimestamp()
+            createdAt: serverTimestamp(),
+            ingredients: finalIngredients
         });
-        await createProductionLog('Batch Requested', `Requested batch ${newBatchRef.id} for General Production`, user);
+        await createProductionLog('Batch Requested', `Requested ${data.batchSize} batch for ${data.productName}`, user);
         return { success: true };
     } catch (error) {
         console.error("Error starting production batch:", error);
@@ -2494,7 +2515,7 @@ type SaleData = {
     items: { productId: string; quantity: number; price: number, name: string }[];
     customerId: string;
     customerName: string;
-    paymentMethod: 'Cash' | 'Credit' | 'Paystack' | 'POS';
+    paymentMethod: 'Cash' | 'Credit' | 'Paystack' | 'POS' | 'Custom';
     staffId: string;
     total: number;
 }
@@ -2531,6 +2552,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
             // --- ALL WRITES HAPPEN AFTER READS ---
             const driverName = staffDoc.data()?.name || 'Unknown';
             const newOrderRef = doc(collection(db, 'orders'));
+            const isPendingApproval = ['Cash', 'POS', 'Custom'].includes(data.paymentMethod);
             transaction.set(newOrderRef, {
                 salesRunId: data.runId,
                 customerId: data.customerId,
@@ -2541,7 +2563,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                 date: Timestamp.now(),
                 staffId: data.staffId,
                 staffName: driverName,
-                status: (data.paymentMethod === 'Cash' || data.paymentMethod === 'POS') ? 'Pending' : 'Completed',
+                status: isPendingApproval ? 'Pending' : 'Completed',
                 id: newOrderRef.id,
                 isDebtPayment: false,
             });
@@ -2561,7 +2583,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                 transaction.update(customerRef, { amountOwed: increment(data.total) });
             }
             
-            if (data.paymentMethod === 'Cash' || data.paymentMethod === 'POS') {
+            if (isPendingApproval) {
                 const confirmationRef = doc(collection(db, 'payment_confirmations'));
                 transaction.set(confirmationRef, {
                     runId: data.runId,
@@ -3162,5 +3184,6 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
 
 

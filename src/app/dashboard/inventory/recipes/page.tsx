@@ -409,7 +409,7 @@ function StartProductionDialog({
     recipe,
     user
 }: {
-    onConfirm: () => void;
+    onConfirm: (batchSize: 'full' | 'half') => void;
     recipe: Recipe | null;
     user: User | null;
 }) {
@@ -420,12 +420,13 @@ function StartProductionDialog({
             <AlertDialogHeader>
                 <AlertDialogTitle>Start Production: {recipe.name}?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This will send a request for the standard set of ingredients to the storekeeper. Are you sure you want to proceed?
+                    Choose the batch size. This will send a request for the required ingredients to the storekeeper for approval.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={onConfirm}>Request Ingredients</AlertDialogAction>
+                <AlertDialogAction onClick={() => onConfirm('half')}>Request Half Batch (25kg)</AlertDialogAction>
+                <AlertDialogAction onClick={() => onConfirm('full')}>Request Full Batch (50kg)</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
     )
@@ -604,7 +605,7 @@ export default function RecipesPage() {
         }
     }, []);
     
-    const handleStartProduction = async () => {
+    const handleStartProduction = async (batchSize: 'full' | 'half') => {
         if (!generalRecipe || !user) {
             toast({ variant: 'destructive', title: 'Invalid input', description: 'Recipe or user not found.' });
             return;
@@ -617,10 +618,8 @@ export default function RecipesPage() {
             recipeName: generalRecipe.name,
             productId: 'multi-product',
             productName: 'General Production',
-            requestedById: user.staff_id,
-            requestedByName: user.name,
-            quantityToProduce: 1, // Represents one batch
-            ingredients: generalRecipe.ingredients,
+            quantityToProduce: 1,
+            batchSize: batchSize,
         };
         
         const result = await startProductionBatch(batchData, user);
