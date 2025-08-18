@@ -1213,7 +1213,7 @@ export async function addDirectCost(data: DirectCostData) {
     }
 }
 
-type IndirectCostData = { description: string; category: string; amount: number; };
+type IndirectCostData = { description: string; category: string; amount: number; details?: any };
 export async function addIndirectCost(data: IndirectCostData) {
     try {
         await addDoc(collection(db, 'indirectCosts'), {
@@ -1250,7 +1250,8 @@ export async function getStaffList() {
 
 export async function hasPayrollBeenProcessed(period: string): Promise<boolean> {
     try {
-        const q = query(collection(db, 'wages'), where('month', '==', period), limit(1));
+        // A payroll is considered processed if a non-advance wage entry exists for that month.
+        const q = query(collection(db, 'wages'), where('month', '==', period), where('isAdvance', '==', false), limit(1));
         const snapshot = await getDocs(q);
         return !snapshot.empty;
     } catch (error) {
@@ -1265,9 +1266,15 @@ export async function requestAdvanceSalary(staffId: string, amount: number, staf
     }
 
     try {
+        // Check if main payroll for this period has been processed already
+        const alreadyProcessed = await hasPayrollBeenProcessed(period);
+        if (alreadyProcessed) {
+            return { success: false, error: `Payroll for ${period} has already been processed. No more advances allowed.` };
+        }
+
         const batch = writeBatch(db);
 
-        // This would typically go through an approval flow, but for now we auto-approve
+        // Create the wage entry for the advance
         const wageRef = doc(collection(db, 'wages'));
         batch.set(wageRef, {
             staffId,
@@ -1275,7 +1282,7 @@ export async function requestAdvanceSalary(staffId: string, amount: number, staf
             description: `Salary advance for ${period}`,
             date: serverTimestamp(),
             deductions: { advanceSalary: amount },
-            netPay: -amount, // It's a debit from the company's perspective
+            netPay: -amount,
             isAdvance: true,
             month: period,
         });
@@ -1295,7 +1302,7 @@ export async function requestAdvanceSalary(staffId: string, amount: number, staf
 
         if (isDirectCost) {
             expenseData.total = amount;
-            expenseData.quantity = 1; // for directCosts schema, assuming it's one advance
+            expenseData.quantity = 1; 
         } else {
             expenseData.amount = amount;
         }
@@ -1331,25 +1338,42 @@ type PayrollData = {
 export async function processPayroll(payrollData: PayrollData[], period: string) {
     try {
         const batch = writeBatch(db);
-
         const bakerRoles = ['Chief Baker', 'Baker', 'Bakery Assistant'];
 
+        // --- Create individual wage documents ---
         payrollData.forEach(data => {
             const wageRef = doc(collection(db, 'wages'));
-            batch.set(wageRef, { ...data, date: serverTimestamp() });
-            
-            const expenseCollection = bakerRoles.includes(data.role) ? 'directCosts' : 'indirectCosts';
-            const expenseRef = doc(collection(db, expenseCollection));
-
-            batch.set(expenseRef, {
-                description: `Salary for ${data.staffName} (${period})`,
-                category: 'Salary',
-                amount: data.netPay, // Log net pay as the expense
-                quantity: 1, // for directCosts schema
-                total: data.netPay, // for directCosts schema
-                date: serverTimestamp()
-            });
+            batch.set(wageRef, { ...data, date: serverTimestamp(), isAdvance: false });
         });
+
+        // --- Create consolidated expense documents ---
+        const directCostStaff = payrollData.filter(p => bakerRoles.includes(p.role));
+        const indirectCostStaff = payrollData.filter(p => !bakerRoles.includes(p.role));
+
+        if (directCostStaff.length > 0) {
+            const totalDirectSalary = directCostStaff.reduce((sum, p) => sum + p.netPay, 0);
+            const directExpenseRef = doc(collection(db, 'directCosts'));
+            batch.set(directExpenseRef, {
+                description: `Salary for ${period}`,
+                category: 'Salary',
+                quantity: directCostStaff.length,
+                total: totalDirectSalary,
+                date: serverTimestamp(),
+                details: directCostStaff.map(p => ({ name: p.staffName, amount: p.netPay }))
+            });
+        }
+
+        if (indirectCostStaff.length > 0) {
+            const totalIndirectSalary = indirectCostStaff.reduce((sum, p) => sum + p.netPay, 0);
+            const indirectExpenseRef = doc(collection(db, 'indirectCosts'));
+            batch.set(indirectExpenseRef, {
+                description: `Salary for ${period}`,
+                category: 'Salary',
+                amount: totalIndirectSalary,
+                date: serverTimestamp(),
+                details: indirectCostStaff.map(p => ({ name: p.staffName, amount: p.netPay }))
+            });
+        }
         
         await batch.commit();
         return { success: true };
@@ -3138,4 +3162,5 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
 

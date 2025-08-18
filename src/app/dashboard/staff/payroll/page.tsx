@@ -355,6 +355,7 @@ function AdvanceSalaryTab() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [advancePeriod, setAdvancePeriod] = useState(new Date());
+    const [isPayrollForPeriodProcessed, setIsPayrollForPeriodProcessed] = useState(false);
 
     const selectedStaffMember = useMemo(() => staffList.find(s => s.id === selectedStaffId), [staffList, selectedStaffId]);
     const netPay = useMemo(() => selectedStaffMember?.pay_rate || 0, [selectedStaffMember]);
@@ -365,6 +366,15 @@ function AdvanceSalaryTab() {
             setIsLoading(false);
         });
     }, []);
+
+    useEffect(() => {
+        const checkStatus = async () => {
+            const periodString = format(advancePeriod, 'MMMM yyyy');
+            const processed = await hasPayrollBeenProcessed(periodString);
+            setIsPayrollForPeriodProcessed(processed);
+        };
+        checkStatus();
+    }, [advancePeriod]);
 
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
@@ -425,9 +435,9 @@ function AdvanceSalaryTab() {
             </CardHeader>
             <form onSubmit={handleSubmit}>
                 <CardContent className="space-y-4">
-                    <div className="space-y-2">
+                     <div className="space-y-2">
                         <Label>Period for Deduction</Label>
-                         <Popover>
+                        <Popover>
                             <PopoverTrigger asChild>
                                 <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal")}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -446,10 +456,11 @@ function AdvanceSalaryTab() {
                                 />
                             </PopoverContent>
                         </Popover>
+                         {isPayrollForPeriodProcessed && <p className="text-sm text-destructive">Payroll for this month has been processed. No more advances allowed.</p>}
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="staff-select">Select Staff Member</Label>
-                        <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
+                        <Select value={selectedStaffId} onValueChange={setSelectedStaffId} disabled={isPayrollForPeriodProcessed}>
                             <SelectTrigger id="staff-select">
                                 <SelectValue placeholder="Select a staff member..." />
                             </SelectTrigger>
@@ -476,12 +487,12 @@ function AdvanceSalaryTab() {
                             value={amount}
                             onChange={handleAmountChange}
                             placeholder="e.g., 10000"
-                            disabled={!selectedStaffId}
+                            disabled={!selectedStaffId || isPayrollForPeriodProcessed}
                         />
                     </div>
                 </CardContent>
                 <CardFooter>
-                    <Button type="submit" disabled={isSubmitting}>
+                    <Button type="submit" disabled={isSubmitting || isPayrollForPeriodProcessed}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         Record Advance
                     </Button>
@@ -544,7 +555,7 @@ function AdvanceSalaryLogTab() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Date</TableHead>
+                            <TableHead>Date & Time</TableHead>
                             <TableHead>Staff Member</TableHead>
                             <TableHead>Description</TableHead>
                             <TableHead className="text-right">Amount (₦)</TableHead>
@@ -603,4 +614,3 @@ export default function PayrollPageContainer() {
         </div>
     )
 }
-
