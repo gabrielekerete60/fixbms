@@ -357,7 +357,7 @@ function AdvanceSalaryTab() {
             return;
         }
         setIsSubmitting(true);
-        const result = await requestAdvanceSalary(selectedStaffId, Number(amount), selectedStaffMember?.name || 'Unknown');
+        const result = await requestAdvanceSalary(selectedStaffId, Number(amount), selectedStaffMember?.name || 'Unknown', selectedStaffMember?.role || 'Unknown');
         if (result.success) {
             toast({ title: 'Success', description: 'Salary advance has been recorded.' });
             setSelectedStaffId('');

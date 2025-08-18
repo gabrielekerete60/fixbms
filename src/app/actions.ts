@@ -1259,32 +1259,49 @@ export async function hasPayrollBeenProcessed(period: string): Promise<boolean> 
     }
 }
 
-export async function requestAdvanceSalary(staffId: string, amount: number, staffName: string): Promise<{ success: boolean; error?: string }> {
+export async function requestAdvanceSalary(staffId: string, amount: number, staffName: string, staffRole: string): Promise<{ success: boolean; error?: string }> {
     if (!staffId || !amount || amount <= 0) {
         return { success: false, error: "Invalid staff ID or amount." };
     }
 
     try {
-        await addDoc(collection(db, "advance_requests"), {
-            staffId,
-            staffName,
-            amount,
-            date: serverTimestamp(),
-            status: 'approved', // Auto-approved for now
-            month: format(new Date(), 'MMMM yyyy'),
-        });
+        const batch = writeBatch(db);
 
         // This would typically go through an approval flow, but for now we auto-approve
         const wageRef = doc(collection(db, 'wages'));
-        await setDoc(wageRef, {
+        batch.set(wageRef, {
             staffId,
             staffName,
             description: `Salary advance for ${format(new Date(), 'MMMM yyyy')}`,
             date: serverTimestamp(),
             deductions: { advanceSalary: amount },
-            netPay: -amount, // It's a debit
+            netPay: -amount, // It's a debit from the company's perspective
             isAdvance: true,
+            month: format(new Date(), 'MMMM yyyy'),
         });
+        
+        // Log the advance as a direct or indirect cost
+        const bakerRoles = ['Chief Baker', 'Baker', 'Bakery Assistant'];
+        const isDirectCost = bakerRoles.includes(staffRole);
+        const expenseCollection = isDirectCost ? 'directCosts' : 'indirectCosts';
+        const expenseRef = doc(collection(db, expenseCollection));
+
+        const expenseData: any = {
+            description: `Salary advance for ${staffName}`,
+            category: 'Salary Advance',
+            date: serverTimestamp(),
+        };
+
+        if (isDirectCost) {
+            expenseData.total = amount;
+            expenseData.quantity = 1;
+        } else {
+            expenseData.amount = amount;
+        }
+        
+        batch.set(expenseRef, expenseData);
+
+        await batch.commit();
 
         return { success: true };
     } catch (error) {
@@ -2374,6 +2391,7 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
         () => getDocs(query(collection(db, 'waste_logs'), where('staffId', '==', 'test'), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'pending'), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', 'in', ['completed', 'active']), orderBy('date', 'desc'))),
+        () => getDocs(query(collection(db, 'staff'), where('is_active', '==', true), where('role', '!=', 'Developer'))),
     ];
 
     const missingIndexes = new Set<string>();
