@@ -220,7 +220,6 @@ function PayrollTab() {
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
                                 <Calendar
-                                    mode="single"
                                     month={payrollPeriod}
                                     onMonthChange={setPayrollPeriod}
                                     captionLayout="dropdown-buttons"
@@ -339,6 +338,7 @@ function AdvanceSalaryTab() {
     const [amount, setAmount] = useState<number | string>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [advancePeriod, setAdvancePeriod] = useState(new Date());
 
     const selectedStaffMember = useMemo(() => staffList.find(s => s.id === selectedStaffId), [staffList, selectedStaffId]);
     const netPay = useMemo(() => selectedStaffMember?.pay_rate || 0, [selectedStaffMember]);
@@ -381,7 +381,7 @@ function AdvanceSalaryTab() {
         setIsSubmitting(true);
         const result = await requestAdvanceSalary(selectedStaffId, Number(amount), selectedStaffMember?.name || 'Unknown', selectedStaffMember?.role || 'Unknown');
         if (result.success) {
-            toast({ title: 'Success', description: 'Salary advance has been recorded.' });
+            toast({ title: 'Success', description: `Salary advance for ${format(advancePeriod, 'MMMM yyyy')} has been recorded.` });
             setSelectedStaffId('');
             setAmount('');
         } else {
@@ -409,6 +409,27 @@ function AdvanceSalaryTab() {
             <form onSubmit={handleSubmit}>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
+                        <Label>Period for Deduction</Label>
+                         <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal")}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {format(advancePeriod, 'MMMM yyyy')}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    month={advancePeriod}
+                                    onMonthChange={setAdvancePeriod}
+                                    captionLayout="dropdown-buttons"
+                                    fromYear={new Date().getFullYear()}
+                                    toYear={new Date().getFullYear() + 5}
+                                    className="p-0"
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                    <div className="space-y-2">
                         <Label htmlFor="staff-select">Select Staff Member</Label>
                         <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
                             <SelectTrigger id="staff-select">
@@ -424,7 +445,7 @@ function AdvanceSalaryTab() {
                      {selectedStaffMember && (
                         <div className="p-3 bg-muted rounded-md text-sm">
                             <div className="flex justify-between">
-                                <span className="text-muted-foreground">Staff's Monthly Net Pay:</span>
+                                <span className="text-muted-foreground">Staff's Monthly Base Pay:</span>
                                 <span className="font-semibold">₦{netPay.toLocaleString()}</span>
                             </div>
                         </div>
@@ -488,12 +509,11 @@ function AdvanceSalaryLogTab() {
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
                                 <Calendar
-                                    mode="single"
                                     month={period}
                                     onMonthChange={setPeriod}
                                     captionLayout="dropdown-buttons"
                                     fromYear={2020}
-                                    toYear={new Date().getFullYear() + 1}
+                                    toYear={new Date().getFullYear() + 5}
                                     className="p-0"
                                 />
                             </PopoverContent>

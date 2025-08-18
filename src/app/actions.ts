@@ -1295,7 +1295,7 @@ export async function requestAdvanceSalary(staffId: string, amount: number, staf
 
         if (isDirectCost) {
             expenseData.total = amount;
-            expenseData.quantity = 1;
+            expenseData.quantity = 1; // for directCosts schema, assuming it's one advance
         } else {
             expenseData.amount = amount;
         }
