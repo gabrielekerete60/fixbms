@@ -736,7 +736,7 @@ export default function RecipesPage() {
             
             <Tabs defaultValue="production">
                 <TabsList>
-                    {(isManager || isDeveloper) && <TabsTrigger value="recipes">Recipes</TabsTrigger>}
+                    <TabsTrigger value="recipes">Recipes</TabsTrigger>
                     <TabsTrigger value="production" className="relative">
                         Production Batches
                         {productionBatches.length > 0 && (
@@ -747,15 +747,15 @@ export default function RecipesPage() {
                     </TabsTrigger>
                     <TabsTrigger value="logs">Production Logs</TabsTrigger>
                 </TabsList>
-                 {(isManager || isDeveloper) && (
-                    <TabsContent value="recipes">
-                        <Card>
-                            <CardHeader className="flex flex-row justify-between items-start">
-                                <div>
-                                    <CardTitle>General Production Recipe</CardTitle>
-                                    <CardDescription>This recipe is used for all bread production batches.</CardDescription>
-                                </div>
-                                {isEditing ? (
+                <TabsContent value="recipes">
+                    <Card>
+                        <CardHeader className="flex flex-row justify-between items-start">
+                            <div>
+                                <CardTitle>General Production Recipe</CardTitle>
+                                <CardDescription>This recipe is used for all bread production batches.</CardDescription>
+                            </div>
+                            {(isManager || isDeveloper) && (
+                                isEditing ? (
                                     <div className="flex gap-2">
                                         <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
                                         <Button onClick={handleSaveRecipeAction} disabled={isSubmitting}>
@@ -767,45 +767,45 @@ export default function RecipesPage() {
                                     <Button variant="outline" onClick={() => setIsEditing(true)}>
                                         <Edit className="mr-2 h-4 w-4" /> Edit Recipe
                                     </Button>
-                                )}
-                            </CardHeader>
-                            <CardContent>
-                                {editedRecipe ? (
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Ingredient</TableHead>
-                                                <TableHead className="text-right">Quantity</TableHead>
+                                )
+                            )}
+                        </CardHeader>
+                        <CardContent>
+                            {editedRecipe ? (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Ingredient</TableHead>
+                                            <TableHead className="text-right">Quantity</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {editedRecipe.ingredients.map((ing, index) => (
+                                            <TableRow key={ing.ingredientId}>
+                                                <TableCell>{ing.ingredientName}</TableCell>
+                                                <TableCell className="text-right flex justify-end items-center gap-2">
+                                                    {(isManager || isDeveloper) && isEditing ? (
+                                                        <>
+                                                            <Input 
+                                                                type="number" 
+                                                                value={ing.quantity}
+                                                                onChange={(e) => handleRecipeEdit(index, e.target.value)}
+                                                                className="w-32 text-right"
+                                                            />
+                                                                <span>{ing.unit}</span>
+                                                        </>
+                                                    ) : (
+                                                        <span>{ing.quantity.toLocaleString()} {ing.unit}</span>
+                                                    )}
+                                                </TableCell>
                                             </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {editedRecipe.ingredients.map((ing, index) => (
-                                                <TableRow key={ing.ingredientId}>
-                                                    <TableCell>{ing.ingredientName}</TableCell>
-                                                    <TableCell className="text-right flex justify-end items-center gap-2">
-                                                        {isEditing ? (
-                                                            <>
-                                                                <Input 
-                                                                    type="number" 
-                                                                    value={ing.quantity}
-                                                                    onChange={(e) => handleRecipeEdit(index, e.target.value)}
-                                                                    className="w-32 text-right"
-                                                                />
-                                                                 <span>{ing.unit}</span>
-                                                            </>
-                                                        ) : (
-                                                            <span>{ing.quantity.toLocaleString()} {ing.unit}</span>
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                ) : <p>General recipe not found.</p>}
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-                )}
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            ) : <p>General recipe not found.</p>}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
                 <TabsContent value="production">
                      <Card>
                         <CardHeader className="flex flex-row justify-between items-center">
@@ -906,4 +906,3 @@ export default function RecipesPage() {
         </div>
     );
 }
-
