@@ -175,6 +175,198 @@ const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeA
 });
 Receipt.displayName = 'Receipt';
 
+function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: OrderItem[] }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [cart, setCart] = useState<OrderItem[]>([]);
+    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Paystack' | 'POS'>('Cash');
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const [customerName, setCustomerName] = useState('');
+    const [customerEmail, setCustomerEmail] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            getDocs(collection(db, 'customers')).then(snap => {
+                setCustomers(snap.docs.map(d => ({ ...d.data(), id: d.id } as Customer)));
+            });
+            setCart([]);
+            setSelectedCustomer(null);
+            setCustomerName('');
+        }
+    }, [isOpen]);
+    
+    const handleAddToCart = (item: OrderItem) => {
+        setCart(prev => {
+            const existing = prev.find(p => p.productId === item.productId);
+            if (existing) {
+                if (existing.quantity < item.quantity) {
+                    return prev.map(p => p.productId === item.productId ? { ...p, quantity: p.quantity + 1 } : p);
+                } else {
+                    toast({ variant: 'destructive', title: 'Stock Limit', description: `Only ${item.quantity} units available.` });
+                    return prev;
+                }
+            }
+            return [...prev, { ...item, quantity: 1, name: item.productName }];
+        });
+    };
+
+    const updateCartQuantity = (productId: string, change: number) => {
+        setCart(prev => {
+            return prev.map(item => {
+                if (item.productId === productId) {
+                    const newQuantity = item.quantity + change;
+                    const stockLimit = remainingItems.find(i => i.productId === productId)?.quantity || 0;
+                    if (newQuantity <= 0) return null;
+                    if (newQuantity > stockLimit) {
+                         toast({ variant: 'destructive', title: 'Stock Limit', description: `Only ${stockLimit} units available.` });
+                         return { ...item, quantity: stockLimit };
+                    }
+                    return { ...item, quantity: newQuantity };
+                }
+                return item;
+            }).filter(Boolean) as OrderItem[];
+        })
+    };
+
+    const handleCustomerSelect = (customerId: string) => {
+        const customer = customers.find(c => c.id === customerId);
+        setSelectedCustomer(customer || null);
+        setCustomerName(customer?.name || '');
+    }
+
+    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    const handleSubmit = async () => {
+        if (!user || cart.length === 0 || (paymentMethod === 'Credit' && !selectedCustomer)) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please add items to cart and select a customer for credit sales.' });
+            return;
+        }
+
+        setIsLoading(true);
+        const saleData = {
+            runId: run.id,
+            items: cart.map(item => ({...item, productId: item.productId || '' })),
+            customerId: selectedCustomer?.id || 'walk-in',
+            customerName: customerName || selectedCustomer?.name || 'Walk-in',
+            paymentMethod,
+            staffId: user.staff_id,
+            total,
+        };
+        const result = await handleSellToCustomer(saleData);
+
+        if (result.success && result.orderId) {
+            toast({ title: 'Success', description: 'Sale has been recorded.' });
+            onSaleMade({
+                id: result.orderId,
+                items: cart,
+                total,
+                date: new Date(),
+                paymentMethod,
+                customerName: customerName || selectedCustomer?.name,
+                status: 'Completed',
+                subtotal: total, tax: 0
+            });
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                 <Button className="w-full" disabled={run.status !== 'active'}>
+                    <PlusCircle className="mr-2 h-5 w-5"/>
+                    <span>Standard Sale</span>
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Sell to Customer</DialogTitle>
+                    <DialogDescription>Record a sale at the standard product price.</DialogDescription>
+                </DialogHeader>
+                 <div className="grid md:grid-cols-2 gap-6 py-4">
+                    <div className="space-y-2">
+                        <h4 className="font-semibold">Available Items</h4>
+                        <div className="border rounded-md max-h-96 overflow-y-auto">
+                            {remainingItems.map(item => (
+                                <div key={item.productId} className="p-2 flex justify-between items-center border-b gap-2">
+                                    <div>
+                                        <p>{item.productName}</p>
+                                        <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
+                                    </div>
+                                    <p className="text-sm">Avail: {item.quantity}</p>
+                                    <Button size="icon" variant="outline" onClick={() => handleAddToCart(item)}><PlusCircle className="h-4 w-4"/></Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h4 className="font-semibold">Cart</h4>
+                        <div className="border rounded-md p-2 space-y-2 min-h-32 max-h-60 overflow-y-auto">
+                           {cart.length === 0 ? <p className="text-center text-muted-foreground text-sm p-4">Cart is empty</p> : (
+                                cart.map(item => (
+                                    <div key={item.productId} className="flex justify-between items-center">
+                                        <div>
+                                            <p className="font-medium">{item.name}</p>
+                                            <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateCartQuantity(item.productId, -1)}><Minus className="h-3 w-3"/></Button>
+                                            <span className="w-5 text-center font-bold">{item.quantity}</span>
+                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateCartQuantity(item.productId, 1)}><Plus className="h-3 w-3"/></Button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        <div className="font-bold text-right">Total: {formatCurrency(total)}</div>
+                        <div className="space-y-2">
+                            <Label>Payment Method</Label>
+                            <Select onValueChange={(value) => setPaymentMethod(value as any)} defaultValue={paymentMethod}>
+                                <SelectTrigger><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</SelectItem>
+                                    <SelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</SelectItem>
+                                    <SelectItem value="Paystack"><ArrowRightLeft className="mr-2 h-4 w-4"/> Paystack</SelectItem>
+                                    <SelectItem value="Credit"><CreditCard className="mr-2 h-4 w-4"/> Credit</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        {paymentMethod === 'Credit' ? (
+                            <div className="space-y-2">
+                                <Label>Select Customer</Label>
+                                <Select onValueChange={handleCustomerSelect}>
+                                    <SelectTrigger><SelectValue placeholder="Select a registered customer..."/></SelectTrigger>
+                                    <SelectContent>
+                                        {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        ) : (
+                             <div className="space-y-2">
+                                <Label>Customer Name</Label>
+                                <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Walk-in Customer"/>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Record Sale
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreated: (customer: Customer) => void, children: React.ReactNode }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -200,8 +392,8 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
                 amountOwed: 0,
                 amountPaid: 0,
             });
-            const newCustomer = { id: newCustomerRef.id, name, phone, email, address };
-            onCustomerCreated(newCustomer);
+            const newCustomer = { id: newCustomerRef.id, name, phone, email, address, amountOwed: 0, amountPaid: 0 };
+            onCustomerCreated(newCustomer as Customer);
             toast({ title: 'Success', description: 'New customer created.' });
             setIsOpen(false);
         } catch(error) {
@@ -302,7 +494,6 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
             paymentMethod,
             staffId: user.staff_id,
             total,
-            isCustomSale: true,
         };
         const result = await handleSellToCustomer(saleData);
 
@@ -521,8 +712,18 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
         }
 
         setIsSubmitting(true);
+        const productsWithCategories = await Promise.all(items.map(async item => {
+            const productDoc = await getDoc(doc(db, 'products', item.productId));
+            return {
+                ...item,
+                quantity: Number(item.quantity),
+                productName: productDoc.exists() ? productDoc.data().name : 'Unknown',
+                productCategory: productDoc.exists() ? productDoc.data().category : 'Unknown'
+            };
+        }));
+
         const dataToSubmit = {
-            items: items.map(item => ({ ...item, quantity: Number(item.quantity) })),
+            items: productsWithCategories,
             reason,
             notes,
         };
