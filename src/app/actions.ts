@@ -1283,8 +1283,9 @@ export async function requestAdvanceSalary(staffId: string, amount: number, staf
         // Log the advance as a direct or indirect cost
         const bakerRoles = ['Chief Baker', 'Baker', 'Bakery Assistant'];
         const isDirectCost = bakerRoles.includes(staffRole);
-        const expenseCollection = isDirectCost ? 'directCosts' : 'indirectCosts';
-        const expenseRef = doc(collection(db, expenseCollection));
+        
+        const expenseCollectionRef = isDirectCost ? collection(db, 'directCosts') : collection(db, 'indirectCosts');
+        const expenseRef = doc(expenseCollectionRef);
 
         const expenseData: any = {
             description: `Salary advance for ${staffName}`,

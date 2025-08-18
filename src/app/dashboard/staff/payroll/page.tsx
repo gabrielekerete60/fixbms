@@ -7,10 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getStaffList, processPayroll, hasPayrollBeenProcessed, requestAdvanceSalary } from "@/app/actions";
+import { getStaffList, processPayroll, hasPayrollBeenProcessed, requestAdvanceSalary, getWages } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Check } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,6 +32,14 @@ type PayrollEntry = {
     additions: number;
     totalDeductions: number;
 };
+
+type WageRecord = {
+    id: string;
+    staffName: string;
+    description: string;
+    date: string;
+    netPay: number;
+}
 
 function PayrollTab() {
     const { toast } = useToast();
@@ -430,6 +438,85 @@ function AdvanceSalaryTab() {
     )
 }
 
+function AdvanceSalaryLogTab() {
+    const [logs, setLogs] = useState<WageRecord[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [period, setPeriod] = useState(format(new Date(), 'yyyy-MM'));
+
+    useEffect(() => {
+        const fetchLogs = async () => {
+            setIsLoading(true);
+            const selectedMonth = new Date(period + '-02');
+            const range = { from: startOfMonth(selectedMonth), to: endOfMonth(selectedMonth) };
+            const wageLogs = await getWages(range);
+            setLogs(wageLogs.filter(w => (w as any).isAdvance) as WageRecord[]);
+            setIsLoading(false);
+        }
+        fetchLogs();
+    }, [period]);
+
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <CardTitle>Advance Salary Log</CardTitle>
+                        <CardDescription>
+                            A log of all salary advances recorded for the selected period.
+                        </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Label htmlFor="log-month" className="sr-only">Period</Label>
+                        <Input 
+                            id="log-month"
+                            type="month"
+                            value={period}
+                            onChange={(e) => setPeriod(e.target.value)}
+                            className="w-[200px]"
+                        />
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Staff Member</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead className="text-right">Amount (₦)</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {isLoading ? (
+                            <TableRow>
+                                <TableCell colSpan={4} className="h-24 text-center">
+                                    <Loader2 className="h-8 w-8 animate-spin" />
+                                </TableCell>
+                            </TableRow>
+                        ) : logs.length === 0 ? (
+                             <TableRow>
+                                <TableCell colSpan={4} className="h-24 text-center">
+                                    No salary advances recorded for this period.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            logs.map(log => (
+                                <TableRow key={log.id}>
+                                    <TableCell>{format(new Date(log.date), 'PPP')}</TableCell>
+                                    <TableCell>{log.staffName}</TableCell>
+                                    <TableCell>{log.description}</TableCell>
+                                    <TableCell className="text-right text-destructive">{Math.abs(log.netPay).toLocaleString()}</TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function PayrollPageContainer() {
     return (
         <div className="flex flex-col gap-4">
@@ -438,12 +525,16 @@ export default function PayrollPageContainer() {
                 <TabsList>
                     <TabsTrigger value="payroll">Monthly Payroll</TabsTrigger>
                     <TabsTrigger value="advance">Advance Salary</TabsTrigger>
+                    <TabsTrigger value="advance-log">Advance Salary Log</TabsTrigger>
                 </TabsList>
                 <TabsContent value="payroll" className="mt-4">
                     <PayrollTab />
                 </TabsContent>
                 <TabsContent value="advance" className="mt-4">
                     <AdvanceSalaryTab />
+                </TabsContent>
+                <TabsContent value="advance-log" className="mt-4">
+                    <AdvanceSalaryLogTab />
                 </TabsContent>
             </Tabs>
         </div>
