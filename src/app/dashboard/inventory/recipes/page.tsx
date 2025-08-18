@@ -39,7 +39,7 @@ import { collection, onSnapshot, query, orderBy, where, doc, addDoc, getDoc, upd
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getProducts, getIngredients, getStaffByRole, getProductionBatch } from "@/app/actions";
+import { startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getProducts, getIngredients, getStaffByRole, getProductionBatch, getProductionLogs, handleSaveRecipe, handleDeleteRecipe } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, startOfDay, endOfDay } from "date-fns";
@@ -643,18 +643,19 @@ export default function RecipesPage() {
         setEditedRecipe({ ...editedRecipe, ingredients: newIngredients });
     };
 
-    const handleSaveRecipe = async () => {
-        if (!editedRecipe) return;
+    const handleSaveRecipeAction = async () => {
+        if (!editedRecipe || !user) return;
         setIsSubmitting(true);
-        try {
-            await updateDoc(doc(db, 'recipes', editedRecipe.id), {
-                ingredients: editedRecipe.ingredients
-            });
+        const result = await handleSaveRecipe(
+            { ingredients: editedRecipe.ingredients, name: editedRecipe.name },
+            editedRecipe.id,
+            user
+        );
+        if (result.success) {
             toast({ title: "Recipe Saved", description: "The general production recipe has been updated." });
             setGeneralRecipe(editedRecipe);
             setIsEditing(false);
-        } catch (error) {
-            console.error("Error saving recipe:", error);
+        } else {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save the recipe.' });
         }
         setIsSubmitting(false);
@@ -757,7 +758,7 @@ export default function RecipesPage() {
                                 {isEditing ? (
                                     <div className="flex gap-2">
                                         <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
-                                        <Button onClick={handleSaveRecipe} disabled={isSubmitting}>
+                                        <Button onClick={handleSaveRecipeAction} disabled={isSubmitting}>
                                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                                             Save Recipe
                                         </Button>
@@ -905,3 +906,4 @@ export default function RecipesPage() {
         </div>
     );
 }
+

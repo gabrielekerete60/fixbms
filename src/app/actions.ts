@@ -1,3 +1,4 @@
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -2772,14 +2773,27 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 }
 
 // Recipe Actions with Logging
-export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, recipeId?: string) {
-    // This server action is intentionally empty.
-    // The logic has been moved to a client-side function that calls other specific server actions.
+export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, recipeId: string, user: { staff_id: string, name: string }) {
+    try {
+        const recipeRef = doc(db, 'recipes', recipeId);
+        await updateDoc(recipeRef, recipeData);
+        await createProductionLog('Recipe Updated', `Updated ingredients for recipe: ${recipeData.name}`, user);
+        return { success: true };
+    } catch (error) {
+        console.error("Error saving recipe:", error);
+        return { success: false, error: "Failed to save recipe." };
+    }
 }
 
-export async function handleDeleteRecipe(recipeId: string, recipeName: string) {
-    // This server action is intentionally empty.
-    // The logic has been moved to a client-side function that calls other specific server actions.
+export async function handleDeleteRecipe(recipeId: string, recipeName: string, user: { staff_id: string, name: string }) {
+     try {
+        await deleteDoc(doc(db, "recipes", recipeId));
+        await createProductionLog('Recipe Deleted', `Deleted recipe: ${recipeName}`, user);
+        return { success: true };
+    } catch (error) {
+        console.error("Error deleting recipe:", error);
+        return { success: false, error: "Failed to delete recipe." };
+    }
 }
 
 
@@ -3236,4 +3250,5 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
 
