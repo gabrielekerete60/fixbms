@@ -18,6 +18,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -399,7 +400,7 @@ export default function ProductsPage() {
   const categories = useMemo(() => ['All', ...new Set(products.map(p => p.category))], [products]);
   const canManageProducts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
   const canViewFinancials = user?.role === 'Manager' || user?.role === 'Supervisor' || user?.role === 'Developer' || user?.role === 'Accountant';
-  const canAddProducts = user?.role === 'Manager' || user?.role === 'Developer';
+  const canAddProducts = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
 
   return (
     <div className="flex flex-col gap-4">
@@ -538,11 +539,13 @@ export default function ProductsPage() {
                   )}
                 </TableBody>
                 {canViewFinancials && (
-                    <TableRow>
-                        <TableCell colSpan={5} className="text-right font-bold">Grand Total Value</TableCell>
-                        <TableCell className="font-bold">₦{grandTotalValue.toFixed(2)}</TableCell>
-                        <TableCell></TableCell>
-                    </TableRow>
+                    <TableFooter>
+                        <TableRow>
+                            <TableCell colSpan={5} className="text-right font-bold">Grand Total Value</TableCell>
+                            <TableCell className="font-bold">₦{grandTotalValue.toFixed(2)}</TableCell>
+                            <TableCell></TableCell>
+                        </TableRow>
+                    </TableFooter>
                 )}
               </Table>
               </div>
