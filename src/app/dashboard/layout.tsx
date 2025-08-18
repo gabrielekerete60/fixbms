@@ -416,7 +416,7 @@ export default function DashboardLayout({
         icon: Users2, label: "Staff", roles: ['Manager', 'Supervisor', 'Developer'], sublinks: [
           { href: "/dashboard/staff/management", label: "Staff Management" },
           { href: "/dashboard/staff/attendance", label: "Attendance" },
-          { href: "/dashboard/staff/payroll", label: "Payroll", disabled: true },
+          { href: "/dashboard/staff/payroll", label: "Payroll", disabled: false },
         ]
       },
       { href: "/dashboard/deliveries", icon: Car, label: "Deliveries", notificationKey: "activeRuns", roles: ['Manager', 'Supervisor', 'Accountant', 'Delivery Staff', 'Developer'], disabled: false },
