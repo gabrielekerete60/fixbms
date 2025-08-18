@@ -313,10 +313,13 @@ function PayrollTab() {
 function AdvanceSalaryTab() {
     const { toast } = useToast();
     const [staffList, setStaffList] = useState<StaffMember[]>([]);
-    const [selectedStaff, setSelectedStaff] = useState('');
+    const [selectedStaffId, setSelectedStaffId] = useState('');
     const [amount, setAmount] = useState<number | string>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+
+    const selectedStaffMember = useMemo(() => staffList.find(s => s.id === selectedStaffId), [staffList, selectedStaffId]);
+    const netPay = useMemo(() => selectedStaffMember?.pay_rate || 0, [selectedStaffMember]);
 
     useEffect(() => {
         getStaffList().then(list => {
@@ -325,18 +328,39 @@ function AdvanceSalaryTab() {
         });
     }, []);
 
+    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        if (value === '') {
+            setAmount('');
+            return;
+        }
+        
+        const numValue = parseFloat(value);
+        if (isNaN(numValue)) return;
+        
+        if (netPay > 0 && numValue > netPay) {
+            toast({
+                variant: 'destructive',
+                title: 'Amount Exceeds Net Pay',
+                description: `The maximum advance for this staff is ₦${netPay.toLocaleString()}.`,
+            });
+            setAmount(netPay);
+        } else {
+            setAmount(numValue);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedStaff || !amount || Number(amount) <= 0) {
+        if (!selectedStaffId || !amount || Number(amount) <= 0) {
             toast({ variant: 'destructive', title: 'Error', description: 'Please select a staff member and enter a valid amount.' });
             return;
         }
         setIsSubmitting(true);
-        const staffMember = staffList.find(s => s.id === selectedStaff);
-        const result = await requestAdvanceSalary(selectedStaff, Number(amount), staffMember?.name || 'Unknown');
+        const result = await requestAdvanceSalary(selectedStaffId, Number(amount), selectedStaffMember?.name || 'Unknown');
         if (result.success) {
             toast({ title: 'Success', description: 'Salary advance has been recorded.' });
-            setSelectedStaff('');
+            setSelectedStaffId('');
             setAmount('');
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -364,7 +388,7 @@ function AdvanceSalaryTab() {
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="staff-select">Select Staff Member</Label>
-                        <Select value={selectedStaff} onValueChange={setSelectedStaff}>
+                        <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
                             <SelectTrigger id="staff-select">
                                 <SelectValue placeholder="Select a staff member..." />
                             </SelectTrigger>
@@ -375,14 +399,23 @@ function AdvanceSalaryTab() {
                             </SelectContent>
                         </Select>
                     </div>
+                     {selectedStaffMember && (
+                        <div className="p-3 bg-muted rounded-md text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Staff's Monthly Net Pay:</span>
+                                <span className="font-semibold">₦{netPay.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    )}
                     <div className="space-y-2">
                         <Label htmlFor="advance-amount">Amount (₦)</Label>
                         <Input 
                             id="advance-amount" 
                             type="number"
                             value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
+                            onChange={handleAmountChange}
                             placeholder="e.g., 10000"
+                            disabled={!selectedStaffId}
                         />
                     </div>
                 </CardContent>
