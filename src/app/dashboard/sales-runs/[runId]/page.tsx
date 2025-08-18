@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste } from '@/app/actions';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense } from '@/app/actions';
 import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { collection, doc, Timestamp, onSnapshot, query, where, addDoc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
@@ -32,7 +32,7 @@ type Customer = {
   address: string;
 };
 
-type OrderItem = { productId: string; quantity: number, price: number, name: string, costPrice?: number };
+type OrderItem = { productId: string; quantity: number, price: number, name: string, costPrice?: number, minPrice?: number, maxPrice?: number };
 
 type CompletedOrder = {
   id: string;
@@ -62,6 +62,18 @@ type User = {
 
 type SortKey = 'customerName' | 'totalSold' | 'totalPaid' | 'outstanding';
 type SortDirection = 'asc' | 'desc';
+
+type Expense = {
+  id?: string;
+  category: string;
+  description: string;
+  amount: number;
+  date?: string | Date;
+  runId?: string;
+  driverId?: string;
+  driverName?: string;
+  status?: 'pending' | 'approved' | 'declined';
+}
 
 const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -231,7 +243,7 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
     )
 }
 
-function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: { productId: string; productName: string; price: number; quantity: number, costPrice?: number }[] }) {
+function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: { productId: string; productName: string; price: number; quantity: number, costPrice?: number, minPrice?: number, maxPrice?: number }[] }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [customers, setCustomers] = useState<Customer[]>([]);
@@ -419,6 +431,8 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
     };
     
     const canPerformSales = user?.staff_id === run?.to_staff_id;
+    const isAdmin = user && ['Manager', 'Supervisor', 'Developer'].includes(user.role);
+
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -691,6 +705,14 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
             </DialogContent>
         </Dialog>
     );
+}
+
+function LogCustomSaleDialog() {
+    return <div>Log Custom Sale Dialog Placeholder</div>
+}
+
+function LogExpenseDialog() {
+     return <div>Log Expense Dialog Placeholder</div>
 }
 
 
@@ -1240,9 +1262,11 @@ function SalesRunDetails() {
                     </CardHeader>
                     <CardContent className="flex-grow space-y-4">
                         <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
+                        <LogCustomSaleDialog />
                     </CardContent>
                     {canPerformSales && (
                         <CardFooter className="flex-col gap-2">
+                            <LogExpenseDialog />
                             <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
@@ -1262,8 +1286,8 @@ function SalesRunDetails() {
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
-                                     <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will complete the sales run. All stock and finances will be reconciled. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleCompleteRunAction}>Yes, Complete Run</AlertDialogAction></AlertDialogFooter>
+                                     <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will complete the sales run. All stock and finances will be reconciled. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader
+                                    ><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleCompleteRunAction}>Yes, Complete Run</AlertDialogAction></AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
                         </CardFooter>
@@ -1308,6 +1332,7 @@ function SalesRunDetails() {
                 <TabsList>
                     <TabsTrigger value="customers">Customers</TabsTrigger>
                     <TabsTrigger value="sales">Sales</TabsTrigger>
+                     <TabsTrigger value="expenses">Expenses</TabsTrigger>
                     <TabsTrigger value="pending" className="relative">
                         Pending Confirmations
                         {paymentConfirmations.length > 0 && <Badge variant="destructive" className="ml-2">{paymentConfirmations.length}</Badge>}
@@ -1389,6 +1414,35 @@ function SalesRunDetails() {
                                             <TableCell className="text-right"><Button variant="ghost" size="sm">View</Button></TableCell>
                                         </TableRow>
                                     ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                 <TabsContent value="expenses">
+                    <Card>
+                        <CardHeader className="flex flex-row justify-between items-center">
+                            <div>
+                                <CardTitle>Run Expenses</CardTitle>
+                                <CardDescription>Log and view expenses specific to this sales run.</CardDescription>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                 <TableBody>
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                                            No expenses logged for this run yet.
+                                        </TableCell>
+                                    </TableRow>
                                 </TableBody>
                             </Table>
                         </CardContent>

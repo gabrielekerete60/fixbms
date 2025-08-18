@@ -1,4 +1,3 @@
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -703,7 +702,7 @@ export type SalesRun = {
     id: string;
     date: string;
     status: 'pending' | 'active' | 'completed' | 'cancelled';
-    items: { productId: string; productName: string; price: number; quantity: number }[];
+    items: { productId: string; productName: string; price: number; quantity: number, costPrice?: number, minPrice?: number, maxPrice?: number }[];
     notes?: string;
     from_staff_name?: string; 
     from_staff_id?: string;
@@ -1460,7 +1459,8 @@ export type Expense = {
     description: string;
     amount: number;
     date: string;
-}
+    runId?: string;
+};
 
 export async function getExpenses(dateRange: { from: string, to: string }): Promise<Expense[]> {
      const { from, to } = dateRange;
@@ -1506,6 +1506,30 @@ export async function handleLogPayment(supplierId: string, amount: number): Prom
     }
 }
 
+export async function logRunExpense(data: Omit<Expense, 'id' | 'date'> & { driverId: string; driverName: string }): Promise<{ success: boolean; error?: string }> {
+    try {
+         await addDoc(collection(db, "payment_confirmations"), {
+            runId: data.runId,
+            driverId: data.driverId,
+            driverName: data.driverName,
+            amount: data.amount,
+            isExpense: true,
+            expenseDetails: {
+                category: data.category,
+                description: data.description,
+            },
+            status: 'pending',
+            date: serverTimestamp(),
+            paymentMethod: 'Cash',
+            items: [],
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error logging run expense:", error);
+        return { success: false, error: "Failed to log expense for approval." };
+    }
+}
+
 export async function handleAddExpense(expenseData: Omit<Expense, 'id' | 'date'>): Promise<{ success: boolean; error?: string }> {
     try {
         await addDoc(collection(db, "expenses"), {
@@ -1527,11 +1551,13 @@ export type PaymentConfirmation = {
   runId: string;
   amount: number;
   status: 'pending' | 'approved' | 'declined';
-  customerName: string;
+  customerName?: string;
   items: { productId: string; quantity: number, price: number, name: string }[];
   isDebtPayment?: boolean;
   customerId?: string;
   paymentMethod: 'Cash' | 'POS' | 'Paystack' | 'Custom';
+  isExpense?: boolean;
+  expenseDetails?: { category: string; description: string; };
 };
 
 
@@ -1584,62 +1610,80 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
             if (action === 'approve') {
-                const newOrderRef = doc(collection(db, 'orders'));
-                transaction.set(newOrderRef, {
-                    salesRunId: confirmationData.runId,
-                    customerId: confirmationData.customerId || 'walk-in',
-                    customerName: confirmationData.customerName,
-                    total: confirmationData.amount,
-                    paymentMethod: confirmationData.paymentMethod,
-                    date: Timestamp.now(),
-                    staffId: confirmationData.driverId,
-                    status: 'Completed',
-                    items: confirmationData.items,
-                    id: newOrderRef.id,
-                    isDebtPayment: confirmationData.isDebtPayment || false,
-                });
-                
-                if (confirmationData.isDebtPayment && customerRef) {
-                    transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
-                }
-
-                if (isFromSalesRun && runRef) {
-                    const runDoc = await transaction.get(runRef);
-                    if (runDoc.exists()) {
-                      const runData = runDoc.data();
-                      const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
-                      transaction.update(runRef, { totalCollected: newTotalCollected });
-                      
-                      // Auto-complete run if total collected matches total revenue
-                      if (runData.totalRevenue && newTotalCollected >= runData.totalRevenue) {
-                          transaction.update(runRef, {
-                              status: 'completed',
-                              time_completed: serverTimestamp()
-                          });
-                      }
+                // If it's an expense, log it to indirectCosts and update the run's collected amount negatively
+                if (confirmationData.isExpense) {
+                    const expenseData = {
+                        category: confirmationData.expenseDetails?.category || 'Run Expense',
+                        description: confirmationData.expenseDetails?.description || `Expense for run ${confirmationData.runId}`,
+                        amount: confirmationData.amount,
+                        date: serverTimestamp(),
+                        details: [{ name: confirmationData.driverName, amount: confirmationData.amount }]
                     }
-                } else if (!isFromSalesRun) {
-                     const salesDocId = format(new Date(), 'yyyy-MM-dd');
-                    const salesDocRef = doc(db, 'sales', salesDocId);
-                    const salesDoc = await transaction.get(salesDocRef); 
-                    const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
+                    const newIndirectCostRef = doc(collection(db, "indirectCosts"));
+                    transaction.set(newIndirectCostRef, expenseData);
                     
-                    if (salesDoc.exists()) {
-                        transaction.update(salesDocRef, {
-                            [paymentField]: increment(confirmationData.amount),
-                            total: increment(confirmationData.amount)
-                        });
-                    } else {
-                        transaction.set(salesDocRef, {
-                            date: Timestamp.fromDate(startOfDay(new Date())),
-                            description: `Daily Sales for ${format(new Date(), 'yyyy-MM-dd')}`,
-                            cash: confirmationData.paymentMethod === 'Cash' ? confirmationData.amount : 0,
-                            pos: confirmationData.paymentMethod === 'POS' ? confirmationData.amount : 0,
-                            transfer: 0,
-                            creditSales: 0,
-                            shortage: 0,
-                            total: confirmationData.amount
-                        });
+                    if (runRef) {
+                        transaction.update(runRef, { totalCollected: increment(-confirmationData.amount) });
+                    }
+
+                } else { // It's a sale or debt payment
+                    const newOrderRef = doc(collection(db, 'orders'));
+                    transaction.set(newOrderRef, {
+                        salesRunId: confirmationData.runId,
+                        customerId: confirmationData.customerId || 'walk-in',
+                        customerName: confirmationData.customerName,
+                        total: confirmationData.amount,
+                        paymentMethod: confirmationData.paymentMethod,
+                        date: Timestamp.now(),
+                        staffId: confirmationData.driverId,
+                        status: 'Completed',
+                        items: confirmationData.items,
+                        id: newOrderRef.id,
+                        isDebtPayment: confirmationData.isDebtPayment || false,
+                    });
+                    
+                    if (confirmationData.isDebtPayment && customerRef) {
+                        transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
+                    }
+
+                    if (isFromSalesRun && runRef) {
+                        const runDoc = await transaction.get(runRef);
+                        if (runDoc.exists()) {
+                          const runData = runDoc.data();
+                          const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
+                          transaction.update(runRef, { totalCollected: newTotalCollected });
+                          
+                          // Auto-complete run if total collected matches total revenue
+                          if (runData.totalRevenue && newTotalCollected >= runData.totalRevenue) {
+                              transaction.update(runRef, {
+                                  status: 'completed',
+                                  time_completed: serverTimestamp()
+                              });
+                          }
+                        }
+                    } else if (!isFromSalesRun) {
+                         const salesDocId = format(new Date(), 'yyyy-MM-dd');
+                        const salesDocRef = doc(db, 'sales', salesDocId);
+                        const salesDoc = await transaction.get(salesDocRef); 
+                        const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
+                        
+                        if (salesDoc.exists()) {
+                            transaction.update(salesDocRef, {
+                                [paymentField]: increment(confirmationData.amount),
+                                total: increment(confirmationData.amount)
+                            });
+                        } else {
+                            transaction.set(salesDocRef, {
+                                date: Timestamp.fromDate(startOfDay(new Date())),
+                                description: `Daily Sales for ${format(new Date(), 'yyyy-MM-dd')}`,
+                                cash: confirmationData.paymentMethod === 'Cash' ? confirmationData.amount : 0,
+                                pos: confirmationData.paymentMethod === 'POS' ? confirmationData.amount : 0,
+                                transfer: 0,
+                                creditSales: 0,
+                                shortage: 0,
+                                total: confirmationData.amount
+                            });
+                        }
                     }
                 }
             }
@@ -2193,7 +2237,9 @@ export async function startProductionBatch(data: StartProductionData, user: { st
             id: newBatchRef.id,
             status: 'pending_approval',
             createdAt: serverTimestamp(),
-            ingredients: finalIngredients
+            ingredients: finalIngredients,
+            requestedById: user.staff_id,
+            requestedByName: user.name,
         });
         await createProductionLog('Batch Requested', `Requested ${data.batchSize} batch for ${data.productName}`, user);
         return { success: true };
@@ -2400,8 +2446,14 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
           (data.items || []).map(async (item: any) => {
             if (item.price !== undefined) return item;
             const productDoc = await getDoc(doc(db, 'products', item.productId));
-            const price = productDoc.exists() ? productDoc.data().price : 0;
-            return { ...item, price };
+            const productData = productDoc.exists() ? productDoc.data() : { price: 0, costPrice: 0, minPrice: 0, maxPrice: 0 };
+            return { 
+                ...item,
+                price: productData.price,
+                costPrice: productData.costPrice,
+                minPrice: productData.minPrice,
+                maxPrice: productData.maxPrice
+            };
           })
         );
         
@@ -3184,6 +3236,4 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
-
-
 
