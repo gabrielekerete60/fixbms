@@ -417,11 +417,13 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
         }
         setIsLoading(false);
     };
+    
+    const canPerformSales = user?.staff_id === run?.to_staff_id;
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                 <Button variant="outline" className="w-full" disabled={run.status !== 'active'}>
+                 <Button variant="outline" className="w-full" disabled={run.status !== 'active' || !canPerformSales}>
                     <User className="mr-2 h-5 w-5"/>
                     <span>Sell to Customer</span>
                 </Button>
@@ -1132,6 +1134,7 @@ function SalesRunDetails() {
     
     const runComplete = runStatus === 'completed';
     const canPerformSales = user?.staff_id === run?.to_staff_id;
+    const isAdmin = user && ['Manager', 'Supervisor', 'Developer'].includes(user.role);
     const allDebtsPaid = run.totalOutstanding <= 0;
 
     return (
