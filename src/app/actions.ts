@@ -2196,13 +2196,19 @@ export async function getProductionBatches(): Promise<{ pending: ProductionBatch
     }
 }
 
-async function createProductionLog(action: string, details: string, user: { staff_id: string, name: string }) {
+async function createProductionLog(action: string, details: string, user: { staff_id: string, name: string, role: string }) {
     try {
+        let loggedUser = { ...user };
+        // If the user is a developer, log the action as being performed by the manager.
+        if (user.role === 'Developer') {
+            loggedUser.name = 'Manager';
+        }
+
         await addDoc(collection(db, "production_logs"), {
             action,
             details,
-            staffId: user.staff_id,
-            staffName: user.name,
+            staffId: loggedUser.staff_id,
+            staffName: loggedUser.name,
             timestamp: serverTimestamp()
         });
     } catch (logError) {
@@ -2219,7 +2225,7 @@ type StartProductionData = {
   batchSize: 'full' | 'half';
 }
 
-export async function startProductionBatch(data: StartProductionData, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+export async function startProductionBatch(data: StartProductionData, user: { staff_id: string, name: string, role: string }): Promise<{success: boolean, error?: string}> {
     try {
         const recipeDoc = await getDoc(doc(db, "recipes", data.recipeId));
         if (!recipeDoc.exists()) {
@@ -2250,7 +2256,7 @@ export async function startProductionBatch(data: StartProductionData, user: { st
     }
 }
 
-export async function approveIngredientRequest(batchId: string, ingredients: { ingredientId: string, quantity: number, ingredientName: string, unit: string }[], user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+export async function approveIngredientRequest(batchId: string, ingredients: { ingredientId: string, quantity: number, ingredientName: string, unit: string }[], user: { staff_id: string, name: string, role: string }): Promise<{success: boolean, error?: string}> {
     const batchRef = doc(db, 'production_batches', batchId);
 
     // Transaction for batch and ingredient updates
@@ -2312,7 +2318,7 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
 }
 
 
-export async function declineProductionBatch(batchId: string, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+export async function declineProductionBatch(batchId: string, user: { staff_id: string, name: string, role: string }): Promise<{success: boolean, error?: string}> {
     try {
         const batchRef = doc(db, 'production_batches', batchId);
         await updateDoc(batchRef, { status: 'declined' });
@@ -2336,7 +2342,7 @@ type CompleteBatchData = {
     storekeeperId: string; // ID for the storekeeper role
 }
 
-export async function completeProductionBatch(data: CompleteBatchData, user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+export async function completeProductionBatch(data: CompleteBatchData, user: { staff_id: string, name: string, role: string }): Promise<{success: boolean, error?: string}> {
     try {
         await runTransaction(db, async (transaction) => {
             const batchRef = doc(db, 'production_batches', data.batchId);
@@ -2773,7 +2779,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
 }
 
 // Recipe Actions with Logging
-export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, recipeId: string, user: { staff_id: string, name: string }) {
+export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, recipeId: string, user: { staff_id: string, name: string, role: string }) {
     try {
         const recipeRef = doc(db, 'recipes', recipeId);
         await updateDoc(recipeRef, recipeData);
@@ -2785,7 +2791,7 @@ export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, recipeId: st
     }
 }
 
-export async function handleDeleteRecipe(recipeId: string, recipeName: string, user: { staff_id: string, name: string }) {
+export async function handleDeleteRecipe(recipeId: string, recipeName: string, user: { staff_id: string, name: string, role: string }) {
      try {
         await deleteDoc(doc(db, "recipes", recipeId));
         await createProductionLog('Recipe Deleted', `Deleted recipe: ${recipeName}`, user);
@@ -3250,5 +3256,6 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
 
 
