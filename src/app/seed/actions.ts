@@ -25,8 +25,8 @@ const productsData = [
     // BREAD
     { id: "prod_bread_1", name: "Family Loaf", price: 1600, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 1000, lowStockThreshold: 50, minPrice: 1500, maxPrice: 1700 },
     { id: "prod_bread_2", name: "Short Loaf", price: 1300, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'short bread', costPrice: 800, lowStockThreshold: 50, minPrice: 1200, maxPrice: 1400 },
-    { id: "prod_bread_3", name: "Jumbo Loaf", price: 1800, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'jumbo bread', costPrice: 1200, lowStockThreshold: 25, minPrice: 1700, maxPrice: 1900 },
-    { id: "prod_bread_4", name: "Burger Loaf", price: 1800, stock: 0, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 1100, lowStockThreshold: 50, minPrice: 1700, maxPrice: 1900 },
+    { id: "prod_bread_3", name: "Jumbo", price: 1800, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'jumbo bread', costPrice: 1200, lowStockThreshold: 25, minPrice: 1700, maxPrice: 1900 },
+    { id: "prod_bread_4", name: "Burger", price: 1800, stock: 0, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 1100, lowStockThreshold: 50, minPrice: 1700, maxPrice: 1900 },
     { id: "prod_bread_5", name: "Round bread", price: 300, stock: 0, category: 'Bread', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 180, lowStockThreshold: 100, minPrice: 250, maxPrice: 350 },
     { id: "prod_bread_6", name: "Breakfast loaf", price: 1000, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'breakfast bread', costPrice: 650, lowStockThreshold: 40, minPrice: 900, maxPrice: 1100 },
     { id: "prod_bread_7", name: "Mini Bite", price: 800, stock: 0, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'small bread', costPrice: 500, lowStockThreshold: 60, minPrice: 700, maxPrice: 900 },
@@ -41,8 +41,11 @@ const productsData = [
     { id: "prod_drinks_7", name: "Nutri Choco", price: 800, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'choco milk', costPrice: 600, lowStockThreshold: 80, minPrice: 750, maxPrice: 850 },
     { id: "prod_drinks_8", name: "5Alive", price: 800, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'juice box', costPrice: 600, lowStockThreshold: 80, minPrice: 750, maxPrice: 850 },
     { id: "prod_drinks_9", name: "Holandia Yoghurt", price: 2000, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yoghurt drink', costPrice: 1500, lowStockThreshold: 40, minPrice: 1900, maxPrice: 2100 },
-    { id: "prod_drinks_10", name: "Freshyo", price: 700, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yoghurt drink', costPrice: 550, lowStockThreshold: 60, minPrice: 650, maxPrice: 750 },
+    { id: "prod_drinks_10", name: "Freshyo", price: 800, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yoghurt drink', costPrice: 550, lowStockThreshold: 60, minPrice: 650, maxPrice: 750 },
     { id: "prod_drinks_11", name: "Aquafina water", price: 300, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 200, lowStockThreshold: 150, minPrice: 250, maxPrice: 350 },
+    { id: "prod_drinks_12", name: "Exotic", price: 1800, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'exotic juice', costPrice: 1400, lowStockThreshold: 20, minPrice: 1700, maxPrice: 1900 },
+    { id: "prod_drinks_13", name: "Beta Malt", price: 500, stock: 0, category: 'Drinks', unit: 'can', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'malt drink', costPrice: 350, lowStockThreshold: 100, minPrice: 450, maxPrice: 550 },
+    { id: "prod_drinks_14", name: "Hi Malt", price: 500, stock: 0, category: 'Drinks', unit: 'can', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'malt drink', costPrice: 350, lowStockThreshold: 100, minPrice: 450, maxPrice: 550 },
 ];
 
 const staffData = [
@@ -449,9 +452,9 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
             const stockMap: Record<string, number> = {
                 "prod_bread_5": 152, // Round bread
                 "prod_bread_1": 26,  // Family Loaf
-                "prod_bread_2": 73, // Short Loaf
-                "prod_bread_4": 10,   // Burger Loaf
-                "prod_bread_3": 49, // Jumbo Loaf
+                "prod_bread_2": 73,  // Short Loaf
+                "prod_bread_4": 10,  // Burger
+                "prod_bread_3": 49,  // Jumbo
             };
             return { ...p, stock: stockMap[p.id] || 0 };
         });
@@ -479,8 +482,22 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         
         // 6. Create and complete a transfer to Mr Patrick
         const patrickStock = [
-            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 21 }, // Family (6 + 15)
+            // Breads
+            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 21 },
             { productId: "prod_bread_2", productName: "Short Loaf", quantity: 23 },
+            // Drinks
+            { productId: "prod_drinks_12", productName: "Exotic", quantity: 4 },
+            { productId: "prod_drinks_13", productName: "Beta Malt", quantity: 6 },
+            { productId: "prod_drinks_14", productName: "Hi Malt", quantity: 6 },
+            { productId: "prod_drinks_8", productName: "5Alive", quantity: 11 },
+            { productId: "prod_drinks_4", productName: "Pepsi", quantity: 8 },
+            { productId: "prod_drinks_2", productName: "Fanta", quantity: 10 },
+            { productId: "prod_drinks_3", productName: "Sprite", quantity: 10 },
+            { productId: "prod_drinks_1", productName: "Coke", quantity: 8 },
+            { productId: "prod_drinks_5", productName: "7up", quantity: 8 },
+            { productId: "prod_drinks_7", productName: "Nutri Choco", quantity: 9 },
+            { productId: "prod_drinks_6", productName: "Nutri Soya", quantity: 1 },
+            { productId: "prod_drinks_10", productName: "Freshyo", quantity: 1 },
         ];
         
         const transferBatch = writeBatch(db);
@@ -518,3 +535,5 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
+
+    
