@@ -703,7 +703,7 @@ export async function getShowroomDashboardStats(staffId: string): Promise<Showro
 export type SalesRun = {
     id: string;
     date: string;
-    status: 'pending' | 'active' | 'completed' | 'cancelled';
+    status: 'pending' | 'active' | 'completed' | 'cancelled' | 'pending_return' | 'return_completed';
     items: { productId: string; productName: string; price: number; quantity: number, costPrice?: number, minPrice?: number, maxPrice?: number }[];
     notes?: string;
     from_staff_name?: string; 
@@ -761,8 +761,8 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
             } as SalesRun;
         }));
 
-        const active = runs.filter(run => run.status === 'active');
-        const completed = runs.filter(run => run.status === 'completed');
+        const active = runs.filter(run => ['active', 'pending_return'].includes(run.status));
+        const completed = runs.filter(run => ['completed', 'return_completed'].includes(run.status));
 
         return { active, completed };
 
@@ -1949,12 +1949,13 @@ export type Transfer = {
   to_staff_name: string;
   items: { productId: string; productName: string; quantity: number, price?: number }[];
   date: string;
-  status: 'pending' | 'active' | 'completed' | 'cancelled';
+  status: 'pending' | 'active' | 'completed' | 'cancelled' | 'pending_return' | 'return_completed';
   totalValue?: number;
   is_sales_run?: boolean;
   notes?: string;
   time_received?: string | null;
   time_completed?: string | null;
+  originalRunId?: string;
 };
 
 
@@ -2007,9 +2008,7 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
     try {
         const q = query(
             collection(db, 'transfers'),
-            where('status', '==', 'pending'),
-            where('notes', '>=', 'Return from'),
-            where('notes', '<', 'Return from' + '\uf8ff')
+            where('status', '==', 'pending_return')
         );
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => {
@@ -2031,7 +2030,7 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         const q = query(
             collection(db, 'transfers'),
             where('to_staff_id', '==', staffId),
-            where('status', 'in', ['completed', 'active']),
+            where('status', 'in', ['completed', 'active', 'pending_return', 'return_completed']),
             orderBy('date', 'desc')
         );
         const querySnapshot = await getDocs(q);
@@ -2067,7 +2066,19 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
 
     if (action === 'decline') {
         try {
-            await updateDoc(transferRef, { status: 'cancelled' });
+            await runTransaction(db, async (transaction) => {
+                const transferDoc = await transaction.get(transferRef);
+                if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
+                const transferData = transferDoc.data() as Transfer;
+                
+                // If this is a return transfer, re-activate the original sales run
+                if(transferData.originalRunId) {
+                    const originalRunRef = doc(db, 'transfers', transferData.originalRunId);
+                    transaction.update(originalRunRef, { status: 'active' });
+                }
+
+                transaction.update(transferRef, { status: 'cancelled' });
+            });
             return { success: true };
         } catch (error) {
             console.error("Error declining transfer:", error);
@@ -2081,23 +2092,23 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
 
             const transfer = transferDoc.data() as Transfer;
-            if (transfer.status !== 'pending') throw new Error("This transfer has already been processed.");
+            if (transfer.status !== 'pending' && transfer.status !== 'pending_return') throw new Error("This transfer has already been processed.");
             
-            const isReturnFromProduction = transfer.notes?.startsWith('Return from production batch');
+            const isReturnFromSalesRun = transfer.notes?.startsWith('Return from Sales Run');
 
-            if (isReturnFromProduction) {
-                 // Return from production goes back to main product inventory
-                for (const item of transfer.items) {
-                    const productRef = doc(db, 'products', item.productId);
-                    transaction.update(productRef, { stock: increment(item.quantity) });
-                }
-            } else if (transfer.notes?.startsWith('Return from Sales Run')) {
+            if (isReturnFromSalesRun) {
                  // Return from sales run goes back to main product inventory
                  for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
-            } else { // This is for regular stock transfers and sales runs
+                // Update original sales run status to 'return_completed'
+                if (transfer.originalRunId) {
+                    const originalRunRef = doc(db, 'transfers', transfer.originalRunId);
+                    transaction.update(originalRunRef, { status: 'return_completed' });
+                }
+                transaction.update(transferRef, { status: 'completed' });
+            } else { // This is for regular stock transfers, sales runs, and production returns
                 // These reads must happen before any writes
                 const productRefs = transfer.items.map(item => doc(db, 'products', item.productId));
                 const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
@@ -2127,15 +2138,15 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                         });
                     }
                 }
+
+                 // This is a write, happens after all reads
+                const newStatus = transfer.is_sales_run ? 'active' : 'completed';
+                transaction.update(transferRef, { 
+                    status: newStatus,
+                    time_received: serverTimestamp(),
+                    time_completed: transfer.is_sales_run ? null : serverTimestamp() 
+                });
             }
-            
-            // This is a write, happens after all reads
-            const newStatus = transfer.is_sales_run ? 'active' : 'completed';
-            transaction.update(transferRef, { 
-                status: newStatus,
-                time_received: serverTimestamp(),
-                time_completed: transfer.is_sales_run ? null : serverTimestamp() 
-            });
         });
 
         return { success: true };
@@ -2681,7 +2692,7 @@ type PosSaleData = {
     staffId: string;
     staffName: string;
     total: number;
-    date: string; // Changed to string
+    date: string;
 }
 export async function handlePosSale(data: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
     const newOrderRef = doc(collection(db, 'orders'));
@@ -3184,6 +3195,7 @@ export async function handleReturnStock(runId: string, unsoldItems: { productId:
         const storekeeperId = storekeeperSnapshot.docs[0].id;
         
         await runTransaction(db, async (transaction) => {
+            // Create a new transfer document for the return
             const transferRef = doc(collection(db, 'transfers'));
             transaction.set(transferRef, {
                 from_staff_id: user.staff_id,
@@ -3192,10 +3204,15 @@ export async function handleReturnStock(runId: string, unsoldItems: { productId:
                 to_staff_name: storekeeper.name,
                 items: unsoldItems,
                 date: serverTimestamp(),
-                status: 'pending',
+                status: 'pending_return',
                 is_sales_run: false,
-                notes: `Return from Sales Run ${runId}`
+                notes: `Return from Sales Run ${runId}`,
+                originalRunId: runId, // Link to the original run
             });
+
+            // Update the original sales run to 'pending_return' status
+            const originalRunRef = doc(db, 'transfers', runId);
+            transaction.update(originalRunRef, { status: 'pending_return' });
         });
         
         return { success: true };
@@ -3260,6 +3277,7 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
 
 
 
