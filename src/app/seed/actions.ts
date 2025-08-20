@@ -412,30 +412,44 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         await clearAllData();
 
         // 2. Seed specific staff
-        const manager = staffData.find(s => s.role === 'Manager');
-        const developer = staffData.find(s => s.role === 'Developer');
-        const mrPatrick = staffData.find(s => s.staff_id === '500001');
-        if (!manager || !developer || !mrPatrick) {
-            return { success: false, error: "Required staff not found in seed data." };
+        const staffToSeed = [
+            staffData.find(s => s.role === 'Manager'),
+            staffData.find(s => s.role === 'Developer'),
+            staffData.find(s => s.role === 'Accountant'),
+            staffData.find(s => s.role === 'Storekeeper'),
+            staffData.find(s => s.role === 'Baker'),
+            staffData.find(s => s.role === 'Delivery Staff'), // The first delivery staff
+            staffData.find(s => s.role === 'Showroom Staff' && s.name === 'Mr Patrick')
+        ].filter(Boolean); // Filter out any not found
+        
+        if (staffToSeed.length < 7) {
+            return { success: false, error: "A required staff member for the special scenario was not found in the seed data." };
         }
-        await batchCommit([manager, developer, mrPatrick], 'staff');
+        await batchCommit(staffToSeed, 'staff');
+
+        const manager = staffToSeed.find(s => s!.role === 'Manager')!;
+        const mrPatrick = staffToSeed.find(s => s!.name === 'Mr Patrick')!;
 
         // 3. Seed Products with specific stock for MAIN INVENTORY
         const specialProducts = productsData.map(p => {
-            if (p.id === 'prod_4') return { ...p, stock: 132 }; // Round Loaf
-            if (p.id === 'prod_1') return { ...p, stock: 26 }; // Family Loaf
-            if (p.id === 'prod_3') return { ...p, stock: 49 + 73 }; // Jumbo Loaf (as both Jumbo and Short)
-            if (p.id === 'prod_2') return { ...p, stock: 10 }; // Burger Loaf
-            return { ...p, stock: 0 };
+            const stockMap: Record<string, number> = {
+                'prod_4': 132, // Round Loaf
+                'prod_1': 26,  // Family Loaf
+                'prod_3': 49 + 73, // Jumbo as itself and Short
+                'prod_2': 10   // Burger Loaf
+            };
+            return { ...p, stock: stockMap[p.id] || 0 };
         });
         await batchCommit(specialProducts, "products");
 
         // 4. Seed Ingredients with specific stock
         const specialIngredients = ingredientsData.map(i => {
-            if (i.id === "ing_6") return { ...i, stock: 6 }; // Tin Milk
-            if (i.id === "ing_11") return { ...i, stock: 42 }; // Eggs
-            if (i.id === "ing_14") return { ...i, stock: 500 }; // Bread Improver
-            return { ...i, stock: 0 };
+            const stockMap: Record<string, number> = {
+                "ing_6": 6,     // Tin Milk
+                "ing_11": 42,   // Eggs
+                "ing_14": 500   // Bread Improver
+            };
+            return { ...i, stock: stockMap[i.id] || 0 };
         });
         await batchCommit(specialIngredients, "ingredients");
         
