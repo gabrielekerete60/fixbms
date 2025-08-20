@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
@@ -322,7 +323,7 @@ function POSPageContent() {
         customerName: customerName || 'Walk-in',
         staffId: selectedStaffId,
         staffName: staffName,
-        date: Timestamp.now()
+        date: new Date().toISOString()
     };
     
     const result = await handlePosSale(saleData);

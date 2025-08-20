@@ -1,4 +1,5 @@
 
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -2680,11 +2681,11 @@ type PosSaleData = {
     staffId: string;
     staffName: string;
     total: number;
-    date: Timestamp;
+    date: string; // Changed to string
 }
 export async function handlePosSale(data: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
     const newOrderRef = doc(collection(db, 'orders'));
-    const orderDate = data.date.toDate();
+    const orderDate = new Date(data.date);
 
     try {
         await runTransaction(db, async (transaction) => {
@@ -2713,7 +2714,7 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
                 items: data.items,
                 total: data.total,
                 paymentMethod: data.paymentMethod,
-                date: data.date,
+                date: Timestamp.fromDate(orderDate),
                 staffId: data.staffId,
                 staffName: data.staffName,
                 status: 'Completed',
@@ -2984,7 +2985,7 @@ export async function verifyPaystackOnServerAndFinalizeOrder(reference: string):
         }
         
         const amountPaid = verificationData.data.amount / 100;
-        const transactionDate = Timestamp.fromDate(new Date(verificationData.data.paid_at || verificationData.data.transaction_date));
+        const transactionDate = new Date(verificationData.data.paid_at || verificationData.data.transaction_date).toISOString();
 
         if (metadata.isPosSale) {
             const posSaleData: PosSaleData = {
@@ -3259,6 +3260,7 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
 
 
 
