@@ -483,8 +483,10 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         // 6. Create and complete a transfer to Mr Patrick
         const patrickStock = [
             // Breads
-            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 21 },
+            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 14 },
             { productId: "prod_bread_2", productName: "Short Loaf", quantity: 23 },
+            { productId: "prod_bread_4", productName: "Burger", quantity: 7 },
+            { productId: "prod_bread_3", productName: "Jumbo", quantity: 3 },
             // Drinks
             { productId: "prod_drinks_12", productName: "Exotic", quantity: 4 },
             { productId: "prod_drinks_13", productName: "Beta Malt", quantity: 6 },
@@ -535,5 +537,3 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
-
-    
