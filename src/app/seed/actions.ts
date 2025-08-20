@@ -1,3 +1,4 @@
+
 "use server";
 
 import { db } from "@/lib/firebase";
@@ -38,9 +39,8 @@ const staffData = [
     { staff_id: '300002', name: 'Ubom Robert Okon', email: 'ubom.okon@example.com', password: 'BakerPass3!', role: 'Baker', is_active: true, pay_type: 'Salary', pay_rate: 35000, bank_name: "MONIPOINT", account_number: "7046450879", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '300003', name: 'Zion Ekerete', email: 'zion.ekerete@example.com', password: 'BakerPass4!', role: 'Bakery Assistant', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "7041091374", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '300004', name: 'Grace Effiong', email: 'grace.effiong@example.com', password: 'AssistantPass1!', role: 'Bakery Assistant', is_active: true, pay_type: 'Salary', pay_rate: 38000, bank_name: "GTB", account_number: "0123456789", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '400001', name: 'Victory Peter Ekerete', email: 'victory.ekerete@example.com', password: 'StorekeeperPass1!', role: 'Storekeeper', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "PALMPAY", account_number: "9126459437", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '400001', name: 'Mary Ating', email: 'mary.ating@example.com', password: 'StorekeeperPass1!', role: 'Storekeeper', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "PALMPAY", account_number: "9126459437", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '500001', name: 'Mr Patrick', email: 'mr.patrick@example.com', password: 'ShowroomPass1!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "UBA", account_number: "1231231234", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
-    { staff_id: '500002', name: 'Mary Felix Ating', email: 'mary.ating@example.com', password: 'StaffPass2!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "8071929362", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '600001', name: 'Edet Edet Nyong', email: 'edet.nyong@example.com', password: 'DriverPass1!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "Access Bank", account_number: "0736691040", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '600002', name: 'Okon Bassey', email: 'okon.bassey@example.com', password: 'DriverPass2!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "GTBank", account_number: "1234567890", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '600003', name: 'Imaobong Akpan', email: 'ima.akpan@example.com', password: 'DriverPass3!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "Zenith Bank", account_number: "0987654321", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
@@ -414,7 +414,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         // 2. Seed specific staff
         const manager = staffData.find(s => s.role === 'Manager');
         const developer = staffData.find(s => s.role === 'Developer');
-        const mrPatrick = staffData.find(s => s.staff_id === '500001'); // Mr Patrick, Showroom Staff
+        const mrPatrick = staffData.find(s => s.staff_id === '500001');
         if (!manager || !developer || !mrPatrick) {
             return { success: false, error: "Required staff not found in seed data." };
         }
