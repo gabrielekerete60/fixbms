@@ -418,8 +418,8 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
             staffData.find(s => s.role === 'Accountant'),
             staffData.find(s => s.role === 'Storekeeper'),
             staffData.find(s => s.role === 'Baker'),
-            staffData.find(s => s.role === 'Delivery Staff'), // The first delivery staff
-            staffData.find(s => s.role === 'Showroom Staff' && s.name === 'Mr Patrick')
+            staffData.find(s => s.role === 'Delivery Staff'),
+            staffData.find(s => s.name === 'Mr Patrick' && s.role === 'Showroom Staff'),
         ].filter(Boolean); // Filter out any not found
         
         if (staffToSeed.length < 7) {
@@ -440,7 +440,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
             };
             return { ...p, stock: stockMap[p.id] || 0 };
         });
-        await batchCommit(specialProducts, "products");
+        await batchCommit(specialProducts.filter(p => p.stock > 0), "products");
 
         // 4. Seed Ingredients with specific stock
         const specialIngredients = ingredientsData.map(i => {
@@ -451,7 +451,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
             };
             return { ...i, stock: stockMap[i.id] || 0 };
         });
-        await batchCommit(specialIngredients, "ingredients");
+        await batchCommit(specialIngredients.filter(i => i.stock > 0), "ingredients");
         
         // 5. Seed Other Supplies
         const otherSuppliesData = [
@@ -498,7 +498,9 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         }
         
         await transferBatch.commit();
-
+        
+        // Ensure remaining collections are empty by not seeding them.
+        // The clearAllData() at the beginning handled this.
 
         return { success: true };
     } catch (e) {

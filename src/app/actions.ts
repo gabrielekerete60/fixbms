@@ -895,7 +895,8 @@ export async function getAccountSummary(dateRange?: { from: Date, to: Date }): P
             discountsSnap,
             wasteLogsSnap,
             debtSnap,
-            // Assuming assets/equipment are not dynamic collections for this summary
+            customersSnap,
+            otherSuppliesSnap,
         ] = await Promise.all([
             getDocs(query(collection(db, "sales"), ...dateFilters)),
             getDocs(query(collection(db, "directCosts"), ...dateFilters)),
@@ -904,6 +905,8 @@ export async function getAccountSummary(dateRange?: { from: Date, to: Date }): P
             getDocs(collection(db, "discount_records")), // Not date-filtered
             getDocs(query(collection(db, "waste_logs"), ...dateFilters)),
             getDocs(query(collection(db, "debt"), ...dateFilters)),
+            getDocs(collection(db, "customers")), // For debtors
+            getDocs(collection(db, "other_supplies")), // For assets
         ]);
 
         const totalSales = salesSnap.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
@@ -913,13 +916,13 @@ export async function getAccountSummary(dateRange?: { from: Date, to: Date }): P
         const totalDiscounts = discountsSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
         const totalWaste = wasteLogsSnap.docs.reduce((sum, doc) => sum + ((doc.data().quantity || 0) * 500), 0); // Placeholder cost
         const totalLoan = debtSnap.docs.reduce((sum, doc) => sum + (doc.data().debit || 0) - (doc.data().credit || 0), 0);
+        
+        const totalDebtors = customersSnap.docs.reduce((sum, doc) => sum + ((doc.data().amountOwed || 0) - (doc.data().amountPaid || 0)), 0);
+        const totalAssets = otherSuppliesSnap.docs.reduce((sum, doc) => sum + ((doc.data().stock || 0) * (doc.data().costPerUnit || 0)), 0);
+        const totalEquipment = 0; // Assuming this is not tracked in a simple collection
 
         // Total Expenses = Indirect + Direct
         const totalExpenses = totalIndirectExpenses + totalPurchases;
-
-        const totalDebtors = 3124140; // Hardcoded from image for now
-        const totalAssets = 401000; // Hardcoded
-        const totalEquipment = 60000000; // Hardcoded
 
         return {
             'Sale': totalSales,
@@ -3256,6 +3259,7 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
 
 
 
