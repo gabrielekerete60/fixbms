@@ -184,7 +184,6 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
 
     const handleItemChange = (index: number, field: keyof BatchItem, value: string, type: 'produced' | 'wasted') => {
         const setItems = type === 'produced' ? setProducedItems : setWastedItems;
-        const currentList = type === 'produced' ? producedItems : wastedItems;
         setItems(prevItems => {
             const newItems = [...prevItems];
             const currentItem = { ...newItems[index] };
@@ -261,7 +260,6 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
                     <DialogDescription>
                         Enter the final counts for batch <strong>{batch.id.substring(0,6)}...</strong>.
                     </DialogDescription>
-                    <DialogClose />
                 </DialogHeader>
                 <div className="py-4 space-y-4">
                     {/* Items Produced Section */}
@@ -363,7 +361,6 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange, user }: { log: 
           <DialogDescription>
             Detailed information for log entry on {log.timestamp ? format(new Date(log.timestamp), 'PPp') : 'N/A'}.
           </DialogDescription>
-           <DialogClose />
         </DialogHeader>
         <div className="py-4 space-y-4 text-sm max-h-[60vh] overflow-y-auto">
             <div className="flex items-center gap-2"><strong>Action:</strong> <Badge>{log.action}</Badge></div>
@@ -397,7 +394,7 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange, user }: { log: 
             )}
         </div>
         <DialogFooter>
-          <Button onClick={() => onOpenChange(false)}>Close</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -484,7 +481,6 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
                         Batch ID: {batch.id.substring(0,6)}...<br/>
                         Request for <strong>{batch.recipeName}</strong>. This will deduct ingredients from inventory.
                     </DialogDescription>
-                    <DialogClose />
                 </DialogHeader>
                 <div className="max-h-60 overflow-y-auto">
                     <Table>
@@ -698,8 +694,7 @@ export default function RecipesPage() {
     const canCompleteBatches = user.role === 'Baker' || user.role === 'Chief Baker';
     const isBaker = user.role === 'Baker' || user.role === 'Chief Baker';
     const canStartProduction = isBaker || user.role === 'Developer';
-    const isManager = user.role === 'Manager';
-    const isDeveloper = user.role === 'Developer';
+    const canEditRecipe = user.role === 'Manager' || user.role === 'Developer';
 
 
     const getStatusVariant = (status: string) => {
@@ -713,7 +708,7 @@ export default function RecipesPage() {
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold font-headline">Production</h1>
+                <h1 className="text-2xl font-bold font-headline">Recipes &amp; Production</h1>
             </div>
 
             <AlertDialog open={isProductionDialogOpen} onOpenChange={setIsProductionDialogOpen}>
@@ -734,27 +729,25 @@ export default function RecipesPage() {
                 user={user}
             />
             
-            <Tabs defaultValue="production">
+            <Tabs defaultValue="recipes">
                 <TabsList>
                     <TabsTrigger value="recipes">Recipes</TabsTrigger>
                     <TabsTrigger value="production" className="relative">
                         Production Batches
                         {productionBatches.length > 0 && (
-                            <Badge variant="secondary" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
-                                {productionBatches.length}
-                            </Badge>
+                            <Badge variant="destructive" className="ml-2">{productionBatches.length}</Badge>
                         )}
                     </TabsTrigger>
                     <TabsTrigger value="logs">Production Logs</TabsTrigger>
                 </TabsList>
-                <TabsContent value="recipes">
+                <TabsContent value="recipes" className="mt-4">
                     <Card>
                         <CardHeader className="flex flex-row justify-between items-start">
                             <div>
                                 <CardTitle>General Production Recipe</CardTitle>
                                 <CardDescription>This recipe is used for all bread production batches.</CardDescription>
                             </div>
-                            {(isManager || isDeveloper) && (
+                            {canEditRecipe && (
                                 isEditing ? (
                                     <div className="flex gap-2">
                                         <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
@@ -784,7 +777,7 @@ export default function RecipesPage() {
                                             <TableRow key={ing.ingredientId}>
                                                 <TableCell>{ing.ingredientName}</TableCell>
                                                 <TableCell className="text-right flex justify-end items-center gap-2">
-                                                    {(isManager || isDeveloper) && isEditing ? (
+                                                    {isEditing ? (
                                                         <>
                                                             <Input 
                                                                 type="number" 
@@ -806,7 +799,7 @@ export default function RecipesPage() {
                         </CardContent>
                     </Card>
                 </TabsContent>
-                <TabsContent value="production">
+                <TabsContent value="production" className="mt-4">
                      <Card>
                         <CardHeader className="flex flex-row justify-between items-center">
                             <div>
@@ -844,7 +837,7 @@ export default function RecipesPage() {
                         </CardContent>
                     </Card>
                 </TabsContent>
-                 <TabsContent value="logs">
+                 <TabsContent value="logs" className="mt-4">
                      <Card>
                         <CardHeader>
                             <CardTitle>Production Logs</CardTitle>
@@ -906,3 +899,4 @@ export default function RecipesPage() {
         </div>
     );
 }
+
