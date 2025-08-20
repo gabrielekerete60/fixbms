@@ -97,30 +97,34 @@ function IngredientDialog({
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: Partial<Omit<Ingredient, 'id' | 'stock'>>) => void;
+  onSave: (data: Partial<Omit<Ingredient, 'id'>>) => void;
   ingredient: Partial<Ingredient> | null;
   user: User | null;
 }) {
     const { toast } = useToast();
     const [name, setName] = useState("");
     const [unit, setUnit] = useState("");
+    const [stock, setStock] = useState<number | string>(0);
     const [costPerUnit, setCostPerUnit] = useState<number | string>(0);
     const [expiryDate, setExpiryDate] = useState<Date | undefined>();
     const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(10);
     
     const isStorekeeper = user?.role === 'Storekeeper';
+    const isDeveloper = user?.role === 'Developer';
 
 
     useEffect(() => {
         if (ingredient) {
             setName(ingredient.name || "");
             setUnit(ingredient.unit || "");
+            setStock(ingredient.stock || 0);
             setCostPerUnit(ingredient.costPerUnit || 0);
             setExpiryDate(ingredient.expiryDate ? new Date(ingredient.expiryDate) : undefined);
             setLowStockThreshold(ingredient.lowStockThreshold || 10);
         } else {
             setName("");
             setUnit("");
+            setStock(0);
             setCostPerUnit("");
             setExpiryDate(undefined);
             setLowStockThreshold(10);
@@ -135,6 +139,7 @@ function IngredientDialog({
         onSave({ 
             name,
             unit, 
+            stock: Number(stock),
             costPerUnit: Number(costPerUnit), 
             expiryDate: expiryDate ? expiryDate.toISOString() : null,
             lowStockThreshold: Number(lowStockThreshold),
@@ -163,6 +168,10 @@ function IngredientDialog({
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="costPerUnit" className="text-right">Cost/Unit (₦)</Label>
                         <Input id="costPerUnit" type="number" value={costPerUnit} onChange={(e) => setCostPerUnit(parseFloat(e.target.value))} className="col-span-3" disabled={isStorekeeper} />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="stock" className="text-right">Stock</Label>
+                        <Input id="stock" type="number" value={stock} onChange={(e) => setStock(e.target.value)} className="col-span-3" disabled={!isDeveloper}/>
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="low-stock" className="text-right">Low Stock Threshold</Label>
@@ -405,14 +414,15 @@ export default function IngredientsPage() {
         };
     }, [toast, isLoading]);
 
-    const handleSaveIngredient = async (ingredientData: Partial<Omit<Ingredient, 'id' | 'stock'>>) => {
+    const handleSaveIngredient = async (ingredientData: Partial<Omit<Ingredient, 'id'>>) => {
         try {
             if (editingIngredient && editingIngredient.id) {
-                await updateDoc(doc(db, "ingredients", editingIngredient.id), ingredientData);
+                // Developers can edit everything, others cannot edit stock directly
+                const finalData = (user?.role === 'Developer') ? ingredientData : { ...ingredientData, stock: editingIngredient.stock || 0 };
+                await updateDoc(doc(db, "ingredients", editingIngredient.id), finalData);
                 toast({ title: "Success", description: "Ingredient updated successfully." });
             } else {
-                const dataToSave = { ...ingredientData, stock: 0 }; // New ingredients start with 0 stock
-                await addDoc(collection(db, "ingredients"), dataToSave);
+                await addDoc(collection(db, "ingredients"), ingredientData);
                 toast({ title: "Success", description: "Ingredient created successfully." });
             }
         } catch (error) {
@@ -492,6 +502,7 @@ export default function IngredientsPage() {
     const canManageIngredients = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
     const isStorekeeper = user?.role === 'Storekeeper';
     const canViewFinancials = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
+    const canEditCost = user?.role !== 'Storekeeper';
 
 
     return (

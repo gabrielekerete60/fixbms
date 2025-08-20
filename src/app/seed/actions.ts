@@ -1,3 +1,4 @@
+
 "use server";
 
 import { db } from "@/lib/firebase";
@@ -66,19 +67,19 @@ const staffData = [
 ];
 
 const ingredientsData = [
-    { id: "ing_1", name: "Flour", stock: 0, unit: 'g', costPerUnit: 15, expiryDate: null, lowStockThreshold: 10000 },
-    { id: "ing_2", name: "Sugar", stock: 0, unit: 'g', costPerUnit: 20, expiryDate: null, lowStockThreshold: 1000 },
-    { id: "ing_3", name: "Salt", stock: 0, unit: 'g', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
-    { id: "ing_4", name: "Yeast", stock: 0, unit: 'g', costPerUnit: 50, expiryDate: null, lowStockThreshold: 200 },
-    { id: "ing_5", name: "Preservative", stock: 0, unit: 'g', costPerUnit: 100, expiryDate: null, lowStockThreshold: 100 },
-    { id: "ing_6", name: "Tin Milk", stock: 0, unit: 'pcs', costPerUnit: 500, expiryDate: null, lowStockThreshold: 10 },
-    { id: "ing_7", name: "Butter", stock: 0, unit: 'g', costPerUnit: 30, expiryDate: null, lowStockThreshold: 1000 },
-    { id: "ing_8", name: "Butterscotch Flavor", stock: 0, unit: 'g', costPerUnit: 80, expiryDate: null, lowStockThreshold: 50 },
-    { id: "ing_9", name: "Zeast Flavor", stock: 0, unit: 'g', costPerUnit: 70, expiryDate: null, lowStockThreshold: 50 },
-    { id: "ing_10", name: "Lux Essence", stock: 0, unit: 'g', costPerUnit: 90, expiryDate: null, lowStockThreshold: 50 },
-    { id: "ing_11", name: "Eggs", stock: 0, unit: 'pcs', costPerUnit: 50, expiryDate: null, lowStockThreshold: 24 },
-    { id: "ing_12", name: "Water", stock: 0, unit: 'ml', costPerUnit: 0.1, expiryDate: null, lowStockThreshold: 5000 },
-    { id: "ing_13", name: "Vegetable Oil", stock: 0, unit: 'ml', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
+    { id: "ing_1", name: "Flour", stock: 0, unit: 'g', costPerUnit: 1.09, expiryDate: null, lowStockThreshold: 10000 },
+    { id: "ing_2", name: "Sugar", stock: 0, unit: 'g', costPerUnit: 1.58, expiryDate: null, lowStockThreshold: 1000 },
+    { id: "ing_3", name: "Salt", stock: 0, unit: 'g', costPerUnit: 0.34, expiryDate: null, lowStockThreshold: 500 },
+    { id: "ing_4", name: "Yeast", stock: 0, unit: 'g', costPerUnit: 6.40, expiryDate: null, lowStockThreshold: 200 },
+    { id: "ing_5", name: "Preservative", stock: 0, unit: 'g', costPerUnit: 8.00, expiryDate: null, lowStockThreshold: 100 },
+    { id: "ing_6", name: "Tin Milk", stock: 0, unit: 'pcs', costPerUnit: 1000.00, expiryDate: null, lowStockThreshold: 10 },
+    { id: "ing_7", name: "Butter", stock: 0, unit: 'g', costPerUnit: 2.53, expiryDate: null, lowStockThreshold: 1000 },
+    { id: "ing_8", name: "Butterscotch Flavor", stock: 0, unit: 'g', costPerUnit: 10.00, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_9", name: "Zeast Flavor", stock: 0, unit: 'g', costPerUnit: 27.00, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_10", name: "Lux Essence", stock: 0, unit: 'g', costPerUnit: 17.00, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_11", name: "Eggs", stock: 0, unit: 'pcs', costPerUnit: 176.67, expiryDate: null, lowStockThreshold: 24 },
+    { id: "ing_12", name: "Water", stock: 0, unit: 'ml', costPerUnit: 0.00, expiryDate: null, lowStockThreshold: 5000 },
+    { id: "ing_13", name: "Vegetable Oil", stock: 0, unit: 'ml', costPerUnit: 3.40, expiryDate: null, lowStockThreshold: 500 },
     { id: "ing_14", name: "Bread Improver", stock: 0, unit: 'g', costPerUnit: 60, expiryDate: null, lowStockThreshold: 100 },
 ];
 
@@ -433,7 +434,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
             staffData.find(s => s.role === 'Baker'),
             staffData.find(s => s.role === 'Delivery Staff'),
             staffData.find(s => s.name === 'Mr Patrick' && s.role === 'Showroom Staff'),
-        ].filter(Boolean); // Filter out any not found
+        ].filter(Boolean) as typeof staffData; // Filter out any not found
         
         if (staffToSeed.length < 7) {
             return { success: false, error: "A required staff member for the special scenario was not found in the seed data." };
