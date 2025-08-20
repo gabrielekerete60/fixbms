@@ -17,6 +17,7 @@ import {
     seedFullData,
     clearMultipleCollections,
     seedDeveloperData,
+    seedSpecialScenario,
 } from "@/app/seed/actions";
 import { Loader2, DatabaseZap, Trash2, ArrowLeft } from "lucide-react";
 import {
@@ -177,6 +178,15 @@ export default function DatabaseToolsPage() {
                             {currentlySeeding === "Developer Account" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
                             Seed Developer Account Only
                         </Button>
+                         <Button 
+                            variant="destructive"
+                            onClick={() => handleSeedAction("Special Scenario", seedSpecialScenario)}
+                            disabled={isPending}
+                            className="w-full"
+                        >
+                            {currentlySeeding === "Special Scenario" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                            Seed Special Scenario
+                        </Button>
                         <Separator className="my-2" />
                          <div className="grid grid-cols-2 gap-2">
                             <Button 
@@ -302,3 +312,5 @@ export default function DatabaseToolsPage() {
     </div>
   );
 }
+
+    

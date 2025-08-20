@@ -66,6 +66,7 @@ const ingredientsData = [
     { id: "ing_11", name: "Eggs", stock: 200, unit: 'pcs', costPerUnit: 50, expiryDate: null, lowStockThreshold: 24 },
     { id: "ing_12", name: "Water", stock: 50000, unit: 'ml', costPerUnit: 0.1, expiryDate: null, lowStockThreshold: 5000 },
     { id: "ing_13", name: "Vegetable Oil", stock: 5000, unit: 'ml', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
+    { id: "ing_14", name: "Bread Improver", stock: 0, unit: 'g', costPerUnit: 60, expiryDate: null, lowStockThreshold: 100 },
 ];
 
 const recipesData = [
@@ -87,6 +88,7 @@ const recipesData = [
            { ingredientId: "ing_11", ingredientName: "Eggs", quantity: 12, unit: "pcs" },
            { ingredientId: "ing_12", ingredientName: "Water", quantity: 20000, unit: "ml" },
            { ingredientId: "ing_13", ingredientName: "Vegetable Oil", quantity: 300, unit: "ml" },
+           { ingredientId: "ing_14", ingredientName: "Bread Improver", quantity: 250, unit: "g" },
        ]
     }
 ];
@@ -402,3 +404,52 @@ export async function seedFullData(): Promise<ActionResult> {
     }
     return { success: false, error: finalError };
 }
+
+
+export async function seedSpecialScenario(): Promise<ActionResult> {
+    try {
+        // 1. Clear all data
+        await clearAllData();
+
+        // 2. Seed only Manager and Developer
+        const manager = staffData.find(s => s.role === 'Manager');
+        const developer = staffData.find(s => s.role === 'Developer');
+        if (!manager || !developer) {
+            return { success: false, error: "Manager or Developer not found in seed data." };
+        }
+        await batchCommit([manager, developer], 'staff');
+
+        // 3. Seed Products with specific stock
+        const specialProducts = productsData.map(p => {
+            if (p.name === "Burger Loaf") return { ...p, stock: 7 };
+            if (p.name === "Family Loaf") return { ...p, stock: 14 };
+            if (p.name === "Jumbo Loaf") return { ...p, stock: 238 }; // Used as "Short Loaf" stand-in
+            return { ...p, stock: 0 };
+        });
+        await batchCommit(specialProducts, "products");
+
+        // 4. Seed Ingredients with specific stock
+        const specialIngredients = ingredientsData.map(i => {
+            if (i.name === "Tin Milk") return { ...i, stock: 6 };
+            if (i.name === "Eggs") return { ...i, stock: 42 };
+            if (i.name === "Bread Improver") return { ...i, stock: 500 };
+            return { ...i, stock: 0 };
+        });
+        await batchCommit(specialIngredients, "ingredients");
+        
+        // 5. Seed Other Supplies
+        const otherSuppliesData = [
+            { id: "sup_other_1", name: "Nurse Caps", stock: 10, unit: 'packs', costPerUnit: 500, category: 'Packaging' },
+            { id: "sup_other_2", name: "Cotton Wool", stock: 1, unit: 'pack', costPerUnit: 1000, category: 'Other' },
+            { id: "sup_other_3", name: "Spirit", stock: 1, unit: 'pack', costPerUnit: 800, category: 'Other' },
+            { id: "sup_other_4", name: "Glove", stock: 3, unit: 'packs', costPerUnit: 1200, category: 'Packaging' },
+        ];
+        await batchCommit(otherSuppliesData, "other_supplies");
+
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: (e as Error).message };
+    }
+}
+
+    
