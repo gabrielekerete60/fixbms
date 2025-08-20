@@ -1,4 +1,3 @@
-
 "use server";
 
 import { db } from "@/lib/firebase";
@@ -19,16 +18,16 @@ const generateRandomDate = (startDaysAgo: number, endDaysAgo: number): Timestamp
 };
 
 const productsData = [
-    { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300, lowStockThreshold: 50 },
-    { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 0, category: 'Breads', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250, lowStockThreshold: 50 },
-    { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500, lowStockThreshold: 25 },
-    { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280, lowStockThreshold: 40 },
-    { id: "prod_5", name: "Croissant", price: 400.00, stock: 0, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'croissant pastry', costPrice: 220, lowStockThreshold: 60 },
-    { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 0, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350, lowStockThreshold: 45 },
-    { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200, lowStockThreshold: 100 },
-    { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100, lowStockThreshold: 150 },
-    { id: "prod_9", name: "Fanta (50cl)", price: 300.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'fanta drink', costPrice: 200, lowStockThreshold: 80 },
-    { id: "prod_10", name: "Freshyo", price: 700.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550, lowStockThreshold: 60 },
+    { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300, lowStockThreshold: 50, minPrice: 500, maxPrice: 600 },
+    { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 0, category: 'Breads', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250, lowStockThreshold: 50, minPrice: 400, maxPrice: 500 },
+    { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500, lowStockThreshold: 25, minPrice: 850, maxPrice: 950 },
+    { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280, lowStockThreshold: 40, minPrice: 450, maxPrice: 550 },
+    { id: "prod_5", name: "Croissant", price: 400.00, stock: 0, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'croissant pastry', costPrice: 220, lowStockThreshold: 60, minPrice: 350, maxPrice: 450 },
+    { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 0, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350, lowStockThreshold: 45, minPrice: 550, maxPrice: 650 },
+    { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200, lowStockThreshold: 100, minPrice: 250, maxPrice: 350 },
+    { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100, lowStockThreshold: 150, minPrice: 120, maxPrice: 180 },
+    { id: "prod_9", name: "Fanta (50cl)", price: 300.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'fanta drink', costPrice: 200, lowStockThreshold: 80, minPrice: 250, maxPrice: 350 },
+    { id: "prod_10", name: "Freshyo", price: 700.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550, lowStockThreshold: 60, minPrice: 650, maxPrice: 750 },
 ];
 
 const staffData = [
@@ -40,6 +39,7 @@ const staffData = [
     { staff_id: '300003', name: 'Zion Ekerete', email: 'zion.ekerete@example.com', password: 'BakerPass4!', role: 'Bakery Assistant', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "7041091374", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '300004', name: 'Grace Effiong', email: 'grace.effiong@example.com', password: 'AssistantPass1!', role: 'Bakery Assistant', is_active: true, pay_type: 'Salary', pay_rate: 38000, bank_name: "GTB", account_number: "0123456789", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '400001', name: 'Victory Peter Ekerete', email: 'victory.ekerete@example.com', password: 'StorekeeperPass1!', role: 'Storekeeper', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "PALMPAY", account_number: "9126459437", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
+    { staff_id: '500001', name: 'Mr Patrick', email: 'mr.patrick@example.com', password: 'ShowroomPass1!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "UBA", account_number: "1231231234", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '500002', name: 'Mary Felix Ating', email: 'mary.ating@example.com', password: 'StaffPass2!', role: 'Showroom Staff', is_active: true, pay_type: 'Salary', pay_rate: 40000, bank_name: "OPAY", account_number: "8071929362", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '600001', name: 'Edet Edet Nyong', email: 'edet.nyong@example.com', password: 'DriverPass1!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "Access Bank", account_number: "0736691040", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
     { staff_id: '600002', name: 'Okon Bassey', email: 'okon.bassey@example.com', password: 'DriverPass2!', role: 'Delivery Staff', is_active: true, pay_type: 'Salary', pay_rate: 25000, bank_name: "GTBank", account_number: "1234567890", timezone: "Africa/Lagos", mfa_enabled: false, mfa_secret: '' },
@@ -411,28 +411,30 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         // 1. Clear all data
         await clearAllData();
 
-        // 2. Seed only Manager and Developer
+        // 2. Seed specific staff
         const manager = staffData.find(s => s.role === 'Manager');
         const developer = staffData.find(s => s.role === 'Developer');
-        if (!manager || !developer) {
-            return { success: false, error: "Manager or Developer not found in seed data." };
+        const mrPatrick = staffData.find(s => s.staff_id === '500001'); // Mr Patrick, Showroom Staff
+        if (!manager || !developer || !mrPatrick) {
+            return { success: false, error: "Required staff not found in seed data." };
         }
-        await batchCommit([manager, developer], 'staff');
+        await batchCommit([manager, developer, mrPatrick], 'staff');
 
-        // 3. Seed Products with specific stock
+        // 3. Seed Products with specific stock for MAIN INVENTORY
         const specialProducts = productsData.map(p => {
-            if (p.name === "Burger Loaf") return { ...p, stock: 7 };
-            if (p.name === "Family Loaf") return { ...p, stock: 14 };
-            if (p.name === "Jumbo Loaf") return { ...p, stock: 238 }; // Used as "Short Loaf" stand-in
+            if (p.id === 'prod_4') return { ...p, stock: 132 }; // Round Loaf
+            if (p.id === 'prod_1') return { ...p, stock: 26 }; // Family Loaf
+            if (p.id === 'prod_3') return { ...p, stock: 49 + 73 }; // Jumbo Loaf (as both Jumbo and Short)
+            if (p.id === 'prod_2') return { ...p, stock: 10 }; // Burger Loaf
             return { ...p, stock: 0 };
         });
         await batchCommit(specialProducts, "products");
 
         // 4. Seed Ingredients with specific stock
         const specialIngredients = ingredientsData.map(i => {
-            if (i.name === "Tin Milk") return { ...i, stock: 6 };
-            if (i.name === "Eggs") return { ...i, stock: 42 };
-            if (i.name === "Bread Improver") return { ...i, stock: 500 };
+            if (i.id === "ing_6") return { ...i, stock: 6 }; // Tin Milk
+            if (i.id === "ing_11") return { ...i, stock: 42 }; // Eggs
+            if (i.id === "ing_14") return { ...i, stock: 500 }; // Bread Improver
             return { ...i, stock: 0 };
         });
         await batchCommit(specialIngredients, "ingredients");
@@ -445,11 +447,47 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
             { id: "sup_other_4", name: "Glove", stock: 3, unit: 'packs', costPerUnit: 1200, category: 'Packaging' },
         ];
         await batchCommit(otherSuppliesData, "other_supplies");
+        
+        // 6. Create and complete a transfer to Mr Patrick
+        const patrickStock = [
+            { productId: "prod_2", productName: "Burger Loaf", quantity: 7 }, // Burger
+            { productId: "prod_1", productName: "Family Loaf", quantity: 14 }, // Family
+            { productId: "prod_3", productName: "Jumbo Loaf", quantity: 238 }, // Short Loaf
+        ];
+        
+        const transferBatch = writeBatch(db);
+        
+        // Create the transfer document
+        const transferRef = doc(collection(db, 'transfers'));
+        transferBatch.set(transferRef, {
+            from_staff_id: manager.staff_id,
+            from_staff_name: manager.name,
+            to_staff_id: mrPatrick.staff_id,
+            to_staff_name: mrPatrick.name,
+            items: patrickStock,
+            date: Timestamp.now(),
+            status: 'completed', // Mark as completed to simulate acceptance
+            is_sales_run: false,
+            time_received: Timestamp.now(),
+            time_completed: Timestamp.now(),
+            totalRevenue: 0 // Not a sales run
+        });
+        
+        // Create personal stock for Mr Patrick
+        for (const item of patrickStock) {
+            const personalStockRef = doc(db, 'staff', mrPatrick.staff_id, 'personal_stock', item.productId);
+            transferBatch.set(personalStockRef, {
+                productId: item.productId,
+                productName: item.productName,
+                stock: item.quantity
+            });
+        }
+        
+        await transferBatch.commit();
+
 
         return { success: true };
     } catch (e) {
         return { success: false, error: (e as Error).message };
     }
 }
-
-    
