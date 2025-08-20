@@ -491,7 +491,8 @@ export default function IngredientsPage() {
 
     const canManageIngredients = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Storekeeper';
     const isStorekeeper = user?.role === 'Storekeeper';
-    const isAccountant = user?.role === 'Accountant';
+    const canViewFinancials = user?.role === 'Manager' || user?.role === 'Developer' || user?.role === 'Accountant';
+
 
     return (
         <div className="flex flex-col gap-4">
@@ -541,8 +542,8 @@ export default function IngredientsPage() {
                                     <TableRow>
                                         <TableHead>Ingredient</TableHead>
                                         <TableHead>Stock</TableHead>
-                                        { (isStorekeeper || isAccountant) && <TableHead>Cost/Unit</TableHead>}
-                                        { (isStorekeeper || isAccountant) && <TableHead>Total Cost</TableHead>}
+                                        {canViewFinancials && <TableHead>Cost/Unit</TableHead>}
+                                        {canViewFinancials && <TableHead>Total Cost</TableHead>}
                                         <TableHead>Expiry</TableHead>
                                         <TableHead><span className="sr-only">Actions</span></TableHead>
                                     </TableRow>
@@ -550,7 +551,7 @@ export default function IngredientsPage() {
                                 <TableBody>
                                     {isLoading ? (
                                         <TableRow>
-                                            <TableCell colSpan={isStorekeeper || isAccountant ? 4 : 6} className="h-24 text-center">
+                                            <TableCell colSpan={canViewFinancials ? 6 : 4} className="h-24 text-center">
                                                 <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                                             </TableCell>
                                         </TableRow>
@@ -567,8 +568,8 @@ export default function IngredientsPage() {
                                                     }
                                                 </TableCell>
                                                 <TableCell>{(ingredient.stock || 0).toFixed(2)} {ingredient.unit}</TableCell>
-                                                {(isStorekeeper || isAccountant) && <TableCell>₦{(ingredient.costPerUnit || 0).toFixed(2)}</TableCell>}
-                                                {(isStorekeeper || isAccountant) && <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>}
+                                                {canViewFinancials && <TableCell>₦{(ingredient.costPerUnit || 0).toFixed(2)}</TableCell>}
+                                                {canViewFinancials && <TableCell>₦{ingredient.totalCost.toFixed(2)}</TableCell>}
                                                 <TableCell>{ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'N/A'}</TableCell>
                                                 <TableCell>
                                                    {canManageIngredients && (
@@ -592,13 +593,13 @@ export default function IngredientsPage() {
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={isStorekeeper || isAccountant ? 4 : 6} className="h-24 text-center">
+                                            <TableCell colSpan={canViewFinancials ? 6 : 4} className="h-24 text-center">
                                                 No ingredients found.
                                             </TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
-                                {(isStorekeeper || isAccountant) && (
+                                {canViewFinancials && (
                                     <TableFooter>
                                         <TableRow>
                                             <TableCell colSpan={3} className="font-bold text-right">Grand Total</TableCell>

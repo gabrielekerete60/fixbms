@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -134,7 +135,6 @@ function SupplierDialog({
     const [amountOwed, setAmountOwed] = useState(0);
     const [amountPaid, setAmountPaid] = useState(0);
 
-    const isStorekeeper = user?.role === 'Storekeeper';
     const isDeveloper = user?.role === 'Developer';
 
 
