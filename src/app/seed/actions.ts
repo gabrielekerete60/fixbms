@@ -1,4 +1,3 @@
-
 "use server";
 
 import { db } from "@/lib/firebase";
@@ -19,16 +18,30 @@ const generateRandomDate = (startDaysAgo: number, endDaysAgo: number): Timestamp
 };
 
 const productsData = [
-    { id: "prod_1", name: "Family Loaf", price: 550.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 300, lowStockThreshold: 50, minPrice: 500, maxPrice: 600 },
-    { id: "prod_2", name: "Burger Loaf", price: 450.00, stock: 0, category: 'Breads', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 250, lowStockThreshold: 50, minPrice: 400, maxPrice: 500 },
-    { id: "prod_3", name: "Jumbo Loaf", price: 900.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'large bread', costPrice: 500, lowStockThreshold: 25, minPrice: 850, maxPrice: 950 },
-    { id: "prod_4", name: "Round Loaf", price: 500.00, stock: 0, category: 'Breads', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 280, lowStockThreshold: 40, minPrice: 450, maxPrice: 550 },
-    { id: "prod_5", name: "Croissant", price: 400.00, stock: 0, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'croissant pastry', costPrice: 220, lowStockThreshold: 60, minPrice: 350, maxPrice: 450 },
-    { id: "prod_6", name: "Meat Pie", price: 600.00, stock: 0, category: 'Pastries', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 350, lowStockThreshold: 45, minPrice: 550, maxPrice: 650 },
-    { id: "prod_7", name: "Coca-Cola (50cl)", price: 300.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 200, lowStockThreshold: 100, minPrice: 250, maxPrice: 350 },
-    { id: "prod_8", name: "Bottled Water (75cl)", price: 150.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 100, lowStockThreshold: 150, minPrice: 120, maxPrice: 180 },
-    { id: "prod_9", name: "Fanta (50cl)", price: 300.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'fanta drink', costPrice: 200, lowStockThreshold: 80, minPrice: 250, maxPrice: 350 },
-    { id: "prod_10", name: "Freshyo", price: 700.00, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yogurt drink', costPrice: 550, lowStockThreshold: 60, minPrice: 650, maxPrice: 750 },
+    // SNACKS
+    { id: "prod_snacks_1", name: "Meatpie", price: 1000, stock: 0, category: 'Snacks', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'meat pie', costPrice: 600, lowStockThreshold: 50, minPrice: 900, maxPrice: 1100 },
+    
+    // BREAD
+    { id: "prod_bread_1", name: "Family Loaf", price: 1600, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 1000, lowStockThreshold: 50, minPrice: 1500, maxPrice: 1700 },
+    { id: "prod_bread_2", name: "Short Loaf", price: 1300, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'short bread', costPrice: 800, lowStockThreshold: 50, minPrice: 1200, maxPrice: 1400 },
+    { id: "prod_bread_3", name: "Jumbo Loaf", price: 1800, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'jumbo bread', costPrice: 1200, lowStockThreshold: 25, minPrice: 1700, maxPrice: 1900 },
+    { id: "prod_bread_4", name: "Burger Loaf", price: 1800, stock: 0, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 1100, lowStockThreshold: 50, minPrice: 1700, maxPrice: 1900 },
+    { id: "prod_bread_5", name: "Round bread", price: 300, stock: 0, category: 'Bread', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 180, lowStockThreshold: 100, minPrice: 250, maxPrice: 350 },
+    { id: "prod_bread_6", name: "Breakfast loaf", price: 1000, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'breakfast bread', costPrice: 650, lowStockThreshold: 40, minPrice: 900, maxPrice: 1100 },
+    { id: "prod_bread_7", name: "Mini Bite", price: 800, stock: 0, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'small bread', costPrice: 500, lowStockThreshold: 60, minPrice: 700, maxPrice: 900 },
+
+    // DRINKS
+    { id: "prod_drinks_1", name: "Coke", price: 500, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 350, lowStockThreshold: 100, minPrice: 450, maxPrice: 550 },
+    { id: "prod_drinks_2", name: "Fanta", price: 500, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'fanta drink', costPrice: 350, lowStockThreshold: 100, minPrice: 450, maxPrice: 550 },
+    { id: "prod_drinks_3", name: "Sprite", price: 500, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'sprite drink', costPrice: 350, lowStockThreshold: 100, minPrice: 450, maxPrice: 550 },
+    { id: "prod_drinks_4", name: "Pepsi", price: 500, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'pepsi drink', costPrice: 350, lowStockThreshold: 100, minPrice: 450, maxPrice: 550 },
+    { id: "prod_drinks_5", name: "7up", price: 500, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': '7up drink', costPrice: 350, lowStockThreshold: 100, minPrice: 450, maxPrice: 550 },
+    { id: "prod_drinks_6", name: "Nutri Soya", price: 800, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'soya milk', costPrice: 600, lowStockThreshold: 80, minPrice: 750, maxPrice: 850 },
+    { id: "prod_drinks_7", name: "Nutri Choco", price: 800, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'choco milk', costPrice: 600, lowStockThreshold: 80, minPrice: 750, maxPrice: 850 },
+    { id: "prod_drinks_8", name: "5Alive", price: 800, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'juice box', costPrice: 600, lowStockThreshold: 80, minPrice: 750, maxPrice: 850 },
+    { id: "prod_drinks_9", name: "Holandia Yoghurt", price: 2000, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yoghurt drink', costPrice: 1500, lowStockThreshold: 40, minPrice: 1900, maxPrice: 2100 },
+    { id: "prod_drinks_10", name: "Freshyo", price: 700, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'yoghurt drink', costPrice: 550, lowStockThreshold: 60, minPrice: 650, maxPrice: 750 },
+    { id: "prod_drinks_11", name: "Aquafina water", price: 300, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bottled water', costPrice: 200, lowStockThreshold: 150, minPrice: 250, maxPrice: 350 },
 ];
 
 const staffData = [
@@ -53,19 +66,19 @@ const staffData = [
 ];
 
 const ingredientsData = [
-    { id: "ing_1", name: "Flour", stock: 100000, unit: 'g', costPerUnit: 15, expiryDate: null, lowStockThreshold: 10000 },
-    { id: "ing_2", name: "Sugar", stock: 10000, unit: 'g', costPerUnit: 20, expiryDate: null, lowStockThreshold: 1000 },
-    { id: "ing_3", name: "Salt", stock: 5000, unit: 'g', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
-    { id: "ing_4", name: "Yeast", stock: 2000, unit: 'g', costPerUnit: 50, expiryDate: null, lowStockThreshold: 200 },
-    { id: "ing_5", name: "Preservative", stock: 1000, unit: 'g', costPerUnit: 100, expiryDate: null, lowStockThreshold: 100 },
-    { id: "ing_6", name: "Tin Milk", stock: 100, unit: 'pcs', costPerUnit: 500, expiryDate: null, lowStockThreshold: 10 },
-    { id: "ing_7", name: "Butter", stock: 10000, unit: 'g', costPerUnit: 30, expiryDate: null, lowStockThreshold: 1000 },
-    { id: "ing_8", name: "Butterscotch Flavor", stock: 500, unit: 'g', costPerUnit: 80, expiryDate: null, lowStockThreshold: 50 },
-    { id: "ing_9", name: "Zeast Flavor", stock: 500, unit: 'g', costPerUnit: 70, expiryDate: null, lowStockThreshold: 50 },
-    { id: "ing_10", name: "Lux Essence", stock: 500, unit: 'g', costPerUnit: 90, expiryDate: null, lowStockThreshold: 50 },
-    { id: "ing_11", name: "Eggs", stock: 200, unit: 'pcs', costPerUnit: 50, expiryDate: null, lowStockThreshold: 24 },
-    { id: "ing_12", name: "Water", stock: 50000, unit: 'ml', costPerUnit: 0.1, expiryDate: null, lowStockThreshold: 5000 },
-    { id: "ing_13", name: "Vegetable Oil", stock: 5000, unit: 'ml', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
+    { id: "ing_1", name: "Flour", stock: 0, unit: 'g', costPerUnit: 15, expiryDate: null, lowStockThreshold: 10000 },
+    { id: "ing_2", name: "Sugar", stock: 0, unit: 'g', costPerUnit: 20, expiryDate: null, lowStockThreshold: 1000 },
+    { id: "ing_3", name: "Salt", stock: 0, unit: 'g', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
+    { id: "ing_4", name: "Yeast", stock: 0, unit: 'g', costPerUnit: 50, expiryDate: null, lowStockThreshold: 200 },
+    { id: "ing_5", name: "Preservative", stock: 0, unit: 'g', costPerUnit: 100, expiryDate: null, lowStockThreshold: 100 },
+    { id: "ing_6", name: "Tin Milk", stock: 0, unit: 'pcs', costPerUnit: 500, expiryDate: null, lowStockThreshold: 10 },
+    { id: "ing_7", name: "Butter", stock: 0, unit: 'g', costPerUnit: 30, expiryDate: null, lowStockThreshold: 1000 },
+    { id: "ing_8", name: "Butterscotch Flavor", stock: 0, unit: 'g', costPerUnit: 80, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_9", name: "Zeast Flavor", stock: 0, unit: 'g', costPerUnit: 70, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_10", name: "Lux Essence", stock: 0, unit: 'g', costPerUnit: 90, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_11", name: "Eggs", stock: 0, unit: 'pcs', costPerUnit: 50, expiryDate: null, lowStockThreshold: 24 },
+    { id: "ing_12", name: "Water", stock: 0, unit: 'ml', costPerUnit: 0.1, expiryDate: null, lowStockThreshold: 5000 },
+    { id: "ing_13", name: "Vegetable Oil", stock: 0, unit: 'ml', costPerUnit: 5, expiryDate: null, lowStockThreshold: 500 },
     { id: "ing_14", name: "Bread Improver", stock: 0, unit: 'g', costPerUnit: 60, expiryDate: null, lowStockThreshold: 100 },
 ];
 
@@ -433,14 +446,15 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         // 3. Seed Products with specific stock for MAIN INVENTORY
         const specialProducts = productsData.map(p => {
             const stockMap: Record<string, number> = {
-                'prod_4': 132, // Round Loaf
-                'prod_1': 26,  // Family Loaf
-                'prod_3': 49 + 73, // Jumbo as itself and Short
-                'prod_2': 10   // Burger Loaf
+                "prod_bread_5": 152, // Round bread
+                "prod_bread_1": 26,  // Family Loaf
+                "prod_bread_2": 73, // Short Loaf
+                "prod_bread_4": 10,   // Burger Loaf
+                "prod_bread_3": 49, // Jumbo Loaf
             };
             return { ...p, stock: stockMap[p.id] || 0 };
         });
-        await batchCommit(specialProducts.filter(p => p.stock > 0), "products");
+        await batchCommit(specialProducts, "products");
 
         // 4. Seed Ingredients with specific stock
         const specialIngredients = ingredientsData.map(i => {
@@ -451,7 +465,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
             };
             return { ...i, stock: stockMap[i.id] || 0 };
         });
-        await batchCommit(specialIngredients.filter(i => i.stock > 0), "ingredients");
+        await batchCommit(specialIngredients, "ingredients");
         
         // 5. Seed Other Supplies
         const otherSuppliesData = [
@@ -464,9 +478,8 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         
         // 6. Create and complete a transfer to Mr Patrick
         const patrickStock = [
-            { productId: "prod_2", productName: "Burger Loaf", quantity: 7 }, // Burger
-            { productId: "prod_1", productName: "Family Loaf", quantity: 14 }, // Family
-            { productId: "prod_3", productName: "Jumbo Loaf", quantity: 238 }, // Short Loaf
+            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 21 }, // Family (6 + 15)
+            { productId: "prod_bread_2", productName: "Short Loaf", quantity: 23 },
         ];
         
         const transferBatch = writeBatch(db);
@@ -499,9 +512,6 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         
         await transferBatch.commit();
         
-        // Ensure remaining collections are empty by not seeding them.
-        // The clearAllData() at the beginning handled this.
-
         return { success: true };
     } catch (e) {
         return { success: false, error: (e as Error).message };
