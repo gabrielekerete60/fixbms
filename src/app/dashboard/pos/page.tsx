@@ -48,7 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, doc, getDoc, query, where, onSnapshot, Timestamp } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { handlePosSale, initializePaystackTransaction, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -850,7 +850,9 @@ function POSPageContent() {
                 </div>
                 <DialogFooter className="flex-row justify-end gap-2 print:hidden">
                     <Button variant="outline" onClick={() => handlePrint(receiptRef.current)}><Printer className="mr-2 h-4 w-4"/> Print</Button>
-                    <Button onClick={() => setIsReceiptOpen(false)}>Close</Button>
+                    <DialogClose asChild>
+                      <Button onClick={() => setIsReceiptOpen(false)}>Close</Button>
+                    </DialogClose>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

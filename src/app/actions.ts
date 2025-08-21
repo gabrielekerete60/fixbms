@@ -713,8 +713,8 @@ export type SalesRun = {
     totalRevenue: number;
     totalCollected: number;
     totalOutstanding: number;
-    time_received?: string | null;
-    time_completed?: string | null;
+    time_received: string | null;
+    time_completed: string | null;
 };
 
 type SalesRunResult = {
@@ -918,7 +918,14 @@ export async function getAccountSummary(dateRange?: { from: Date, to: Date }): P
 
         const totalIndirectExpenses = indirectCostsSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
         const totalDiscounts = discountsSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
-        const totalWaste = wasteLogsSnap.docs.reduce((sum, doc) => sum + ((doc.data().quantity || 0) * 500), 0); // Placeholder cost
+        
+        const productCostMap = new Map(closingStocksSnap.docs.map(doc => [doc.id, doc.data().costPrice || 0]));
+        const totalWaste = wasteLogsSnap.docs.reduce((sum, doc) => {
+            const data = doc.data();
+            const cost = productCostMap.get(data.productId) || 0;
+            return sum + ((data.quantity || 0) * cost);
+        }, 0);
+        
         const totalLoan = debtSnap.docs.reduce((sum, doc) => sum + (doc.data().debit || 0) - (doc.data().credit || 0), 0);
         
         const totalDebtors = customersSnap.docs.reduce((sum, doc) => {
@@ -2827,13 +2834,25 @@ export async function getProducts(): Promise<any[]> {
 export async function getProductsForStaff(staffId: string): Promise<any[]> {
     const q = query(collection(db, 'staff', staffId, 'personal_stock'));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => {
-        const data = doc.data();
+    
+    if (snapshot.empty) return [];
+
+    const productPromises = snapshot.docs.map(stockDoc => {
+        return getDoc(doc(db, 'products', stockDoc.id));
+    });
+    const productSnapshots = await Promise.all(productPromises);
+    
+    return snapshot.docs.map((stockDoc, index) => {
+        const productDoc = productSnapshots[index];
         return {
-            id: data.productId,
-            name: data.productName,
-            stock: data.stock,
-        }
+            productId: stockDoc.id,
+            name: stockDoc.data().productName,
+            stock: stockDoc.data().stock,
+            price: productDoc.exists() ? productDoc.data().price : 0,
+            costPrice: productDoc.exists() ? productDoc.data().costPrice : 0,
+            minPrice: productDoc.exists() ? productDoc.data().minPrice : 0,
+            maxPrice: productDoc.exists() ? productDoc.data().maxPrice : 0,
+        };
     });
 }
 export async function getIngredients(): Promise<any[]> {
