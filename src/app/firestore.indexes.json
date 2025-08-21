@@ -208,7 +208,19 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "transfers",
+      "queryScope": "COLLECTION",
+      "fields": [
+          {
+              "fieldPath": "status",
+              "order": "ASCENDING"
+          }
+      ]
     }
   ],
   "fieldOverrides": []
 }
+
+    

@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense } from '@/app/actions';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense, getProductsForStaff } from '@/app/actions';
 import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal, FileSignature, Car, Fuel, Receipt as ReceiptIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
@@ -175,198 +175,6 @@ const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeA
 });
 Receipt.displayName = 'Receipt';
 
-function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: OrderItem[] }) {
-    const { toast } = useToast();
-    const [isOpen, setIsOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [cart, setCart] = useState<OrderItem[]>([]);
-    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Paystack' | 'POS'>('Cash');
-    const [customers, setCustomers] = useState<Customer[]>([]);
-    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-    const [customerName, setCustomerName] = useState('');
-    const [customerEmail, setCustomerEmail] = useState('');
-
-    useEffect(() => {
-        if (isOpen) {
-            getDocs(collection(db, 'customers')).then(snap => {
-                setCustomers(snap.docs.map(d => ({ ...d.data(), id: d.id } as Customer)));
-            });
-            setCart([]);
-            setSelectedCustomer(null);
-            setCustomerName('');
-        }
-    }, [isOpen]);
-    
-    const handleAddToCart = (item: OrderItem) => {
-        setCart(prev => {
-            const existing = prev.find(p => p.productId === item.productId);
-            if (existing) {
-                if (existing.quantity < item.quantity) {
-                    return prev.map(p => p.productId === item.productId ? { ...p, quantity: p.quantity + 1 } : p);
-                } else {
-                    toast({ variant: 'destructive', title: 'Stock Limit', description: `Only ${item.quantity} units available.` });
-                    return prev;
-                }
-            }
-            return [...prev, { ...item, quantity: 1, name: item.productName }];
-        });
-    };
-
-    const updateCartQuantity = (productId: string, change: number) => {
-        setCart(prev => {
-            return prev.map(item => {
-                if (item.productId === productId) {
-                    const newQuantity = item.quantity + change;
-                    const stockLimit = remainingItems.find(i => i.productId === productId)?.quantity || 0;
-                    if (newQuantity <= 0) return null;
-                    if (newQuantity > stockLimit) {
-                         toast({ variant: 'destructive', title: 'Stock Limit', description: `Only ${stockLimit} units available.` });
-                         return { ...item, quantity: stockLimit };
-                    }
-                    return { ...item, quantity: newQuantity };
-                }
-                return item;
-            }).filter(Boolean) as OrderItem[];
-        })
-    };
-
-    const handleCustomerSelect = (customerId: string) => {
-        const customer = customers.find(c => c.id === customerId);
-        setSelectedCustomer(customer || null);
-        setCustomerName(customer?.name || '');
-    }
-
-    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    
-    const handleSubmit = async () => {
-        if (!user || cart.length === 0 || (paymentMethod === 'Credit' && !selectedCustomer)) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please add items to cart and select a customer for credit sales.' });
-            return;
-        }
-
-        setIsLoading(true);
-        const saleData = {
-            runId: run.id,
-            items: cart.map(item => ({...item, productId: item.productId || '' })),
-            customerId: selectedCustomer?.id || 'walk-in',
-            customerName: customerName || selectedCustomer?.name || 'Walk-in',
-            paymentMethod,
-            staffId: user.staff_id,
-            total,
-        };
-        const result = await handleSellToCustomer(saleData);
-
-        if (result.success && result.orderId) {
-            toast({ title: 'Success', description: 'Sale has been recorded.' });
-            onSaleMade({
-                id: result.orderId,
-                items: cart,
-                total,
-                date: new Date(),
-                paymentMethod,
-                customerName: customerName || selectedCustomer?.name,
-                status: 'Completed',
-                subtotal: total, tax: 0
-            });
-            setIsOpen(false);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setIsLoading(false);
-    };
-
-    return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                 <Button className="w-full" disabled={run.status !== 'active'}>
-                    <PlusCircle className="mr-2 h-5 w-5"/>
-                    <span>Standard Sale</span>
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-3xl">
-                <DialogHeader>
-                    <DialogTitle>Sell to Customer</DialogTitle>
-                    <DialogDescription>Record a sale at the standard product price.</DialogDescription>
-                </DialogHeader>
-                 <div className="grid md:grid-cols-2 gap-6 py-4">
-                    <div className="space-y-2">
-                        <h4 className="font-semibold">Available Items</h4>
-                        <div className="border rounded-md max-h-96 overflow-y-auto">
-                            {remainingItems.map(item => (
-                                <div key={item.productId} className="p-2 flex justify-between items-center border-b gap-2">
-                                    <div>
-                                        <p>{item.productName}</p>
-                                        <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
-                                    </div>
-                                    <p className="text-sm">Avail: {item.quantity}</p>
-                                    <Button size="icon" variant="outline" onClick={() => handleAddToCart(item)}><PlusCircle className="h-4 w-4"/></Button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <h4 className="font-semibold">Cart</h4>
-                        <div className="border rounded-md p-2 space-y-2 min-h-32 max-h-60 overflow-y-auto">
-                           {cart.length === 0 ? <p className="text-center text-muted-foreground text-sm p-4">Cart is empty</p> : (
-                                cart.map(item => (
-                                    <div key={item.productId} className="flex justify-between items-center">
-                                        <div>
-                                            <p className="font-medium">{item.name}</p>
-                                            <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateCartQuantity(item.productId, -1)}><Minus className="h-3 w-3"/></Button>
-                                            <span className="w-5 text-center font-bold">{item.quantity}</span>
-                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateCartQuantity(item.productId, 1)}><Plus className="h-3 w-3"/></Button>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                        <div className="font-bold text-right">Total: {formatCurrency(total)}</div>
-                        <div className="space-y-2">
-                            <Label>Payment Method</Label>
-                            <Select onValueChange={(value) => setPaymentMethod(value as any)} defaultValue={paymentMethod}>
-                                <SelectTrigger><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</SelectItem>
-                                    <SelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</SelectItem>
-                                    <SelectItem value="Paystack"><ArrowRightLeft className="mr-2 h-4 w-4"/> Paystack</SelectItem>
-                                    <SelectItem value="Credit"><CreditCard className="mr-2 h-4 w-4"/> Credit</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        {paymentMethod === 'Credit' ? (
-                            <div className="space-y-2">
-                                <Label>Select Customer</Label>
-                                <Select onValueChange={handleCustomerSelect}>
-                                    <SelectTrigger><SelectValue placeholder="Select a registered customer..."/></SelectTrigger>
-                                    <SelectContent>
-                                        {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        ) : (
-                             <div className="space-y-2">
-                                <Label>Customer Name</Label>
-                                <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Walk-in Customer"/>
-                            </div>
-                        )}
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isLoading}>
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Record Sale
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
 function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreated: (customer: Customer) => void, children: React.ReactNode }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -436,14 +244,254 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
     )
 }
 
+function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: OrderItem[] }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [cart, setCart] = useState<OrderItem[]>([]);
+    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Paystack' | 'POS'>('Cash');
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [customerType, setCustomerType] = useState<'walk-in' | 'registered'>('walk-in');
+    const [selectedCustomerId, setSelectedCustomerId] = useState<string>('walk-in');
+    const [customerName, setCustomerName] = useState('');
+
+    const fetchCustomers = useCallback(() => {
+        getDocs(collection(db, 'customers')).then(snap => {
+            setCustomers(snap.docs.map(d => ({ ...d.data(), id: d.id } as Customer)));
+        });
+    }, []);
+
+    useEffect(() => {
+        if (isOpen) {
+           fetchCustomers();
+            setCart([]);
+            setCustomerType('walk-in');
+            setSelectedCustomerId('walk-in');
+            setCustomerName('');
+            setPaymentMethod('Cash');
+        }
+    }, [isOpen, fetchCustomers]);
+    
+    const handleAddToCart = (item: OrderItem) => {
+        setCart(prev => {
+            const existing = prev.find(p => p.productId === item.productId);
+            if (existing) {
+                if (existing.quantity < item.quantity) {
+                    return prev.map(p => p.productId === item.productId ? { ...p, quantity: p.quantity + 1 } : p);
+                } else {
+                    toast({ variant: 'destructive', title: 'Stock Limit', description: `Only ${item.quantity} units available.` });
+                    return prev;
+                }
+            }
+            return [...prev, { ...item, quantity: 1, name: item.productName }];
+        });
+    };
+
+    const updateCartQuantity = (productId: string, change: number) => {
+        setCart(prev => {
+            return prev.map(item => {
+                if (item.productId === productId) {
+                    const newQuantity = item.quantity + change;
+                    const stockLimit = remainingItems.find(i => i.productId === productId)?.quantity || 0;
+                    if (newQuantity <= 0) return null;
+                    if (newQuantity > stockLimit) {
+                         toast({ variant: 'destructive', title: 'Stock Limit', description: `Only ${stockLimit} units available.` });
+                         return { ...item, quantity: stockLimit };
+                    }
+                    return { ...item, quantity: newQuantity };
+                }
+                return item;
+            }).filter(Boolean) as OrderItem[];
+        })
+    };
+
+    const onCustomerCreated = (newCustomer: Customer) => {
+        fetchCustomers();
+        setCustomerType('registered');
+        setSelectedCustomerId(newCustomer.id);
+    }
+    
+    useEffect(() => {
+        if (customerType === 'walk-in') {
+            setSelectedCustomerId('walk-in');
+            if(paymentMethod === 'Credit') setPaymentMethod('Cash');
+        } else {
+             setSelectedCustomerId('');
+        }
+    }, [customerType, paymentMethod]);
+
+    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    const handleSubmit = async () => {
+        if (!user || cart.length === 0 || (paymentMethod === 'Credit' && selectedCustomerId === 'walk-in')) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please add items to cart and select a registered customer for credit sales.' });
+            return;
+        }
+
+        setIsLoading(true);
+        const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+
+        const saleData = {
+            runId: run.id,
+            items: cart.map(item => ({...item, productId: item.productId || '' })),
+            customerId: selectedCustomerId,
+            customerName: customerType === 'walk-in' ? (customerName || 'Walk-in') : (selectedCustomer?.name || 'Registered Customer'),
+            paymentMethod,
+            staffId: user.staff_id,
+            total,
+        };
+        const result = await handleSellToCustomer(saleData);
+
+        if (result.success && result.orderId) {
+            toast({ title: 'Success', description: 'Sale has been recorded.' });
+            onSaleMade({
+                id: result.orderId,
+                items: cart,
+                total,
+                date: new Date(),
+                paymentMethod,
+                customerName: saleData.customerName,
+                status: 'Completed',
+                subtotal: total, tax: 0
+            });
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                 <Button className="w-full" disabled={run.status !== 'active'}>
+                    <PlusCircle className="mr-2 h-5 w-5"/>
+                    <span>Standard Sale</span>
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Sell to Customer</DialogTitle>
+                    <DialogDescription>Record a sale at the standard product price.</DialogDescription>
+                </DialogHeader>
+                 <div className="grid md:grid-cols-2 gap-6 py-4">
+                    <div className="space-y-2">
+                        <h4 className="font-semibold">Available Items</h4>
+                        <div className="border rounded-md max-h-96 overflow-y-auto">
+                            {remainingItems.map(item => (
+                                <div key={item.productId} className="p-2 flex justify-between items-center border-b gap-2">
+                                    <div>
+                                        <p>{item.productName}</p>
+                                        <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
+                                    </div>
+                                    <p className="text-sm">Avail: {item.quantity}</p>
+                                    <Button size="icon" variant="outline" onClick={() => handleAddToCart(item)}><PlusCircle className="h-4 w-4"/></Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label>Customer</Label>
+                            <div className="flex items-center gap-2">
+                                <Select value={customerType} onValueChange={(v) => setCustomerType(v as any)}>
+                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="walk-in">Walk-in</SelectItem>
+                                        <SelectItem value="registered">Registered</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <CreateCustomerDialog onCustomerCreated={onCustomerCreated}>
+                                    <Button variant="outline" size="sm">New Customer</Button>
+                                </CreateCustomerDialog>
+                            </div>
+                        </div>
+                        {customerType === 'registered' ? (
+                            <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                                <SelectTrigger><SelectValue placeholder="Select a customer..." /></SelectTrigger>
+                                <SelectContent>
+                                    {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        ) : (
+                            <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Walk-in Customer Name"/>
+                        )}
+
+                        <h4 className="font-semibold pt-4">Cart</h4>
+                        <div className="border rounded-md p-2 space-y-2 min-h-32 max-h-60 overflow-y-auto">
+                           {cart.length === 0 ? <p className="text-center text-muted-foreground text-sm p-4">Cart is empty</p> : (
+                                cart.map(item => (
+                                    <div key={item.productId} className="flex justify-between items-center">
+                                        <div>
+                                            <p className="font-medium">{item.name}</p>
+                                            <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateCartQuantity(item.productId, -1)}><Minus className="h-3 w-3"/></Button>
+                                            <span className="w-5 text-center font-bold">{item.quantity}</span>
+                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateCartQuantity(item.productId, 1)}><Plus className="h-3 w-3"/></Button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        <div className="font-bold text-right">Total: {formatCurrency(total)}</div>
+                        <div className="space-y-2">
+                            <Label>Payment Method</Label>
+                            <Select onValueChange={(value) => setPaymentMethod(value as any)} value={paymentMethod}>
+                                <SelectTrigger><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</SelectItem>
+                                    <SelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</SelectItem>
+                                    <SelectItem value="Paystack"><ArrowRightLeft className="mr-2 h-4 w-4"/> Paystack</SelectItem>
+                                    <SelectItem value="Credit" disabled={customerType==='walk-in'}><CreditCard className="mr-2 h-4 w-4"/> Credit</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Record Sale
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: OrderItem[] }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [cart, setCart] = useState<OrderItem[]>([]);
-    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'POS'>('Cash');
+    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'POS' | 'Credit'>('Cash');
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [customerType, setCustomerType] = useState<'walk-in' | 'registered'>('walk-in');
+    const [selectedCustomerId, setSelectedCustomerId] = useState<string>('walk-in');
     const [customerName, setCustomerName] = useState('');
     const [priceErrors, setPriceErrors] = useState<Record<string, string>>({});
+
+    const fetchCustomers = useCallback(() => {
+        getDocs(collection(db, 'customers')).then(snap => {
+            setCustomers(snap.docs.map(d => ({ ...d.data(), id: d.id } as Customer)));
+        });
+    }, []);
+
+    useEffect(() => {
+        if (isOpen) {
+           fetchCustomers();
+            setCart([]);
+            setCustomerType('walk-in');
+            setSelectedCustomerId('walk-in');
+            setCustomerName('');
+            setPaymentMethod('Cash');
+            setPriceErrors({});
+        }
+    }, [isOpen, fetchCustomers]);
 
     const handlePriceChange = (productId: string, newPriceStr: string) => {
         const newPrice = Number(newPriceStr);
@@ -466,31 +514,66 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
         });
     };
 
-     const handleAddToCart = (item: OrderItem) => {
-        setCart(prev => {
-            const existing = prev.find(p => p.productId === item.productId);
-            if (existing) return prev; // Don't add if already there
-            return [...prev, { ...item, quantity: 1, name: item.productName }];
-        });
-    };
+    const handleItemChange = (index: number, field: 'productId' | 'quantity', value: string) => {
+        const newItems = [...cart];
+        const item = newItems[index];
 
-    const handleRemoveFromCart = (productId: string) => setCart(prev => prev.filter(p => p.productId !== productId));
+        if(field === 'productId') {
+            const product = remainingItems.find(p => p.productId === value);
+            newItems[index] = { ...item, productId: value, name: product?.productName || '', price: product?.price || 0 };
+        } else {
+            const productInfo = remainingItems.find(p => p.productId === item.productId);
+            const newQuantity = Number(value);
+            if (productInfo && newQuantity > productInfo.quantity) {
+                 toast({ variant: 'destructive', title: 'Error', description: `Cannot add more than ${productInfo.quantity} units.` });
+                newItems[index].quantity = productInfo.quantity;
+            } else {
+                newItems[index].quantity = newQuantity;
+            }
+        }
+        setCart(newItems);
+    }
+    
+    const handleAddItem = () => {
+        setCart(prev => [...prev, { productId: '', name: '', quantity: 1, price: 0 }]);
+    }
+
+    const handleRemoveItem = (index: number) => {
+        setCart(prev => prev.filter((_, i) => i !== index));
+    }
+
+    useEffect(() => {
+        if (customerType === 'walk-in') {
+            setSelectedCustomerId('walk-in');
+            if(paymentMethod === 'Credit') setPaymentMethod('Cash');
+        } else {
+             setSelectedCustomerId('');
+        }
+    }, [customerType, paymentMethod]);
+
+
+    const onCustomerCreated = (newCustomer: Customer) => {
+        fetchCustomers();
+        setCustomerType('registered');
+        setSelectedCustomerId(newCustomer.id);
+    }
 
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const hasErrors = Object.keys(priceErrors).length > 0;
     
     const handleSubmit = async () => {
-        if (!user || hasErrors || cart.length === 0) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please fix price errors or add items to the cart.' });
+        if (!user || hasErrors || cart.some(item => !item.productId || item.quantity <= 0) || (paymentMethod === 'Credit' && selectedCustomerId === 'walk-in')) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fix all errors and fill required fields.' });
             return;
         }
 
         setIsLoading(true);
+        const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
         const saleData = {
             runId: run.id,
             items: cart.map(item => ({...item, productId: item.productId || '' })),
-            customerId: 'walk-in',
-            customerName: customerName || 'Walk-in (Custom Sale)',
+            customerId: selectedCustomerId,
+            customerName: customerType === 'walk-in' ? (customerName || 'Walk-in') : (selectedCustomer?.name || 'Registered Customer'),
             paymentMethod,
             staffId: user.staff_id,
             total,
@@ -514,43 +597,67 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
                     <span>Log Custom Sale</span>
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Log Custom Price Sale</DialogTitle>
                     <DialogDescription>Sell items at a custom price. This will require approval from an accountant.</DialogDescription>
                 </DialogHeader>
-                 <div className="grid md:grid-cols-2 gap-6 py-4">
-                    <div className="space-y-2">
-                        <h4 className="font-semibold">Available Items</h4>
-                        <div className="border rounded-md max-h-96 overflow-y-auto">
-                            {remainingItems.map(item => (
-                                <div key={item.productId} className="p-2 flex justify-between items-center border-b gap-2">
-                                    <p>{item.productName} (Avail: {item.quantity})</p>
-                                    <Button size="icon" variant="outline" onClick={() => handleAddToCart(item)}><PlusCircle className="h-4 w-4"/></Button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
+                 <div className="py-4 space-y-4">
+                    <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="custom-customer-name">Customer Name (Optional)</Label>
-                            <Input id="custom-customer-name" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                            <Label>Customer</Label>
+                            <div className="flex items-center gap-2">
+                                <Select value={customerType} onValueChange={(v) => setCustomerType(v as any)}>
+                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="walk-in">Walk-in</SelectItem>
+                                        <SelectItem value="registered">Registered</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <CreateCustomerDialog onCustomerCreated={onCustomerCreated}>
+                                    <Button variant="outline" size="sm">New Customer</Button>
+                                </CreateCustomerDialog>
+                            </div>
                         </div>
-                        <h4 className="font-semibold">Cart</h4>
-                        <div className="border rounded-md p-2 space-y-2 min-h-32 max-h-60 overflow-y-auto">
-                           {cart.length === 0 ? <p className="text-center text-muted-foreground text-sm p-4">Cart is empty</p> : (
-                                cart.map(item => {
+                        {customerType === 'registered' ? (
+                            <div className="space-y-2">
+                                <Label>Select Customer</Label>
+                                <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                                    <SelectTrigger><SelectValue placeholder="Select a customer..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <Label>Customer Name</Label>
+                                <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Walk-in Customer Name"/>
+                             </div>
+                        )}
+                    </div>
+                     <div className="space-y-2">
+                        <h4 className="font-semibold">Items</h4>
+                         <div className="border rounded-md p-2 space-y-4 max-h-60 overflow-y-auto">
+                            {cart.length === 0 ? <p className="text-center text-muted-foreground text-sm p-4">Cart is empty</p> : (
+                                 cart.map((item, index) => {
                                     const product = remainingItems.find(p => p.productId === item.productId);
                                     return (
-                                    <div key={item.productId} className="space-y-1.5">
-                                        <div className="flex justify-between items-center text-sm font-semibold">
-                                            <span>{item.name}</span>
-                                            <span>x {item.quantity}</span>
+                                    <div key={`cart-item-${index}`} className="space-y-2 border-b pb-2 last:border-b-0">
+                                        <div className="flex justify-between items-start">
+                                            <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
+                                                <SelectTrigger className="w-2/3"><SelectValue placeholder="Select Product" /></SelectTrigger>
+                                                <SelectContent>
+                                                    {remainingItems.map(p => (
+                                                        <SelectItem key={p.productId} value={p.productId}>{p.productName} (Avail: {p.quantity})</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
                                         </div>
-                                         <div className="flex items-center gap-2">
-                                            <Input type="number" value={item.price} onChange={e => handlePriceChange(item.productId, e.target.value)} className={priceErrors[item.productId] ? 'border-destructive' : ''} />
-                                            <Button variant="ghost" size="icon" onClick={() => handleRemoveFromCart(item.productId)}><Trash2 className="h-4 w-4"/></Button>
+                                        <div className="flex gap-2">
+                                            <Input type="number" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', e.target.value)} placeholder="Qty"/>
+                                            <Input type="number" value={item.price} onChange={e => handlePriceChange(item.productId, e.target.value)} className={priceErrors[item.productId] ? 'border-destructive' : ''} placeholder="Price per item" />
                                         </div>
                                         {priceErrors[item.productId] && <p className="text-xs text-destructive">{priceErrors[item.productId]}</p>}
                                         <p className="text-xs text-muted-foreground">Standard Price: {formatCurrency(product?.price)}, Range: {formatCurrency(product?.minPrice)} - {formatCurrency(product?.maxPrice)}</p>
@@ -559,17 +666,19 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
                                 })
                             )}
                         </div>
-                        <div className="font-bold text-right">Total: {formatCurrency(total)}</div>
-                        <div className="space-y-2">
-                            <Label>Payment Method</Label>
-                            <Select onValueChange={(value) => setPaymentMethod(value as 'Cash' | 'POS')} defaultValue={paymentMethod}>
-                                <SelectTrigger><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</SelectItem>
-                                    <SelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+                        <Button variant="outline" size="sm" onClick={handleAddItem}><PlusCircle className="mr-2 h-4 w-4"/>Add Item</Button>
+                    </div>
+                    <div className="font-bold text-right">Total: {formatCurrency(total)}</div>
+                     <div className="space-y-2">
+                        <Label>Payment Method</Label>
+                        <Select onValueChange={(value) => setPaymentMethod(value as any)} defaultValue={paymentMethod}>
+                            <SelectTrigger><SelectValue/></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</SelectItem>
+                                <SelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</SelectItem>
+                                <SelectItem value="Credit" disabled={customerType === 'walk-in'}><CreditCard className="mr-2 h-4 w-4"/> Credit</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
                 <DialogFooter>
@@ -1122,7 +1231,6 @@ function SalesRunDetails() {
         let unsubPayments: (() => void) | undefined;
 
         if (runId) {
-            // Initial fetch to stop loading state quickly
             getSalesRunDetails(runId as string).then(initialRun => {
                 setRun(initialRun);
                 if (isLoading) setIsLoading(false);
@@ -1207,7 +1315,7 @@ function SalesRunDetails() {
             if (prev.key === key) {
                 return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
             }
-            return { key, direction: 'desc' }; // Default to desc for new column
+            return { key, direction: 'desc' };
         });
     };
 
@@ -1248,6 +1356,25 @@ function SalesRunDetails() {
             };
         }).filter(item => item.quantity > 0);
     }, [run, orders]);
+    
+    const { progressValue, progressDenominator } = useMemo(() => {
+        if (!run) return { progressValue: 0, progressDenominator: 1 };
+        
+        if (run.status === 'pending_return' || run.status === 'return_completed') {
+            const totalSold = orders.reduce((sum, order) => sum + order.total, 0);
+            return {
+                progressValue: totalCollected,
+                progressDenominator: totalSold > 0 ? totalSold : 1,
+            };
+        }
+        
+        return {
+            progressValue: totalCollected,
+            progressDenominator: run.totalRevenue || 1
+        };
+
+    }, [run, orders, totalCollected]);
+
 
     const remainingItems = useMemo(getRemainingItems, [getRemainingItems]);
 
@@ -1259,8 +1386,10 @@ function SalesRunDetails() {
         );
     }
     
-    const runComplete = runStatus === 'completed';
-    const canPerformSales = user?.staff_id === run?.to_staff_id;
+    const runComplete = runStatus === 'completed' || run.status === 'return_completed';
+    const isPendingReturn = runStatus === 'pending_return';
+    const canPerformSales = user?.staff_id === run?.to_staff_id && !runComplete && !isPendingReturn;
+    const canReturnStock = user?.staff_id === run?.to_staff_id && run.status === 'active';
     const isReadOnly = user?.role === 'Manager';
     const allDebtsPaid = run.totalOutstanding <= 0;
 
@@ -1343,8 +1472,8 @@ function SalesRunDetails() {
                         <div className="flex justify-between"><span>Status:</span> <Badge>{runStatus}</Badge></div>
                         <div className="flex justify-between"><span>Start Time:</span> <span>{run.date ? format(new Date(run.date), 'PPP') : 'N/A'}</span></div>
                          <div className="flex justify-between"><span>Driver:</span> <span>{run.to_staff_name}</span></div>
-                        <div><Progress value={(totalCollected / (run.totalRevenue || 1)) * 100} /></div>
-                        <div className="text-sm text-muted-foreground">Collection Progress</div>
+                        <div><Progress value={(progressValue / progressDenominator) * 100} /></div>
+                        <div className="text-sm text-muted-foreground">Collection Progress ({formatCurrency(progressValue)} / {formatCurrency(progressDenominator)})</div>
                     </CardContent>
                 </Card>
 
@@ -1375,7 +1504,7 @@ function SalesRunDetails() {
                         <CardFooter className="flex-col gap-2">
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="secondary" className="w-full" disabled={runComplete || remainingItems.length === 0}>
+                                    <Button variant="secondary" className="w-full" disabled={!canReturnStock}>
                                         <Undo2 className="mr-2 h-4 w-4"/>Return Unsold Stock
                                     </Button>
                                 </AlertDialogTrigger>
@@ -1605,3 +1734,5 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
+
+    

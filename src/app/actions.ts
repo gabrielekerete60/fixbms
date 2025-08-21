@@ -792,9 +792,8 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
         const querySnapshot = await getDocs(q);
         const runs = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
             const data = transferDoc.data();
-            const totalRevenue = data.totalRevenue || 0; // Use stored totalRevenue
+            const totalRevenue = data.totalRevenue || 0;
 
-             // Get prices for items that don't have them (for display)
             const itemsWithPrices = await Promise.all(
                 (data.items || []).map(async (item: any) => {
                     if (item.price !== undefined) return item;
@@ -804,7 +803,6 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
                 })
             );
 
-            // Create a new, clean object to return
             return {
                 id: transferDoc.id,
                 date: (data.date as Timestamp).toDate().toISOString(),
@@ -2029,25 +2027,16 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
 
 export async function getReturnedStockTransfers(): Promise<Transfer[]> {
     try {
-        const q = query(
-            collection(db, 'transfers'),
-            where('status', '==', 'pending_return')
-        );
+        const q = query(collection(db, 'transfers'), where('status', '==', 'pending_return'));
         const snapshot = await getDocs(q);
         return snapshot.docs.map(docSnap => {
             const data = docSnap.data();
-            // Create a new plain object to avoid passing complex objects
-            const plainData: { [key: string]: any } = {};
-            for (const key in data) {
-                if (data[key] instanceof Timestamp) {
-                    plainData[key] = data[key].toDate().toISOString();
-                } else {
-                    plainData[key] = data[key];
-                }
-            }
             return {
                 id: docSnap.id,
-                ...plainData,
+                ...data,
+                date: (data.date as Timestamp).toDate().toISOString(),
+                time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
+                time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
             } as Transfer;
         });
     } catch(error) {
@@ -2068,19 +2057,12 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         
         return querySnapshot.docs.map(docSnap => {
             const data = docSnap.data();
-            // Create a new plain object to avoid passing complex objects
-            const plainData: { [key: string]: any } = {};
-            for (const key in data) {
-                if (data[key] instanceof Timestamp) {
-                    plainData[key] = data[key].toDate().toISOString();
-                } else {
-                    plainData[key] = data[key];
-                }
-            }
-
             return {
                 id: docSnap.id,
-                ...plainData,
+                ...data,
+                date: (data.date as Timestamp).toDate().toISOString(),
+                time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
+                time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
             } as Transfer;
         });
     } catch (error: any) {
@@ -2842,6 +2824,18 @@ export async function getProducts(): Promise<any[]> {
     const snapshot = await getDocs(collection(db, "products"));
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+export async function getProductsForStaff(staffId: string): Promise<any[]> {
+    const q = query(collection(db, 'staff', staffId, 'personal_stock'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: data.productId,
+            name: data.productName,
+            stock: data.stock,
+        }
+    });
+}
 export async function getIngredients(): Promise<any[]> {
     const snapshot = await getDocs(collection(db, "ingredients"));
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -3293,6 +3287,8 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
+    
 
     
 
