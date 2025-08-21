@@ -1,8 +1,6 @@
-
-
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -969,20 +967,14 @@ export default function StockControlPage() {
      return (
          <div className="flex flex-col gap-6">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
-             <Tabs defaultValue="pending">
-                <TabsList>
-                    <TabsTrigger value="pending" className="relative">
-                        <Package className="mr-2 h-4 w-4" /> Incoming Stock
-                        {pendingTransfers.length > 0 && <Badge variant="destructive" className="absolute -top-2 -right-2">{pendingTransfers.length}</Badge>}
-                    </TabsTrigger>
-                    <TabsTrigger value="history"><History className="mr-2 h-4 w-4"/> My History</TabsTrigger>
-                    {user.role === 'Showroom Staff' && <TabsTrigger value="waste-return"><Trash className="mr-2 h-4 w-4"/>Report Waste / Return</TabsTrigger>}
-                </TabsList>
-                <TabsContent value="pending" className="mt-4">
-                     <Card>
+            <div className="flex flex-col lg:flex-row gap-6">
+                 <div className="flex flex-col gap-6 flex-[2]">
+                    <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
+                                <Package />
                                 Acknowledge Incoming Stock
+                                {pendingTransfers.length > 0 && <Badge variant="destructive">{pendingTransfers.length}</Badge>}
                             </CardTitle>
                             <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
                         </CardHeader>
@@ -1026,11 +1018,10 @@ export default function StockControlPage() {
                             <PaginationControls visibleRows={visiblePendingRows} setVisibleRows={setVisiblePendingRows} totalRows={pendingTransfers.length} />
                         </CardFooter>
                     </Card>
-                </TabsContent>
-                <TabsContent value="history" className="mt-4">
-                     <Card>
+
+                    <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2"> My Transfer History</CardTitle>
+                            <CardTitle className="flex items-center gap-2"><History /> My Transfer History</CardTitle>
                             <CardDescription>A log of all stock transfers you have successfully accepted.</CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -1077,14 +1068,11 @@ export default function StockControlPage() {
                             <PaginationControls visibleRows={visibleHistoryRows} setVisibleRows={setVisibleHistoryRows} totalRows={completedTransfers.length} />
                         </CardFooter>
                     </Card>
-                </TabsContent>
-                 <TabsContent value="waste-return" className="mt-4">
-                    <div className="grid md:grid-cols-2 gap-6 items-start">
-                        <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
-                        <ReturnStockDialog user={user} products={products} onReturn={fetchPageData} />
-                    </div>
-                </TabsContent>
-             </Tabs>
+                </div>
+                <div className="flex-1">
+                    <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
+                </div>
+            </div>
          </div>
      )
   }
@@ -1480,5 +1468,3 @@ export default function StockControlPage() {
     </div>
   );
 }
-
-
