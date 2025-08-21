@@ -414,7 +414,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
                                         <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
                                         <SelectContent>
                                             {availableProducts.map((p: any) => (
-                                                <SelectItem key={p.id} value={p.id} key={p.id + index}>
+                                                <SelectItem key={p.id} value={p.id}>
                                                     {p.name} (Stock: {p.stock})
                                                 </SelectItem>
                                             ))}
@@ -979,113 +979,121 @@ export default function StockControlPage() {
      return (
          <div className="flex flex-col gap-6">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
-            <div className="flex flex-col lg:flex-row gap-6">
-                 <div className="flex flex-col gap-6 flex-[2]">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Package />
-                                Acknowledge Incoming Stock
-                                {pendingTransfers.length > 0 && <Badge variant="destructive">{pendingTransfers.length}</Badge>}
-                            </CardTitle>
-                            <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>From</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Items</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (
-                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                    ) : paginatedPending.length === 0 ? (
-                                        <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
+             <Tabs defaultValue="my-transfers">
+                <TabsList>
+                    <TabsTrigger value="my-transfers">My Stock & Transfers</TabsTrigger>
+                    {isShowroomStaff && <TabsTrigger value="returns-waste">Returns & Waste</TabsTrigger>}
+                </TabsList>
+                <TabsContent value="my-transfers" className="mt-4">
+                     <div className="flex flex-col gap-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Package />
+                                    Acknowledge Incoming Stock
+                                    {pendingTransfers.length > 0 && <Badge variant="destructive">{pendingTransfers.length}</Badge>}
+                                </CardTitle>
+                                <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>From</TableHead>
+                                            <TableHead>Type</TableHead>
+                                            <TableHead>Items</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isLoading ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                        ) : paginatedPending.length === 0 ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
+                                        ) : (
+                                            paginatedPending.map(t => (
+                                                <TableRow key={t.id}>
+                                                    <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                                    <TableCell>{t.from_staff_name}</TableCell>
+                                                    <TableCell>
+                                                        {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <AcceptRunDialog transfer={t} onAccept={handleAcknowledge} />
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                            <CardFooter>
+                                <PaginationControls visibleRows={visiblePendingRows} setVisibleRows={setVisiblePendingRows} totalRows={pendingTransfers.length} />
+                            </CardFooter>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><History /> My Transfer History</CardTitle>
+                                <CardDescription>A log of all stock transfers you have successfully accepted.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Received</TableHead>
+                                            <TableHead>Completed</TableHead>
+                                            <TableHead>From</TableHead>
+                                            <TableHead>Type</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead className="text-right">Action</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isLoading ? (
+                                        <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                    ) : paginatedHistory.length === 0 ? (
+                                        <TableRow><TableCell colSpan={6} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
                                     ) : (
-                                        paginatedPending.map(t => (
+                                        paginatedHistory.map(t => (
                                             <TableRow key={t.id}>
-                                                <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                                <TableCell>{t.time_received ? format(new Date(t.time_received), 'Pp') : 'N/A'}</TableCell>
+                                                <TableCell>{t.time_completed ? format(new Date(t.time_completed), 'Pp') : 'N/A'}</TableCell>
                                                 <TableCell>{t.from_staff_name}</TableCell>
                                                 <TableCell>
                                                     {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
                                                 </TableCell>
-                                                <TableCell>
-                                                    {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
-                                                </TableCell>
+                                                <TableCell><Badge>{t.status}</Badge></TableCell>
                                                 <TableCell className="text-right">
-                                                    <AcceptRunDialog transfer={t} onAccept={handleAcknowledge} />
+                                                    {t.is_sales_run && t.status === 'active' && (
+                                                        <Button variant="outline" size="sm" asChild>
+                                                            <Link href={`/dashboard/sales-runs/${t.id}`}><Eye className="mr-2 h-4 w-4"/>Manage Run</Link>
+                                                        </Button>
+                                                    )}
                                                 </TableCell>
                                             </TableRow>
                                         ))
                                     )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                        <CardFooter>
-                            <PaginationControls visibleRows={visiblePendingRows} setVisibleRows={setVisiblePendingRows} totalRows={pendingTransfers.length} />
-                        </CardFooter>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><History /> My Transfer History</CardTitle>
-                            <CardDescription>A log of all stock transfers you have successfully accepted.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Received</TableHead>
-                                        <TableHead>Completed</TableHead>
-                                        <TableHead>From</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Action</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (
-                                    <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                ) : paginatedHistory.length === 0 ? (
-                                    <TableRow><TableCell colSpan={6} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
-                                ) : (
-                                    paginatedHistory.map(t => (
-                                        <TableRow key={t.id}>
-                                            <TableCell>{t.time_received ? format(new Date(t.time_received), 'Pp') : 'N/A'}</TableCell>
-                                            <TableCell>{t.time_completed ? format(new Date(t.time_completed), 'Pp') : 'N/A'}</TableCell>
-                                            <TableCell>{t.from_staff_name}</TableCell>
-                                            <TableCell>
-                                                {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
-                                            </TableCell>
-                                            <TableCell><Badge>{t.status}</Badge></TableCell>
-                                            <TableCell className="text-right">
-                                                {t.is_sales_run && t.status === 'active' && (
-                                                    <Button variant="outline" size="sm" asChild>
-                                                        <Link href={`/dashboard/sales-runs/${t.id}`}><Eye className="mr-2 h-4 w-4"/>Manage Run</Link>
-                                                    </Button>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                         <CardFooter>
-                            <PaginationControls visibleRows={visibleHistoryRows} setVisibleRows={setVisibleHistoryRows} totalRows={completedTransfers.length} />
-                        </CardFooter>
-                    </Card>
-                </div>
-                <div className="flex-1 space-y-4">
-                    <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
-                    {isShowroomStaff && <ReturnStockDialog user={user} products={products} onReturn={fetchPageData} />}
-                </div>
-            </div>
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                             <CardFooter>
+                                <PaginationControls visibleRows={visibleHistoryRows} setVisibleRows={setVisibleHistoryRows} totalRows={completedTransfers.length} />
+                            </CardFooter>
+                        </Card>
+                    </div>
+                </TabsContent>
+                <TabsContent value="returns-waste" className="mt-4">
+                    <div className="flex flex-col lg:flex-row gap-6">
+                        <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
+                        <ReturnStockDialog user={user} products={products} onReturn={fetchPageData} />
+                    </div>
+                </TabsContent>
+             </Tabs>
          </div>
      )
   }
