@@ -1,12 +1,10 @@
-
-
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordCashPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense, getProductsForStaff } from '@/app/actions';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordDebtPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense, getProductsForStaff } from '@/app/actions';
 import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal, FileSignature, Car, Fuel, Receipt as ReceiptIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
@@ -935,7 +933,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [amount, setAmount] = useState<number | string>('');
-    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Paystack'>('Cash');
+    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'POS'>('Cash');
     const [customerEmail, setCustomerEmail] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -990,65 +988,22 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
 
         setIsSubmitting(true);
         
-        if (paymentMethod === 'Cash') {
-            const result = await handleRecordCashPaymentForRun({
-                runId: run.id,
-                customerId: customer.customerId,
-                customerName: customer.customerName,
-                driverId: run.to_staff_id,
-                driverName: run.to_staff_name || 'Unknown Driver',
-                amount: paymentAmount,
-            });
+        const result = await handleRecordDebtPaymentForRun({
+            runId: run.id,
+            customerId: customer.customerId,
+            customerName: customer.customerName,
+            driverId: run.to_staff_id,
+            driverName: run.to_staff_name || 'Unknown Driver',
+            amount: paymentAmount,
+            paymentMethod,
+        });
 
-            if (result.success) {
-                toast({ title: 'Success', description: 'Debt payment recorded for approval.' });
-                setAmount('');
-                setIsOpen(false);
-            } else {
-                toast({ variant: 'destructive', title: 'Error', description: result.error });
-            }
-        } else { // Paystack
-            const loadingToast = toast({ title: "Initializing Payment...", duration: Infinity });
-            setIsOpen(false); // Close dialog before showing paystack
-            const paystackResult = await initializePaystackTransaction({
-                email: customerEmail || user.email,
-                total: paymentAmount,
-                customerName: customer.customerName,
-                staffId: user.staff_id,
-                isDebtPayment: true,
-                runId: run.id,
-                customerId: customer.customerId,
-                items: [], // No new items for debt payment
-                isPosSale: false,
-            });
-            loadingToast.dismiss();
-
-            if (paystackResult.success && paystackResult.reference) {
-                const PaystackPop = (await import('@paystack/inline-js')).default;
-                const paystack = new PaystackPop();
-                paystack.newTransaction({
-                    key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-                    email: customerEmail || user.email,
-                    amount: Math.round(paymentAmount * 100),
-                    ref: paystackResult.reference,
-                    onSuccess: async (transaction) => {
-                        const verifyResult = await verifyPaystackOnServerAndFinalizeOrder(transaction.reference);
-                        if (verifyResult.success) {
-                            toast({ title: 'Payment Successful', description: 'Debt has been settled.' });
-                        } else {
-                            toast({ variant: 'destructive', title: 'Verification Failed', description: verifyResult.error });
-                            setIsOpen(true); // Re-open on failure
-                        }
-                    },
-                    onClose: () => {
-                        toast({ variant: 'destructive', title: 'Payment Cancelled' });
-                        setIsOpen(true); // Re-open on close
-                    }
-                });
-            } else {
-                toast({ variant: 'destructive', title: 'Error', description: paystackResult.error });
-                setIsOpen(true); // Re-open on init failure
-            }
+        if (result.success) {
+            toast({ title: 'Success', description: 'Debt payment recorded for approval.' });
+            setAmount('');
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
         
         setIsSubmitting(false);
@@ -1073,16 +1028,10 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
                             <SelectTrigger><SelectValue/></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="Cash">Cash</SelectItem>
-                                <SelectItem value="Paystack">Paystack</SelectItem>
+                                <SelectItem value="POS">POS</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
-                    {paymentMethod === 'Paystack' && (
-                        <div className="space-y-2">
-                            <Label htmlFor="customer-email">Customer Email</Label>
-                            <Input id="customer-email" type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="customer@email.com" />
-                        </div>
-                    )}
                     <div className="space-y-2">
                         <Label htmlFor="payment-amount">Amount to Pay (₦)</Label>
                         <Input id="payment-amount" type="number" value={amount} onChange={handleAmountChange} />
@@ -1092,7 +1041,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
                     <Button onClick={handleRecordPayment} disabled={isSubmitting}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {paymentMethod === 'Cash' ? 'Submit for Approval' : 'Proceed to Paystack'}
+                        Submit for Approval
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -1,5 +1,3 @@
-
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -792,30 +790,19 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
         const querySnapshot = await getDocs(q);
         const runs = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
             const data = transferDoc.data();
-            const totalRevenue = data.totalRevenue || 0;
-
-            const itemsWithPrices = await Promise.all(
-                (data.items || []).map(async (item: any) => {
-                    if (item.price !== undefined) return item;
-                    const productDoc = await getDoc(doc(db, 'products', item.productId));
-                    const price = productDoc.exists() ? productDoc.data().price : 0;
-                    return { ...item, price };
-                })
-            );
-
             return {
                 id: transferDoc.id,
                 date: (data.date as Timestamp).toDate().toISOString(),
                 status: data.status,
-                items: itemsWithPrices,
+                items: data.items,
                 notes: data.notes,
                 from_staff_name: data.from_staff_name,
                 from_staff_id: data.from_staff_id,
                 to_staff_name: data.to_staff_name,
                 to_staff_id: data.to_staff_id,
-                totalRevenue,
+                totalRevenue: data.totalRevenue || 0,
                 totalCollected: data.totalCollected || 0,
-                totalOutstanding: totalRevenue - (data.totalCollected || 0),
+                totalOutstanding: (data.totalRevenue || 0) - (data.totalCollected || 0),
                 time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
                 time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
             } as SalesRun;
@@ -1613,7 +1600,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
     try {
         await runTransaction(db, async (transaction) => {
             // --- ALL READS MUST HAPPEN FIRST ---
-            const confirmationDoc = await await transaction.get(confirmationRef);
+            const confirmationDoc = await transaction.get(confirmationRef);
             if (!confirmationDoc.exists()) {
                 throw new Error("Confirmation not found.");
             }
@@ -2021,7 +2008,6 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
     } catch (error: any) {
         if (error.code === 'failed-precondition') {
             const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
-            const indexUrl = urlMatch ? urlMatch[0] : undefined;
             return [];
         } else {
             console.error("Error fetching pending transfers:", error);
@@ -2607,7 +2593,7 @@ type SaleData = {
     items: { productId: string; quantity: number; price: number, name: string }[];
     customerId: string;
     customerName: string;
-    paymentMethod: 'Cash' | 'Credit' | 'Paystack' | 'POS' | 'Custom';
+    paymentMethod: 'Cash' | 'Credit' | 'Paystack' | 'POS';
     staffId: string;
     total: number;
 }
@@ -2615,7 +2601,6 @@ type SaleData = {
 export async function handleSellToCustomer(data: SaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
     try {
         const orderId = await runTransaction(db, async (transaction) => {
-            // --- ALL READS MUST HAPPEN FIRST ---
             const staffDoc = await transaction.get(doc(db, 'staff', data.staffId));
             if (!staffDoc.exists()) throw new Error("Operating staff not found.");
 
@@ -2625,6 +2610,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
 
             let customerRef = null;
             if (data.paymentMethod === 'Credit') {
+                if (data.customerId === 'walk-in') throw new Error("Credit sales cannot be made to a walk-in customer.");
                 customerRef = doc(db, 'customers', data.customerId);
                 const customerDoc = await transaction.get(customerRef);
                 if (!customerDoc.exists()) throw new Error("Customer not found for credit sale.");
@@ -2641,10 +2627,11 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                 }
             }
 
-            // --- ALL WRITES HAPPEN AFTER READS ---
             const driverName = staffDoc.data()?.name || 'Unknown';
+            const isPendingApproval = ['Cash', 'POS'].includes(data.paymentMethod);
+            const isCreditSale = data.paymentMethod === 'Credit';
+
             const newOrderRef = doc(collection(db, 'orders'));
-            const isPendingApproval = ['Cash', 'POS', 'Custom'].includes(data.paymentMethod);
             transaction.set(newOrderRef, {
                 salesRunId: data.runId,
                 customerId: data.customerId,
@@ -2665,16 +2652,11 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                 const stockRef = stockRefs[i];
                 transaction.update(stockRef, { stock: increment(-item.quantity) });
             }
-
-            if (data.paymentMethod === 'Paystack' || data.paymentMethod === 'Credit') {
-                 const currentCollected = runDoc.data()?.totalCollected || 0;
-                 transaction.update(runRef, { totalCollected: currentCollected + data.total });
-            }
             
-            if (data.paymentMethod === 'Credit' && customerRef) {
+            if (isCreditSale && customerRef) {
                 transaction.update(customerRef, { amountOwed: increment(data.total) });
             }
-            
+
             if (isPendingApproval) {
                 const confirmationRef = doc(collection(db, 'payment_confirmations'));
                 transaction.set(confirmationRef, {
@@ -2690,7 +2672,11 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                     paymentMethod: data.paymentMethod,
                     isDebtPayment: false,
                 });
+            } else if (!isCreditSale) {
+                // For direct payments like Paystack, update totalCollected immediately
+                transaction.update(runRef, { totalCollected: increment(data.total) });
             }
+
             return newOrderRef.id;
         });
 
@@ -2788,8 +2774,9 @@ type PaymentData = {
     driverId: string;
     driverName: string;
     amount: number;
+    paymentMethod: 'Cash' | 'POS';
 }
-export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<{ success: boolean; error?: string }> {
+export async function handleRecordDebtPaymentForRun(data: PaymentData): Promise<{ success: boolean; error?: string }> {
     try {
         await addDoc(collection(db, 'payment_confirmations'), {
             runId: data.runId,
@@ -2802,7 +2789,7 @@ export async function handleRecordCashPaymentForRun(data: PaymentData): Promise<
             status: 'pending',
             items: [], // Not a new sale, so no items
             isDebtPayment: true,
-            paymentMethod: 'Cash' // Assuming debt payments are cash
+            paymentMethod: data.paymentMethod
         });
         return { success: true };
     } catch (error) {
@@ -3325,5 +3312,4 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
     
 
     
-
 
