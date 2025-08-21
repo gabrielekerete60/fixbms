@@ -211,17 +211,15 @@
       ]
     },
     {
-      "collectionGroup": "transfers",
+      "collectionGroup": "supply_requests",
       "queryScope": "COLLECTION",
       "fields": [
-          {
-              "fieldPath": "status",
-              "order": "ASCENDING"
-          }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],
   "fieldOverrides": []
 }
-
-    
