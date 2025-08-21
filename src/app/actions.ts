@@ -2035,12 +2035,20 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
             where('status', '==', 'pending_return')
         );
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => {
-            const data = doc.data();
+        return snapshot.docs.map(docSnap => {
+            const data = docSnap.data();
+            // Create a new plain object to avoid passing complex objects
+            const plainData: { [key: string]: any } = {};
+            for (const key in data) {
+                if (data[key] instanceof Timestamp) {
+                    plainData[key] = data[key].toDate().toISOString();
+                } else {
+                    plainData[key] = data[key];
+                }
+            }
             return {
-                ...data,
-                id: doc.id,
-                date: (data.date as Timestamp).toDate().toISOString(),
+                id: docSnap.id,
+                ...plainData,
             } as Transfer;
         });
     } catch(error) {
@@ -3303,13 +3311,4 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
     }
 }
 
-
-
-
-
-
-
-
-
-
-
+    
