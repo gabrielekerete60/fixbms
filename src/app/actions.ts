@@ -1,5 +1,4 @@
 
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -823,8 +822,8 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
             } as SalesRun;
         }));
 
-        const active = runs.filter(run => run.status === 'active');
-        const completed = runs.filter(run => run.status === 'completed');
+        const active = runs.filter(run => run.status === 'active' || run.status === 'pending_return');
+        const completed = runs.filter(run => run.status === 'completed' || run.status === 'return_completed' || run.status === 'cancelled');
 
         return { active, completed };
     } catch (error: any) {
@@ -3280,6 +3279,8 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
+
 
 
 
