@@ -1487,3 +1487,5 @@ export default function StockControlPage() {
     </div>
   );
 }
+
+    
