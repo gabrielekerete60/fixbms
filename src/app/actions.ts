@@ -762,7 +762,7 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
                 totalOutstanding: totalRevenue - (data.totalCollected || 0),
                 time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
                 time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
-            } as SalesRun;
+            };
         }));
 
         const active = runs.filter(run => ['active', 'pending_return'].includes(run.status));
@@ -1612,7 +1612,8 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
 
     try {
         await runTransaction(db, async (transaction) => {
-            const confirmationDoc = await transaction.get(confirmationRef);
+            // --- ALL READS MUST HAPPEN FIRST ---
+            const confirmationDoc = await await transaction.get(confirmationRef);
             if (!confirmationDoc.exists()) {
                 throw new Error("Confirmation not found.");
             }
@@ -1620,21 +1621,25 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             if (confirmationData.status !== 'pending') {
                 throw new Error("This confirmation has already been processed.");
             }
-            
+
             const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
-            let customerRef, runRef;
             
-            if (isFromSalesRun) {
-                runRef = doc(db, 'transfers', confirmationData.runId);
-            }
-            if (confirmationData.isDebtPayment && confirmationData.customerId) {
-                customerRef = doc(db, 'customers', confirmationData.customerId);
-            }
+            // Pre-fetch all potentially needed documents
+            const runRef = isFromSalesRun ? doc(db, 'transfers', confirmationData.runId) : null;
+            const customerRef = (confirmationData.isDebtPayment && confirmationData.customerId) ? doc(db, 'customers', confirmationData.customerId) : null;
+            const salesDocId = format(new Date(), 'yyyy-MM-dd');
+            const salesDocRef = doc(db, 'sales', salesDocId);
+
+            const [runDoc, customerDoc, salesDoc] = await Promise.all([
+                runRef ? transaction.get(runRef) : Promise.resolve(null),
+                customerRef ? transaction.get(customerRef) : Promise.resolve(null),
+                !isFromSalesRun ? transaction.get(salesDocRef) : Promise.resolve(null)
+            ]);
             
+            // --- ALL WRITES HAPPEN AFTER READS ---
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             
             if (action === 'approve') {
-                // If it's an expense, log it to indirectCosts and update the run's collected amount negatively
                 if (confirmationData.isExpense) {
                     const expenseData = {
                         category: confirmationData.expenseDetails?.category || 'Run Expense',
@@ -1642,14 +1647,13 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         amount: confirmationData.amount,
                         date: serverTimestamp(),
                         details: [{ name: confirmationData.driverName, amount: confirmationData.amount }]
-                    }
+                    };
                     const newIndirectCostRef = doc(collection(db, "indirectCosts"));
                     transaction.set(newIndirectCostRef, expenseData);
                     
                     if (runRef) {
                         transaction.update(runRef, { totalCollected: increment(-confirmationData.amount) });
                     }
-
                 } else { // It's a sale or debt payment
                     const newOrderRef = doc(collection(db, 'orders'));
                     transaction.set(newOrderRef, {
@@ -1670,28 +1674,21 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                     }
 
-                    if (isFromSalesRun && runRef) {
-                        const runDoc = await transaction.get(runRef);
-                        if (runDoc.exists()) {
-                          const runData = runDoc.data();
-                          const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
-                          transaction.update(runRef, { totalCollected: newTotalCollected });
-                          
-                          // Auto-complete run if total collected matches total revenue
-                          if (runData.totalRevenue && newTotalCollected >= runData.totalRevenue) {
-                              transaction.update(runRef, {
-                                  status: 'completed',
-                                  time_completed: serverTimestamp()
-                              });
-                          }
+                    if (isFromSalesRun && runRef && runDoc?.exists()) {
+                        const runData = runDoc.data();
+                        const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
+                        transaction.update(runRef, { totalCollected: newTotalCollected });
+                        
+                        if (runData.totalRevenue && newTotalCollected >= runData.totalRevenue) {
+                            transaction.update(runRef, {
+                                status: 'completed',
+                                time_completed: serverTimestamp()
+                            });
                         }
                     } else if (!isFromSalesRun) {
-                         const salesDocId = format(new Date(), 'yyyy-MM-dd');
-                        const salesDocRef = doc(db, 'sales', salesDocId);
-                        const salesDoc = await transaction.get(salesDocRef); 
                         const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
                         
-                        if (salesDoc.exists()) {
+                        if (salesDoc?.exists()) {
                             transaction.update(salesDocRef, {
                                 [paymentField]: increment(confirmationData.amount),
                                 total: increment(confirmationData.amount)
@@ -1721,6 +1718,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
         return { success: false, error: `Failed to ${action} payment. ${(error as Error).message}` };
     }
 }
+
 
 
 export type Announcement = {
@@ -2016,7 +2014,7 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
                 date: (data.date as Timestamp).toDate().toISOString(),
                 time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
                 time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
-             } as Transfer;
+             };
         }));
         return transfers;
 
@@ -2051,7 +2049,7 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
                 status: data.status,
                 notes: data.notes,
                 originalRunId: data.originalRunId,
-            } as Transfer;
+            };
         });
     } catch(error) {
         console.error("Error getting returned stock transfers:", error);
@@ -2712,7 +2710,7 @@ type PosSaleData = {
     staffId: string;
     staffName: string;
     total: number;
-    date: string;
+    date: string; // ISO String
 }
 export async function handlePosSale(data: PosSaleData): Promise<{ success: boolean; error?: string, orderId?: string }> {
     const newOrderRef = doc(collection(db, 'orders'));
@@ -3327,4 +3325,5 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
     
 
     
+
 
