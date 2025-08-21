@@ -1,4 +1,3 @@
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -3182,7 +3181,7 @@ export async function declineStockIncrease(requestId: string, user: { staff_id: 
     }
 }
 
-export async function handleReturnStock(runId: string, unsoldItems: { productId: string, productName: string, quantity: number }[], user: { staff_id: string, name: string }): Promise<{success: boolean, error?: string}> {
+export async function handleReturnStock(runId: string, unsoldItems: { productId: string; productName: string; quantity: number }[], user: { staff_id: string; name: string }): Promise<{success: boolean, error?: string}> {
     try {
         if (unsoldItems.length === 0) {
             return { success: true }; // Nothing to return
@@ -3279,6 +3278,7 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
 
 
 
