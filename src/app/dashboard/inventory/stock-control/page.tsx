@@ -409,7 +409,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
                         {wasteItems.map((item, index) => {
                              const availableProducts = getAvailableProductsForRow(index);
                              return (
-                                <div key={index} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
+                                <div key={`waste-item-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
                                     <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
                                         <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
                                         <SelectContent>
