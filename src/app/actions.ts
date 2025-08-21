@@ -1,3 +1,4 @@
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -734,9 +735,8 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
 
         const runs = await Promise.all(querySnapshot.docs.map(async (transferDoc) => {
             const data = transferDoc.data();
-            const totalRevenue = data.totalRevenue || 0; // Use stored totalRevenue
+            const totalRevenue = data.totalRevenue || 0;
             
-            // Get prices for items that don't have them (for display)
             const itemsWithPrices = await Promise.all(
               (data.items || []).map(async (item: any) => {
                 if (item.price !== undefined) return item;
@@ -748,14 +748,20 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
 
             return {
                 id: transferDoc.id,
-                ...data,
                 date: (data.date as Timestamp).toDate().toISOString(),
-                time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
-                time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
+                status: data.status,
                 items: itemsWithPrices,
+                notes: data.notes,
+                from_staff_name: data.from_staff_name,
+                from_staff_id: data.from_staff_id,
+                to_staff_name: data.to_staff_name,
+                to_staff_id: data.to_staff_id,
+                is_sales_run: data.is_sales_run,
                 totalRevenue,
                 totalCollected: data.totalCollected || 0,
                 totalOutstanding: totalRevenue - (data.totalCollected || 0),
+                time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
+                time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
             } as SalesRun;
         }));
 
@@ -767,9 +773,6 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
     } catch (error: any) {
         console.error("Error in getSalesRuns:", error);
         if (error.code === 'failed-precondition') {
-            // Log the full error to the server console to ensure visibility
-            console.error("Firestore Index Missing:", error.toString());
-            // Attempt to extract the URL from the message for the UI
             const urlMatch = error.message.match(/(https?:\/\/[^\s]+)/);
             const indexUrl = urlMatch ? urlMatch[0] : undefined;
             return { active: [], completed: [], error: "A database index is required. Please check the server logs for a link to create it.", indexUrl };
@@ -899,7 +902,7 @@ export async function getAccountSummary(dateRange?: { from: Date, to: Date }): P
         ] = await Promise.all([
             getDocs(query(collection(db, "sales"), ...dateFilters)),
             getDocs(query(collection(db, "directCosts"), ...dateFilters)),
-            getDocs(collection(db, "closingStocks")), // Not date-filtered
+            getDocs(collection(db, "products")), // Not date-filtered, this gets products for cost
             getDocs(query(collection(db, "indirectCosts"), ...dateFilters)),
             getDocs(collection(db, "discount_records")), // Not date-filtered
             getDocs(query(collection(db, "waste_logs"), ...dateFilters)),
@@ -910,14 +913,28 @@ export async function getAccountSummary(dateRange?: { from: Date, to: Date }): P
 
         const totalSales = salesSnap.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
         const totalPurchases = directCostsSnap.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
-        const totalClosingStock = closingStocksSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+        
+        const totalClosingStockValue = closingStocksSnap.docs.reduce((sum, doc) => {
+            const data = doc.data();
+            return sum + ((data.stock || 0) * (data.costPrice || 0));
+        }, 0);
+
         const totalIndirectExpenses = indirectCostsSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
         const totalDiscounts = discountsSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
         const totalWaste = wasteLogsSnap.docs.reduce((sum, doc) => sum + ((doc.data().quantity || 0) * 500), 0); // Placeholder cost
         const totalLoan = debtSnap.docs.reduce((sum, doc) => sum + (doc.data().debit || 0) - (doc.data().credit || 0), 0);
         
-        const totalDebtors = customersSnap.docs.reduce((sum, doc) => sum + ((doc.data().amountOwed || 0) - (doc.data().amountPaid || 0)), 0);
-        const totalAssets = otherSuppliesSnap.docs.reduce((sum, doc) => sum + ((doc.data().stock || 0) * (doc.data().costPerUnit || 0)), 0);
+        const totalDebtors = customersSnap.docs.reduce((sum, doc) => {
+             const data = doc.data();
+             const balance = (data.amountOwed || 0) - (data.amountPaid || 0);
+             return sum + (balance > 0 ? balance : 0);
+        }, 0);
+
+        const totalAssets = otherSuppliesSnap.docs.reduce((sum, doc) => {
+            const data = doc.data();
+            return sum + ((data.stock || 0) * (data.costPerUnit || 0));
+        }, 0);
+
         const totalEquipment = 0; // Assuming this is not tracked in a simple collection
 
         // Total Expenses = Indirect + Direct
@@ -926,7 +943,7 @@ export async function getAccountSummary(dateRange?: { from: Date, to: Date }): P
         return {
             'Sale': totalSales,
             'Purchases (Confectioneries)': totalPurchases,
-            'Closing Stock': totalClosingStock,
+            'Closing Stock': totalClosingStockValue,
             'Expenses': totalExpenses,
             'Discount Allowed': totalDiscounts,
             'Bad or Damages': totalWaste,
@@ -1982,10 +1999,19 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
 
             return { 
                 id: docSnap.id,
-                ...data,
-                items: itemsWithPrices,
-                totalValue,
                 date: (data.date as Timestamp).toDate().toISOString(),
+                from_staff_id: data.from_staff_id,
+                from_staff_name: data.from_staff_name,
+                to_staff_id: data.to_staff_id,
+                to_staff_name: data.to_staff_name,
+                items: itemsWithPrices,
+                status: data.status,
+                totalValue,
+                is_sales_run: data.is_sales_run,
+                notes: data.notes,
+                time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
+                time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
+                originalRunId: data.originalRunId,
              } as Transfer;
         }));
         return transfers;
@@ -2035,12 +2061,10 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         
         return querySnapshot.docs.map(docSnap => {
             const data = docSnap.data();
-            // Create a new plain object
+            // Create a new plain object to avoid passing complex objects
             const plainData: { [key: string]: any } = {};
             for (const key in data) {
-                // Check if the value is a Firestore Timestamp
                 if (data[key] instanceof Timestamp) {
-                    // Convert it to an ISO string
                     plainData[key] = data[key].toDate().toISOString();
                 } else {
                     plainData[key] = data[key];
@@ -3278,6 +3302,7 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
 
 
 
