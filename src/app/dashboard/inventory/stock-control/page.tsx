@@ -88,6 +88,7 @@ type Product = {
   id: string;
   name: string;
   stock: number;
+  category: string;
 };
 
 type Ingredient = {
@@ -709,7 +710,7 @@ export default function StockControlPage() {
             const adminRoles = ['Manager', 'Supervisor', 'Storekeeper', 'Developer'];
             if (adminRoles.includes(userRole)) {
                 const productsSnapshot = await getDocs(collection(db, "products"));
-                setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock } as Product)));
+                setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock, category: doc.data().category } as Product)));
             } else {
                  const personalStockSnapshot = await getProductsForStaff(currentUser.staff_id);
                  setProducts(personalStockSnapshot);
