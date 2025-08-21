@@ -2037,15 +2037,18 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
         
         return querySnapshot.docs.map(docSnap => {
             const data = docSnap.data();
+            // Create a new plain object
             const plainData: { [key: string]: any } = {};
-
             for (const key in data) {
+                // Check if the value is a Firestore Timestamp
                 if (data[key] instanceof Timestamp) {
+                    // Convert it to an ISO string
                     plainData[key] = data[key].toDate().toISOString();
                 } else {
                     plainData[key] = data[key];
                 }
             }
+
             return {
                 id: docSnap.id,
                 ...plainData,
@@ -3277,6 +3280,7 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
 
 
 
