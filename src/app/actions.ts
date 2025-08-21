@@ -1,4 +1,5 @@
 
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -756,7 +757,6 @@ export async function getSalesRuns(staffId: string): Promise<SalesRunResult> {
                 from_staff_id: data.from_staff_id,
                 to_staff_name: data.to_staff_name,
                 to_staff_id: data.to_staff_id,
-                is_sales_run: data.is_sales_run,
                 totalRevenue,
                 totalCollected: data.totalCollected || 0,
                 totalOutstanding: totalRevenue - (data.totalCollected || 0),
@@ -815,7 +815,6 @@ export async function getAllSalesRuns(): Promise<SalesRunResult> {
                 from_staff_id: data.from_staff_id,
                 to_staff_name: data.to_staff_name,
                 to_staff_id: data.to_staff_id,
-                is_sales_run: data.is_sales_run,
                 totalRevenue,
                 totalCollected: data.totalCollected || 0,
                 totalOutstanding: totalRevenue - (data.totalCollected || 0),
@@ -2097,52 +2096,38 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
 export async function handleAcknowledgeTransfer(transferId: string, action: 'accept' | 'decline'): Promise<{success: boolean, error?: string}> {
     const transferRef = doc(db, 'transfers', transferId);
 
-    if (action === 'decline') {
-        try {
-            await runTransaction(db, async (transaction) => {
-                const transferDoc = await transaction.get(transferRef);
-                if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
-                const transferData = transferDoc.data() as Transfer;
-                
-                // If this is a return transfer, re-activate the original sales run
-                if(transferData.originalRunId) {
-                    const originalRunRef = doc(db, 'transfers', transferData.originalRunId);
-                    transaction.update(originalRunRef, { status: 'active' });
-                }
-
-                transaction.update(transferRef, { status: 'cancelled' });
-            });
-            return { success: true };
-        } catch (error) {
-            console.error("Error declining transfer:", error);
-            return { success: false, error: "Failed to decline transfer." };
-        }
-    }
-
     try {
         await runTransaction(db, async (transaction) => {
             const transferDoc = await transaction.get(transferRef);
             if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
-
-            const transfer = transferDoc.data() as Transfer;
-            if (transfer.status !== 'pending' && transfer.status !== 'pending_return') throw new Error("This transfer has already been processed.");
             
-            const isReturnFromSalesRun = transfer.notes?.startsWith('Return from Sales Run');
+            const transfer = transferDoc.data() as Transfer;
 
-            if (isReturnFromSalesRun) {
-                 // Return from sales run goes back to main product inventory
+            if (action === 'decline') {
+                transaction.update(transferRef, { status: 'cancelled' });
+                if (transfer.originalRunId) {
+                    const originalRunRef = doc(db, 'transfers', transfer.originalRunId);
+                    transaction.update(originalRunRef, { status: 'active' });
+                }
+                return;
+            }
+
+            // --- Handle Accept ---
+            if (transfer.status !== 'pending' && transfer.status !== 'pending_return') {
+                 throw new Error("This transfer has already been processed.");
+            }
+            
+            if (transfer.status === 'pending_return') {
                  for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
-                // Update original sales run status to 'return_completed'
                 if (transfer.originalRunId) {
                     const originalRunRef = doc(db, 'transfers', transfer.originalRunId);
                     transaction.update(originalRunRef, { status: 'return_completed' });
                 }
                 transaction.update(transferRef, { status: 'completed' });
-            } else { // This is for regular stock transfers, sales runs, and production returns
-                // These reads must happen before any writes
+            } else { // It's a 'pending' transfer
                 const productRefs = transfer.items.map(item => doc(db, 'products', item.productId));
                 const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
                 const staffStockRefs = transfer.items.map(item => doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId));
@@ -2157,10 +2142,8 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                         throw new Error(`Not enough stock for ${item.productName} in main inventory.`);
                     }
 
-                    // Decrement main inventory
                     transaction.update(productRefs[i], { stock: increment(-item.quantity) });
 
-                    // Increment or set staff personal stock
                     if (staffStockDoc.exists()) {
                         transaction.update(staffStockRefs[i], { stock: increment(item.quantity) });
                     } else {
@@ -2172,7 +2155,6 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                     }
                 }
 
-                 // This is a write, happens after all reads
                 const newStatus = transfer.is_sales_run ? 'active' : 'completed';
                 transaction.update(transferRef, { 
                     status: newStatus,
@@ -2185,8 +2167,8 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
         return { success: true };
 
     } catch (error) {
-        console.error("Error accepting transfer:", error);
-        const errorMessage = error instanceof Error ? error.message : "Failed to accept transfer.";
+        console.error("Error acknowledging transfer:", error);
+        const errorMessage = error instanceof Error ? error.message : "Failed to acknowledge transfer.";
         return { success: false, error: errorMessage };
     }
 }
@@ -2545,6 +2527,7 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'pending'), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', 'in', ['completed', 'active']), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'staff'), where('is_active', '==', true), where('role', '!=', 'Developer'))),
+        () => getDocs(query(collection(db, 'transfers'), where('status', '==', 'pending_return')))
     ];
 
     const missingIndexes = new Set<string>();
@@ -3310,5 +3293,7 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
+    
 
     

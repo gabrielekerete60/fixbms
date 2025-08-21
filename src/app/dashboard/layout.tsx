@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import Link from 'next/link';
@@ -28,6 +29,7 @@ import {
   Database,
   Trash,
   Wrench,
+  Undo2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -197,6 +199,8 @@ export default function DashboardLayout({
       inProgressReports: 0,
       unreadAnnouncements: 0,
       pendingApprovals: 0,
+      returnedStock: 0,
+      productionTransfers: 0,
   });
   
   const applyTheme = useCallback((theme: string | undefined) => {
@@ -316,6 +320,12 @@ export default function DashboardLayout({
     const unsubApprovals = onSnapshot(qApprovals, (snapshot) => {
         setNotificationCounts(prev => ({...prev, pendingApprovals: snapshot.size }));
     });
+    
+    const returnedStockQuery = query(collection(db, 'transfers'), where('status', '==', 'pending_return'));
+    const unsubReturnedStock = onSnapshot(returnedStockQuery, (snap) => setNotificationCounts(prev => ({...prev, returnedStock: snap.size })));
+
+    const productionTransfersQuery = query(collection(db, 'transfers'), where('notes', '>=', 'Return from production batch'), where('notes', '<', 'Return from production batch' + '\uf8ff'), where('status', '==', 'pending'));
+    const unsubProductionTransfers = onSnapshot(productionTransfersQuery, (snap) => setNotificationCounts(prev => ({ ...prev, productionTransfers: snap.size })));
 
 
     // Announcement listener
@@ -352,6 +362,8 @@ export default function DashboardLayout({
         unsubAnnouncements();
         unsubInProgress();
         unsubApprovals();
+        unsubReturnedStock();
+        unsubProductionTransfers();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
   }, [user?.staff_id, handleLogout, applyTheme]);
@@ -460,6 +472,7 @@ export default function DashboardLayout({
   const combinedNotificationCounts = useMemo(() => {
     if (!user) return {};
     const canApproveBatches = ['Manager', 'Developer', 'Storekeeper'].includes(user.role);
+    const isStorekeeper = user.role === 'Storekeeper';
     const isBaker = ['Baker', 'Chief Baker'].includes(user.role);
     const isManagerial = ['Manager', 'Developer', 'Supervisor'].includes(user.role);
     
@@ -470,7 +483,11 @@ export default function DashboardLayout({
         productionCount = notificationCounts.pendingBatches;
     }
 
-    const stockControlCount = notificationCounts.pendingTransfers + (canApproveBatches ? notificationCounts.pendingBatches : 0);
+    const stockControlCount = notificationCounts.pendingTransfers + 
+                              (isStorekeeper ? notificationCounts.pendingBatches : 0) +
+                              (isStorekeeper ? notificationCounts.productionTransfers : 0) +
+                              (isStorekeeper ? notificationCounts.returnedStock : 0);
+                              
     const inventoryCount = stockControlCount + productionCount;
     const accountingCount = notificationCounts.pendingPayments + notificationCounts.pendingApprovals;
     
@@ -480,6 +497,9 @@ export default function DashboardLayout({
 
       return {
           stockControl: stockControlCount,
+          batchApprovals: notificationCounts.pendingBatches,
+          returnedStock: notificationCounts.returnedStock,
+          productionTransfers: notificationCounts.productionTransfers,
           activeRuns: notificationCounts.activeRuns,
           production: productionCount,
           inventory: inventoryCount, // Aggregate for main inventory badge
@@ -596,3 +616,5 @@ export default function DashboardLayout({
     </div>
   );
 }
+
+    
