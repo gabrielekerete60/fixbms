@@ -2003,7 +2003,6 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
 
             return { 
                 id: docSnap.id,
-                date: (data.date as Timestamp).toDate().toISOString(),
                 from_staff_id: data.from_staff_id,
                 from_staff_name: data.from_staff_name,
                 to_staff_id: data.to_staff_id,
@@ -2013,9 +2012,10 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
                 totalValue,
                 is_sales_run: data.is_sales_run,
                 notes: data.notes,
+                originalRunId: data.originalRunId,
+                date: (data.date as Timestamp).toDate().toISOString(),
                 time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
                 time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
-                originalRunId: data.originalRunId,
              } as Transfer;
         }));
         return transfers;
@@ -2043,7 +2043,14 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
                 date: (data.date as Timestamp).toDate().toISOString(),
                 time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
                 time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
-                ...data,
+                from_staff_id: data.from_staff_id,
+                from_staff_name: data.from_staff_name,
+                to_staff_id: data.to_staff_id,
+                to_staff_name: data.to_staff_name,
+                items: data.items,
+                status: data.status,
+                notes: data.notes,
+                originalRunId: data.originalRunId,
             } as Transfer;
         });
     } catch(error) {
@@ -2069,7 +2076,15 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
                 date: (data.date as Timestamp).toDate().toISOString(),
                 time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
                 time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
-                ...data,
+                from_staff_id: data.from_staff_id,
+                from_staff_name: data.from_staff_name,
+                to_staff_id: data.to_staff_id,
+                to_staff_name: data.to_staff_name,
+                items: data.items,
+                status: data.status,
+                is_sales_run: data.is_sales_run || false,
+                notes: data.notes,
+                originalRunId: data.originalRunId
             } as Transfer;
         });
     } catch (error: any) {
@@ -3312,3 +3327,4 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
     
 
     
+
