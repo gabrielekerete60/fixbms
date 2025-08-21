@@ -414,7 +414,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
                                         <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
                                         <SelectContent>
                                             {availableProducts.map((p: any) => (
-                                                <SelectItem key={p.id} value={p.id}>
+                                                <SelectItem key={p.id} value={p.id} key={p.id + index}>
                                                     {p.name} (Stock: {p.stock})
                                                 </SelectItem>
                                             ))}
@@ -713,7 +713,7 @@ export default function StockControlPage() {
                 setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock, category: doc.data().category } as Product)));
             } else {
                  const personalStockSnapshot = await getProductsForStaff(currentUser.staff_id);
-                 setProducts(personalStockSnapshot);
+                 setProducts(personalStockSnapshot as Product[]);
             }
             
              const [pendingData, completedData, wasteData, ingredientsSnapshot, initiatedTransfersSnapshot, returnedStockData] = await Promise.all([
@@ -1066,7 +1066,7 @@ export default function StockControlPage() {
                                             <TableCell className="text-right">
                                                 {t.is_sales_run && t.status === 'active' && (
                                                     <Button variant="outline" size="sm" asChild>
-                                                        <Link href={`/dashboard/deliveries`}><Eye className="mr-2 h-4 w-4"/>Manage Run</Link>
+                                                        <Link href={`/dashboard/sales-runs/${t.id}`}><Eye className="mr-2 h-4 w-4"/>Manage Run</Link>
                                                     </Button>
                                                 )}
                                             </TableCell>
@@ -1356,7 +1356,7 @@ export default function StockControlPage() {
                             ) : returnedStock.length > 0 ? (
                                 returnedStock.map(t => (
                                     <TableRow key={t.id}>
-                                        <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                        <TableCell>{t.date ? format(new Date(t.date), 'Pp') : 'N/A'}</TableCell>
                                         <TableCell>{t.from_staff_name}</TableCell>
                                         <TableCell>{t.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
                                         <TableCell className="text-right">
