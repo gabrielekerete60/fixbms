@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -539,6 +539,112 @@ function ProductionTransferDialog({ transfer, onAccept }: { transfer: Transfer, 
     )
 }
 
+function ReturnStockDialog({ user, products, onReturn }: { user: User, products: Product[], onReturn: () => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [items, setItems] = useState<Partial<TransferItem>[]>([{ productId: '', quantity: 1 }]);
+    const { toast } = useToast();
+
+    const handleItemChange = (index: number, field: 'productId' | 'quantity', value: string) => {
+        const newItems = [...items];
+        const item = newItems[index];
+
+        if(field === 'productId') {
+            const product = products.find(p => p.id === value);
+            item.productId = value;
+            item.productName = product?.name || '';
+        } else {
+            const product = products.find(p => p.id === item.productId);
+            const newQuantity = Number(value);
+            if (product && newQuantity > product.stock) {
+                toast({ variant: 'destructive', title: 'Error', description: `Cannot return more than ${product.stock} units.` });
+                item.quantity = product.stock;
+            } else {
+                item.quantity = newQuantity;
+            }
+        }
+        setItems(newItems);
+    };
+
+    const handleAddItem = () => setItems(prev => [...prev, { productId: '', quantity: 1 }]);
+    const handleRemoveItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
+
+    const handleSubmit = async () => {
+        setIsLoading(true);
+        const unsoldItems = items.filter(item => item.productId && item.quantity && Number(item.quantity) > 0) as { productId: string, productName: string, quantity: number }[];
+        if (unsoldItems.length === 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please add items to return.' });
+            setIsLoading(false);
+            return;
+        }
+
+        const result = await handleReturnStock("showroom-return", unsoldItems, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Stock return request sent to storekeeper.' });
+            onReturn();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    };
+
+    const getAvailableProductsForRow = (rowIndex: number) => {
+        const selectedIdsInOtherRows = new Set(
+            items.filter((_, i) => i !== rowIndex).map(item => item.productId)
+        );
+        return products.filter(p => !selectedIdsInOtherRows.has(p.id));
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="secondary"><Undo2 className="mr-2 h-4 w-4" /> Return Stock to Store</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Return Unsold Stock</DialogTitle>
+                    <DialogDescription>
+                        Select items from your personal inventory to return to the main store. This will require approval.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-2">
+                    <Label>Items to Return</Label>
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                        {items.map((item, index) => {
+                             const availableProducts = getAvailableProductsForRow(index);
+                             return (
+                                <div key={index} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
+                                    <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
+                                        <SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger>
+                                        <SelectContent>
+                                            {availableProducts.map((p) => (
+                                                <SelectItem key={p.id} value={p.id}>
+                                                    {p.name} (In Stock: {p.stock})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Input type="number" placeholder="Qty" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', e.target.value)} />
+                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                </div>
+                             )
+                        })}
+                    </div>
+                    <Button variant="outline" size="sm" onClick={handleAddItem}><PlusCircle className="mr-2 h-4 w-4"/>Add Item</Button>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Submit Return Request
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function StockControlPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -570,8 +676,7 @@ export default function StockControlPage() {
   const [viewingTransfer, setViewingTransfer] = useState<Transfer | null>(null);
 
   const [visiblePendingRows, setVisiblePendingRows] = useState<number | 'all'>(10);
-  const [visibleHistoryRows, setVisibleHistoryRows, 
-] = useState<number | 'all'>(10);
+  const [visibleHistoryRows, setVisibleHistoryRows] = useState<number | 'all'>(10);
   const [visibleLogRows, setVisibleLogRows] = useState<number | 'all'>(10);
   const [visibleAllPendingRows, setVisibleAllPendingRows] = useState<number | 'all'>(10);
   
@@ -602,11 +707,10 @@ export default function StockControlPage() {
                 setProducts(personalStockSnapshot.docs.map(doc => ({ id: doc.data().productId, name: doc.data().productName, stock: doc.data().stock })));
             }
             
-             const [pendingData, completedData, wasteData, prodTransfers, ingredientsSnapshot, initiatedTransfersSnapshot, returnedStockData] = await Promise.all([
+             const [pendingData, completedData, wasteData, ingredientsSnapshot, initiatedTransfersSnapshot, returnedStockData] = await Promise.all([
                 getPendingTransfersForStaff(currentUser.staff_id),
                 getCompletedTransfersForStaff(currentUser.staff_id),
                 getWasteLogsForStaff(currentUser.staff_id),
-                getDocs(query(collection(db, 'transfers'), where('notes', '>=', 'Return from production batch'), where('notes', '<', 'Return from production batch' + '\uf8ff'), where('status', '==', 'pending'))),
                 getDocs(collection(db, "ingredients")),
                 getDocs(query(collection(db, "transfers"), orderBy("date", "desc"))),
                 getReturnedStockTransfers(),
@@ -615,7 +719,6 @@ export default function StockControlPage() {
             setPendingTransfers(pendingData);
             setCompletedTransfers(completedData);
             setMyWasteLogs(wasteData);
-            setProductionTransfers(prodTransfers.docs.map(d => ({id: d.id, ...d.data(), date: (d.data().date as Timestamp).toDate().toISOString()} as Transfer)));
             setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock })));
             setInitiatedTransfers(initiatedTransfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
             setReturnedStock(returnedStockData);
@@ -666,7 +769,7 @@ export default function StockControlPage() {
             setIsLoadingBatches(false);
         });
         
-        const qReturnedStock = query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'), where('notes', '>=', 'Return from Sales Run'), where('notes', '<', 'Return from Sales Run' + '\uf8ff'));
+        const qReturnedStock = query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending_return'));
         const unsubReturned = onSnapshot(qReturnedStock, (snapshot) => {
             const returned = snapshot.docs.map(docSnap => ({
                 id: docSnap.id,
@@ -852,7 +955,7 @@ export default function StockControlPage() {
     const selectedIdsInOtherRows = new Set(
         items.filter((_, i) => i !== rowIndex).map(item => item.productId)
     );
-    return products.filter(p => !selectedIdsInOtherRows.has(p.id));
+    return products.filter(p => !selectedIdsInOtherRows.has(p.id) && p.stock > 0);
   };
 
   const userRole = user?.role;
@@ -866,14 +969,20 @@ export default function StockControlPage() {
      return (
          <div className="flex flex-col gap-6">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
-            <div className="flex flex-col lg:flex-row gap-6">
-                 <div className="flex flex-col gap-6 flex-[2]">
-                    <Card>
+             <Tabs defaultValue="pending">
+                <TabsList>
+                    <TabsTrigger value="pending" className="relative">
+                        <Package className="mr-2 h-4 w-4" /> Incoming Stock
+                        {pendingTransfers.length > 0 && <Badge variant="destructive" className="absolute -top-2 -right-2">{pendingTransfers.length}</Badge>}
+                    </TabsTrigger>
+                    <TabsTrigger value="history"><History className="mr-2 h-4 w-4"/> My History</TabsTrigger>
+                    {user.role === 'Showroom Staff' && <TabsTrigger value="waste-return"><Trash className="mr-2 h-4 w-4"/>Report Waste / Return</TabsTrigger>}
+                </TabsList>
+                <TabsContent value="pending" className="mt-4">
+                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
-                                <Package />
                                 Acknowledge Incoming Stock
-                                {pendingTransfers.length > 0 && <Badge variant="destructive">{pendingTransfers.length}</Badge>}
                             </CardTitle>
                             <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
                         </CardHeader>
@@ -917,10 +1026,11 @@ export default function StockControlPage() {
                             <PaginationControls visibleRows={visiblePendingRows} setVisibleRows={setVisiblePendingRows} totalRows={pendingTransfers.length} />
                         </CardFooter>
                     </Card>
-
-                    <Card>
+                </TabsContent>
+                <TabsContent value="history" className="mt-4">
+                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><History /> My Transfer History</CardTitle>
+                            <CardTitle className="flex items-center gap-2"> My Transfer History</CardTitle>
                             <CardDescription>A log of all stock transfers you have successfully accepted.</CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -967,8 +1077,14 @@ export default function StockControlPage() {
                             <PaginationControls visibleRows={visibleHistoryRows} setVisibleRows={setVisibleHistoryRows} totalRows={completedTransfers.length} />
                         </CardFooter>
                     </Card>
-                </div>
-            </div>
+                </TabsContent>
+                 <TabsContent value="waste-return" className="mt-4">
+                    <div className="grid md:grid-cols-2 gap-6 items-start">
+                        <ReportWasteTab products={products} user={user} onWasteReported={fetchPageData} />
+                        <ReturnStockDialog user={user} products={products} onReturn={fetchPageData} />
+                    </div>
+                </TabsContent>
+             </Tabs>
          </div>
      )
   }
@@ -1105,7 +1221,7 @@ export default function StockControlPage() {
                             </SelectTrigger>
                             <SelectContent>
                             {availableProducts.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
+                                <SelectItem key={p.id} value={p.id} disabled={p.stock === 0}>
                                 {p.name} (Stock: {p.stock})
                                 </SelectItem>
                             ))}
@@ -1364,3 +1480,5 @@ export default function StockControlPage() {
     </div>
   );
 }
+
+

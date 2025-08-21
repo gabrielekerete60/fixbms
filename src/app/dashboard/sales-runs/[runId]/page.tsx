@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -520,7 +521,7 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
 
         if(field === 'productId') {
             const product = remainingItems.find(p => p.productId === value);
-            newItems[index] = { ...item, productId: value, name: product?.productName || '', price: product?.price || 0 };
+            newItems[index] = { ...item, productId: value, name: product?.productName || '', price: product?.price || 0, minPrice: product?.minPrice, maxPrice: product?.maxPrice };
         } else {
             const productInfo = remainingItems.find(p => p.productId === item.productId);
             const newQuantity = Number(value);
@@ -1361,10 +1362,10 @@ function SalesRunDetails() {
         if (!run) return { progressValue: 0, progressDenominator: 1 };
         
         if (run.status === 'pending_return' || run.status === 'return_completed') {
-            const totalSold = orders.reduce((sum, order) => sum + order.total, 0);
+            const totalSoldValue = orders.reduce((sum, order) => sum + order.total, 0);
             return {
                 progressValue: totalCollected,
-                progressDenominator: totalSold > 0 ? totalSold : 1,
+                progressDenominator: totalSoldValue > 0 ? totalSoldValue : 1,
             };
         }
         
@@ -1388,8 +1389,9 @@ function SalesRunDetails() {
     
     const runComplete = runStatus === 'completed' || run.status === 'return_completed';
     const isPendingReturn = runStatus === 'pending_return';
-    const canPerformSales = user?.staff_id === run?.to_staff_id && !runComplete && !isPendingReturn;
-    const canReturnStock = user?.staff_id === run?.to_staff_id && run.status === 'active';
+    const canPerformActions = user?.staff_id === run?.to_staff_id;
+    const canPerformSales = canPerformActions && !runComplete && !isPendingReturn;
+    const canReturnStock = canPerformActions && run.status === 'active';
     const isReadOnly = user?.role === 'Manager';
     const allDebtsPaid = run.totalOutstanding <= 0;
 
@@ -1500,7 +1502,7 @@ function SalesRunDetails() {
                         <LogExpenseDialog run={run} user={user} />
                         <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
                     </CardContent>
-                    {canPerformSales && (
+                    {canPerformActions && (
                         <CardFooter className="flex-col gap-2">
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
@@ -1607,7 +1609,7 @@ function SalesRunDetails() {
                                                     {outstanding > 0 ? formatCurrency(outstanding) : '-'}
                                                 </TableCell>
                                                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                    {(canPerformSales && !runComplete) ? (
+                                                    {(canPerformActions && !runComplete && outstanding > 0) ? (
                                                         <RecordPaymentDialog customer={customer} run={run} user={user} />
                                                     ) : (
                                                         <Button size="sm" variant="outline" disabled>Record Payment</Button>

@@ -2040,10 +2040,10 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
             const data = docSnap.data();
             return {
                 id: docSnap.id,
-                ...data,
                 date: (data.date as Timestamp).toDate().toISOString(),
                 time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
                 time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
+                ...data,
             } as Transfer;
         });
     } catch(error) {
@@ -2066,10 +2066,10 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
             const data = docSnap.data();
             return {
                 id: docSnap.id,
-                ...data,
                 date: (data.date as Timestamp).toDate().toISOString(),
                 time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
                 time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
+                ...data,
             } as Transfer;
         });
     } catch (error: any) {
