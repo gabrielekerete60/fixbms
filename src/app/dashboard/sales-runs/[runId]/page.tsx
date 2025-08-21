@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -5,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordDebtPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense, getProductsForStaff } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal, FileSignature, Car, Fuel, Receipt as ReceiptIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal, FileSignature, Car, Fuel, Receipt as ReceiptIcon, Building } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -519,7 +520,7 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
 
         if(field === 'productId') {
             const product = remainingItems.find(p => p.productId === value);
-            newItems[index] = { ...item, productId: value, name: product?.productName || '', price: product?.price || 0, minPrice: product?.minPrice, maxPrice: product?.maxPrice };
+            newItems[index] = { ...item, productId: value, name: product?.productName || '', price: product?.price || 0, minPrice: product?.minPrice, maxPrice: product?.maxPrice, quantity: 1 };
         } else {
             const productInfo = remainingItems.find(p => p.productId === item.productId);
             const newQuantity = Number(value);

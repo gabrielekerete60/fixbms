@@ -1,3 +1,4 @@
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -1599,35 +1600,33 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
 
     try {
         await runTransaction(db, async (transaction) => {
-            // --- ALL READS MUST HAPPEN FIRST ---
             const confirmationDoc = await transaction.get(confirmationRef);
-            if (!confirmationDoc.exists()) {
-                throw new Error("Confirmation not found.");
-            }
+            if (!confirmationDoc.exists()) throw new Error("Confirmation not found.");
+            
             const confirmationData = confirmationDoc.data() as PaymentConfirmation;
-            if (confirmationData.status !== 'pending') {
-                throw new Error("This confirmation has already been processed.");
-            }
+            if (confirmationData.status !== 'pending') throw new Error("This confirmation has already been processed.");
 
             const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
             
-            // Pre-fetch all potentially needed documents
             const runRef = isFromSalesRun ? doc(db, 'transfers', confirmationData.runId) : null;
-            const customerRef = (confirmationData.isDebtPayment && confirmationData.customerId) ? doc(db, 'customers', confirmationData.customerId) : null;
-            const salesDocId = format(new Date(), 'yyyy-MM-dd');
-            const salesDocRef = doc(db, 'sales', salesDocId);
-
-            const [runDoc, customerDoc, salesDoc] = await Promise.all([
+            const customerRef = confirmationData.customerId ? doc(db, 'customers', confirmationData.customerId) : null;
+            
+            const [runDoc, customerDoc] = await Promise.all([
                 runRef ? transaction.get(runRef) : Promise.resolve(null),
                 customerRef ? transaction.get(customerRef) : Promise.resolve(null),
-                !isFromSalesRun ? transaction.get(salesDocRef) : Promise.resolve(null)
             ]);
-            
-            // --- ALL WRITES HAPPEN AFTER READS ---
+
             const newStatus = action === 'approve' ? 'approved' : 'declined';
-            
+
             if (action === 'approve') {
-                if (confirmationData.isExpense) {
+                if (confirmationData.isDebtPayment) {
+                    if (customerRef) {
+                        transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
+                    }
+                    if (runRef) {
+                        transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+                    }
+                } else if (confirmationData.isExpense) {
                     const expenseData = {
                         category: confirmationData.expenseDetails?.category || 'Run Expense',
                         description: confirmationData.expenseDetails?.description || `Expense for run ${confirmationData.runId}`,
@@ -1637,11 +1636,10 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     };
                     const newIndirectCostRef = doc(collection(db, "indirectCosts"));
                     transaction.set(newIndirectCostRef, expenseData);
-                    
                     if (runRef) {
                         transaction.update(runRef, { totalCollected: increment(-confirmationData.amount) });
                     }
-                } else { // It's a sale or debt payment
+                } else { // It's a new sale confirmation
                     const newOrderRef = doc(collection(db, 'orders'));
                     transaction.set(newOrderRef, {
                         salesRunId: confirmationData.runId,
@@ -1654,51 +1652,17 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         status: 'Completed',
                         items: confirmationData.items,
                         id: newOrderRef.id,
-                        isDebtPayment: confirmationData.isDebtPayment || false,
+                        isDebtPayment: false,
                     });
                     
-                    if (confirmationData.isDebtPayment && customerRef) {
-                        transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
-                    }
-
-                    if (isFromSalesRun && runRef && runDoc?.exists()) {
-                        const runData = runDoc.data();
-                        const newTotalCollected = (runData.totalCollected || 0) + confirmationData.amount;
-                        transaction.update(runRef, { totalCollected: newTotalCollected });
-                        
-                        if (runData.totalRevenue && newTotalCollected >= runData.totalRevenue) {
-                            transaction.update(runRef, {
-                                status: 'completed',
-                                time_completed: serverTimestamp()
-                            });
-                        }
-                    } else if (!isFromSalesRun) {
-                        const paymentField = confirmationData.paymentMethod === 'Cash' ? 'cash' : (confirmationData.paymentMethod === 'POS' ? 'pos' : 'transfer');
-                        
-                        if (salesDoc?.exists()) {
-                            transaction.update(salesDocRef, {
-                                [paymentField]: increment(confirmationData.amount),
-                                total: increment(confirmationData.amount)
-                            });
-                        } else {
-                            transaction.set(salesDocRef, {
-                                date: Timestamp.fromDate(startOfDay(new Date())),
-                                description: `Daily Sales for ${format(new Date(), 'yyyy-MM-dd')}`,
-                                cash: confirmationData.paymentMethod === 'Cash' ? confirmationData.amount : 0,
-                                pos: confirmationData.paymentMethod === 'POS' ? confirmationData.amount : 0,
-                                transfer: 0,
-                                creditSales: 0,
-                                shortage: 0,
-                                total: confirmationData.amount
-                            });
-                        }
+                    if (runRef) {
+                        transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
                     }
                 }
             }
             
             transaction.update(confirmationRef, { status: newStatus });
         });
-
         return { success: true };
     } catch (error) {
         console.error("Error handling payment confirmation:", error);
@@ -2035,7 +1999,7 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
                 status: data.status,
                 notes: data.notes,
                 originalRunId: data.originalRunId,
-            };
+            } as Transfer;
         });
     } catch(error) {
         console.error("Error getting returned stock transfers:", error);
@@ -2552,15 +2516,12 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
         salesByCustomer[customerId] = { customerId, customerName, totalSold: 0, totalPaid: 0 };
       }
       
-      // Only add to totalSold if it's not a debt payment
       if (!order.isDebtPayment) {
         salesByCustomer[customerId].totalSold += order.total;
       }
       
-      // Add to totalPaid for any completed order, including debt payments
-      if (order.status === 'Completed') {
-        salesByCustomer[customerId].totalPaid += order.total;
-      }
+      salesByCustomer[customerId].totalPaid += order.total;
+      
     });
 
     return Object.values(salesByCustomer);
@@ -2793,8 +2754,8 @@ export async function handleRecordDebtPaymentForRun(data: PaymentData): Promise<
         });
         return { success: true };
     } catch (error) {
-        console.error("Error recording cash payment:", error);
-        return { success: false, error: "Failed to record cash payment for approval." };
+        console.error("Error recording debt payment:", error);
+        return { success: false, error: "Failed to record debt payment for approval." };
     }
 }
 
@@ -3308,8 +3269,3 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
 }
 
     
-
-    
-
-    
-
