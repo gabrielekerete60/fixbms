@@ -257,9 +257,9 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
     )
 }
 
-function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void }) {
+function AcceptTransferDialog({ transfer, onAccept, children }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void, children: React.ReactNode }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
+
     const handleAction = async (action: 'accept' | 'decline') => {
         setIsSubmitting(true);
         await onAccept(transfer.id, action);
@@ -267,53 +267,60 @@ function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept:
     }
 
     return (
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Acknowledge Transfer: {transfer.id.substring(0, 6).toUpperCase()}</AlertDialogTitle>
-                <AlertDialogDescription>
-                    You are about to accept responsibility for the following items. This action cannot be undone.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="py-4 max-h-[400px] overflow-y-auto">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Product</TableHead>
-                            <TableHead>Quantity</TableHead>
-                            <TableHead className="text-right">Value</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {transfer.items.map(item => (
-                            <TableRow key={item.productId}>
-                                <TableCell>{item.productName}</TableCell>
-                                <TableCell>{item.quantity}</TableCell>
-                                <TableCell className="text-right">₦{((item.price || 0) * item.quantity).toLocaleString()}</TableCell>
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                {children}
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Acknowledge Transfer: {transfer.id.substring(0, 6).toUpperCase()}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        You are about to accept responsibility for the following items. This action cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="py-4 max-h-[400px] overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Quantity</TableHead>
+                                {transfer.totalValue != null && <TableHead className="text-right">Value</TableHead>}
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
-            {transfer.notes && (
-                <div className="text-sm space-y-1 mt-2">
-                    <p className="font-semibold">Notes from Sender:</p>
-                    <p className="p-2 bg-muted rounded-md">{transfer.notes}</p>
+                        </TableHeader>
+                        <TableBody>
+                            {transfer.items.map(item => (
+                                <TableRow key={item.productId}>
+                                    <TableCell>{item.productName}</TableCell>
+                                    <TableCell>{item.quantity}</TableCell>
+                                    {transfer.totalValue != null && <TableCell className="text-right">₦{((item.price || 0) * item.quantity).toLocaleString()}</TableCell>}
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </div>
-            )}
-            <div className="font-bold text-lg flex justify-between border-t pt-4">
-                <span>Total Run Value:</span>
-                <span>₦{(transfer.totalValue || 0).toLocaleString()}</span>
-            </div>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => handleAction('decline')} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Decline
-                </AlertDialogAction>
-                <AlertDialogAction onClick={() => handleAction('accept')} disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Accept
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
+                {transfer.notes && (
+                    <div className="text-sm space-y-1 mt-2">
+                        <p className="font-semibold">Notes from Sender:</p>
+                        <p className="p-2 bg-muted rounded-md">{transfer.notes}</p>
+                    </div>
+                )}
+                {transfer.totalValue != null && (
+                    <div className="font-bold text-lg flex justify-between border-t pt-4">
+                        <span>Total Run Value:</span>
+                        <span>₦{(transfer.totalValue || 0).toLocaleString()}</span>
+                    </div>
+                )}
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleAction('decline')} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Decline
+                    </AlertDialogAction>
+                    <AlertDialogAction onClick={() => handleAction('accept')} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Accept
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     )
 }
 
@@ -909,7 +916,7 @@ export default function StockControlPage() {
                                     ) : (
                                         paginatedPending.map(t => (
                                             <TableRow key={t.id}>
-                                                <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                                <TableCell>{t.date ? format(new Date(t.date), 'Pp') : 'N/A'}</TableCell>
                                                 <TableCell>{t.from_staff_name}</TableCell>
                                                 <TableCell>
                                                     {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
@@ -918,12 +925,9 @@ export default function StockControlPage() {
                                                     {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
-                                                             <Button size="sm">View & Acknowledge</Button>
-                                                        </AlertDialogTrigger>
-                                                        <AcceptRunDialog transfer={t} onAccept={handleAcknowledge} />
-                                                    </AlertDialog>
+                                                    <AcceptTransferDialog transfer={t} onAccept={handleAcknowledge}>
+                                                         <Button size="sm">View & Acknowledge</Button>
+                                                    </AcceptTransferDialog>
                                                 </TableCell>
                                             </TableRow>
                                         ))
@@ -1220,16 +1224,13 @@ export default function StockControlPage() {
                             ) : returnedStock.length > 0 ? (
                                 returnedStock.map(t => (
                                     <TableRow key={t.id}>
-                                        <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                        <TableCell>{t.date ? format(new Date(t.date), 'Pp') : 'N/A'}</TableCell>
                                         <TableCell>{t.from_staff_name}</TableCell>
                                         <TableCell>{t.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
                                         <TableCell className="text-right">
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <Button size="sm">Acknowledge</Button>
-                                                </AlertDialogTrigger>
-                                                <AcceptRunDialog transfer={t} onAccept={handleAcknowledge} />
-                                            </AlertDialog>
+                                            <AcceptTransferDialog transfer={t} onAccept={handleAcknowledge}>
+                                                <Button size="sm">Acknowledge</Button>
+                                            </AcceptTransferDialog>
                                         </TableCell>
                                     </TableRow>
                                 ))
@@ -1253,8 +1254,7 @@ export default function StockControlPage() {
                             <TableRow>
                                 <TableHead>Date</TableHead>
                                 <TableHead>From</TableHead>
-                                <TableHead>Product</TableHead>
-                                <TableHead>Quantity</TableHead>
+                                <TableHead>Items</TableHead>
                                 <TableHead className="text-right">Action</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -1266,12 +1266,13 @@ export default function StockControlPage() {
                                     <TableRow key={t.id}>
                                         <TableCell>{t.date ? format(new Date(t.date), 'Pp') : 'N/A'}</TableCell>
                                         <TableCell>{t.from_staff_name}</TableCell>
-                                        <TableCell>{t.items[0]?.productName}</TableCell>
-                                        <TableCell>{t.items[0]?.quantity}</TableCell>
+                                        <TableCell>{t.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
                                         <TableCell className="text-right">
-                                            <Button size="sm" onClick={() => handleAcknowledge(t.id, 'accept')}>
-                                                <Check className="mr-2 h-4 w-4" /> Accept
-                                            </Button>
+                                            <AcceptTransferDialog transfer={t} onAccept={handleAcknowledge}>
+                                                <Button size="sm">
+                                                    <Check className="mr-2 h-4 w-4" /> Accept
+                                                </Button>
+                                            </AcceptTransferDialog>
                                         </TableCell>
                                     </TableRow>
                                 ))

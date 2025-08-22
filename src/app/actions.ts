@@ -2007,8 +2007,8 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
       return snapshot.docs.map(docSnap => {
         const data = docSnap.data();
         return {
-          ...data,
           id: docSnap.id,
+          ...data,
           date: (data.date as Timestamp).toDate().toISOString(),
         } as Transfer;
       });
@@ -2081,6 +2081,7 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                  throw new Error("This transfer has already been processed.");
             }
             
+            // This case handles a driver returning unsold stock to the storekeeper.
             if (transfer.status === 'pending_return') {
                  for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
@@ -2091,7 +2092,21 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                     transaction.update(originalRunRef, { status: 'return_completed' });
                 }
                 transaction.update(transferRef, { status: 'completed' });
-            } else { // It's a 'pending' transfer
+            } 
+            // This case handles a baker transferring finished goods TO the storekeeper.
+            else if (transfer.notes?.startsWith('Return from production batch')) {
+                 for (const item of transfer.items) {
+                    const productRef = doc(db, 'products', item.productId);
+                    transaction.update(productRef, { stock: increment(item.quantity) });
+                }
+                 transaction.update(transferRef, { 
+                    status: 'completed',
+                    time_received: serverTimestamp(),
+                    time_completed: serverTimestamp() 
+                });
+            }
+            // This is the standard case: Storekeeper to Driver/Showroom
+            else { 
                 const productRefs = transfer.items.map(item => doc(db, 'products', item.productId));
                 const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
                 const staffStockRefs = transfer.items.map(item => doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId));
@@ -2442,11 +2457,21 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
         const data = runDoc.data();
         const totalRevenue = data.totalRevenue || 0;
         
-        const ordersSnapshot = await getDocs(query(collection(db, 'orders'), where('salesRunId', '==', runId)));
+        const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId));
+        const [ordersSnapshot, paymentConfirmationsSnapshot] = await Promise.all([
+            getDocs(ordersQuery),
+            getDocs(query(collection(db, 'payment_confirmations'), where('runId', '==', runId), where('status', '==', 'approved')))
+        ]);
         
-        const totalCollected = ordersSnapshot.docs
+        const directPayments = ordersSnapshot.docs
             .filter(doc => doc.data().paymentMethod !== 'Credit')
             .reduce((sum, doc) => sum + doc.data().total, 0);
+
+        const approvedDebtPayments = paymentConfirmationsSnapshot.docs
+            .filter(doc => doc.data().isDebtPayment)
+            .reduce((sum, doc) => sum + doc.data().amount, 0);
+            
+        const totalCollected = directPayments + approvedDebtPayments;
             
         const itemsWithPrices = await Promise.all(
           (data.items || []).map(async (item: any) => {
@@ -2522,12 +2547,15 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
 
 export async function getCustomersForRun(runId: string): Promise<any[]> {
   try {
-    const q = query(collection(db, "orders"), where("salesRunId", "==", runId));
-    const snapshot = await getDocs(q);
-    
+    const ordersQuery = query(collection(db, "orders"), where("salesRunId", "==", runId));
+    const [ordersSnapshot, paymentsSnapshot] = await Promise.all([
+        getDocs(ordersQuery),
+        getDocs(query(collection(db, 'payment_confirmations'), where('runId', '==', runId), where('status', '==', 'approved'), where('isDebtPayment', '==', true)))
+    ]);
+
     const salesByCustomer: Record<string, { customerId: string, customerName: string, totalSold: number, totalPaid: number }> = {};
 
-    snapshot.docs.forEach(docSnap => {
+    ordersSnapshot.docs.forEach(docSnap => {
       const order = docSnap.data();
       const customerId = order.customerId || 'walk-in';
       const customerName = order.customerName || 'Walk-in';
@@ -2538,22 +2566,19 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
       
       salesByCustomer[customerId].totalSold += order.total;
       
+      // Only non-credit payments contribute to 'totalPaid' at the point of sale
       if (order.paymentMethod !== 'Credit') {
         salesByCustomer[customerId].totalPaid += order.total;
       }
-      
     });
 
-    const runDoc = await getDoc(doc(db, "transfers", runId));
-    if (runDoc.exists()) {
-        const confirmations = await getDocs(query(collection(db, 'payment_confirmations'), where('runId', '==', runId), where('status', '==', 'approved'), where('isDebtPayment', '==', true)));
-        confirmations.forEach(confDoc => {
-            const conf = confDoc.data();
-            if (conf.customerId && salesByCustomer[conf.customerId]) {
-                salesByCustomer[conf.customerId].totalPaid += conf.amount;
-            }
-        })
-    }
+    // Add approved debt payments to the totalPaid for the corresponding customer
+    paymentsSnapshot.forEach(confDoc => {
+        const conf = confDoc.data();
+        if (conf.customerId && salesByCustomer[conf.customerId]) {
+            salesByCustomer[conf.customerId].totalPaid += conf.amount;
+        }
+    });
     
     return Object.values(salesByCustomer);
   } catch (error) {
