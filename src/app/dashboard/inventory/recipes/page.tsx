@@ -529,7 +529,6 @@ export default function RecipesPage() {
     const [productionLogs, setProductionLogs] = useState<ProductionLog[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
-    const [isProductionDialogOpen, setIsProductionDialogOpen] = useState(false);
     const [viewingLog, setViewingLog] = useState<ProductionLog | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
@@ -625,7 +624,6 @@ export default function RecipesPage() {
         const result = await startProductionBatch(batchData, user);
         if (result.success) {
             toast({ title: 'Success', description: 'Production batch requested for approval.'});
-            setIsProductionDialogOpen(false);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error});
         }
@@ -711,15 +709,7 @@ export default function RecipesPage() {
                 <h1 className="text-2xl font-bold font-headline">Recipes &amp; Production</h1>
             </div>
 
-            <AlertDialog open={isProductionDialogOpen} onOpenChange={setIsProductionDialogOpen}>
-                <StartProductionDialog
-                    onConfirm={handleStartProduction}
-                    recipe={generalRecipe}
-                    user={user}
-                />
-            </AlertDialog>
-            
-             <ProductionLogDetailsDialog 
+            <ProductionLogDetailsDialog 
                 log={viewingLog}
                 isOpen={!!viewingLog}
                 onOpenChange={() => setViewingLog(null)}
