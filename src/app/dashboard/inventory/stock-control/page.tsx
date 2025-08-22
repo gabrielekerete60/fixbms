@@ -60,7 +60,7 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts, getProductsForStaff, handleReturnStock } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts, getProductsForStaff, handleReturnStock, getReturnedStockTransfers } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -260,7 +260,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
 
 function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
-
+    
     const handleAction = async (action: 'accept' | 'decline') => {
         setIsSubmitting(true);
         await onAccept(transfer.id, action);
@@ -593,6 +593,7 @@ export default function StockControlPage() {
   const [initiatedTransfers, setInitiatedTransfers] = useState<Transfer[]>([]);
   const [pendingTransfers, setPendingTransfers] = useState<Transfer[]>([]);
   const [productionTransfers, setProductionTransfers] = useState<Transfer[]>([]);
+  const [returnedStock, setReturnedStock] = useState<Transfer[]>([]);
   const [pendingBatches, setPendingBatches] = useState<ProductionBatch[]>([]);
   const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([]);
   const [myWasteLogs, setMyWasteLogs] = useState<WasteLog[]>([]);
@@ -626,23 +627,26 @@ export default function StockControlPage() {
             setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
 
             const userRole = currentUser.role;
-            if (userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper') {
+            const canManageStore = ['Manager', 'Supervisor', 'Storekeeper', 'Developer'].includes(userRole);
+            if (canManageStore) {
                 const productsSnapshot = await getDocs(collection(db, "products"));
                 setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
             }
              
-            if (userRole === 'Delivery Staff' || userRole === 'Showroom Staff') {
+            const isSalesStaff = ['Delivery Staff', 'Showroom Staff'].includes(userRole);
+            if (isSalesStaff) {
                 const stockData = await getProductsForStaff(currentUser.staff_id);
                 setPersonalStock(stockData.map(d => ({productId: d.productId, productName: d.name, stock: d.stock})));
             }
             
-             const [pendingData, completedData, wasteData, prodTransfers, ingredientsSnapshot, initiatedTransfersSnapshot] = await Promise.all([
+             const [pendingData, completedData, wasteData, prodTransfers, ingredientsSnapshot, initiatedTransfersSnapshot, returnedStockSnapshot] = await Promise.all([
                 getPendingTransfersForStaff(currentUser.staff_id),
                 getCompletedTransfersForStaff(currentUser.staff_id),
                 getWasteLogsForStaff(currentUser.staff_id),
                 getProductionTransfers(),
                 getDocs(collection(db, "ingredients")),
-                getDocs(query(collection(db, "transfers"), orderBy("date", "desc")))
+                getDocs(query(collection(db, "transfers"), orderBy("date", "desc"))),
+                getReturnedStockTransfers(),
             ]);
 
             setPendingTransfers(pendingData);
@@ -651,6 +655,7 @@ export default function StockControlPage() {
             setProductionTransfers(prodTransfers);
             setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock } as Ingredient)));
             setInitiatedTransfers(initiatedTransfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
+            setReturnedStock(returnedStockSnapshot);
 
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -1025,6 +1030,16 @@ export default function StockControlPage() {
                     </TabsTrigger>
                 }
                  {userRole !== 'Manager' && 
+                    <TabsTrigger value="returned-stock" className="relative">
+                        <Undo2 className="mr-2 h-4 w-4" /> Returned Stock
+                        {returnedStock.length > 0 && (
+                            <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                                {returnedStock.length}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
+                }
+                 {userRole !== 'Manager' && 
                     <TabsTrigger value="production-transfers" className="relative">
                         <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
                         {productionTransfers.length > 0 && (
@@ -1184,6 +1199,49 @@ export default function StockControlPage() {
                 </CardContent>
               </Card>
         </TabsContent>
+        <TabsContent value="returned-stock">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Returned Stock</CardTitle>
+                    <CardDescription>Acknowledge unsold stock returned by sales staff.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>From</TableHead>
+                                <TableHead>Items</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                             {isLoading ? (
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : returnedStock.length > 0 ? (
+                                returnedStock.map(t => (
+                                    <TableRow key={t.id}>
+                                        <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                        <TableCell>{t.from_staff_name}</TableCell>
+                                        <TableCell>{t.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
+                                        <TableCell className="text-right">
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button size="sm">Acknowledge</Button>
+                                                </AlertDialogTrigger>
+                                                <AcceptRunDialog transfer={t} onAccept={handleAcknowledge} />
+                                            </AlertDialog>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center">No pending stock returns.</TableCell></TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        </TabsContent>
          <TabsContent value="production-transfers">
               <Card>
                 <CardHeader>
@@ -1330,5 +1388,6 @@ export default function StockControlPage() {
     </div>
   );
 }
+
 
 
