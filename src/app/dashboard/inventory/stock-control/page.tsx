@@ -127,9 +127,9 @@ function PaginationControls({
             <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
             <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
              <div className="flex items-center gap-1">
-                <Input 
-                    type="number" 
-                    className="h-8 w-16" 
+                <Input
+                    type="number"
+                    className="h-8 w-16"
                     placeholder="Custom"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
@@ -177,7 +177,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
-    
+
     const ingredientsWithStock = useMemo(() => {
         return batch.ingredients.map((reqIng: any) => {
             const stockIng = allIngredients.find(sIng => sIng.id === reqIng.ingredientId);
@@ -188,7 +188,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
     }, [batch.ingredients, allIngredients]);
 
     const canApprove = ingredientsWithStock.every((ing: any) => ing.hasEnough);
-    
+
     const handleApprove = async () => {
         setIsLoading(true);
         const result = await approveIngredientRequest(batch.id, batch.ingredients, user);
@@ -362,11 +362,11 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
         const dataToSubmit = {
             items: wasteItems.map(item => {
                 const product = products.find(p => p.id === item.productId);
-                return { 
-                    ...item, 
+                return {
+                    ...item,
                     productName: product?.name || 'Unknown',
                     productCategory: product?.category || 'Unknown',
-                    quantity: Number(item.quantity) 
+                    quantity: Number(item.quantity)
                 }
             }),
             reason,
@@ -393,7 +393,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
         );
         return products.filter(p => !selectedIdsInOtherRows.has(p.id));
     };
-    
+
     return (
         <Card className="flex-1">
             <CardHeader>
@@ -665,7 +665,7 @@ export default function StockControlPage() {
   const [items, setItems] = useState<Partial<TransferItem>[]>([
     { productId: "", quantity: 1 },
   ]);
-  
+
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -676,10 +676,10 @@ export default function StockControlPage() {
   const [pendingBatches, setPendingBatches] = useState<ProductionBatch[]>([]);
   const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([]);
   const [myWasteLogs, setMyWasteLogs] = useState<WasteLog[]>([]);
-  
+
   const [date, setDate] = useState<DateRange | undefined>();
   const [allPendingDate, setAllPendingDate] = useState<DateRange | undefined>();
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingBatches, setIsLoadingBatches] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -689,7 +689,7 @@ export default function StockControlPage() {
   const [visibleHistoryRows, setVisibleHistoryRows] = useState<number | 'all'>(10);
   const [visibleLogRows, setVisibleLogRows] = useState<number | 'all'>(10);
   const [visibleAllPendingRows, setVisibleAllPendingRows] = useState<number | 'all'>(10);
-  
+
   const fetchPageData = useCallback(async () => {
         const userStr = localStorage.getItem('loggedInUser');
         if (!userStr) {
@@ -715,7 +715,7 @@ export default function StockControlPage() {
                  const personalStockSnapshot = await getProductsForStaff(currentUser.staff_id);
                  setProducts(personalStockSnapshot as Product[]);
             }
-            
+
              const [pendingData, completedData, wasteData, ingredientsSnapshot, initiatedTransfersSnapshot, returnedStockData] = await Promise.all([
                 getPendingTransfersForStaff(currentUser.staff_id),
                 getCompletedTransfersForStaff(currentUser.staff_id),
@@ -761,7 +761,7 @@ export default function StockControlPage() {
                         return { ...item, price };
                     })
                 );
-                 return { 
+                 return {
                     id: docSnap.id,
                     ...data,
                     items: itemsWithPrices,
@@ -771,13 +771,13 @@ export default function StockControlPage() {
             }));
             setPendingTransfers(transfers.filter(t => !t.notes?.startsWith('Return from')));
         });
-        
+
         const qPendingBatches = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
         const unsubBatches = onSnapshot(qPendingBatches, (snapshot) => {
             setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp).toDate().toISOString() } as ProductionBatch)));
             setIsLoadingBatches(false);
         });
-        
+
         const qReturnedStock = query(collection(db, 'transfers'), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending_return'));
         const unsubReturned = onSnapshot(qReturnedStock, (snapshot) => {
             const returned = snapshot.docs.map(docSnap => ({
@@ -883,7 +883,7 @@ export default function StockControlPage() {
 
     setIsSubmitting(true);
     const staffMember = staff.find(s => s.staff_id === transferTo);
-    
+
     const transferData = {
         to_staff_id: transferTo,
         to_staff_name: staffMember?.name || 'Unknown',
@@ -908,7 +908,7 @@ export default function StockControlPage() {
 
     setIsSubmitting(false);
   };
-  
+
   const handleAcknowledge = async (id: string, type: 'accept' | 'decline') => {
     setIsSubmitting(true);
     const result = await handleAcknowledgeTransfer(id, type);
@@ -946,7 +946,7 @@ export default function StockControlPage() {
   const paginatedAllPending = useMemo(() => {
     return visibleAllPendingRows === 'all' ? allPendingTransfers : allPendingTransfers.slice(0, visibleAllPendingRows);
   }, [allPendingTransfers, visibleAllPendingRows]);
-  
+
   const paginatedLogs = useMemo(() => {
     let filtered = initiatedTransfers;
     if (date?.from) {
@@ -959,7 +959,7 @@ export default function StockControlPage() {
     }
     return visibleLogRows === 'all' ? filtered : filtered.slice(0, visibleLogRows);
   }, [initiatedTransfers, visibleLogRows, date]);
-  
+
   const getAvailableProductsForRow = (rowIndex: number) => {
     const selectedIdsInOtherRows = new Set(
         items.filter((_, i) => i !== rowIndex).map(item => item.productId)
@@ -970,16 +970,16 @@ export default function StockControlPage() {
   const userRole = user?.role;
   const canInitiateTransfer = userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper';
   const isShowroomStaff = userRole === 'Showroom Staff';
-  
+
   if (!user) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
-  
+
   if (!canInitiateTransfer) {
      return (
          <div className="flex flex-col gap-6">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
-             <Tabs defaultValue="my-transfers">
+            <Tabs defaultValue="my-transfers">
                 <TabsList>
                     <TabsTrigger value="my-transfers">My Stock & Transfers</TabsTrigger>
                     {isShowroomStaff && <TabsTrigger value="returns-waste">Returns & Waste</TabsTrigger>}
@@ -1104,9 +1104,9 @@ export default function StockControlPage() {
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
       </div>
-      
-      <TransferDetailsDialog 
-        transfer={viewingTransfer} 
+
+      <TransferDetailsDialog
+        transfer={viewingTransfer}
         isOpen={!!viewingTransfer}
         onOpenChange={() => setViewingTransfer(null)}
       />
@@ -1114,12 +1114,12 @@ export default function StockControlPage() {
       <Tabs defaultValue={userRole === 'Manager' ? 'pending-transfers' : 'initiate-transfer'}>
         <div className="overflow-x-auto pb-2">
             <TabsList>
-                {userRole !== 'Manager' && 
+                {userRole !== 'Manager' &&
                     <TabsTrigger value="initiate-transfer">
                         <Send className="mr-2 h-4 w-4" /> Initiate Transfer
                     </TabsTrigger>
                 }
-                 {userRole !== 'Manager' && 
+                 {userRole !== 'Manager' &&
                     <TabsTrigger value="batch-approvals" className="relative">
                         <Wrench className="mr-2 h-4 w-4" /> Batch Approvals
                         {pendingBatches.length > 0 && (
@@ -1129,7 +1129,7 @@ export default function StockControlPage() {
                         )}
                     </TabsTrigger>
                 }
-                 {userRole !== 'Manager' && 
+                 {userRole !== 'Manager' &&
                     <TabsTrigger value="production-transfers" className="relative">
                         <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
                         {productionTransfers.length > 0 && (
@@ -1139,7 +1139,7 @@ export default function StockControlPage() {
                         )}
                     </TabsTrigger>
                 }
-                 {userRole !== 'Manager' && 
+                 {userRole !== 'Manager' &&
                     <TabsTrigger value="returned-stock" className="relative">
                         <Undo2 className="mr-2 h-4 w-4" /> Returned Stock
                         {returnedStock.length > 0 && (
@@ -1487,5 +1487,3 @@ export default function StockControlPage() {
     </div>
   );
 }
-
-    
