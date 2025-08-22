@@ -712,9 +712,6 @@ export default function RecipesPage() {
             </div>
 
             <AlertDialog open={isProductionDialogOpen} onOpenChange={setIsProductionDialogOpen}>
-                <AlertDialogTrigger asChild>
-                    <div />
-                </AlertDialogTrigger>
                 <StartProductionDialog
                     onConfirm={handleStartProduction}
                     recipe={generalRecipe}
@@ -807,9 +804,11 @@ export default function RecipesPage() {
                                 <CardDescription>Batches that are pending approval or are currently being produced.</CardDescription>
                             </div>
                              {canStartProduction && (
-                                <Button onClick={() => setIsProductionDialogOpen(true)}>
-                                    <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
-                                </Button>
+                                <AlertDialogTrigger asChild>
+                                    <Button onClick={() => setIsProductionDialogOpen(true)}>
+                                        <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
+                                    </Button>
+                                </AlertDialogTrigger>
                              )}
                         </CardHeader>
                         <CardContent>
