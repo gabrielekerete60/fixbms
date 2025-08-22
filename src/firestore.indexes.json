@@ -1,4 +1,5 @@
 
+
 {
   "indexes": [
     {
@@ -196,6 +197,16 @@
         {
           "fieldPath": "status",
           "order": "ASCENDING"
+        }
+      ]
+    },
+     {
+      "collectionGroup": "wages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "date",
+          "order": "DESCENDING"
         }
       ]
     }

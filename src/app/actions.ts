@@ -1600,23 +1600,24 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
 
     try {
         await runTransaction(db, async (transaction) => {
+            // Read all documents first
             const confirmationDoc = await transaction.get(confirmationRef);
             if (!confirmationDoc.exists()) throw new Error("Confirmation not found.");
-            
+
             const confirmationData = confirmationDoc.data() as PaymentConfirmation;
             if (confirmationData.status !== 'pending') throw new Error("This confirmation has already been processed.");
 
-            const isFromSalesRun = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-');
+            const runRef = confirmationData.runId && !confirmationData.runId.startsWith('pos-sale-')
+                ? doc(db, 'transfers', confirmationData.runId)
+                : null;
+                
+            const customerRef = confirmationData.isDebtPayment && confirmationData.customerId
+                ? doc(db, 'customers', confirmationData.customerId)
+                : null;
             
-            const runRef = isFromSalesRun ? doc(db, 'transfers', confirmationData.runId) : null;
-            const customerRef = confirmationData.customerId ? doc(db, 'customers', confirmationData.customerId) : null;
-            
-            const [runDoc, customerDoc] = await Promise.all([
-                runRef ? transaction.get(runRef) : Promise.resolve(null),
-                customerRef ? transaction.get(customerRef) : Promise.resolve(null),
-            ]);
-
+            // Now perform writes
             const newStatus = action === 'approve' ? 'approved' : 'declined';
+            transaction.update(confirmationRef, { status: newStatus });
 
             if (action === 'approve') {
                 if (confirmationData.isDebtPayment) {
@@ -1660,8 +1661,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     }
                 }
             }
-            
-            transaction.update(confirmationRef, { status: newStatus });
         });
         return { success: true };
     } catch (error) {
@@ -1978,6 +1977,29 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
         }
         return [];
     }
+}
+
+export async function getProductionTransfers(): Promise<Transfer[]> {
+  try {
+    const q = query(
+      collection(db, 'transfers'),
+      where('status', '==', 'pending'),
+      where('notes', '>=', 'Return from production batch'),
+      where('notes', '<', 'Return from production batch' + '\uf8ff')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        date: (data.date as Timestamp).toDate().toISOString(),
+        ...data
+      } as Transfer;
+    });
+  } catch (error) {
+    console.error("Error getting production transfers:", error);
+    return [];
+  }
 }
 
 export async function getReturnedStockTransfers(): Promise<Transfer[]> {
@@ -3267,5 +3289,3 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
-
-    

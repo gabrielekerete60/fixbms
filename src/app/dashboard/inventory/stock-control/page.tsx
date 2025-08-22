@@ -1,802 +1,336 @@
 
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordDebtPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense, getProductsForStaff } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal, FileSignature, Car, Fuel, Receipt as ReceiptIcon, Building } from 'lucide-react';
-import Link from 'next/link';
-import { Progress } from '@/components/ui/progress';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { collection, doc, Timestamp, onSnapshot, query, where, addDoc, getDoc, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { Badge } from '@/components/ui/badge';
+import { useState, useMemo, useEffect, useCallback } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Send,
+  PlusCircle,
+  Trash2,
+  Calendar as CalendarIcon,
+  Package,
+  ArrowRightLeft,
+  Wrench,
+  Trash,
+  Hourglass,
+  Loader2,
+  Check,
+  X,
+  Truck,
+  Eye,
+  CheckCircle,
+  XCircle,
+  History,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
-import { Separator } from '@/components/ui/separator';
-import { format } from "date-fns";
-import { Textarea } from '@/components/ui/textarea';
-
-
-type Customer = {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  address: string;
-};
-
-type OrderItem = { productId: string; quantity: number, price: number, name: string, costPrice?: number, minPrice?: number, maxPrice?: number };
-
-type CompletedOrder = {
-  id: string;
-  items: OrderItem[];
-  total: number;
-  date: Date;
-  paymentMethod: 'Paystack' | 'Cash' | 'Credit' | 'POS';
-  customerName?: string;
-  subtotal: number;
-  tax: number;
-  status: string;
-};
-
-type RunCustomer = {
-    customerId: string;
-    customerName: string;
-    totalSold: number;
-    totalPaid: number;
-}
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, startOfDay, endOfDay } from "date-fns";
+import { DateRange } from "react-day-picker";
+import { cn } from "@/lib/utils";
+import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProductsForStaff } from "@/app/actions";
+import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import Link from "next/link";
+import { Separator } from "@/components/ui/separator";
 
 type User = {
     name: string;
     role: string;
     staff_id: string;
-    email: string;
 };
 
-type SortKey = 'customerName' | 'totalSold' | 'totalPaid' | 'outstanding';
-type SortDirection = 'asc' | 'desc';
-
-type Expense = {
-  id?: string;
-  category: string;
-  description: string;
-  amount: number;
-  date?: string | Date;
-  runId?: string;
-  driverId?: string;
-  driverName?: string;
-  status?: 'pending' | 'approved' | 'declined';
-}
-
-const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const handlePrint = (node: HTMLElement | null) => {
-    if (!node) return;
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-        const printableContent = `
-            <html>
-                <head>
-                    <title>Receipt</title>
-                    <style>
-                        body { font-family: sans-serif; margin: 20px; }
-                        .receipt-container { max-width: 300px; margin: auto; }
-                        .text-center { text-align: center; }
-                        .font-bold { font-weight: bold; }
-                        .text-lg { font-size: 1.125rem; }
-                        .text-2xl { font-size: 1.5rem; }
-                        .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
-                        .text-sm { font-size: 0.875rem; }
-                        .text-xs { font-size: 0.75rem; }
-                        .text-muted-foreground { color: #6b7280; }
-                        table { width: 100%; border-collapse: collapse; }
-                        th, td { padding: 4px 0; }
-                        .text-right { text-align: right; }
-                        .flex { display: flex; }
-                        .justify-between { justify-content: space-between; }
-                        hr { border: 0; border-top: 1px dashed #d1d5db; margin: 1rem 0; }
-                        .page-break-before-always { page-break-before: always; }
-                    </style>
-                </head>
-                <body>
-                    <div class="receipt-container">
-                        ${node.innerHTML}
-                    </div>
-                    <script>
-                        window.onload = function() {
-                            window.print();
-                            window.onafterprint = function() {
-                                window.close();
-                            };
-                        };
-                    </script>
-                </body>
-            </html>
-        `;
-        printWindow.document.write(printableContent);
-        printWindow.document.close();
-    }
+type TransferItem = {
+  productId: string;
+  productName: string;
+  quantity: number;
 };
 
-const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
-  return (
-    <div ref={ref} className="p-2">
-      <div className="text-center mb-4">
-          <h2 className="font-headline text-xl text-center">BMS</h2>
-          <p className="text-center text-sm">Sale Receipt</p>
-          {storeAddress && <p className="text-center text-xs text-muted-foreground">{storeAddress}</p>}
-        </div>
-        <div className="py-2 space-y-2 text-xs">
-            <div className="space-y-1">
-                <p><strong>Order ID:</strong> {order.id.substring(0, 12)}...</p>
-                <p><strong>Date:</strong> {new Date(order.date).toLocaleString()}</p>
-                <p><strong>Payment Method:</strong> {order.paymentMethod}</p>
-                <p><strong>Customer:</strong> {order.customerName || 'Walk-in'}</p>
+type StaffMember = {
+  staff_id: string;
+  name: string;
+  role: string;
+};
+
+type Product = {
+  id: string;
+  name: string;
+  stock: number;
+};
+
+type Ingredient = {
+    id: string;
+    name: string;
+    unit: string;
+    stock: number;
+};
+
+
+function PaginationControls({
+    visibleRows,
+    setVisibleRows,
+    totalRows
+}: {
+    visibleRows: number | 'all',
+    setVisibleRows: (val: number | 'all') => void,
+    totalRows: number
+}) {
+    const [inputValue, setInputValue] = useState<string>('');
+
+    const handleApply = () => {
+        const num = parseInt(inputValue, 10);
+        if (!isNaN(num) && num > 0) {
+            setVisibleRows(num);
+        }
+    };
+
+    return (
+        <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+            <span>Show:</span>
+            <Button variant={visibleRows === 10 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(10)}>10</Button>
+            <Button variant={visibleRows === 20 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(20)}>20</Button>
+            <Button variant={visibleRows === 50 ? "default" : "outline"} size="sm" onClick={() => setVisibleRows(50)}>50</Button>
+            <Button variant={visibleRows === 'all' ? "default" : "outline"} size="sm" onClick={() => setVisibleRows('all')}>All ({totalRows})</Button>
+             <div className="flex items-center gap-1">
+                <Input 
+                    type="number" 
+                    className="h-8 w-16" 
+                    placeholder="Custom"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleApply()}
+                />
+                <Button size="sm" onClick={handleApply}>Apply</Button>
             </div>
-            <Separator className="my-2" />
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                    <TableHead className="h-auto p-1 text-xs">Item</TableHead>
-                    <TableHead className="text-center h-auto p-1 text-xs">Qty</TableHead>
-                    <TableHead className="text-right h-auto p-1 text-xs">Amount</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {order.items.map((item, index) => (
-                    <TableRow key={item.productId || index}>
-                        <TableCell className="p-1 text-xs">{item.name}</TableCell>
-                        <TableCell className="text-center p-1 text-xs">{item.quantity}</TableCell>
-                        <TableCell className="text-right p-1 text-xs">₦{(item.price * item.quantity).toFixed(2)}</TableCell>
-                    </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-                <Separator className="my-2"/>
-                <div className="w-full space-y-1 pr-1">
-                <div className="flex justify-between font-bold text-base mt-1">
-                    <span>Total</span>
-                    <span>₦{order.total.toFixed(2)}</span>
-                </div>
-            </div>
-            <Separator className="my-2"/>
-            <p className="text-center text-xs text-muted-foreground">Thank you for your patronage!</p>
         </div>
-    </div>
-  );
-});
-Receipt.displayName = 'Receipt';
-
-function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreated: (customer: Customer) => void, children: React.ReactNode }) {
-    const { toast } = useToast();
-    const [isOpen, setIsOpen] = useState(false);
-    const [name, setName] = useState('');
-    const [phone, setPhone] = useState('');
-    const [email, setEmail] = useState('');
-    const [address, setAddress] = useState('');
-    
-    const handleSave = async () => {
-        if (!name || !phone || !email) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Customer name, phone, and email are required.'});
-            return;
-        }
-        
-        try {
-            const newCustomerRef = await addDoc(collection(db, "customers"), {
-                name,
-                phone,
-                email,
-                address,
-                joinedDate: new Date().toISOString(),
-                totalSpent: 0,
-                amountOwed: 0,
-                amountPaid: 0,
-            });
-            const newCustomer = { id: newCustomerRef.id, name, phone, email, address, amountOwed: 0, amountPaid: 0 };
-            onCustomerCreated(newCustomer as Customer);
-            toast({ title: 'Success', description: 'New customer created.' });
-            setIsOpen(false);
-        } catch(error) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to create new customer.'});
-        }
-    }
-
-    return (
-       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Create New Customer</DialogTitle>
-                    <DialogDescription>Add a new customer to your database. This will be saved permanently.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="create-customer-name">Customer Name</Label>
-                        <Input id="create-customer-name" value={name} onChange={e => setName(e.target.value)} required />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="create-customer-phone">Phone Number</Label>
-                        <Input id="create-customer-phone" value={phone} onChange={e => setPhone(e.target.value)} required />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="create-customer-email">Email</Label>
-                        <Input id="create-customer-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="create-customer-address">Address (Optional)</Label>
-                        <Input id="create-customer-address" value={address} onChange={e => setAddress(e.target.value)} />
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSave}>Create Customer</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     )
 }
 
-function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: OrderItem[] }) {
-    const { toast } = useToast();
+function DateRangeFilter({ date, setDate, align = 'end' }: { date: DateRange | undefined, setDate: (date: DateRange | undefined) => void, align?: "start" | "center" | "end" }) {
+    const [tempDate, setTempDate] = useState<DateRange | undefined>(date);
     const [isOpen, setIsOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [cart, setCart] = useState<OrderItem[]>([]);
-    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Paystack' | 'POS'>('Cash');
-    const [customers, setCustomers] = useState<Customer[]>([]);
-    const [customerType, setCustomerType] = useState<'walk-in' | 'registered'>('walk-in');
-    const [selectedCustomerId, setSelectedCustomerId] = useState<string>('walk-in');
-    const [customerName, setCustomerName] = useState('');
-
-    const fetchCustomers = useCallback(() => {
-        getDocs(collection(db, 'customers')).then(snap => {
-            setCustomers(snap.docs.map(d => ({ ...d.data(), id: d.id } as Customer)));
-        });
-    }, []);
 
     useEffect(() => {
-        if (isOpen) {
-           fetchCustomers();
-            setCart([]);
-            setCustomerType('walk-in');
-            setSelectedCustomerId('walk-in');
-            setCustomerName('');
-            setPaymentMethod('Cash');
-        }
-    }, [isOpen, fetchCustomers]);
-    
-    const handleAddToCart = (item: OrderItem) => {
-        setCart(prev => {
-            const existing = prev.find(p => p.productId === item.productId);
-            if (existing) {
-                if (existing.quantity < item.quantity) {
-                    return prev.map(p => p.productId === item.productId ? { ...p, quantity: p.quantity + 1 } : p);
-                } else {
-                    toast({ variant: 'destructive', title: 'Stock Limit', description: `Only ${item.quantity} units available.` });
-                    return prev;
-                }
-            }
-            return [...prev, { ...item, quantity: 1, name: item.productName }];
-        });
-    };
+        setTempDate(date);
+    }, [date]);
 
-    const updateCartQuantity = (productId: string, change: number) => {
-        setCart(prev => {
-            return prev.map(item => {
-                if (item.productId === productId) {
-                    const newQuantity = item.quantity + change;
-                    const stockLimit = remainingItems.find(i => i.productId === productId)?.quantity || 0;
-                    if (newQuantity <= 0) return null;
-                    if (newQuantity > stockLimit) {
-                         toast({ variant: 'destructive', title: 'Stock Limit', description: `Only ${stockLimit} units available.` });
-                         return { ...item, quantity: stockLimit };
-                    }
-                    return { ...item, quantity: newQuantity };
-                }
-                return item;
-            }).filter(Boolean) as OrderItem[];
-        })
-    };
-
-    const onCustomerCreated = (newCustomer: Customer) => {
-        fetchCustomers();
-        setCustomerType('registered');
-        setSelectedCustomerId(newCustomer.id);
+    const handleApply = () => {
+        setDate(tempDate);
+        setIsOpen(false);
     }
-    
-    useEffect(() => {
-        if (customerType === 'walk-in') {
-            setSelectedCustomerId('walk-in');
-            if(paymentMethod === 'Credit') setPaymentMethod('Cash');
-        } else {
-             setSelectedCustomerId('');
-        }
-    }, [customerType, paymentMethod]);
-
-    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    
-    const handleSubmit = async () => {
-        if (!user || cart.length === 0 || (paymentMethod === 'Credit' && selectedCustomerId === 'walk-in')) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please add items to cart and select a registered customer for credit sales.' });
-            return;
-        }
-
-        setIsLoading(true);
-        const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
-
-        const saleData = {
-            runId: run.id,
-            items: cart.map(item => ({...item, productId: item.productId || '' })),
-            customerId: selectedCustomerId,
-            customerName: customerType === 'walk-in' ? (customerName || 'Walk-in') : (selectedCustomer?.name || 'Registered Customer'),
-            paymentMethod,
-            staffId: user.staff_id,
-            total,
-        };
-        const result = await handleSellToCustomer(saleData);
-
-        if (result.success && result.orderId) {
-            toast({ title: 'Success', description: 'Sale has been recorded.' });
-            onSaleMade({
-                id: result.orderId,
-                items: cart,
-                total,
-                date: new Date(),
-                paymentMethod,
-                customerName: saleData.customerName,
-                status: 'Completed',
-                subtotal: total, tax: 0
-            });
-            setIsOpen(false);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setIsLoading(false);
-    };
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                 <Button className="w-full" disabled={run.status !== 'active'}>
-                    <PlusCircle className="mr-2 h-5 w-5"/>
-                    <span>Standard Sale</span>
+         <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <PopoverTrigger asChild>
+                <Button id="date" variant={"outline"} className={cn("w-full sm:w-[260px] justify-start text-left font-normal",!date && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date?.from ? ( date.to ? (<> {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")} </>) : (format(date.from, "LLL dd, y"))) : (<span>Filter by date range</span>)}
                 </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-3xl">
-                <DialogHeader>
-                    <DialogTitle>Sell to Customer</DialogTitle>
-                    <DialogDescription>Record a sale at the standard product price.</DialogDescription>
-                </DialogHeader>
-                 <div className="grid md:grid-cols-2 gap-6 py-4">
-                    <div className="space-y-2">
-                        <h4 className="font-semibold">Available Items</h4>
-                        <div className="border rounded-md max-h-96 overflow-y-auto">
-                            {remainingItems.map(item => (
-                                <div key={item.productId} className="p-2 flex justify-between items-center border-b gap-2">
-                                    <div>
-                                        <p>{item.productName}</p>
-                                        <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
-                                    </div>
-                                    <p className="text-sm">Avail: {item.quantity}</p>
-                                    <Button size="icon" variant="outline" onClick={() => handleAddToCart(item)}><PlusCircle className="h-4 w-4"/></Button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>Customer</Label>
-                            <div className="flex items-center gap-2">
-                                <Select value={customerType} onValueChange={(v) => setCustomerType(v as any)}>
-                                    <SelectTrigger><SelectValue/></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="walk-in">Walk-in</SelectItem>
-                                        <SelectItem value="registered">Registered</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <CreateCustomerDialog onCustomerCreated={onCustomerCreated}>
-                                    <Button variant="outline" size="sm">New Customer</Button>
-                                </CreateCustomerDialog>
-                            </div>
-                        </div>
-                        {customerType === 'registered' ? (
-                            <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                                <SelectTrigger><SelectValue placeholder="Select a customer..." /></SelectTrigger>
-                                <SelectContent>
-                                    {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        ) : (
-                            <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Walk-in Customer Name"/>
-                        )}
-
-                        <h4 className="font-semibold pt-4">Cart</h4>
-                        <div className="border rounded-md p-2 space-y-2 min-h-32 max-h-60 overflow-y-auto">
-                           {cart.length === 0 ? <p className="text-center text-muted-foreground text-sm p-4">Cart is empty</p> : (
-                                cart.map(item => (
-                                    <div key={item.productId} className="flex justify-between items-center">
-                                        <div>
-                                            <p className="font-medium">{item.name}</p>
-                                            <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateCartQuantity(item.productId, -1)}><Minus className="h-3 w-3"/></Button>
-                                            <span className="w-5 text-center font-bold">{item.quantity}</span>
-                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateCartQuantity(item.productId, 1)}><Plus className="h-3 w-3"/></Button>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                        <div className="font-bold text-right">Total: {formatCurrency(total)}</div>
-                        <div className="space-y-2">
-                            <Label>Payment Method</Label>
-                            <Select onValueChange={(value) => setPaymentMethod(value as any)} value={paymentMethod}>
-                                <SelectTrigger><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</SelectItem>
-                                    <SelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</SelectItem>
-                                    <SelectItem value="Paystack"><ArrowRightLeft className="mr-2 h-4 w-4"/> Paystack</SelectItem>
-                                    <SelectItem value="Credit" disabled={customerType==='walk-in'}><CreditCard className="mr-2 h-4 w-4"/> Credit</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align={align}>
+                <Calendar initialFocus mode="range" defaultMonth={tempDate?.from} selected={tempDate} onSelect={setTempDate} numberOfMonths={2}/>
+                <div className="p-2 border-t flex justify-end">
+                    <Button onClick={handleApply}>Apply</Button>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isLoading}>
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Record Sale
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            </PopoverContent>
+        </Popover>
     )
 }
 
-function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: SalesRun, user: User | null, onSaleMade: (order: CompletedOrder) => void, remainingItems: OrderItem[] }) {
+
+function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[], onApproval: () => void }) {
     const { toast } = useToast();
-    const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [cart, setCart] = useState<OrderItem[]>([]);
-    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'POS' | 'Credit'>('Cash');
-    const [customers, setCustomers] = useState<Customer[]>([]);
-    const [customerType, setCustomerType] = useState<'walk-in' | 'registered'>('walk-in');
-    const [selectedCustomerId, setSelectedCustomerId] = useState<string>('walk-in');
-    const [customerName, setCustomerName] = useState('');
-    const [priceErrors, setPriceErrors] = useState<Record<string, string>>({});
-
-    const fetchCustomers = useCallback(() => {
-        getDocs(collection(db, 'customers')).then(snap => {
-            setCustomers(snap.docs.map(d => ({ ...d.data(), id: d.id } as Customer)));
-        });
-    }, []);
-
-    useEffect(() => {
-        if (isOpen) {
-           fetchCustomers();
-            setCart([]);
-            setCustomerType('walk-in');
-            setSelectedCustomerId('walk-in');
-            setCustomerName('');
-            setPaymentMethod('Cash');
-            setPriceErrors({});
-        }
-    }, [isOpen, fetchCustomers]);
-
-    const handlePriceChange = (productId: string, newPriceStr: string) => {
-        const newPrice = Number(newPriceStr);
-        setCart(prev => prev.map(item => item.productId === productId ? { ...item, price: isNaN(newPrice) ? 0 : newPrice } : item));
-
-        const product = remainingItems.find(p => p.productId === productId);
-        const minPrice = product?.minPrice ?? 0;
-        const maxPrice = product?.maxPrice ?? Infinity;
-        
-        setPriceErrors(prev => {
-            const newErrors = {...prev};
-            if (newPrice < minPrice) {
-                newErrors[productId] = `Price cannot be less than ${formatCurrency(minPrice)}.`;
-            } else if (newPrice > maxPrice) {
-                 newErrors[productId] = `Price cannot be more than ${formatCurrency(maxPrice)}.`;
-            } else {
-                delete newErrors[productId];
-            }
-            return newErrors;
-        });
-    };
-
-    const handleItemChange = (index: number, field: 'productId' | 'quantity', value: string) => {
-        const newItems = [...cart];
-        const item = newItems[index];
-
-        if(field === 'productId') {
-            const product = remainingItems.find(p => p.productId === value);
-            newItems[index] = { ...item, productId: value, name: product?.productName || '', price: product?.price || 0, minPrice: product?.minPrice, maxPrice: product?.maxPrice, quantity: 1 };
-        } else {
-            const productInfo = remainingItems.find(p => p.productId === item.productId);
-            const newQuantity = Number(value);
-            if (productInfo && newQuantity > productInfo.quantity) {
-                 toast({ variant: 'destructive', title: 'Error', description: `Cannot add more than ${productInfo.quantity} units.` });
-                newItems[index].quantity = productInfo.quantity;
-            } else {
-                newItems[index].quantity = newQuantity;
-            }
-        }
-        setCart(newItems);
-    }
-    
-    const handleAddItem = () => {
-        setCart(prev => [...prev, { productId: '', name: '', quantity: 1, price: 0 }]);
-    }
-
-    const handleRemoveItem = (index: number) => {
-        setCart(prev => prev.filter((_, i) => i !== index));
-    }
-
-    useEffect(() => {
-        if (customerType === 'walk-in') {
-            setSelectedCustomerId('walk-in');
-            if(paymentMethod === 'Credit') setPaymentMethod('Cash');
-        } else {
-             setSelectedCustomerId('');
-        }
-    }, [customerType, paymentMethod]);
-
-
-    const onCustomerCreated = (newCustomer: Customer) => {
-        fetchCustomers();
-        setCustomerType('registered');
-        setSelectedCustomerId(newCustomer.id);
-    }
-
-    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const hasErrors = Object.keys(priceErrors).length > 0;
-    
-    const handleSubmit = async () => {
-        if (!user || hasErrors || cart.some(item => !item.productId || item.quantity <= 0) || (paymentMethod === 'Credit' && selectedCustomerId === 'walk-in')) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please fix all errors and fill required fields.' });
-            return;
-        }
-
-        setIsLoading(true);
-        const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
-        const saleData = {
-            runId: run.id,
-            items: cart.map(item => ({...item, productId: item.productId || '' })),
-            customerId: selectedCustomerId,
-            customerName: customerType === 'walk-in' ? (customerName || 'Walk-in') : (selectedCustomer?.name || 'Registered Customer'),
-            paymentMethod,
-            staffId: user.staff_id,
-            total,
-        };
-        const result = await handleSellToCustomer(saleData);
-
-        if (result.success && result.orderId) {
-            toast({ title: 'Pending Approval', description: 'Custom sale has been submitted for accountant approval.' });
-            setIsOpen(false);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-        setIsLoading(false);
-    };
-
-    return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                <Button variant="secondary" className="w-full" disabled={run.status !== 'active'}>
-                    <FileSignature className="mr-2 h-5 w-5"/>
-                    <span>Log Custom Sale</span>
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>Log Custom Price Sale</DialogTitle>
-                    <DialogDescription>Sell items at a custom price. This will require approval from an accountant.</DialogDescription>
-                </DialogHeader>
-                 <div className="py-4 space-y-4">
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Customer</Label>
-                            <div className="flex items-center gap-2">
-                                <Select value={customerType} onValueChange={(v) => setCustomerType(v as any)}>
-                                    <SelectTrigger><SelectValue/></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="walk-in">Walk-in</SelectItem>
-                                        <SelectItem value="registered">Registered</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <CreateCustomerDialog onCustomerCreated={onCustomerCreated}>
-                                    <Button variant="outline" size="sm">New Customer</Button>
-                                </CreateCustomerDialog>
-                            </div>
-                        </div>
-                        {customerType === 'registered' ? (
-                            <div className="space-y-2">
-                                <Label>Select Customer</Label>
-                                <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                                    <SelectTrigger><SelectValue placeholder="Select a customer..." /></SelectTrigger>
-                                    <SelectContent>
-                                        {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                <Label>Customer Name</Label>
-                                <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Walk-in Customer Name"/>
-                             </div>
-                        )}
-                    </div>
-                     <div className="space-y-2">
-                        <h4 className="font-semibold">Items</h4>
-                         <div className="border rounded-md p-2 space-y-4 max-h-60 overflow-y-auto">
-                            {cart.length === 0 ? <p className="text-center text-muted-foreground text-sm p-4">Cart is empty</p> : (
-                                 cart.map((item, index) => {
-                                    const product = remainingItems.find(p => p.productId === item.productId);
-                                    return (
-                                    <div key={`cart-item-${index}`} className="space-y-2 border-b pb-2 last:border-b-0">
-                                        <div className="flex justify-between items-start">
-                                            <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
-                                                <SelectTrigger className="w-2/3"><SelectValue placeholder="Select Product" /></SelectTrigger>
-                                                <SelectContent>
-                                                    {remainingItems.map(p => (
-                                                        <SelectItem key={p.productId} value={p.productId}>{p.productName} (Avail: {p.quantity})</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <Input type="number" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', e.target.value)} placeholder="Qty"/>
-                                            <Input type="number" value={item.price} onChange={e => handlePriceChange(item.productId, e.target.value)} className={priceErrors[item.productId] ? 'border-destructive' : ''} placeholder="Price per item" />
-                                        </div>
-                                        {priceErrors[item.productId] && <p className="text-xs text-destructive">{priceErrors[item.productId]}</p>}
-                                        <p className="text-xs text-muted-foreground">Standard Price: {formatCurrency(product?.price)}, Range: {formatCurrency(product?.minPrice)} - {formatCurrency(product?.maxPrice)}</p>
-                                    </div>
-                                    )
-                                })
-                            )}
-                        </div>
-                        <Button variant="outline" size="sm" onClick={handleAddItem}><PlusCircle className="mr-2 h-4 w-4"/>Add Item</Button>
-                    </div>
-                    <div className="font-bold text-right">Total: {formatCurrency(total)}</div>
-                     <div className="space-y-2">
-                        <Label>Payment Method</Label>
-                        <Select onValueChange={(value) => setPaymentMethod(value as any)} defaultValue={paymentMethod}>
-                            <SelectTrigger><SelectValue/></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</SelectItem>
-                                <SelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</SelectItem>
-                                <SelectItem value="Credit" disabled={customerType === 'walk-in'}><CreditCard className="mr-2 h-4 w-4"/> Credit</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isLoading || hasErrors}>
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Submit for Approval
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-function LogExpenseDialog({ run, user }: { run: SalesRun, user: User | null }) {
-    const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
-    const [amount, setAmount] = useState<number | string>('');
-    const [description, setDescription] = useState('');
-    const [category, setCategory] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const handleSubmit = async () => {
-        if (!amount || !description || !category || !user) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all fields.' });
-            return;
-        }
-
-        setIsSubmitting(true);
-        const result = await logRunExpense({
-            runId: run.id,
-            driverId: user.staff_id,
-            driverName: user.name,
-            amount: Number(amount),
-            category,
-            description,
+    
+    const ingredientsWithStock = useMemo(() => {
+        return batch.ingredients.map(reqIng => {
+            const stockIng = allIngredients.find(sIng => sIng.id === reqIng.ingredientId);
+            const stockAvailable = stockIng?.stock || 0;
+            const hasEnough = stockAvailable >= reqIng.quantity;
+            return { ...reqIng, stockAvailable, hasEnough };
         });
+    }, [batch.ingredients, allIngredients]);
 
+    const canApprove = ingredientsWithStock.every(ing => ing.hasEnough);
+    
+    const handleApprove = async () => {
+        setIsLoading(true);
+        const result = await approveIngredientRequest(batch.id, batch.ingredients, user);
         if (result.success) {
-            toast({ title: 'Expense Submitted', description: 'Your expense has been sent for approval.' });
+            toast({ title: 'Success', description: 'Batch approved and moved to production.' });
+            onApproval();
             setIsOpen(false);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-        setIsSubmitting(false);
-    };
+        setIsLoading(false);
+    }
+
+    const handleDecline = async () => {
+        setIsLoading(true);
+        const result = await declineProductionBatch(batch.id, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Batch has been declined.' });
+            onApproval();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsLoading(false);
+    }
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                 <Button variant="outline" className="w-full" disabled={run.status !== 'active'}>
-                    <Fuel className="mr-2 h-5 w-5"/>
-                    <span>Log Run Expense</span>
-                </Button>
-            </DialogTrigger>
+            <DialogTrigger asChild><Button size="sm">Review</Button></DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Log Run Expense</DialogTitle>
-                    <DialogDescription>Record an expense incurred during this sales run. It will be submitted for approval.</DialogDescription>
+                    <DialogTitle>Approve Production Batch?</DialogTitle>
+                    <DialogDescription>
+                        Batch ID: {batch.id.substring(0,6)}...<br/>
+                        Request for <strong>{batch.quantityToProduce} x {batch.productName}</strong>. This will deduct ingredients from inventory.
+                    </DialogDescription>
+                    <DialogClose />
                 </DialogHeader>
-                <div className="py-4 space-y-4">
-                     <div className="space-y-2">
-                        <Label htmlFor="expense-category">Expense Category</Label>
-                        <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger><SelectValue placeholder="Select a category..."/></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Fuel">Fuel</SelectItem>
-                                <SelectItem value="Toll">Toll / Levies</SelectItem>
-                                <SelectItem value="Vehicle-Repairs">Vehicle Repairs</SelectItem>
-                                <SelectItem value="Other">Other</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="expense-description">Description</Label>
-                        <Textarea id="expense-description" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Bought 10L of petrol at XYZ station"/>
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="expense-amount">Amount (₦)</Label>
-                        <Input id="expense-amount" type="number" value={amount} onChange={e => setAmount(e.target.value)} />
-                    </div>
+                <div className="max-h-60 overflow-y-auto">
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Ingredient</TableHead><TableHead>Required</TableHead><TableHead>In Stock</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {ingredientsWithStock.map(ing => (
+                                <TableRow key={ing.ingredientId}>
+                                    <TableCell>{ing.ingredientName}</TableCell>
+                                    <TableCell>{ing.quantity} {ing.unit}</TableCell>
+                                    <TableCell>{ing.stockAvailable.toFixed(2)} {ing.unit}</TableCell>
+                                    <TableCell>
+                                        {ing.hasEnough ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-destructive" />}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isSubmitting}>
-                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Submit for Approval
+                <DialogFooter className="gap-2">
+                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                     <Button variant="destructive" onClick={handleDecline} disabled={isLoading}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4" />}
+                        Decline
+                    </Button>
+                     <Button onClick={handleApprove} disabled={isLoading || !canApprove}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
+                        Approve
                     </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    );
+    )
 }
 
-function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run: SalesRun, user: User, onWasteReported: () => void, remainingItems: { productId: string; productName: string; price: number; quantity: number }[] }) {
+function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void }) {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const handleAction = async (action: 'accept' | 'decline') => {
+        setIsSubmitting(true);
+        await onAccept(transfer.id, action);
+        setIsSubmitting(false);
+    }
+
+    return (
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Acknowledge Transfer: {transfer.id.substring(0, 6).toUpperCase()}</AlertDialogTitle>
+                <AlertDialogDescription>
+                    You are about to accept responsibility for the following items. This action cannot be undone.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-4 max-h-[400px] overflow-y-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead>Quantity</TableHead>
+                            <TableHead className="text-right">Value</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {transfer.items.map(item => (
+                            <TableRow key={item.productId}>
+                                <TableCell>{item.productName}</TableCell>
+                                <TableCell>{item.quantity}</TableCell>
+                                <TableCell className="text-right">₦{((item.price || 0) * item.quantity).toLocaleString()}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+            {transfer.notes && (
+                <div className="text-sm space-y-1 mt-2">
+                    <p className="font-semibold">Notes from Sender:</p>
+                    <p className="p-2 bg-muted rounded-md">{transfer.notes}</p>
+                </div>
+            )}
+            <div className="font-bold text-lg flex justify-between border-t pt-4">
+                <span>Total Run Value:</span>
+                <span>₦{(transfer.totalValue || 0).toLocaleString()}</span>
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleAction('decline')} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Decline
+                </AlertDialogAction>
+                <AlertDialogAction onClick={() => handleAction('accept')} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Accept
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    )
+}
+
+function ReportWasteTab({ products, user, onWasteReported }: { products: { productId: string; productName: string; stock: number }[], user: User | null, onWasteReported: () => void }) {
     const { toast } = useToast();
-    const [isOpen, setIsOpen] = useState(false);
     const [items, setItems] = useState<{ productId: string, quantity: number | string }[]>([{ productId: '', quantity: 1 }]);
     const [reason, setReason] = useState("");
     const [notes, setNotes] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => {
-        if(isOpen) {
-            setItems([{ productId: '', quantity: 1 }]);
-            setReason('');
-            setNotes('');
-        }
-    }, [isOpen]);
-
     const handleItemChange = (index: number, field: 'productId' | 'quantity', value: string) => {
         const newItems = [...items];
         if (field === 'quantity') {
             const numValue = Number(value);
-            const productInfo = remainingItems.find(p => p.productId === newItems[index].productId);
-            if (productInfo && numValue > productInfo.quantity) {
-                toast({ variant: 'destructive', title: 'Error', description: `Cannot report more than ${productInfo.quantity} units of waste for this item.` });
-                newItems[index][field] = productInfo.quantity;
+            const productInfo = products.find(p => p.productId === newItems[index].productId);
+            if (productInfo && numValue > productInfo.stock) {
+                toast({ variant: 'destructive', title: 'Error', description: `Cannot report more than ${productInfo.stock} units of waste for this item.` });
+                newItems[index][field] = productInfo.stock;
             } else {
                 newItems[index][field] = value === '' ? '' : numValue;
             }
@@ -815,8 +349,8 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
     };
 
     const handleSubmit = async () => {
-        if (items.some(item => !item.productId || !item.quantity || Number(item.quantity) <= 0) || !reason) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please fill out all product and reason fields correctly.' });
+        if (items.some(item => !item.productId || !item.quantity || Number(item.quantity) <= 0) || !reason || !user) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fill all required fields.' });
             return;
         }
 
@@ -840,851 +374,832 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
         const result = await handleReportWaste(dataToSubmit, user);
 
         if (result.success) {
-            toast({ title: 'Success', description: 'Waste reported successfully. Your inventory has been updated.' });
-            onWasteReported();
-            setIsOpen(false);
+            toast({ title: 'Success', description: 'Waste reported successfully. Inventory has been updated.' });
+            setItems([{ productId: '', quantity: 1 }]);
+            setReason("");
+            setNotes("");
+            onWasteReported(); // Callback to refresh product list
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
         setIsSubmitting(false);
-    };
-
+    }
+    
     const getAvailableProductsForRow = (rowIndex: number) => {
         const selectedIdsInOtherRows = new Set(
             items.filter((_, i) => i !== rowIndex).map(item => item.productId)
         );
-        return remainingItems.filter(p => !selectedIdsInOtherRows.has(p.productId));
+        return products.filter(p => !selectedIdsInOtherRows.has(p.productId));
     };
-
+    
     return (
-       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                <Button variant="secondary" className="w-full" disabled={run.status !== 'active' || remainingItems.length === 0}>
-                    <Trash className="mr-2 h-5 w-5"/>
-                    <span>Report Waste</span>
-                </Button>
-            </DialogTrigger>
-            <DialogContent>
-                 <DialogHeader>
-                    <DialogTitle>Report Spoiled or Damaged Stock</DialogTitle>
-                    <DialogDescription>
-                        Select items from this sales run that are no longer sellable. This will deduct them from your personal inventory.
-                    </DialogDescription>
-                </DialogHeader>
-                 <div className="space-y-6 py-4">
+        <Card className="flex-1">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Trash /> Report Spoiled or Damaged Stock</CardTitle>
+                <CardDescription>
+                    Use this form to report any items that are no longer sellable from your personal stock. This will deduct the items from your inventory.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <Label>Items to Report</Label>
                     <div className="space-y-2">
-                        <Label>Items to Report</Label>
-                        <div className="space-y-2">
-                            {items.map((item, index) => {
-                                const availableProducts = getAvailableProductsForRow(index);
-                                return (
-                                    <div key={`waste-item-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
-                                        <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
-                                            <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
-                                            <SelectContent>
-                                                {availableProducts.map((p) => (
-                                                    <SelectItem key={`${p.productId}-${index}`} value={p.productId}>
-                                                        {p.productName} (Avail: {p.quantity})
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
-                                        <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                        <Button variant="outline" size="sm" className="mt-2" onClick={handleAddItem}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Add Another Item
-                        </Button>
+                        {items.map((item, index) => {
+                            const availableProducts = getAvailableProductsForRow(index);
+                            return (
+                                <div key={`waste-item-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
+                                    <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
+                                        <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
+                                        <SelectContent>
+                                            {availableProducts.map((p, pIndex) => (
+                                                <SelectItem key={`${p.productId}-${index}-${pIndex}`} value={p.productId}>
+                                                    {p.productName} (Stock: {p.stock})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
+                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                </div>
+                            )
+                        })}
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="waste-reason">Reason for Waste</Label>
-                        <Select value={reason} onValueChange={setReason}>
-                            <SelectTrigger id="waste-reason">
-                                <SelectValue placeholder="Select a reason" />
-                            </SelectTrigger>
-                            <SelectContent>
-                            <SelectItem value="Spoiled">Spoiled / Expired</SelectItem>
-                            <SelectItem value="Damaged">Damaged</SelectItem>
-                            <SelectItem value="Error">Error (Mistake)</SelectItem>
-                            <SelectItem value="Other">Other</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="waste-notes">Additional Notes (Optional)</Label>
-                        <Input id="waste-notes" value={notes} onChange={e => setNotes(e.target.value)} />
-                    </div>
+                    <Button variant="outline" size="sm" className="mt-2" onClick={handleAddItem}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Another Item
+                    </Button>
                 </div>
-                 <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                 <div className="space-y-2">
+                    <Label htmlFor="waste-reason">Reason for Waste</Label>
+                    <Select value={reason} onValueChange={setReason}>
+                        <SelectTrigger id="waste-reason">
+                            <SelectValue placeholder="Select a reason" />
+                        </SelectTrigger>
+                        <SelectContent>
+                           <SelectItem value="Spoiled">Spoiled / Expired</SelectItem>
+                           <SelectItem value="Damaged">Damaged</SelectItem>
+                           <SelectItem value="Burnt">Burnt (Production)</SelectItem>
+                           <SelectItem value="Error">Error (Mistake)</SelectItem>
+                           <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="waste-notes">Additional Notes (Optional)</Label>
+                    <Textarea id="waste-notes" value={notes} onChange={e => setNotes(e.target.value)} />
+                </div>
+                <div className="flex justify-end">
                     <Button onClick={handleSubmit} disabled={isSubmitting}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         Submit Report
                     </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 
-function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, run: SalesRun, user: User | null }) {
-    const { toast } = useToast();
-    const [isOpen, setIsOpen] = useState(false);
-    const [amount, setAmount] = useState<number | string>('');
-    const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'POS'>('Cash');
-    const [customerEmail, setCustomerEmail] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
+export default function StockControlPage() {
+  const { toast } = useToast();
+  const [user, setUser] = useState<User | null>(null);
+  const [transferTo, setTransferTo] = useState("");
+  const [isSalesRun, setIsSalesRun] = useState(false);
+  const [isSalesRunDisabled, setIsSalesRunDisabled] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [items, setItems] = useState<Partial<TransferItem>[]>([
+    { productId: "", quantity: 1 },
+  ]);
+  
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [initiatedTransfers, setInitiatedTransfers] = useState<Transfer[]>([]);
+  const [pendingTransfers, setPendingTransfers] = useState<Transfer[]>([]);
+  const [productionTransfers, setProductionTransfers] = useState<Transfer[]>([]);
+  const [pendingBatches, setPendingBatches] = useState<ProductionBatch[]>([]);
+  const [completedTransfers, setCompletedTransfers] = useState<Transfer[]>([]);
+  const [myWasteLogs, setMyWasteLogs] = useState<WasteLog[]>([]);
+  const [personalStock, setPersonalStock] = useState<{ productId: string, productName: string, stock: number }[]>([]);
+  
+  const [date, setDate] = useState<DateRange | undefined>();
+  const [allPendingDate, setAllPendingDate] = useState<DateRange | undefined>();
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingBatches, setIsLoadingBatches] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const outstanding = customer.totalSold - customer.totalPaid;
-    
-    useEffect(() => {
-        const fetchCustomerEmail = async () => {
-            if (customer.customerId !== 'walk-in') {
-                const customerDoc = await getDoc(doc(db, "customers", customer.customerId));
-                if (customerDoc.exists()) {
-                    setCustomerEmail(customerDoc.data().email || '');
-                }
+  const [visiblePendingRows, setVisiblePendingRows] = useState<number | 'all'>(10);
+  const [visibleHistoryRows, setVisibleHistoryRows] = useState<number | 'all'>(10);
+  const [visibleLogRows, setVisibleLogRows] = useState<number | 'all'>(10);
+  const [visibleAllPendingRows, setVisibleAllPendingRows] = useState<number | 'all'>(10);
+  
+  const fetchPageData = useCallback(async () => {
+        const userStr = localStorage.getItem('loggedInUser');
+        if (!userStr) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
+            setIsLoading(false);
+            return;
+        }
+        const currentUser = JSON.parse(userStr);
+        setUser(currentUser);
+
+        try {
+            const staffQuery = query(collection(db, "staff"), where("role", "!=", "Developer"));
+            const staffSnapshot = await getDocs(staffQuery);
+            setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
+
+            const userRole = currentUser.role;
+            if (userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper') {
+                const productsSnapshot = await getDocs(collection(db, "products"));
+                setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
             }
-        }
-        if (isOpen) {
-            fetchCustomerEmail();
-        }
-    }, [isOpen, customer.customerId]);
+             
+            if (userRole === 'Delivery Staff' || userRole === 'Showroom Staff') {
+                const stockData = await getProductsForStaff(currentUser.staff_id);
+                setPersonalStock(stockData.map(d => ({productId: d.productId, productName: d.name, stock: d.stock})));
+            }
+            
+             const [pendingData, completedData, wasteData, prodTransfers, ingredientsSnapshot, initiatedTransfersSnapshot] = await Promise.all([
+                getPendingTransfersForStaff(currentUser.staff_id),
+                getCompletedTransfersForStaff(currentUser.staff_id),
+                getWasteLogsForStaff(currentUser.staff_id),
+                getProductionTransfers(),
+                getDocs(collection(db, "ingredients")),
+                getDocs(query(collection(db, "transfers"), orderBy("date", "desc")))
+            ]);
 
-    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        if (value === '') {
-            setAmount('');
-            return;
-        }
+            setPendingTransfers(pendingData);
+            setCompletedTransfers(completedData);
+            setMyWasteLogs(wasteData);
+            setProductionTransfers(prodTransfers);
+            setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock } as Ingredient)));
+            setInitiatedTransfers(initiatedTransfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
 
-        const numValue = parseFloat(value);
-        if (isNaN(numValue)) {
-            return;
+        } catch (error) {
+            console.error("Error fetching data:", error);
+            toast({ variant: "destructive", title: "Error", description: "Failed to load necessary data." });
+        } finally {
+            setIsLoading(false);
         }
+    }, [toast]);
 
-        if (numValue > outstanding) {
-            setAmount(outstanding);
-            toast({ variant: 'destructive', title: 'Limit Exceeded', description: `Amount cannot be more than the outstanding balance of ${formatCurrency(outstanding)}` });
-        } else {
-            setAmount(numValue);
-        }
-    };
+  useEffect(() => {
+    setIsLoading(true);
+    fetchPageData();
 
+    setIsLoadingBatches(true);
+    const userStr = localStorage.getItem('loggedInUser');
+    if (userStr) {
+        const currentUser = JSON.parse(userStr);
 
-    const handleRecordPayment = async () => {
-        if (!user || !run) return;
-        const paymentAmount = Number(amount);
-        if (isNaN(paymentAmount) || paymentAmount <= 0) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please enter a valid amount.' });
-            return;
-        }
-        if (paymentAmount > outstanding) {
-            toast({ variant: 'destructive', title: 'Error', description: `Payment cannot exceed outstanding balance of ₦${outstanding.toLocaleString()}.` });
-            return;
-        }
-
-        setIsSubmitting(true);
+        const qPendingTransfers = query(collection(db, "transfers"), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'));
+        const unsubTransfers = onSnapshot(qPendingTransfers, async (snapshot) => {
+            const transfers = await Promise.all(snapshot.docs.map(async (docSnap) => {
+                 const data = docSnap.data();
+                 let totalValue = 0;
+                 const itemsWithPrices = await Promise.all(
+                    (data.items || []).map(async (item: any) => {
+                        const productDoc = await getDoc(doc(db, 'products', item.productId));
+                        const price = productDoc.exists() ? productDoc.data().price : 0;
+                        totalValue += price * item.quantity;
+                        return { ...item, price };
+                    })
+                );
+                 return { 
+                    id: docSnap.id,
+                    ...data,
+                    items: itemsWithPrices,
+                    totalValue,
+                    date: (data.date as Timestamp).toDate().toISOString(),
+                 } as Transfer;
+            }));
+            setPendingTransfers(transfers);
+        });
         
-        const result = await handleRecordDebtPaymentForRun({
-            runId: run.id,
-            customerId: customer.customerId,
-            customerName: customer.customerName,
-            driverId: run.to_staff_id,
-            driverName: run.to_staff_name || 'Unknown Driver',
-            amount: paymentAmount,
-            paymentMethod,
+        const qPendingBatches = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
+        const unsubBatches = onSnapshot(qPendingBatches, (snapshot) => {
+            setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate().toISOString() } as ProductionBatch)));
+            setIsLoadingBatches(false);
         });
 
-        if (result.success) {
-            toast({ title: 'Success', description: 'Debt payment recorded for approval.' });
-            setAmount('');
-            setIsOpen(false);
+        return () => {
+            unsubTransfers();
+            unsubBatches();
+        };
+    }
+  }, [fetchPageData]);
+
+  const handleTransferToChange = (staffId: string) => {
+    setTransferTo(staffId);
+    const selectedStaff = staff.find(s => s.staff_id === staffId);
+    if (selectedStaff) {
+        if (selectedStaff.role === 'Delivery Staff') {
+            setIsSalesRun(true);
+            setIsSalesRunDisabled(true);
+        } else if (selectedStaff.role === 'Showroom Staff') {
+            setIsSalesRun(false);
+            setIsSalesRunDisabled(true);
         } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+            setIsSalesRun(false);
+            setIsSalesRunDisabled(false);
         }
-        
-        setIsSubmitting(false);
-    };
+    }
+  }
+
+
+  const handleItemChange = (
+    index: number,
+    field: keyof TransferItem,
+    value: string | number
+  ) => {
+    const newItems = [...items];
+    const item = newItems[index];
+
+    if (field === "productId") {
+      const product = products.find(p => p.id === value);
+      item.productId = value as string;
+      item.productName = product?.name;
+    } else {
+        const product = products.find(p => p.id === item.productId);
+        const newQuantity = Number(value);
+        if (product && newQuantity > product.stock) {
+            toast({
+                variant: "destructive",
+                title: "Stock Exceeded",
+                description: `Cannot transfer more than ${product.stock} units of ${product.name}.`
+            });
+            item.quantity = product.stock;
+        } else {
+            item.quantity = newQuantity;
+        }
+    }
+    setItems(newItems);
+  };
+
+  const handleAddItem = () => {
+    setItems([...items, { productId: "", quantity: 1 }]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async () => {
+    if (!transferTo || items.some(i => !i.productId || !i.quantity) || !user) {
+        toast({ variant: "destructive", title: "Error", description: "Please select a staff member and fill all item fields."});
+        return;
+    }
+
+    for (const item of items) {
+        const product = products.find(p => p.id === item.productId);
+        if (!product || item.quantity! > product.stock) {
+            toast({
+                variant: "destructive",
+                title: "Validation Error",
+                description: `Stock for ${item.productName} is insufficient. Maximum: ${product?.stock}.`
+            });
+            return;
+        }
+    }
+
+    setIsSubmitting(true);
+    const staffMember = staff.find(s => s.staff_id === transferTo);
     
-    return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                 {outstanding > 0 && <Button size="sm" variant="outline">Record Payment</Button>}
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Record Payment for {customer.customerName}</DialogTitle>
-                    <DialogDescription>
-                        Outstanding Amount: <span className="font-bold text-destructive">₦{outstanding.toLocaleString()}</span>
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4 space-y-4">
-                    <div className="space-y-2">
-                        <Label>Payment Method</Label>
-                        <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as any)}>
-                            <SelectTrigger><SelectValue/></SelectTrigger>
+    const transferData = {
+        to_staff_id: transferTo,
+        to_staff_name: staffMember?.name || 'Unknown',
+        is_sales_run: isSalesRun,
+        notes: notes,
+        items: items as TransferItem[],
+    }
+
+    const result = await handleInitiateTransfer(transferData, user);
+
+    if (result.success) {
+        toast({ title: "Success", description: "Transfer initiated successfully." });
+        setTransferTo("");
+        setIsSalesRun(false);
+        setNotes("");
+        setItems([{ productId: "", quantity: 1 }]);
+        fetchPageData();
+
+    } else {
+        toast({ variant: "destructive", title: "Error", description: result.error });
+    }
+
+    setIsSubmitting(false);
+  };
+  
+  const handleAcknowledge = async (id: string, type: 'accept' | 'decline') => {
+    setIsSubmitting(true);
+    const result = await handleAcknowledgeTransfer(id, type);
+    if (result.success) {
+        const message = type === 'accept' ? 'Transfer accepted.' : 'Transfer has been declined.';
+        toast({ title: 'Success', description: message });
+        fetchPageData();
+    } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+    }
+    setIsSubmitting(false);
+  };
+
+  const paginatedPending = useMemo(() => {
+    return visiblePendingRows === 'all' ? pendingTransfers : pendingTransfers.slice(0, visiblePendingRows);
+  }, [pendingTransfers, visiblePendingRows]);
+
+  const paginatedHistory = useMemo(() => {
+    return visibleHistoryRows === 'all' ? completedTransfers : completedTransfers.slice(0, visibleHistoryRows);
+  }, [completedTransfers, visibleHistoryRows]);
+
+  const allPendingTransfers = useMemo(() => {
+    let filtered = initiatedTransfers.filter(t => t.status === 'pending');
+    if (allPendingDate?.from) {
+        const from = startOfDay(allPendingDate.from);
+        const to = allPendingDate.to ? endOfDay(allPendingDate.to) : endOfDay(allPendingDate.from);
+        filtered = filtered.filter(t => {
+            const transferDate = new Date(t.date);
+            return transferDate >= from && transferDate <= to;
+        })
+    }
+    return filtered;
+  }, [initiatedTransfers, allPendingDate]);
+
+  const paginatedAllPending = useMemo(() => {
+    return visibleAllPendingRows === 'all' ? allPendingTransfers : allPendingTransfers.slice(0, visibleAllPendingRows);
+  }, [allPendingTransfers, visibleAllPendingRows]);
+  
+  const paginatedLogs = useMemo(() => {
+    let filtered = initiatedTransfers;
+    if (date?.from) {
+        const from = startOfDay(date.from);
+        const to = date.to ? endOfDay(date.to) : endOfDay(date.from);
+        filtered = filtered.filter(t => {
+            const transferDate = new Date(t.date);
+            return transferDate >= from && transferDate <= to;
+        })
+    }
+    return visibleLogRows === 'all' ? filtered : filtered.slice(0, visibleLogRows);
+  }, [initiatedTransfers, visibleLogRows, date]);
+  
+  const getAvailableProductsForRow = (rowIndex: number) => {
+    const selectedIdsInOtherRows = new Set(
+        items.filter((_, i) => i !== rowIndex).map(item => item.productId)
+    );
+    return products.filter(p => !selectedIdsInOtherRows.has(p.id));
+  };
+
+  const userRole = user?.role;
+  const canInitiateTransfer = userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper';
+  
+  if (!user || isLoading) {
+    return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+  
+  if (!canInitiateTransfer) {
+     return (
+         <div className="flex flex-col gap-6">
+             <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
+            <div className="flex flex-col lg:flex-row gap-6">
+                 <div className="flex flex-col gap-6 flex-[2]">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Package />
+                                Acknowledge Incoming Stock
+                                {pendingTransfers.length > 0 && <Badge variant="destructive">{pendingTransfers.length}</Badge>}
+                            </CardTitle>
+                            <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>From</TableHead>
+                                        <TableHead>Type</TableHead>
+                                        <TableHead>Items</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                    ) : paginatedPending.length === 0 ? (
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
+                                    ) : (
+                                        paginatedPending.map(t => (
+                                            <TableRow key={t.id}>
+                                                <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                                <TableCell>{t.from_staff_name}</TableCell>
+                                                <TableCell>
+                                                    {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                             <Button size="sm">View & Acknowledge</Button>
+                                                        </AlertDialogTrigger>
+                                                        <AcceptRunDialog transfer={t} onAccept={handleAcknowledge} />
+                                                    </AlertDialog>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                        <CardFooter>
+                            <PaginationControls visibleRows={visiblePendingRows} setVisibleRows={setVisiblePendingRows} totalRows={pendingTransfers.length} />
+                        </CardFooter>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><History /> My Transfer History</CardTitle>
+                            <CardDescription>A log of all stock transfers you have successfully accepted.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Received</TableHead>
+                                        <TableHead>Completed</TableHead>
+                                        <TableHead>From</TableHead>
+                                        <TableHead>Type</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Action</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                    <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                ) : paginatedHistory.length === 0 ? (
+                                    <TableRow><TableCell colSpan={6} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
+                                ) : (
+                                    paginatedHistory.map(t => (
+                                        <TableRow key={t.id}>
+                                            <TableCell>{t.time_received ? format(new Date(t.time_received), 'Pp') : 'N/A'}</TableCell>
+                                            <TableCell>{t.time_completed ? format(new Date(t.time_completed), 'Pp') : 'N/A'}</TableCell>
+                                            <TableCell>{t.from_staff_name}</TableCell>
+                                            <TableCell>
+                                                {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
+                                            </TableCell>
+                                            <TableCell><Badge>{t.status}</Badge></TableCell>
+                                            <TableCell className="text-right">
+                                                {t.is_sales_run && t.status === 'active' && (
+                                                    <Button variant="outline" size="sm" asChild>
+                                                        <Link href={`/dashboard/deliveries`}><Eye className="mr-2 h-4 w-4"/>Manage Run</Link>
+                                                    </Button>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                         <CardFooter>
+                            <PaginationControls visibleRows={visibleHistoryRows} setVisibleRows={setVisibleHistoryRows} totalRows={completedTransfers.length} />
+                        </CardFooter>
+                    </Card>
+                </div>
+                <div className="flex-1">
+                    <ReportWasteTab products={personalStock} user={user} onWasteReported={fetchPageData} />
+                </div>
+            </div>
+         </div>
+     )
+  }
+
+  // Full view for admins
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
+      </div>
+      <Tabs defaultValue={userRole === 'Manager' ? 'pending-transfers' : 'initiate-transfer'}>
+        <div className="overflow-x-auto pb-2">
+            <TabsList>
+                {userRole !== 'Manager' && 
+                    <TabsTrigger value="initiate-transfer">
+                        <Send className="mr-2 h-4 w-4" /> Initiate Transfer
+                    </TabsTrigger>
+                }
+                 {userRole !== 'Manager' && 
+                    <TabsTrigger value="batch-approvals" className="relative">
+                        <Wrench className="mr-2 h-4 w-4" /> Batch Approvals
+                        {pendingBatches.length > 0 && (
+                            <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                                {pendingBatches.length}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
+                }
+                 {userRole !== 'Manager' && 
+                    <TabsTrigger value="production-transfers" className="relative">
+                        <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
+                        {productionTransfers.length > 0 && (
+                            <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                                {productionTransfers.length}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
+                }
+                <TabsTrigger value="pending-transfers" className="relative">
+                    <Hourglass className="mr-2 h-4 w-4" /> All Pending
+                    {allPendingTransfers.length > 0 && (
+                        <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                            {allPendingTransfers.length}
+                        </Badge>
+                    )}
+                </TabsTrigger>
+            </TabsList>
+        </div>
+        <TabsContent value="initiate-transfer">
+        <Card>
+            <CardHeader>
+            <CardTitle>Transfer Stock to Sales Floor</CardTitle>
+            <CardDescription>
+                Initiate a transfer of finished products from the main store to a
+                sales staff member.
+            </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                    <Label htmlFor="transfer-to">Transfer to</Label>
+                    <Select value={transferTo} onValueChange={handleTransferToChange} disabled={isLoading}>
+                    <SelectTrigger id="transfer-to">
+                        <SelectValue placeholder="Select a staff member" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {staff.filter(s => s.role === 'Showroom Staff' || s.role === 'Delivery Staff').map((s) => (
+                        <SelectItem key={s.staff_id} value={s.staff_id}>
+                            {s.name} ({s.role})
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                    </Select>
+                </div>
+                <div className="flex items-end pb-2">
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="sales-run" checked={isSalesRun} onCheckedChange={(checked) => setIsSalesRun(checked as boolean)} disabled={isSalesRunDisabled}/>
+                        <div className="grid gap-1.5 leading-none">
+                            <label
+                            htmlFor="sales-run"
+                            className={cn("text-sm font-medium leading-none", isSalesRunDisabled ? "text-muted-foreground" : "peer-disabled:cursor-not-allowed peer-disabled:opacity-50")}
+                            >
+                            This is for a sales run
+                            </label>
+                            <p className="text-sm text-muted-foreground">
+                            The recipient will manage sales for these items.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <Label>Items to Transfer</Label>
+                <div className="space-y-2">
+                {items.map((item, index) => {
+                    const availableProducts = getAvailableProductsForRow(index);
+                    return (
+                        <div
+                        key={index}
+                        className="grid grid-cols-[1fr_120px_auto] gap-2 items-center"
+                        >
+                        <Select
+                            value={item.productId}
+                            onValueChange={(value) =>
+                            handleItemChange(index, "productId", value)
+                            }
+                            disabled={isLoading}
+                        >
+                            <SelectTrigger>
+                            <SelectValue placeholder="Select a product" />
+                            </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Cash">Cash</SelectItem>
-                                <SelectItem value="POS">POS</SelectItem>
+                            {availableProducts.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                {p.name} (Stock: {p.stock})
+                                </SelectItem>
+                            ))}
                             </SelectContent>
                         </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="payment-amount">Amount to Pay (₦)</Label>
-                        <Input id="payment-amount" type="number" value={amount} onChange={handleAmountChange} />
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleRecordPayment} disabled={isSubmitting}>
-                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Submit for Approval
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-function CustomerOrdersDialog({ isOpen, onOpenChange, customer, orders }: { isOpen: boolean, onOpenChange: (open: boolean) => void, customer: RunCustomer | null, orders: CompletedOrder[] }) {
-    const receiptRef = useRef<HTMLDivElement>(null);
-    const [ordersToPrint, setOrdersToPrint] = useState<CompletedOrder[]>([]);
-    const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
-
-    const customerOrders = useMemo(() => {
-        if (!customer) return [];
-        return orders.filter(order => order.customerName === customer.customerName);
-    }, [customer, orders]);
-
-    useEffect(() => {
-        if (ordersToPrint.length > 0 && receiptRef.current) {
-            handlePrint(receiptRef.current);
-            setOrdersToPrint([]);
-        }
-    }, [ordersToPrint]);
-    
-    if (!customer) return null;
-
-    const handlePrintAll = () => {
-        setOrdersToPrint(customerOrders);
-    };
-
-    return (
-        <>
-            <Dialog open={isOpen} onOpenChange={onOpenChange}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Order History for {customer.customerName}</DialogTitle>
-                        <DialogDescription>Showing all orders for this customer within this sales run.</DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4 max-h-96 overflow-y-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Items</TableHead>
-                                    <TableHead>Payment</TableHead>
-                                    <TableHead className="text-right">Total</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {customerOrders.length > 0 ? customerOrders.map(order => (
-                                    <TableRow key={order.id} onClick={() => setViewingOrder(order)} className="cursor-pointer">
-                                        <TableCell>{format(new Date(order.date), 'Pp')}</TableCell>
-                                        <TableCell>{order.items.reduce((sum, i) => sum + i.quantity, 0)}</TableCell>
-                                        <TableCell><Badge variant="secondary">{order.paymentMethod}</Badge></TableCell>
-                                        <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
-                                    </TableRow>
-                                )) : (
-                                    <TableRow>
-                                        <TableCell colSpan={4} className="text-center h-24">No orders found for this customer.</TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                    <DialogFooter className="justify-between">
-                         <Button variant="outline" onClick={handlePrintAll} disabled={customerOrders.length === 0}>
-                            <Printer className="mr-2 h-4 w-4"/> Print Receipts
+                        <Input
+                            type="number"
+                            placeholder="Qty"
+                            min="1"
+                            value={item.quantity || ''}
+                            onChange={(e) =>
+                            handleItemChange(index, "quantity", e.target.value)
+                            }
+                        />
+                        <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => handleRemoveItem(index)}
+                        >
+                            <Trash2 className="h-4 w-4" />
                         </Button>
-                        <Button onClick={() => onOpenChange(false)}>Close</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={!!viewingOrder} onOpenChange={() => setViewingOrder(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Order Details</DialogTitle>
-                        <DialogDescription>
-                            Receipt for order {viewingOrder?.id.substring(0,8)}...
-                        </DialogDescription>
-                    </DialogHeader>
-                    {viewingOrder && <Receipt order={viewingOrder} />}
-                    <DialogFooter className="gap-2 sm:justify-end">
-                        <Button variant="outline" onClick={() => setViewingOrder(null)}>Close</Button>
-                        <Button onClick={() => handlePrint(receiptRef.current)}><Printer className="mr-2 h-4 w-4" />Print</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            <div className="hidden">
-                <div ref={receiptRef}>
-                    {ordersToPrint.length > 0 && ordersToPrint.map((order, index) => (
-                        <div key={order.id} className={index > 0 ? "page-break-before-always" : ""}>
-                             <Receipt order={order} />
                         </div>
-                    ))}
-                    {viewingOrder && <Receipt order={viewingOrder} />}
+                    );
+                })}
                 </div>
+                <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={handleAddItem}
+                >
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+                </Button>
             </div>
-        </>
-    )
-}
-
-function SalesRunDetails() {
-    const { runId } = useParams();
-    const router = useRouter();
-    const { toast } = useToast();
-    const [run, setRun] = useState<SalesRun | null>(null);
-    const [orders, setOrders] = useState<CompletedOrder[]>([]);
-    const [customers, setCustomers] = useState<RunCustomer[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [user, setUser] = useState<User | null>(null);
-    const [viewingOrder, setViewingOrder] = useState<CompletedOrder | null>(null);
-    const [viewingCustomer, setViewingCustomer] = useState<RunCustomer | null>(null);
-    const summaryReceiptRef = useRef<HTMLDivElement>(null);
-    const [paymentConfirmations, setPaymentConfirmations] = useState<any[]>([]);
-    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'outstanding', direction: 'desc' });
-
-    useEffect(() => {
-      const userJSON = localStorage.getItem('loggedInUser');
-      if (userJSON) {
-          setUser(JSON.parse(userJSON));
-      }
-    }, []);
-
-    const fetchRunData = useCallback(async () => {
-        if (!runId) return;
-        setIsLoading(true);
-        const runDetails = await getSalesRunDetails(runId as string);
-        setRun(runDetails);
-        setIsLoading(false);
-    }, [runId]);
-
-    useEffect(() => {
-        let unsubRun: (() => void) | undefined;
-        let unsubOrders: (() => void) | undefined;
-        let unsubPayments: (() => void) | undefined;
-
-        if (runId) {
-            getSalesRunDetails(runId as string).then(initialRun => {
-                setRun(initialRun);
-                if (isLoading) setIsLoading(false);
-            });
-            
-            const runDocRef = doc(db, "transfers", runId as string);
-            unsubRun = onSnapshot(runDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    getSalesRunDetails(runId as string).then(setRun);
-                } else {
-                    setRun(null);
-                }
-            });
-
-            const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId as string));
-            unsubOrders = onSnapshot(ordersQuery, async () => {
-                const [customerDetails, orderDetails] = await Promise.all([
-                    getCustomersForRun(runId as string),
-                    getOrdersForRun(runId as string)
-                ]);
-                setCustomers(customerDetails);
-                setOrders(orderDetails.map(o => ({...o, date: new Date(o.date)})));
-            });
-
-            unsubPayments = onSnapshot(query(collection(db, 'payment_confirmations'), where('runId', '==', runId as string), where('status', '==', 'pending')), (snapshot) => {
-                setPaymentConfirmations(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
-            });
-        }
-        
-        return () => {
-            unsubRun?.();
-            unsubOrders?.();
-            unsubPayments?.();
-        };
-    }, [runId, isLoading]);
-    
-    const handleReturnStockAction = async () => {
-        if (!run || !user) return;
-        const unsold = getRemainingItems();
-        const result = await handleReturnStock(run.id, unsold, user);
-        if (result.success) {
-            toast({ title: 'Success!', description: 'Unsold stock has been sent for acknowledgement.'});
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-    }
-
-    const handleCompleteRunAction = async () => {
-        if (!run) return;
-        const result = await handleCompleteRun(run.id);
-        if (result.success) {
-            toast({ title: 'Success!', description: 'Sales run has been completed and stock reconciled.'});
-            router.push('/dashboard/deliveries');
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-    }
-    
-    const totalCollected = useMemo(() => run?.totalCollected || 0, [run]);
-    const runStatus = useMemo(() => run?.status || 'inactive', [run]);
-
-    const sortedCustomers = useMemo(() => {
-        const customersWithOutstanding = customers.map(c => ({
-            ...c,
-            outstanding: c.totalSold - c.totalPaid
-        }));
-
-        return [...customersWithOutstanding].sort((a, b) => {
-            const { key, direction } = sortConfig;
-            if (a[key] < b[key]) {
-                return direction === 'asc' ? -1 : 1;
-            }
-            if (a[key] > b[key]) {
-                return direction === 'asc' ? 1 : -1;
-            }
-            return 0;
-        });
-    }, [customers, sortConfig]);
-
-    const handleSort = (key: SortKey) => {
-        setSortConfig(prev => {
-            if (prev.key === key) {
-                return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
-            }
-            return { key, direction: 'desc' };
-        });
-    };
-
-    const getSortIcon = (key: SortKey) => {
-        if (sortConfig.key !== key) {
-            return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/50" />;
-        }
-        return sortConfig.direction === 'asc' ? '▲' : '▼';
-    };
-    
-    const handleSaleMade = (newOrder: CompletedOrder) => {
-        if (newOrder.paymentMethod === 'Paystack') {
-            setViewingOrder(newOrder);
-        }
-    }
-    
-     const getRemainingItems = useCallback(() => {
-        if (!run || !run.items) return [];
-
-        const soldQuantities: { [key: string]: number } = {};
-        if (Array.isArray(orders)) {
-            orders.forEach(order => {
-                if (Array.isArray(order.items)) {
-                    order.items.forEach(item => {
-                        soldQuantities[item.productId] = (soldQuantities[item.productId] || 0) + item.quantity;
-                    });
-                }
-            });
-        }
-        
-        return run.items.map(item => {
-            const soldQuantity = soldQuantities[item.productId] || 0;
-            const remainingQuantity = item.quantity - soldQuantity;
-            return {
-                ...item,
-                price: item.price || 0,
-                quantity: remainingQuantity > 0 ? remainingQuantity : 0,
-            };
-        }).filter(item => item.quantity > 0);
-    }, [run, orders]);
-    
-    const { progressValue, progressDenominator } = useMemo(() => {
-        if (!run) return { progressValue: 0, progressDenominator: 1 };
-        
-        if (run.status === 'pending_return' || run.status === 'return_completed') {
-            const totalSoldValue = orders.reduce((sum, order) => sum + order.total, 0);
-            return {
-                progressValue: totalCollected,
-                progressDenominator: totalSoldValue > 0 ? totalSoldValue : 1,
-            };
-        }
-        
-        return {
-            progressValue: totalCollected,
-            progressDenominator: run.totalRevenue || 1
-        };
-
-    }, [run, orders, totalCollected]);
-
-
-    const remainingItems = useMemo(getRemainingItems, [getRemainingItems]);
-
-    if (isLoading || !run) {
-        return (
-            <div className="flex justify-center items-center h-48">
-                <Loader2 className="h-8 w-8 animate-spin" />
+            <div className="space-y-2">
+                <Label htmlFor="notes">Notes (Optional)</Label>
+                <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
-        );
-    }
-    
-    const runComplete = runStatus === 'completed' || run.status === 'return_completed';
-    const isPendingReturn = runStatus === 'pending_return';
-    const canPerformActions = user?.staff_id === run?.to_staff_id;
-    const canPerformSales = canPerformActions && !runComplete && !isPendingReturn;
-    const canReturnStock = canPerformActions && run.status === 'active';
-    const isReadOnly = user?.role === 'Manager';
-    const allDebtsPaid = run.totalOutstanding <= 0;
-
-    return (
-        <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-                <Link href="/dashboard/deliveries" className="flex items-center gap-2 text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to Deliveries</Link>
-                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => fetchRunData()} disabled={isLoading}>
-                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handlePrint(summaryReceiptRef.current)}>
-                        <Printer className={`mr-2 h-4 w-4`} /> Print Run Summary
-                    </Button>
-                 </div>
+            <div className="flex justify-end">
+                <Button onClick={handleSubmit} disabled={isSubmitting || isLoading}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    Submit Transfer
+                </Button>
             </div>
-             <div ref={summaryReceiptRef} className="hidden print:block">
-                 <div className="receipt-container p-4">
-                    <div className="text-center">
-                        <div className="font-bold text-2xl">BMS</div>
-                        <div className="text-sm text-muted-foreground">Sales Run Summary</div>
-                    </div>
-                    <hr className="my-2" />
-                     <div className="text-xs space-y-1">
-                        <div className="flex justify-between">
-                            <span>Run ID:</span>
-                            <span>{run.id}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span>Start Time:</span>
-                            <span>{run.date ? format(new Date(run.date), 'Pp') : 'N/A'}</span>
-                        </div>
-                         <div className="flex justify-between">
-                            <span>Driver:</span>
-                            <span>{run.to_staff_name}</span>
-                        </div>
-                    </div>
-                    <hr className="my-2" />
-                    <h3 className="font-bold text-center text-sm mb-1">Stock Summary</h3>
+            </CardContent>
+        </Card>
+        </TabsContent>
+         <TabsContent value="batch-approvals">
+             <Card>
+                <CardHeader>
+                    <CardTitle>Pending Batch Approvals</CardTitle>
+                    <CardDescription>Batches requested by bakers that need ingredient approval from the storekeeper.</CardDescription>
+                </CardHeader>
+                <CardContent>
                     <Table>
-                        <TableHeader><TableRow><TableHead className="h-auto p-1 text-xs">Item</TableHead><TableHead className="text-right h-auto p-1 text-xs">Initial</TableHead><TableHead className="text-right h-auto p-1 text-xs">Sold</TableHead><TableHead className="text-right h-auto p-1 text-xs">Left</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Product</TableHead><TableHead>Quantity</TableHead><TableHead>Requested By</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
-                            {run.items.map(item => {
-                                const sold = item.quantity - (remainingItems.find(i => i.productId === item.productId)?.quantity || 0);
-                                return <TableRow key={item.productId}><TableCell className="p-1 text-xs">{item.productName}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity}</TableCell><TableCell className="text-right p-1 text-xs">{sold}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity - sold}</TableCell></TableRow>
-                            })}
+                            {isLoadingBatches ? (
+                                 <TableRow><TableCell colSpan={5} className="text-center h-24"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : pendingBatches.length > 0 ? pendingBatches.map(batch => (
+                                <TableRow key={batch.id}>
+                                    <TableCell>{format(new Date(batch.createdAt), 'PPP')}</TableCell>
+                                    <TableCell>{batch.productName}</TableCell>
+                                    <TableCell>{batch.quantityToProduce}</TableCell>
+                                    <TableCell>{batch.requestedByName}</TableCell>
+                                    <TableCell><ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchPageData} /></TableCell>
+                                </TableRow>
+                            )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are pending approval.</TableCell></TableRow>}
                         </TableBody>
                     </Table>
-                    <hr className="my-2" />
-                     <h3 className="font-bold text-center text-sm mb-1">Financial Summary</h3>
-                     <div className="text-xs space-y-1">
-                        <div className="flex justify-between">
-                            <span>Total Value:</span>
-                            <span className="font-bold">{formatCurrency(run.totalRevenue)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span>Total Collected:</span>
-                            <span className="font-bold">{formatCurrency(totalCollected)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span>Total Outstanding:</span>
-                            <span className="font-bold">{formatCurrency(run.totalOutstanding)}</span>
-                        </div>
-                    </div>
-                    <hr className="my-2" />
-                     <div className="text-xs text-muted-foreground text-center">Printed on {format(new Date(), 'Pp')}</div>
-                </div>
-             </div>
-
-            <h1 className="text-2xl font-bold font-headline">Sales Run: {(runId as string).substring(0,8)}...</h1>
-             {runComplete && <Badge variant="outline">Completed</Badge>}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Run Summary</CardTitle>
-                        <CardDescription>Overview of this sales run.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                        <div className="flex justify-between"><span>Status:</span> <Badge>{runStatus}</Badge></div>
-                        <div className="flex justify-between"><span>Start Time:</span> <span>{run.date ? format(new Date(run.date), 'PPP') : 'N/A'}</span></div>
-                         <div className="flex justify-between"><span>Driver:</span> <span>{run.to_staff_name}</span></div>
-                        <div><Progress value={(progressValue / progressDenominator) * 100} /></div>
-                        <div className="text-sm text-muted-foreground">Collection Progress ({formatCurrency(progressValue)} / {formatCurrency(progressDenominator)})</div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Sales Performance</CardTitle>
-                        <CardDescription>Key metrics from this run.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                        <div className="flex justify-between"><span>Total Revenue:</span> <span>₦{run.totalRevenue.toLocaleString()}</span></div>
-                        <div className="flex justify-between"><span>Total Collected:</span> <span>₦{totalCollected.toLocaleString()}</span></div>
-                         <div className="flex justify-between"><span>Outstanding Debt:</span> <span>₦{(run.totalOutstanding).toLocaleString()}</span></div>
-                    </CardContent>
-                </Card>
-
-                 <Card className="flex flex-col">
-                    <CardHeader>
-                        <CardTitle>Actions</CardTitle>
-                        <CardDescription>Manage this sales run.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex-grow grid grid-cols-2 gap-2">
-                        <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
-                        <LogCustomSaleDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems} />
-                        <LogExpenseDialog run={run} user={user} />
-                        <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
-                    </CardContent>
-                    {canPerformActions && (
-                        <CardFooter className="flex-col gap-2">
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="secondary" className="w-full" disabled={!canReturnStock}>
-                                        <Undo2 className="mr-2 h-4 w-4"/>Return Unsold Stock
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Confirm Stock Return</AlertDialogTitle><AlertDialogDescription>This will create a transfer request for all unsold items to be returned to the storekeeper. Are you sure?</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleReturnStockAction}>Confirm Return</AlertDialogAction></AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button disabled={runComplete || !allDebtsPaid || remainingItems.length > 0} className="w-full">
-                                        <CheckCircle className="mr-2 h-4 w-4"/> Complete Run
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                     <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will complete the sales run. All stock and finances will be reconciled. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader
-                                    ><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleCompleteRunAction}>Yes, Complete Run</AlertDialogAction></AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </CardFooter>
-                     )}
-                </Card>
-            </div>
-            
-            <Card>
+                </CardContent>
+              </Card>
+        </TabsContent>
+         <TabsContent value="production-transfers">
+              <Card>
                 <CardHeader>
-                    <CardTitle>Stock for this Run</CardTitle>
-                    <CardDescription>Initial stock and remaining items for this sales run.</CardDescription>
+                    <CardTitle>Production Transfers</CardTitle>
+                    <CardDescription>Acknowledge finished goods transferred from the production unit to the main store.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>From</TableHead>
                                 <TableHead>Product</TableHead>
-                                <TableHead className="text-right">Initial Qty</TableHead>
-                                <TableHead className="text-right">Sold</TableHead>
-                                <TableHead className="text-right">Remaining</TableHead>
+                                <TableHead>Quantity</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {run.items.map(item => {
-                                const soldQuantity = orders.flatMap(o => o.items).filter(i => i.productId === item.productId).reduce((sum, i) => sum + i.quantity, 0);
-                                const remaining = item.quantity - soldQuantity;
-                                return (
-                                    <TableRow key={item.productId}>
-                                        <TableCell>{item.productName}</TableCell>
-                                        <TableCell className="text-right">{item.quantity}</TableCell>
-                                        <TableCell className="text-right">{soldQuantity}</TableCell>
-                                        <TableCell className="text-right font-bold">{remaining}</TableCell>
+                             {isLoading ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : productionTransfers.length > 0 ? (
+                                productionTransfers.map(t => (
+                                    <TableRow key={t.id}>
+                                        <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                        <TableCell>{t.from_staff_name}</TableCell>
+                                        <TableCell>{t.items[0]?.productName}</TableCell>
+                                        <TableCell>{t.items[0]?.quantity}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button size="sm" onClick={() => handleAcknowledge(t.id, 'accept')}>
+                                                <Check className="mr-2 h-4 w-4" /> Accept
+                                            </Button>
+                                        </TableCell>
                                     </TableRow>
-                                );
-                            })}
+                                ))
+                            ) : (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers from production.</TableCell></TableRow>
+                            )}
                         </TableBody>
                     </Table>
                 </CardContent>
-            </Card>
+              </Card>
+          </TabsContent>
+          <TabsContent value="pending-transfers">
+              <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle>All Pending Transfers</CardTitle>
+                            <CardDescription>A log of all transfers awaiting acknowledgement across the system.</CardDescription>
+                        </div>
+                        <DateRangeFilter date={allPendingDate} setDate={setAllPendingDate}/>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>From</TableHead>
+                                <TableHead>To</TableHead>
+                                <TableHead>Items</TableHead>
+                                <TableHead>Status</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                            ) : (
+                                paginatedAllPending.map((transfer) => (
+                                    <TableRow key={transfer.id}>
+                                        <TableCell>{transfer.date ? format(new Date(transfer.date), 'PPpp') : 'N/A'}</TableCell>
+                                        <TableCell>{transfer.from_staff_name}</TableCell>
+                                        <TableCell>{transfer.to_staff_name}</TableCell>
+                                        <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
+                                        <TableCell><Badge variant="secondary">{transfer.status}</Badge></TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                             { !isLoading && paginatedAllPending.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center">No pending transfers found.</TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+                <CardFooter>
+                  <PaginationControls visibleRows={visibleAllPendingRows} setVisibleRows={setVisibleAllPendingRows} totalRows={allPendingTransfers.length} />
+                </CardFooter>
+              </Card>
+          </TabsContent>
+      </Tabs>
 
-            <Tabs defaultValue="customers" className="space-y-4">
-                <TabsList>
-                    <TabsTrigger value="customers">Customers</TabsTrigger>
-                    <TabsTrigger value="sales">Sales</TabsTrigger>
-                     <TabsTrigger value="expenses">Expenses</TabsTrigger>
-                    <TabsTrigger value="pending" className="relative">
-                        Pending Confirmations
-                        {paymentConfirmations.length > 0 && <Badge variant="destructive" className="ml-2">{paymentConfirmations.length}</Badge>}
-                    </TabsTrigger>
-                </TabsList>
-                 <TabsContent value="customers">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Customers</CardTitle>
-                            <CardDescription>All customers in this run. Click headers to sort.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Name</TableHead>
-                                        <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('totalSold')}>
-                                            <div className="flex items-center justify-end">Total Sold {getSortIcon('totalSold')}</div>
-                                        </TableHead>
-                                        <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('totalPaid')}>
-                                            <div className="flex items-center justify-end">Total Paid {getSortIcon('totalPaid')}</div>
-                                        </TableHead>
-                                        <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('outstanding')}>
-                                            <div className="flex items-center justify-end">Outstanding {getSortIcon('outstanding')}</div>
-                                        </TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {sortedCustomers.map(customer => {
-                                        const outstanding = customer.totalSold - customer.totalPaid;
-                                        return (
-                                            <TableRow key={customer.customerId} onClick={() => setViewingCustomer(customer)} className="cursor-pointer">
-                                                <TableCell>{customer.customerName}</TableCell>
-                                                <TableCell className="text-right">{formatCurrency(customer.totalSold)}</TableCell>
-                                                <TableCell className="text-right">{formatCurrency(customer.totalPaid || 0)}</TableCell>
-                                                <TableCell className="text-right font-bold text-destructive">
-                                                    {outstanding > 0 ? formatCurrency(outstanding) : '-'}
-                                                </TableCell>
-                                                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                    {(canPerformActions && !runComplete && outstanding > 0) ? (
-                                                        <RecordPaymentDialog customer={customer} run={run} user={user} />
-                                                    ) : (
-                                                        <Button size="sm" variant="outline" disabled>Record Payment</Button>
-                                                    )}
-                                                </TableCell>
-                                            </TableRow>
-                                        )
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                 <TabsContent value="sales">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Sales</CardTitle>
-                            <CardDescription>All sales made in this run.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Customer</TableHead>
-                                        <TableHead className="text-right">Total</TableHead>
-                                        <TableHead>Payment Method</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {orders.map(order => (
-                                        <TableRow key={order.id} className="cursor-pointer" onClick={() => setViewingOrder(order)}>
-                                            <TableCell>{format(new Date(order.date), 'Pp')}</TableCell>
-                                            <TableCell>{order.customerName}</TableCell>
-                                            <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
-                                            <TableCell>{order.paymentMethod}</TableCell>
-                                            <TableCell className="text-right"><Button variant="ghost" size="sm">View</Button></TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                 <TabsContent value="expenses">
-                    <Card>
-                        <CardHeader className="flex flex-row justify-between items-center">
-                            <div>
-                                <CardTitle>Run Expenses</CardTitle>
-                                <CardDescription>Log and view expenses specific to this sales run.</CardDescription>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                 <TableBody>
-                                    <TableRow>
-                                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                                            No expenses logged for this run yet.
-                                        </TableCell>
-                                    </TableRow>
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="pending">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Pending Confirmations</CardTitle>
-                            <CardDescription>Cash payments awaiting accountant approval.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Customer</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {paymentConfirmations.map(order => (
-                                        <TableRow key={order.id}>
-                                            <TableCell>{order.date ? format(order.date.toDate(), 'PPP') : 'N/A'}</TableCell>
-                                            <TableCell>{order.customerName}</TableCell>
-                                            <TableCell className="text-right">{formatCurrency(order.amount)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
-            
-            <CustomerOrdersDialog isOpen={!!viewingCustomer} onOpenChange={() => setViewingCustomer(null)} customer={viewingCustomer} orders={orders} />
-
-            <Dialog open={!!viewingOrder} onOpenChange={(isOpen) => !isOpen && setViewingOrder(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Order Details</DialogTitle>
-                        <DialogDescription>
-                            Receipt for order {viewingOrder?.id.substring(0,8)}...
-                        </DialogDescription>
-                    </DialogHeader>
-                    {viewingOrder && <Receipt order={viewingOrder} />}
-                    <DialogFooter className="gap-2 sm:justify-end">
-                        <Button variant="outline" onClick={() => setViewingOrder(null)}>Close</Button>
-                        <Button onClick={() => handlePrint(summaryReceiptRef.current)}><Printer className="mr-2 h-4 w-4" />Print</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
-    );
+      <Card>
+        <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <CardTitle>My Initiated Transfers Log</CardTitle>
+                    <CardDescription>A log of transfers you have initiated.</CardDescription>
+                </div>
+                <DateRangeFilter date={date} setDate={setDate} />
+            </div>
+        </CardHeader>
+        <CardContent>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>From</TableHead>
+                        <TableHead>To</TableHead>
+                        <TableHead>Items</TableHead>
+                        <TableHead>Status</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {isLoading ? (
+                         <TableRow>
+                            <TableCell colSpan={5} className="h-24 text-center">
+                                <Loader2 className="h-8 w-8 animate-spin"/>
+                            </TableCell>
+                        </TableRow>
+                    ) : paginatedLogs.length > 0 ? (
+                        paginatedLogs.map((transfer) => (
+                             <TableRow key={transfer.id}>
+                                <TableCell>{transfer.date ? format(new Date(transfer.date), 'PPpp') : 'N/A'}</TableCell>
+                                <TableCell>{transfer.from_staff_name}</TableCell>
+                                <TableCell>{transfer.to_staff_name}</TableCell>
+                                <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
+                                <TableCell><Badge variant={transfer.status === 'pending' ? 'secondary' : transfer.status === 'completed' || transfer.status === 'active' ? 'default' : 'destructive'}>{transfer.status}</Badge></TableCell>
+                            </TableRow>
+                        ))
+                    ) : (
+                        <TableRow>
+                            <TableCell colSpan={5} className="h-24 text-center">No stock movements recorded for this period.</TableCell>
+                        </TableRow>
+                    )}
+                </TableBody>
+            </Table>
+        </CardContent>
+        <CardFooter>
+            <PaginationControls visibleRows={visibleLogRows} setVisibleRows={setVisibleLogRows} totalRows={initiatedTransfers.length} />
+        </CardFooter>
+      </Card>
+    </div>
+  );
 }
-
-export default SalesRunDetails;
-
-    
