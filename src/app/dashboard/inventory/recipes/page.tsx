@@ -401,34 +401,6 @@ function ProductionLogDetailsDialog({ log, isOpen, onOpenChange, user }: { log: 
   );
 }
 
-function StartProductionDialog({
-    onConfirm,
-    recipe,
-    user
-}: {
-    onConfirm: (batchSize: 'full' | 'half') => void;
-    recipe: Recipe | null;
-    user: User | null;
-}) {
-    if (!recipe || !user) return null;
-
-    return (
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Start Production: {recipe.name}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Choose the batch size. This will send a request for the required ingredients to the storekeeper for approval.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => onConfirm('half')}>Request Half Batch (25kg)</AlertDialogAction>
-                <AlertDialogAction onClick={() => onConfirm('full')}>Request Full Batch (50kg)</AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    )
-}
-
 function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch: ProductionBatch, user: User, allIngredients: Ingredient[], onApproval: () => void }) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
@@ -794,17 +766,25 @@ export default function RecipesPage() {
                                 <CardDescription>Batches that are pending approval or are currently being produced.</CardDescription>
                             </div>
                              {canStartProduction && (
-                                <AlertDialog>
+                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button>
                                             <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
                                         </Button>
                                     </AlertDialogTrigger>
-                                    <StartProductionDialog
-                                        onConfirm={handleStartProduction}
-                                        recipe={generalRecipe}
-                                        user={user}
-                                    />
+                                     <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Start Production: {generalRecipe?.name}?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Choose the batch size. This will send a request for the required ingredients to the storekeeper for approval.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleStartProduction('half')}>Request Half Batch (25kg)</AlertDialogAction>
+                                            <AlertDialogAction onClick={() => handleStartProduction('full')}>Request Full Batch (50kg)</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
                                 </AlertDialog>
                              )}
                         </CardHeader>
