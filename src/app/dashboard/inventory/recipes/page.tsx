@@ -248,8 +248,14 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
     
     const getAvailableProducts = (type: 'produced' | 'wasted', index: number) => {
         const currentList = type === 'produced' ? producedItems : wastedItems;
-        const selectedIds = new Set(currentList.filter((_, i) => i !== index).map(item => item.productId));
-        return products.filter(p => !selectedIds.has(p.id) && p.category === 'Breads');
+        const selectedIds = new Set(currentList.map(item => item.productId).filter(id => id)); // Get all selected IDs in the current list
+        
+        const currentItem = currentList[index];
+        
+        return products.filter(p => 
+            p.category === 'Bread' && // Only show bread products
+            (!selectedIds.has(p.id) || p.id === currentItem.productId) // Allow the current item's product, but filter out others that are already selected
+        );
     };
 
     return (
@@ -509,6 +515,7 @@ export default function RecipesPage() {
     const [logStaffFilter, setLogStaffFilter] = useState('all');
     const [logDate, setLogDate] = useState<DateRange | undefined>();
     const [visibleLogRows, setVisibleLogRows] = useState<number | 'all'>(10);
+    const [isProductionDialogOpen, setIsProductionDialogOpen] = useState(false);
 
     const fetchStaticData = useCallback(async () => {
         setIsLoading(true);
@@ -584,6 +591,7 @@ export default function RecipesPage() {
         }
         
         setIsSubmitting(true);
+        setIsProductionDialogOpen(false);
 
         const batchData = {
             recipeId: generalRecipe.id,
@@ -767,7 +775,7 @@ export default function RecipesPage() {
                                 <CardDescription>Batches that are pending approval or are currently being produced.</CardDescription>
                             </div>
                              {canStartProduction && (
-                                <AlertDialog>
+                                 <AlertDialog open={isProductionDialogOpen} onOpenChange={setIsProductionDialogOpen}>
                                     <AlertDialogTrigger asChild>
                                         <Button>
                                             <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
@@ -876,4 +884,3 @@ export default function RecipesPage() {
         </div>
     );
 }
-
