@@ -804,11 +804,9 @@ export default function RecipesPage() {
                                 <CardDescription>Batches that are pending approval or are currently being produced.</CardDescription>
                             </div>
                              {canStartProduction && (
-                                <AlertDialogTrigger asChild>
-                                    <Button onClick={() => setIsProductionDialogOpen(true)}>
-                                        <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
-                                    </Button>
-                                </AlertDialogTrigger>
+                                <Button onClick={() => setIsProductionDialogOpen(true)}>
+                                    <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
+                                </Button>
                              )}
                         </CardHeader>
                         <CardContent>
