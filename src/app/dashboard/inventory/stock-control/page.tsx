@@ -259,7 +259,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
 
 function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept: (id: string, action: 'accept' | 'decline') => void }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
+
     const handleAction = async (action: 'accept' | 'decline') => {
         setIsSubmitting(true);
         await onAccept(transfer.id, action);
@@ -413,7 +413,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: { produ
                                         <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
                                         <SelectContent>
                                             {availableProducts.map((p) => (
-                                                <SelectItem key={p.productId} value={p.productId}>
+                                                <SelectItem key={`${p.productId}-${index}`} value={p.productId}>
                                                     {p.productName} (Stock: {p.stock})
                                                 </SelectItem>
                                             ))}
@@ -463,31 +463,50 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: { produ
 function ReturnStockDialog({ user, onReturn, personalStock }: { user: User, onReturn: () => void, personalStock: { productId: string, productName: string, stock: number }[] }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
-    const [itemsToReturn, setItemsToReturn] = useState<{ productId: string, productName: string, quantity: number }[]>([]);
+    const [itemsToReturn, setItemsToReturn] = useState<Record<string, number | string>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    useEffect(() => {
+        if (isOpen) {
+            // Reset state when dialog opens
+            setItemsToReturn({});
+        }
+    }, [isOpen]);
 
-    const handleItemSelectionChange = (productId: string, checked: boolean) => {
-        const product = personalStock.find(p => p.productId === productId);
-        if (!product) return;
-        
-        setItemsToReturn(prev => {
-            if (checked) {
-                return [...prev, { productId: product.productId, productName: product.productName, quantity: product.stock }];
-            } else {
-                return prev.filter(item => item.productId !== productId);
-            }
-        });
-    }
+    const handleQuantityChange = (productId: string, value: string, maxStock: number) => {
+        const numValue = Number(value);
+        if (isNaN(numValue) || numValue < 0) {
+            setItemsToReturn(prev => ({...prev, [productId]: ''}));
+            return;
+        }
+
+        if (numValue > maxStock) {
+            toast({ variant: 'destructive', title: 'Error', description: `Cannot return more than the available ${maxStock} units.`});
+            setItemsToReturn(prev => ({...prev, [productId]: maxStock}));
+        } else {
+            setItemsToReturn(prev => ({...prev, [productId]: numValue}));
+        }
+    };
     
     const handleSubmit = async () => {
-        if (itemsToReturn.length === 0) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please select at least one item to return.' });
+        const finalItemsToReturn = Object.entries(itemsToReturn)
+            .map(([productId, quantity]) => {
+                const product = personalStock.find(p => p.productId === productId);
+                return {
+                    productId,
+                    productName: product?.productName || 'Unknown',
+                    quantity: Number(quantity),
+                };
+            })
+            .filter(item => item.quantity > 0);
+
+        if (finalItemsToReturn.length === 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please enter a quantity for at least one item to return.' });
             return;
         }
 
         setIsSubmitting(true);
-        // Assuming a generic runId for showroom returns or passing null
-        const result = await handleReturnStock("showroom-return", itemsToReturn, user);
+        const result = await handleReturnStock("showroom-return", finalItemsToReturn, user);
         
         if (result.success) {
             toast({ title: 'Success', description: 'Stock return request submitted for approval.' });
@@ -506,40 +525,38 @@ function ReturnStockDialog({ user, onReturn, personalStock }: { user: User, onRe
                     <Undo2 className="mr-2 h-4 w-4" /> Return Unsold Stock
                 </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-xl">
                 <DialogHeader>
                     <DialogTitle>Return Unsold Stock</DialogTitle>
                     <DialogDescription>
-                        Select items from your personal inventory to return to the main store.
+                        Enter quantities for items you want to return to the main store. Unspecified items will not be returned.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="py-4 max-h-80 overflow-y-auto">
+                <div className="py-4 max-h-96 overflow-y-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead><Checkbox 
-                                    onCheckedChange={(checked) => {
-                                        if (checked) {
-                                            setItemsToReturn(personalStock.map(p => ({productId: p.productId, productName: p.productName, quantity: p.stock})));
-                                        } else {
-                                            setItemsToReturn([]);
-                                        }
-                                    }}
-                                    checked={itemsToReturn.length === personalStock.length}
-                                /></TableHead>
                                 <TableHead>Product</TableHead>
-                                <TableHead className="text-right">Quantity</TableHead>
+                                <TableHead className="text-center">Available</TableHead>
+                                <TableHead className="text-right">Quantity to Return</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {personalStock.map(item => (
                                 <TableRow key={item.productId}>
-                                    <TableCell><Checkbox 
-                                        onCheckedChange={(checked) => handleItemSelectionChange(item.productId, checked as boolean)}
-                                        checked={itemsToReturn.some(r => r.productId === item.productId)}
-                                    /></TableCell>
                                     <TableCell>{item.productName}</TableCell>
-                                    <TableCell className="text-right">{item.stock}</TableCell>
+                                    <TableCell className="text-center">{item.stock}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Input
+                                            type="number"
+                                            className="w-24 h-8 text-right ml-auto"
+                                            placeholder="0"
+                                            value={itemsToReturn[item.productId] || ''}
+                                            onChange={(e) => handleQuantityChange(item.productId, e.target.value, item.stock)}
+                                            max={item.stock}
+                                            min={0}
+                                        />
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -637,12 +654,11 @@ export default function StockControlPage() {
             console.error("Error fetching data:", error);
             toast({ variant: "destructive", title: "Error", description: "Failed to load necessary data." });
         } finally {
-            setIsLoading(false);
+            if(isLoading) setIsLoading(false);
         }
-    }, [toast]);
+    }, [toast, isLoading]);
 
   useEffect(() => {
-    setIsLoading(true);
     fetchPageData();
 
     setIsLoadingBatches(true);
@@ -858,7 +874,7 @@ export default function StockControlPage() {
          <div className="flex flex-col gap-6">
              <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
             <div className="flex flex-col lg:flex-row gap-6">
-                 <div className="flex flex-col gap-6 flex-[2]">
+                 <div className="flex flex-col gap-6 lg:w-2/3">
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
@@ -964,7 +980,7 @@ export default function StockControlPage() {
                         </CardFooter>
                     </Card>
                 </div>
-                <div className="flex-1 space-y-4">
+                <div className="lg:w-1/3 flex flex-col gap-6">
                     <ReportWasteTab products={personalStock} user={user} onWasteReported={fetchPageData} />
                     <Card>
                         <CardHeader>
@@ -1310,3 +1326,4 @@ export default function StockControlPage() {
     </div>
   );
 }
+
