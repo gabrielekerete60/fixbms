@@ -39,6 +39,7 @@ import {
   CheckCircle,
   XCircle,
   History,
+  Undo2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -58,7 +59,7 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProductsForStaff } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProductsForStaff, handleReturnStock } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -411,8 +412,8 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: { produ
                                     <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
                                         <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
                                         <SelectContent>
-                                            {availableProducts.map((p, pIndex) => (
-                                                <SelectItem key={`${p.productId}-${index}-${pIndex}`} value={p.productId}>
+                                            {availableProducts.map((p) => (
+                                                <SelectItem key={p.productId} value={p.productId}>
                                                     {p.productName} (Stock: {p.stock})
                                                 </SelectItem>
                                             ))}
@@ -456,6 +457,104 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: { produ
             </CardContent>
         </Card>
     );
+}
+
+
+function ReturnStockDialog({ user, onReturn, personalStock }: { user: User, onReturn: () => void, personalStock: { productId: string, productName: string, stock: number }[] }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [itemsToReturn, setItemsToReturn] = useState<{ productId: string, productName: string, quantity: number }[]>([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleItemSelectionChange = (productId: string, checked: boolean) => {
+        const product = personalStock.find(p => p.productId === productId);
+        if (!product) return;
+        
+        setItemsToReturn(prev => {
+            if (checked) {
+                return [...prev, { productId: product.productId, productName: product.productName, quantity: product.stock }];
+            } else {
+                return prev.filter(item => item.productId !== productId);
+            }
+        });
+    }
+    
+    const handleSubmit = async () => {
+        if (itemsToReturn.length === 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please select at least one item to return.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        // Assuming a generic runId for showroom returns or passing null
+        const result = await handleReturnStock("showroom-return", itemsToReturn, user);
+        
+        if (result.success) {
+            toast({ title: 'Success', description: 'Stock return request submitted for approval.' });
+            onReturn();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="secondary" className="w-full">
+                    <Undo2 className="mr-2 h-4 w-4" /> Return Unsold Stock
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Return Unsold Stock</DialogTitle>
+                    <DialogDescription>
+                        Select items from your personal inventory to return to the main store.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 max-h-80 overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead><Checkbox 
+                                    onCheckedChange={(checked) => {
+                                        if (checked) {
+                                            setItemsToReturn(personalStock.map(p => ({productId: p.productId, productName: p.productName, quantity: p.stock})));
+                                        } else {
+                                            setItemsToReturn([]);
+                                        }
+                                    }}
+                                    checked={itemsToReturn.length === personalStock.length}
+                                /></TableHead>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-right">Quantity</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {personalStock.map(item => (
+                                <TableRow key={item.productId}>
+                                    <TableCell><Checkbox 
+                                        onCheckedChange={(checked) => handleItemSelectionChange(item.productId, checked as boolean)}
+                                        checked={itemsToReturn.some(r => r.productId === item.productId)}
+                                    /></TableCell>
+                                    <TableCell>{item.productName}</TableCell>
+                                    <TableCell className="text-right">{item.stock}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Submit Return Request
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 export default function StockControlPage() {
@@ -865,8 +964,16 @@ export default function StockControlPage() {
                         </CardFooter>
                     </Card>
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 space-y-4">
                     <ReportWasteTab products={personalStock} user={user} onWasteReported={fetchPageData} />
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Return Stock</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ReturnStockDialog user={user} onReturn={fetchPageData} personalStock={personalStock} />
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
          </div>

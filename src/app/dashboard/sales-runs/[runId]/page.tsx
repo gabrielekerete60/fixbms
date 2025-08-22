@@ -878,12 +878,12 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
                             {items.map((item, index) => {
                                 const availableProducts = getAvailableProductsForRow(index);
                                 return (
-                                    <div key={index} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
+                                    <div key={`waste-item-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
                                         <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
                                             <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
                                             <SelectContent>
                                                 {availableProducts.map((p) => (
-                                                    <SelectItem key={p.productId} value={p.productId}>
+                                                    <SelectItem key={`${p.productId}-${index}`} value={p.productId}>
                                                         {p.productName} (Avail: {p.quantity})
                                                     </SelectItem>
                                                 ))}
@@ -1414,7 +1414,7 @@ function SalesRunDetails() {
             <h1 className="text-2xl font-bold font-headline">Sales Run: {(runId as string).substring(0,8)}...</h1>
              {runComplete && <Badge variant="outline">Completed</Badge>}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <Card>
                     <CardHeader>
                         <CardTitle>Run Summary</CardTitle>
@@ -1686,5 +1686,3 @@ function SalesRunDetails() {
 }
 
 export default SalesRunDetails;
-
-    
