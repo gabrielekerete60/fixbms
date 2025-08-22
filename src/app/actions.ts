@@ -1610,7 +1610,7 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                 ? doc(db, 'transfers', confirmationData.runId)
                 : null;
                 
-            const customerRef = confirmationData.isDebtPayment && confirmationData.customerId
+            const customerRef = confirmationData.customerId
                 ? doc(db, 'customers', confirmationData.customerId)
                 : null;
             
@@ -1618,13 +1618,11 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
             transaction.update(confirmationRef, { status: newStatus });
 
             if (action === 'approve') {
-                if (confirmationData.isDebtPayment) {
-                    if (customerRef) {
-                        transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
-                    }
-                    if (runRef) {
-                        transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
-                    }
+                 if (runRef) {
+                    transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
+                }
+                if (confirmationData.isDebtPayment && customerRef) {
+                    transaction.update(customerRef, { amountPaid: increment(confirmationData.amount) });
                 } else if (confirmationData.isExpense) {
                     const expenseData = {
                         category: confirmationData.expenseDetails?.category || 'Run Expense',
@@ -1635,9 +1633,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                     };
                     const newIndirectCostRef = doc(collection(db, "indirectCosts"));
                     transaction.set(newIndirectCostRef, expenseData);
-                    if (runRef) {
-                        transaction.update(runRef, { totalCollected: increment(-confirmationData.amount) });
-                    }
                 } else { // It's a new sale confirmation
                     const newOrderRef = doc(collection(db, 'orders'));
                     transaction.set(newOrderRef, {
@@ -1653,10 +1648,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                         id: newOrderRef.id,
                         isDebtPayment: false,
                     });
-                    
-                    if (runRef) {
-                        transaction.update(runRef, { totalCollected: increment(confirmationData.amount) });
-                    }
                 }
             }
         });
@@ -2016,9 +2007,9 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
       return snapshot.docs.map(docSnap => {
         const data = docSnap.data();
         return {
+          ...data,
           id: docSnap.id,
           date: (data.date as Timestamp).toDate().toISOString(),
-          ...data
         } as Transfer;
       });
     } catch (error) {
@@ -2486,7 +2477,7 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
             to_staff_id: data.to_staff_id,
             totalRevenue,
             totalCollected: totalCollected,
-            totalOutstanding: totalOutstanding > 0 ? totalOutstanding : 0,
+            totalOutstanding: totalOutstanding,
             time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
             time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
             is_sales_run: data.is_sales_run || false,
@@ -2545,9 +2536,7 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
         salesByCustomer[customerId] = { customerId, customerName, totalSold: 0, totalPaid: 0 };
       }
       
-      if (!order.isDebtPayment) {
-        salesByCustomer[customerId].totalSold += order.total;
-      }
+      salesByCustomer[customerId].totalSold += order.total;
       
       if (order.paymentMethod !== 'Credit') {
         salesByCustomer[customerId].totalPaid += order.total;
@@ -2555,6 +2544,17 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
       
     });
 
+    const runDoc = await getDoc(doc(db, "transfers", runId));
+    if (runDoc.exists()) {
+        const confirmations = await getDocs(query(collection(db, 'payment_confirmations'), where('runId', '==', runId), where('status', '==', 'approved'), where('isDebtPayment', '==', true)));
+        confirmations.forEach(confDoc => {
+            const conf = confDoc.data();
+            if (conf.customerId && salesByCustomer[conf.customerId]) {
+                salesByCustomer[conf.customerId].totalPaid += conf.amount;
+            }
+        })
+    }
+    
     return Object.values(salesByCustomer);
   } catch (error) {
     console.error("Error fetching customers for run:", error);
@@ -2621,7 +2621,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
             const driverName = staffDoc.data()?.name || 'Unknown';
             const isPendingApproval = ['Cash', 'POS'].includes(data.paymentMethod);
             const isCreditSale = data.paymentMethod === 'Credit';
-
+            
             const newOrderRef = doc(collection(db, 'orders'));
             transaction.set(newOrderRef, {
                 salesRunId: data.runId,
@@ -2633,7 +2633,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                 date: Timestamp.now(),
                 staffId: data.staffId,
                 staffName: driverName,
-                status: isPendingApproval ? 'Pending' : 'Completed',
+                status: 'Completed',
                 id: newOrderRef.id,
                 isDebtPayment: false,
             });
