@@ -255,6 +255,13 @@ export async function seedDeveloperData(): Promise<ActionResult> {
     }
 }
 
+export async function seedRecipesOnly(): Promise<ActionResult> {
+    try {
+        await batchCommit(recipesData, "recipes");
+        return { success: true };
+    } catch(e) { return { success: false, error: (e as Error).message } }
+}
+
 export async function seedUsersAndConfig(): Promise<ActionResult> {
     try {
         await batchCommit(staffData, "staff");
@@ -489,7 +496,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
                 "ing_8": 615,    // butter scotch
                 "ing_5": 455,    // preservative
                 "ing_13": 0,     // veg oil
-                "ing_11": 7,     // eggs
+                "ing_11": 7,     // eggs (6 + 1)
             };
             return { ...i, stock: stockMap[i.id] || 0 };
         });
@@ -552,5 +559,3 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
-
-    

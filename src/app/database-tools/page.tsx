@@ -18,6 +18,7 @@ import {
     clearMultipleCollections,
     seedDeveloperData,
     seedSpecialScenario,
+    seedRecipesOnly,
 } from "@/app/seed/actions";
 import { Loader2, DatabaseZap, Trash2, ArrowLeft } from "lucide-react";
 import {
@@ -178,6 +179,15 @@ export default function DatabaseToolsPage() {
                             {currentlySeeding === "Developer Account" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
                             Seed Developer Account Only
                         </Button>
+                        <Button 
+                            variant="outline"
+                            onClick={() => handleSeedAction("Recipes Only", seedRecipesOnly)}
+                            disabled={isPending}
+                            className="w-full"
+                        >
+                            {currentlySeeding === "Recipes Only" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4"/>}
+                            Seed Recipes Only
+                        </Button>
                          <Button 
                             variant="destructive"
                             onClick={() => handleSeedAction("Special Scenario", seedSpecialScenario)}
@@ -312,5 +322,3 @@ export default function DatabaseToolsPage() {
     </div>
   );
 }
-
-    
