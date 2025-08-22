@@ -1601,7 +1601,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
 
     try {
         await runTransaction(db, async (transaction) => {
-            // Read all documents first
             const confirmationDoc = await transaction.get(confirmationRef);
             if (!confirmationDoc.exists()) throw new Error("Confirmation not found.");
 
@@ -1616,7 +1615,6 @@ export async function handlePaymentConfirmation(confirmationId: string, action: 
                 ? doc(db, 'customers', confirmationData.customerId)
                 : null;
             
-            // Now perform writes
             const newStatus = action === 'approve' ? 'approved' : 'declined';
             transaction.update(confirmationRef, { status: newStatus });
 
@@ -1978,29 +1976,6 @@ export async function getPendingTransfersForStaff(staffId: string): Promise<Tran
         }
         return [];
     }
-}
-
-export async function getProductionTransfers(): Promise<Transfer[]> {
-  try {
-    const q = query(
-      collection(db, 'transfers'),
-      where('status', '==', 'pending'),
-      where('notes', '>=', 'Return from production batch'),
-      where('notes', '<', 'Return from production batch' + '\uf8ff')
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        date: (data.date as Timestamp).toDate().toISOString(),
-        ...data
-      } as Transfer;
-    });
-  } catch (error) {
-    console.error("Error getting production transfers:", error);
-    return [];
-  }
 }
 
 export async function getReturnedStockTransfers(): Promise<Transfer[]> {
@@ -2593,11 +2568,10 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
             if (!runDoc.exists()) throw new Error("Sales run not found.");
 
             let customerRef = null;
-            if (data.paymentMethod === 'Credit') {
-                if (data.customerId === 'walk-in') throw new Error("Credit sales cannot be made to a walk-in customer.");
+            if (data.customerId !== 'walk-in') {
                 customerRef = doc(db, 'customers', data.customerId);
                 const customerDoc = await transaction.get(customerRef);
-                if (!customerDoc.exists()) throw new Error("Customer not found for credit sale.");
+                if (!customerDoc.exists()) throw new Error("Customer not found.");
             }
             
             const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
@@ -3292,4 +3266,27 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         console.error("Error completing sales run:", error);
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
+}
+
+export async function getProductionTransfers(): Promise<Transfer[]> {
+  try {
+    const q = query(
+      collection(db, 'transfers'),
+      where('status', '==', 'pending'),
+      where('notes', '>=', 'Return from production batch'),
+      where('notes', '<', 'Return from production batch' + '\uf8ff')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        date: (data.date as Timestamp).toDate().toISOString(),
+        ...data
+      } as Transfer;
+    });
+  } catch (error) {
+    console.error("Error getting production transfers:", error);
+    return [];
+  }
 }
