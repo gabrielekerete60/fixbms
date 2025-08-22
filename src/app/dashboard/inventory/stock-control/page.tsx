@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -1265,7 +1264,7 @@ export default function StockControlPage() {
                             ) : productionTransfers.length > 0 ? (
                                 productionTransfers.map(t => (
                                     <TableRow key={t.id}>
-                                        <TableCell>{format(new Date(t.date), 'Pp')}</TableCell>
+                                        <TableCell>{t.date ? format(new Date(t.date), 'Pp') : 'N/A'}</TableCell>
                                         <TableCell>{t.from_staff_name}</TableCell>
                                         <TableCell>{t.items[0]?.productName}</TableCell>
                                         <TableCell>{t.items[0]?.quantity}</TableCell>
@@ -1388,6 +1387,3 @@ export default function StockControlPage() {
     </div>
   );
 }
-
-
-
