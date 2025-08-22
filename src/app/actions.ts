@@ -2428,7 +2428,12 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
         const data = runDoc.data();
         const totalRevenue = data.totalRevenue || 0; // Use stored totalRevenue
         
-        // Get prices for items that don't have them (for display)
+        const ordersSnapshot = await getDocs(query(collection(db, 'orders'), where('salesRunId', '==', runId)));
+        
+        const totalCollected = ordersSnapshot.docs
+            .filter(doc => doc.data().paymentMethod !== 'Credit')
+            .reduce((sum, doc) => sum + doc.data().total, 0);
+            
         const itemsWithPrices = await Promise.all(
           (data.items || []).map(async (item: any) => {
             if (item.price !== undefined) return item;
@@ -2455,8 +2460,8 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
             to_staff_name: data.to_staff_name,
             to_staff_id: data.to_staff_id,
             totalRevenue,
-            totalCollected: data.totalCollected || 0,
-            totalOutstanding: totalRevenue - (data.totalCollected || 0),
+            totalCollected: totalCollected,
+            totalOutstanding: totalRevenue - totalCollected,
             time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
             time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
             is_sales_run: data.is_sales_run || false,
@@ -2611,11 +2616,11 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                 transaction.update(stockRef, { stock: increment(-item.quantity) });
             }
             
-            if (isCreditSale && customerRef) {
-                transaction.update(customerRef, { amountOwed: increment(data.total) });
-            }
-
-            if (isPendingApproval) {
+            if (isCreditSale) {
+                if (customerRef) {
+                    transaction.update(customerRef, { amountOwed: increment(data.total) });
+                }
+            } else if (isPendingApproval) {
                 const confirmationRef = doc(collection(db, 'payment_confirmations'));
                 transaction.set(confirmationRef, {
                     runId: data.runId,
@@ -2630,8 +2635,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                     paymentMethod: data.paymentMethod,
                     isDebtPayment: false,
                 });
-            } else if (!isCreditSale) {
-                // For direct payments like Paystack, update totalCollected immediately
+            } else { // Direct payments like Paystack
                 transaction.update(runRef, { totalCollected: increment(data.total) });
             }
 
