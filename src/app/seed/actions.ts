@@ -425,8 +425,24 @@ export async function seedFullData(): Promise<ActionResult> {
 
 export async function seedSpecialScenario(): Promise<ActionResult> {
     try {
-        // 1. Clear all data
-        await clearAllData();
+        // 1. Clear all data except suppliers and other_supplies
+        const collectionsToWipe = [
+            "products", "staff", "recipes", "promotions", 
+            "ingredients", "customers", "orders", "transfers", 
+            "production_batches", "waste_logs", "attendance", "sales", "debt", 
+            "directCosts", "indirectCosts", "wages", "closingStocks", 
+            "discount_records", "announcements", "reports", "cost_categories",
+            "payment_confirmations", "supply_requests", "ingredient_stock_logs",
+            "production_logs", "settings"
+        ];
+        await clearMultipleCollections(collectionsToWipe);
+        
+        // Clear supplier transaction logs by deleting and re-adding them
+        const suppliersSnapshot = await getDocs(collection(db, "suppliers"));
+        const suppliers = suppliersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        await clearCollection("suppliers");
+        await batchCommit(suppliers, "suppliers");
+
 
         // 2. Seed specific staff
         const staffToSeed = [
@@ -437,7 +453,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
             staffData.find(s => s.role === 'Baker'),
             staffData.find(s => s.role === 'Delivery Staff'),
             staffData.find(s => s.name === 'Mr Patrick' && s.role === 'Showroom Staff'),
-        ].filter(Boolean) as typeof staffData; // Filter out any not found
+        ].filter(Boolean) as typeof staffData;
         
         if (staffToSeed.length < 7) {
             return { success: false, error: "A required staff member for the special scenario was not found in the seed data." };
@@ -447,14 +463,14 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         const manager = staffToSeed.find(s => s!.role === 'Manager')!;
         const mrPatrick = staffToSeed.find(s => s!.name === 'Mr Patrick')!;
 
-        // 3. Seed Products with specific stock for MAIN INVENTORY
+        // 3. Seed Products with specific stock for MAIN INVENTORY (Storekeeper)
         const specialProducts = productsData.map(p => {
             const stockMap: Record<string, number> = {
-                "prod_bread_5": 152, // Round bread
-                "prod_bread_1": 26,  // Family Loaf
-                "prod_bread_2": 73,  // Short Loaf
-                "prod_bread_4": 10,  // Burger
-                "prod_bread_3": 49,  // Jumbo
+                "prod_bread_1": 19,  // Family Loaf
+                "prod_bread_2": 81,  // Short Loaf
+                "prod_bread_3": 39,  // Jumbo
+                "prod_bread_4": 8,  // Burger
+                "prod_bread_5": 0, // Round bread
             };
             return { ...p, stock: stockMap[p.id] || 0 };
         });
@@ -463,43 +479,42 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         // 4. Seed Ingredients with specific stock
         const specialIngredients = ingredientsData.map(i => {
             const stockMap: Record<string, number> = {
-                "ing_6": 6,     // Tin Milk
-                "ing_11": 42,   // Eggs
-                "ing_14": 500   // Bread Improver
+                "ing_1": 0,      // Flour
+                "ing_7": 9400,   // butter - 9.4 KG
+                "ing_2": 23000,  // sugar - 23kg
+                "ing_3": 33600,  // salt - 33.6kg
+                "ing_9": 870,    // zeast
+                "ing_4": 15,     // yeast
+                "ing_10": 650,   // lux essence
+                "ing_8": 615,    // butter scotch
+                "ing_5": 455,    // preservative
+                "ing_13": 0,     // veg oil
+                "ing_11": 7,     // eggs
             };
             return { ...i, stock: stockMap[i.id] || 0 };
         });
         await batchCommit(specialIngredients, "ingredients");
         
-        // 5. Seed Other Supplies
-        const otherSuppliesData = [
-            { id: "sup_other_1", name: "Nurse Caps", stock: 10, unit: 'packs', costPerUnit: 500, category: 'Packaging' },
-            { id: "sup_other_2", name: "Cotton Wool", stock: 1, unit: 'pack', costPerUnit: 1000, category: 'Other' },
-            { id: "sup_other_3", name: "Spirit", stock: 1, unit: 'pack', costPerUnit: 800, category: 'Other' },
-            { id: "sup_other_4", name: "Glove", stock: 3, unit: 'packs', costPerUnit: 1200, category: 'Packaging' },
-        ];
-        await batchCommit(otherSuppliesData, "other_supplies");
-        
-        // 6. Create and complete a transfer to Mr Patrick
+        // 5. Create and complete a transfer to Mr Patrick (Showroom Staff)
         const patrickStock = [
             // Breads
-            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 14 },
-            { productId: "prod_bread_2", productName: "Short Loaf", quantity: 23 },
-            { productId: "prod_bread_4", productName: "Burger", quantity: 7 },
-            { productId: "prod_bread_3", productName: "Jumbo", quantity: 3 },
+            { productId: "prod_bread_2", productName: "Short Loaf", quantity: 21 },
+            { productId: "prod_bread_3", productName: "Jumbo", quantity: 5 },
+            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 17 },
+            { productId: "prod_bread_4", productName: "Burger", quantity: 4 },
             // Drinks
-            { productId: "prod_drinks_12", productName: "Exotic", quantity: 4 },
             { productId: "prod_drinks_13", productName: "Beta Malt", quantity: 6 },
             { productId: "prod_drinks_14", productName: "Hi Malt", quantity: 6 },
-            { productId: "prod_drinks_8", productName: "5Alive", quantity: 11 },
-            { productId: "prod_drinks_4", productName: "Pepsi", quantity: 8 },
+            { productId: "prod_drinks_1", productName: "Coke", quantity: 7 },
+            { productId: "prod_drinks_3", productName: "Sprite", quantity: 9 },
             { productId: "prod_drinks_2", productName: "Fanta", quantity: 10 },
-            { productId: "prod_drinks_3", productName: "Sprite", quantity: 10 },
-            { productId: "prod_drinks_1", productName: "Coke", quantity: 8 },
-            { productId: "prod_drinks_5", productName: "7up", quantity: 8 },
-            { productId: "prod_drinks_7", productName: "Nutri Choco", quantity: 9 },
-            { productId: "prod_drinks_6", productName: "Nutri Soya", quantity: 1 },
+            { productId: "prod_drinks_4", productName: "Pepsi", quantity: 8 },
+            { productId: "prod_drinks_7", productName: "Nutri Choco", quantity: 8 },
+            { productId: "prod_drinks_5", productName: "7up", quantity: 11 },
+            { productId: "prod_drinks_12", productName: "Exotic", quantity: 4 },
+            { productId: "prod_drinks_8", productName: "5Alive", quantity: 11 },
             { productId: "prod_drinks_10", productName: "Freshyo", quantity: 1 },
+            { productId: "prod_drinks_11", productName: "Aquafina water", quantity: 6 },
         ];
         
         const transferBatch = writeBatch(db);
@@ -537,3 +552,5 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
+
+    
