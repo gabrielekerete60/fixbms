@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -688,9 +689,9 @@ export default function RecipesPage() {
                 user={user}
             />
             
-            <Tabs defaultValue="recipes">
+            <Tabs defaultValue={isBaker ? 'production' : 'recipes'}>
                 <TabsList>
-                    <TabsTrigger value="recipes">Recipes</TabsTrigger>
+                    {!isBaker && <TabsTrigger value="recipes">Recipes</TabsTrigger>}
                     <TabsTrigger value="production" className="relative">
                         Production Batches
                         {productionBatches.length > 0 && (
@@ -766,7 +767,7 @@ export default function RecipesPage() {
                                 <CardDescription>Batches that are pending approval or are currently being produced.</CardDescription>
                             </div>
                              {canStartProduction && (
-                                 <AlertDialog>
+                                <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button>
                                             <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
@@ -875,3 +876,4 @@ export default function RecipesPage() {
         </div>
     );
 }
+
