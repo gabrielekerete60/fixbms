@@ -1,5 +1,4 @@
 
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -2005,6 +2004,30 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
     }
 }
 
+export async function getProductionTransfers(): Promise<Transfer[]> {
+    try {
+      const q = query(
+        collection(db, 'transfers'),
+        where('status', '==', 'pending'),
+        where('notes', '>=', 'Return from production batch'),
+        where('notes', '<', 'Return from production batch' + '\uf8ff')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          date: (data.date as Timestamp).toDate().toISOString(),
+          ...data
+        } as Transfer;
+      });
+    } catch (error) {
+      console.error("Error getting production transfers:", error);
+      return [];
+    }
+}
+
+
 export async function getCompletedTransfersForStaff(staffId: string): Promise<Transfer[]> {
     try {
         const q = query(
@@ -2426,7 +2449,7 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
         }
 
         const data = runDoc.data();
-        const totalRevenue = data.totalRevenue || 0; // Use stored totalRevenue
+        const totalRevenue = data.totalRevenue || 0;
         
         const ordersSnapshot = await getDocs(query(collection(db, 'orders'), where('salesRunId', '==', runId)));
         
@@ -2449,6 +2472,8 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
           })
         );
         
+        const totalOutstanding = totalRevenue - totalCollected;
+
         return {
             id: runDoc.id,
             date: (data.date as Timestamp).toDate().toISOString(),
@@ -2461,7 +2486,7 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
             to_staff_id: data.to_staff_id,
             totalRevenue,
             totalCollected: totalCollected,
-            totalOutstanding: totalRevenue - totalCollected,
+            totalOutstanding: totalOutstanding > 0 ? totalOutstanding : 0,
             time_received: data.time_received ? (data.time_received as Timestamp).toDate().toISOString() : null,
             time_completed: data.time_completed ? (data.time_completed as Timestamp).toDate().toISOString() : null,
             is_sales_run: data.is_sales_run || false,
@@ -2482,7 +2507,8 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', '==', 'pending'), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', 'in', ['completed', 'active']), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'staff'), where('is_active', '==', true), where('role', '!=', 'Developer'))),
-        () => getDocs(query(collection(db, 'transfers'), where('status', '==', 'pending_return')))
+        () => getDocs(query(collection(db, 'transfers'), where('status', '==', 'pending_return'))),
+        () => getDocs(query(collection(db, 'transfers'), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'), where('notes', '<', 'Return from production batch' + '\uf8ff')))
     ];
 
     const missingIndexes = new Set<string>();
@@ -2523,7 +2549,9 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
         salesByCustomer[customerId].totalSold += order.total;
       }
       
-      salesByCustomer[customerId].totalPaid += order.total;
+      if (order.paymentMethod !== 'Credit') {
+        salesByCustomer[customerId].totalPaid += order.total;
+      }
       
     });
 
@@ -3270,27 +3298,4 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         console.error("Error completing sales run:", error);
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
-}
-
-export async function getProductionTransfers(): Promise<Transfer[]> {
-  try {
-    const q = query(
-      collection(db, 'transfers'),
-      where('status', '==', 'pending'),
-      where('notes', '>=', 'Return from production batch'),
-      where('notes', '<', 'Return from production batch' + '\uf8ff')
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        date: (data.date as Timestamp).toDate().toISOString(),
-        ...data
-      } as Transfer;
-    });
-  } catch (error) {
-    console.error("Error getting production transfers:", error);
-    return [];
-  }
 }

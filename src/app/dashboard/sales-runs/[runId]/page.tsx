@@ -30,7 +30,6 @@ type Customer = {
   name: string;
   phone: string;
   email: string;
-  address: string;
 };
 
 type OrderItem = { productId: string; quantity: number, price: number, name: string, costPrice?: number, minPrice?: number, maxPrice?: number };
