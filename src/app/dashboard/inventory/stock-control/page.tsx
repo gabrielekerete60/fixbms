@@ -324,7 +324,7 @@ function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept:
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    )
+    );
 }
 
 function ReportWasteTab({ products, user, onWasteReported }: { products: Product[], user: User | null, onWasteReported: () => void }) {
@@ -414,7 +414,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: Product
                                         <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
                                         <SelectContent>
                                             {availableProducts.map((p: any) => (
-                                                <SelectItem key={p.id} value={p.id}>
+                                                <SelectItem key={`${p.id}-${index}`} value={p.id}>
                                                     {p.name} (Stock: {p.stock})
                                                 </SelectItem>
                                             ))}
@@ -1487,3 +1487,4 @@ export default function StockControlPage() {
     </div>
   );
 }
+
