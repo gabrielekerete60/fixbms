@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -59,7 +60,7 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProductsForStaff, handleReturnStock } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts, getProductsForStaff, handleReturnStock } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -316,6 +317,7 @@ function AcceptRunDialog({ transfer, onAccept }: { transfer: Transfer, onAccept:
         </AlertDialogContent>
     )
 }
+
 
 function ReportWasteTab({ products, user, onWasteReported }: { products: { productId: string; productName: string; stock: number }[], user: User | null, onWasteReported: () => void }) {
     const { toast } = useToast();
@@ -612,7 +614,7 @@ export default function StockControlPage() {
         const userStr = localStorage.getItem('loggedInUser');
         if (!userStr) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
-            setIsLoading(false);
+            if (isLoading) setIsLoading(false);
             return;
         }
         const currentUser = JSON.parse(userStr);
@@ -654,7 +656,7 @@ export default function StockControlPage() {
             console.error("Error fetching data:", error);
             toast({ variant: "destructive", title: "Error", description: "Failed to load necessary data." });
         } finally {
-            if(isLoading) setIsLoading(false);
+            if (isLoading) setIsLoading(false);
         }
     }, [toast, isLoading]);
 
@@ -871,10 +873,10 @@ export default function StockControlPage() {
   
   if (!canInitiateTransfer) {
      return (
-         <div className="flex flex-col gap-6">
-             <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
-            <div className="flex flex-col lg:flex-row gap-6">
-                 <div className="flex flex-col gap-6 lg:w-2/3">
+        <div className="space-y-6">
+            <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                <div className="lg:col-span-2 flex flex-col gap-6">
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
@@ -980,16 +982,18 @@ export default function StockControlPage() {
                         </CardFooter>
                     </Card>
                 </div>
-                <div className="lg:w-1/3 flex flex-col gap-6">
+                <div className="lg:col-span-1 flex flex-col gap-6">
                     <ReportWasteTab products={personalStock} user={user} onWasteReported={fetchPageData} />
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Return Stock</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <ReturnStockDialog user={user} onReturn={fetchPageData} personalStock={personalStock} />
-                        </CardContent>
-                    </Card>
+                    {userRole === 'Showroom Staff' && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Return Stock</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ReturnStockDialog user={user} onReturn={fetchPageData} personalStock={personalStock} />
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
             </div>
          </div>
@@ -1326,4 +1330,5 @@ export default function StockControlPage() {
     </div>
   );
 }
+
 

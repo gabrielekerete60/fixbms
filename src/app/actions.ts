@@ -1,4 +1,5 @@
 
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -3219,20 +3220,23 @@ export async function handleReturnStock(runId: string, unsoldItems: { productId:
                 status: 'pending_return',
                 is_sales_run: false,
                 notes: `Return from Sales Run ${runId}`,
-                originalRunId: runId, // Link to the original run
+                originalRunId: runId,
             });
 
-            // Update the original sales run to 'pending_return' status
-            const originalRunRef = doc(db, 'transfers', runId);
-            transaction.update(originalRunRef, { status: 'pending_return' });
+            // For showroom staff, runId might be a placeholder. Only update if it's a real document.
+            if (runId !== 'showroom-return') {
+                const originalRunRef = doc(db, 'transfers', runId);
+                transaction.update(originalRunRef, { status: 'pending_return' });
+            }
         });
         
         return { success: true };
     } catch (error) {
-        console.error("Error returning stock from sales run:", error);
+        console.error("Error returning stock:", error);
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
 
 export async function handleCompleteRun(runId: string): Promise<{success: boolean, error?: string}> {
     try {
