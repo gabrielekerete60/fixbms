@@ -2009,7 +2009,7 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
         return {
           id: docSnap.id,
           ...data,
-          date: (data.date as Timestamp).toDate().toISOString(),
+          date: data.date ? (data.date as Timestamp).toDate().toISOString() : new Date().toISOString(),
         } as Transfer;
       });
     } catch (error) {
@@ -2017,7 +2017,6 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
       return [];
     }
 }
-
 
 export async function getCompletedTransfersForStaff(staffId: string): Promise<Transfer[]> {
     try {
@@ -2458,20 +2457,11 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
         const totalRevenue = data.totalRevenue || 0;
         
         const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId));
-        const [ordersSnapshot, paymentConfirmationsSnapshot] = await Promise.all([
-            getDocs(ordersQuery),
-            getDocs(query(collection(db, 'payment_confirmations'), where('runId', '==', runId), where('status', '==', 'approved')))
-        ]);
+        const ordersSnapshot = await getDocs(ordersQuery);
         
-        const directPayments = ordersSnapshot.docs
+        const totalCollected = ordersSnapshot.docs
             .filter(doc => doc.data().paymentMethod !== 'Credit')
             .reduce((sum, doc) => sum + doc.data().total, 0);
-
-        const approvedDebtPayments = paymentConfirmationsSnapshot.docs
-            .filter(doc => doc.data().isDebtPayment)
-            .reduce((sum, doc) => sum + doc.data().amount, 0);
-            
-        const totalCollected = directPayments + approvedDebtPayments;
             
         const itemsWithPrices = await Promise.all(
           (data.items || []).map(async (item: any) => {
@@ -2548,10 +2538,7 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
 export async function getCustomersForRun(runId: string): Promise<any[]> {
   try {
     const ordersQuery = query(collection(db, "orders"), where("salesRunId", "==", runId));
-    const [ordersSnapshot, paymentsSnapshot] = await Promise.all([
-        getDocs(ordersQuery),
-        getDocs(query(collection(db, 'payment_confirmations'), where('runId', '==', runId), where('status', '==', 'approved'), where('isDebtPayment', '==', true)))
-    ]);
+    const ordersSnapshot = await getDocs(ordersQuery);
 
     const salesByCustomer: Record<string, { customerId: string, customerName: string, totalSold: number, totalPaid: number }> = {};
 
@@ -2566,13 +2553,14 @@ export async function getCustomersForRun(runId: string): Promise<any[]> {
       
       salesByCustomer[customerId].totalSold += order.total;
       
-      // Only non-credit payments contribute to 'totalPaid' at the point of sale
       if (order.paymentMethod !== 'Credit') {
         salesByCustomer[customerId].totalPaid += order.total;
       }
     });
 
     // Add approved debt payments to the totalPaid for the corresponding customer
+    const paymentsQuery = query(collection(db, 'payment_confirmations'), where('runId', '==', runId), where('status', '==', 'approved'), where('isDebtPayment', '==', true));
+    const paymentsSnapshot = await getDocs(paymentsQuery);
     paymentsSnapshot.forEach(confDoc => {
         const conf = confDoc.data();
         if (conf.customerId && salesByCustomer[conf.customerId]) {
@@ -2689,7 +2677,7 @@ export async function handleSellToCustomer(data: SaleData): Promise<{ success: b
                     isDebtPayment: false,
                 });
             } else { // Direct payments like Paystack
-                transaction.update(runRef, { totalCollected: increment(data.total) });
+                // Paystack payments are verified on the server and do not directly update totalCollected here.
             }
 
             return newOrderRef.id;
@@ -3321,6 +3309,62 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: true };
     } catch (error) {
         console.error("Error completing sales run:", error);
+        return { success: false, error: (error as Error).message || "An unexpected error occurred." };
+    }
+}
+
+// Developer tool to reset a sales run
+export async function resetSalesRun(runId: string): Promise<ActionResult> {
+    try {
+        await runTransaction(db, async (transaction) => {
+            const runRef = doc(db, 'transfers', runId);
+            const runDoc = await transaction.get(runRef);
+            if (!runDoc.exists()) {
+                throw new Error("Sales run not found.");
+            }
+            const runData = runDoc.data();
+            const driverId = runData.to_staff_id;
+
+            // 1. Find and delete all associated orders
+            const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId));
+            const ordersSnapshot = await getDocs(ordersQuery);
+            ordersSnapshot.forEach(orderDoc => {
+                transaction.delete(orderDoc.ref);
+            });
+
+            // 2. Find and delete all associated payment confirmations
+            const paymentsQuery = query(collection(db, 'payment_confirmations'), where('runId', '==', runId));
+            const paymentsSnapshot = await getDocs(paymentsQuery);
+            paymentsSnapshot.forEach(paymentDoc => {
+                transaction.delete(paymentDoc.ref);
+            });
+
+            // 3. Reset the run document itself
+            transaction.update(runRef, {
+                status: 'active',
+                totalCollected: 0,
+                time_completed: null,
+            });
+
+            // 4. (Optional but good practice) Reset any customer debt from this run
+            const customerIds = new Set(ordersSnapshot.docs.map(doc => doc.data().customerId));
+            for (const customerId of customerIds) {
+                if (customerId === 'walk-in') continue;
+                const customerRef = doc(db, 'customers', customerId);
+                const ordersForCustomer = ordersSnapshot.docs.filter(o => o.data().customerId === customerId);
+                const totalOwedFromRun = ordersForCustomer.filter(o => o.data().paymentMethod === 'Credit').reduce((sum, o) => sum + o.data().total, 0);
+                const totalPaidFromRun = paymentsSnapshot.docs.filter(p => p.data().customerId === customerId).reduce((sum, p) => sum + p.data().amount, 0);
+
+                transaction.update(customerRef, {
+                    amountOwed: increment(-totalOwedFromRun),
+                    amountPaid: increment(-totalPaidFromRun)
+                });
+            }
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error resetting sales run:", error);
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }

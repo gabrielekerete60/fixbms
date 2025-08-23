@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,11 @@ import {
     seedDeveloperData,
     seedSpecialScenario,
     seedRecipesOnly,
+    getAllSalesRuns,
+    resetSalesRun,
+    SalesRun
 } from "@/app/seed/actions";
-import { Loader2, DatabaseZap, Trash2, ArrowLeft } from "lucide-react";
+import { Loader2, DatabaseZap, Trash2, ArrowLeft, RefreshCw } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +39,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 const collectionsToClear = [
@@ -56,6 +60,20 @@ export default function DatabaseToolsPage() {
   const { toast } = useToast();
   const [isVerified, setIsVerified] = useState(false);
   const [password, setPassword] = useState('');
+  const [salesRuns, setSalesRuns] = useState<SalesRun[]>([]);
+  const [selectedRun, setSelectedRun] = useState('');
+
+  const fetchSalesRuns = async () => {
+    const { active, completed } = await getAllSalesRuns();
+    setSalesRuns([...active, ...completed]);
+  };
+
+  useEffect(() => {
+    if (isVerified) {
+        fetchSalesRuns();
+    }
+  }, [isVerified]);
+
 
   const handleVerification = () => {
     if (password === 'password123') {
@@ -86,6 +104,24 @@ export default function DatabaseToolsPage() {
       startTransition(false);
     });
   };
+
+  const handleResetRun = () => {
+    if (!selectedRun) return;
+    setCurrentlySeeding('reset_run');
+    startTransition(true);
+
+    resetSalesRun(selectedRun).then(result => {
+      if (result.success) {
+        toast({ title: "Success!", description: `Sales run ${selectedRun.substring(0,6)}... has been reset.`});
+        fetchSalesRuns();
+      } else {
+        toast({ variant: 'destructive', title: "Error", description: result.error || 'Could not reset the sales run.' });
+      }
+      setSelectedRun('');
+      setCurrentlySeeding(null);
+      startTransition(false);
+    })
+  }
   
   const handleClearMultiple = async () => {
     if (selectedCollections.length === 0) return;
@@ -155,6 +191,46 @@ export default function DatabaseToolsPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             <div className="space-y-6">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Developer Actions</CardTitle>
+                        <CardDescription>Specialized actions for debugging and testing.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-2 p-3 border rounded-md">
+                            <Label>Reset a Sales Run</Label>
+                            <p className="text-xs text-muted-foreground">Select a run to reset it to its initial "active" state, clearing all associated orders and payments.</p>
+                            <div className="flex gap-2">
+                                <Select value={selectedRun} onValueChange={setSelectedRun}>
+                                    <SelectTrigger><SelectValue placeholder="Select a sales run..."/></SelectTrigger>
+                                    <SelectContent>
+                                        {salesRuns.map(run => (
+                                            <SelectItem key={run.id} value={run.id}>{run.to_staff_name} - {run.id.substring(0,6)}... ({run.status})</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                 <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" disabled={!selectedRun || isPending}><RefreshCw className="h-4 w-4"/></Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Reset this Sales Run?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will delete all orders and payments for this run and set its status to 'active'. This action is irreversible.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleResetRun}>Confirm Reset</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <Card>
                     <CardHeader>
                         <CardTitle>Seed Data</CardTitle>
