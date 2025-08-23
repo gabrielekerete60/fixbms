@@ -1,4 +1,3 @@
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -1996,26 +1995,26 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
 }
 
 export async function getProductionTransfers(): Promise<Transfer[]> {
-    try {
-      const q = query(
-        collection(db, 'transfers'),
-        where('status', '==', 'pending'),
-        where('notes', '>=', 'Return from production batch'),
-        where('notes', '<', 'Return from production batch' + '\uf8ff')
-      );
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(docSnap => {
-        const data = docSnap.data();
-        return {
-          id: docSnap.id,
-          ...data,
-          date: data.date ? (data.date as Timestamp).toDate().toISOString() : new Date().toISOString(),
-        } as Transfer;
-      });
-    } catch (error) {
-      console.error("Error getting production transfers:", error);
-      return [];
-    }
+  try {
+    const q = query(
+      collection(db, 'transfers'),
+      where('status', '==', 'pending'),
+      where('notes', '>=', 'Return from production batch'),
+      where('notes', '<', 'Return from production batch' + '\uf8ff')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        ...data,
+        date: data.date ? (data.date as Timestamp).toDate().toISOString() : new Date().toISOString(),
+      } as Transfer;
+    });
+  } catch (error) {
+    console.error("Error getting production transfers:", error);
+    return [];
+  }
 }
 
 export async function getCompletedTransfersForStaff(staffId: string): Promise<Transfer[]> {
@@ -3312,6 +3311,11 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
+type ActionResult = {
+  success: boolean;
+  error?: string;
+};
 
 // Developer tool to reset a sales run
 export async function resetSalesRun(runId: string): Promise<ActionResult> {

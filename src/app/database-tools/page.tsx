@@ -19,10 +19,8 @@ import {
     seedDeveloperData,
     seedSpecialScenario,
     seedRecipesOnly,
-    getAllSalesRuns,
-    resetSalesRun,
-    SalesRun
 } from "@/app/seed/actions";
+import { getAllSalesRuns, resetSalesRun, type SalesRun } from "@/app/actions";
 import { Loader2, DatabaseZap, Trash2, ArrowLeft, RefreshCw } from "lucide-react";
 import {
   AlertDialog,

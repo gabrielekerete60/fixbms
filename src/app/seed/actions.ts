@@ -1,4 +1,3 @@
-
 "use server";
 
 import { db } from "@/lib/firebase";
@@ -15,7 +14,7 @@ const daysAgo = (days: number): Timestamp => {
 
 const generateRandomDate = (startDaysAgo: number, endDaysAgo: number): Timestamp => {
     const randomDays = Math.floor(Math.random() * (startDaysAgo - endDaysAgo + 1)) + endDaysAgo;
-    return daysAgo(randomDays);
+    return Timestamp.fromDate(date);
 };
 
 const productsData = [
