@@ -75,6 +75,14 @@ type Expense = {
   status?: 'pending' | 'approved' | 'declined';
 }
 
+export async function generateStaticParams() {
+    const { active, completed } = await getAllSalesRuns();
+    const allRuns = [...active, ...completed];
+    return allRuns.map((run) => ({
+        runId: run.id,
+    }));
+}
+
 const formatCurrency = (amount?: number) => `₦${(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const handlePrint = (node: HTMLElement | null) => {
