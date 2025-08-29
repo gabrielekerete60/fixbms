@@ -30,55 +30,21 @@ npm install @capacitor/core @capacitor/android @capacitor/cli
 
 ### ⚙️ Step 2: Initialize Capacitor
 
-Now, let's set up Capacitor within your project. This will create the necessary configuration files.
+Now, let's set up Capacitor within your project. This will create the necessary configuration files. This application is server-based, so we will point Capacitor to the `.next` directory.
 
 > Run the following commands one by one:
 
 ```bash
-npx cap init "BMS" "com.example.bms" --web-dir "out"
+npx cap init "BMS" "com.example.bms" --web-dir ".next"
 ```
 ```bash
 npx cap add android
 ```
-This tells Capacitor your app's name, gives it a unique package ID, and specifies that the output of your web build will be in the `out` directory.
+This tells Capacitor your app's name, gives it a unique package ID, and specifies that the output of your web build will be in the `.next` directory.
 
 ---
 
-### 🔧 Step 3: Configure Your Next.js Build
-
-Your Next.js app needs to be configured to export a static site, which Capacitor can then use.
-
-> Open your `next.config.ts` file and add the `output: 'export'` option.
-
-```typescript
-import type { NextConfig } from 'next';
-
-const nextConfig: NextConfig = {
-  output: 'export', // <-- Add this line!
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'placehold.co',
-        port: '',
-        pathname: '/**',
-      },
-    ],
-  },
-};
-
-export default nextConfig;
-```
-
----
-
-### 🏗️ Step 4: Build and Sync Your App
+### 🏗️ Step 3: Build and Sync Your App
 
 This is where the magic happens. We'll build the web app and then sync it with Capacitor's native Android project.
 
@@ -90,9 +56,31 @@ This is where the magic happens. We'll build the web app and then sync it with C
     ```
 
 2.  **Sync the build with Capacitor:**
+    > **Important:** Your app requires a server. It will NOT run correctly if you open the files directly. You must configure the native app to load your app from a running server (e.g., `http://localhost:9002` for local development).
     ```bash
     npx cap sync
     ```
+
+---
+
+### 🔧 Step 4: Configure Capacitor for a Server
+
+Because your app needs a server to function, you must tell the native Android app to load it from your server's URL.
+
+> Open the `capacitor.config.json` file that was created in your project root and add the `server` configuration:
+
+```json
+{
+  "appId": "com.example.bms",
+  "appName": "BMS",
+  "webDir": ".next",
+  "server": {
+    "url": "http://localhost:9002", // <-- For local testing with `npm run dev`
+    "cleartext": true
+  }
+}
+```
+**Note:** For a real release, you would replace `http://localhost:9002` with the URL of your live, deployed application.
 
 ---
 
@@ -100,22 +88,29 @@ This is where the magic happens. We'll build the web app and then sync it with C
 
 It's time to see your app running on an Android device!
 
-1.  **Open in Android Studio:**
+1.  **Run your local server:**
+    > Keep this terminal running.
+    ```bash
+    npm run dev
+    ```
+
+2.  **Open in Android Studio:**
     > This command will open the native Android project in Android Studio.
     ```bash
     npx cap open android
     ```
 
-2.  **Run the App:**
-    > Inside Android Studio, wait for the project to sync. Then, click the green "Run" button (▶️) at the top. You can choose to run it on an emulator or a physical Android device connected to your computer.
+3.  **Run the App:**
+    > Inside Android Studio, wait for the project to sync. Then, click the green "Run" button (▶️) at the top. You can choose to run it on an emulator or a physical Android device connected to your computer. The app will load its content from your running local server.
 
 ---
 
 ### ✨ Step 6: Prepare for the Google Play Store
 
-Once you're happy with your app, you can prepare it for release.
+When you are ready to release, you'll need to deploy your Next.js app to a hosting provider that supports Node.js (like Vercel, Firebase App Hosting, etc.).
 
-1.  **Generate a Signed App Bundle:** In Android Studio, go to `Build > Generate Signed Bundle / APK...`. Follow the wizard to create a new keystore, which is a file that digitally signs your app.
-2.  **Upload to Google Play:** Create a developer account on the [Google Play Console](https://play.google.com/console), create a new app listing, and upload the `.aab` file you generated.
+1.  **Update `capacitor.config.json`:** Change the `server.url` to your live application's URL.
+2.  **Generate a Signed App Bundle:** In Android Studio, go to `Build > Generate Signed Bundle / APK...`. Follow the wizard to create a new keystore, which is a file that digitally signs your app.
+3.  **Upload to Google Play:** Create a developer account on the [Google Play Console](https://play.google.com/console), create a new app listing, and upload the `.aab` file you generated.
 
 And that's it! You've successfully converted your web app into a fully functional Android app. Congratulations!
