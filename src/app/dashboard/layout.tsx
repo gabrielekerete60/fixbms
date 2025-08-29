@@ -73,7 +73,18 @@ type User = {
   theme?: string;
 };
 
-function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[], pathname: string, notificationCounts: Record<string, number> }) {
+type NavLink = {
+    href: string;
+    icon: React.ElementType;
+    label: string;
+    roles: string[];
+    disabled?: boolean;
+    sublinks?: Omit<NavLink, 'icon' | 'roles' | 'sublinks'>[];
+    notificationKey?: string;
+};
+
+
+function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: NavLink[], pathname: string, notificationCounts: Record<string, number> }) {
   const { toast } = useToast();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
@@ -119,7 +130,7 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: any[
             </CollapsibleTrigger>
             <CollapsibleContent className="overflow-hidden text-sm">
                 <div className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down ml-7 flex flex-col gap-1 border-l pl-3 py-1">
-                    {link.sublinks.map((sublink: any) => (
+                    {link.sublinks.map((sublink) => (
                     <Link 
                         key={sublink.label} 
                         href={sublink.disabled ? '#' : sublink.href}
@@ -396,8 +407,8 @@ export default function DashboardLayout({
     setIsClocking(false);
   };
 
-  const navLinks = useMemo(() => {
-    const allLinks = [
+  const navLinks: NavLink[] = useMemo(() => {
+    const allLinks: NavLink[] = [
       { href: "/dashboard", icon: Home, label: "Dashboard", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
       { href: "/dashboard/pos", icon: ShoppingBag, label: "POS", roles: ['Manager', 'Supervisor', 'Showroom Staff', 'Developer'] },
       {
@@ -441,11 +452,11 @@ export default function DashboardLayout({
 
     if (!user) return [];
 
-    const filterLinks = (links: any[]) => {
-      return links.reduce((acc: any[], link) => {
-        if (!link.roles || link.roles.includes(user.role)) {
+    const filterLinks = (links: NavLink[]): NavLink[] => {
+      return links.reduce((acc: NavLink[], link) => {
+        if (link.roles.includes(user.role)) {
           if (link.sublinks) {
-            const filteredSublinks = link.sublinks.filter((sublink: any) => {
+            const filteredSublinks = (link.sublinks as NavLink[]).filter((sublink) => {
               if (sublink.href === "/dashboard/inventory/stock-control" && user.role === 'Baker') {
                 return false;
               }
