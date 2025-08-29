@@ -534,7 +534,7 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
     }
     
     const handleAddItem = () => {
-        setCart(prev => [...prev, { productId: '', name: '', quantity: 1, price: 0 }]);
+        setCart(prev => [...prev, { productId: '', name: '', quantity: 1, price: 0 } as OrderItem]);
     }
 
     const handleRemoveItem = (index: number) => {
@@ -1385,7 +1385,7 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
                         <TableBody>
                             {run.items.map(item => {
                                 const sold = item.quantity - (remainingItems.find(i => i.productId === item.productId)?.quantity || 0);
-                                return <TableRow key={item.productId}><TableCell className="p-1 text-xs">{item.productName}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity}</TableCell><TableCell className="text-right p-1 text-xs">{sold}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity - sold}</TableCell></TableRow>
+                                return <TableRow key={item.productId}><TableCell className="p-1 text-xs">{item.name}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity}</TableCell><TableCell className="text-right p-1 text-xs">{sold}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity - sold}</TableCell></TableRow>
                             })}
                         </TableBody>
                     </Table>
