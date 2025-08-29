@@ -28,9 +28,9 @@ npm install @capacitor/core @capacitor/android @capacitor/cli
 
 ---
 
-### ⚙️ Step 2: Initialize Capacitor
+### ⚙️ Step 2: Initialize Capacitor for Android
 
-Now, let's set up Capacitor within your project. This will create the necessary configuration files. This application is server-based, so we will point Capacitor to the `.next` directory.
+Now, let's set up Capacitor within your project. This will create the necessary configuration files and the native Android project.
 
 > Run the following commands one by one:
 
@@ -40,62 +40,53 @@ npx cap init "BMS" "com.example.bms" --web-dir ".next"
 ```bash
 npx cap add android
 ```
-This tells Capacitor your app's name, gives it a unique package ID, and specifies that the output of your web build will be in the `.next` directory.
+This tells Capacitor your app's name, gives it a unique package ID, and specifies that the web app's output will be in the `.next` directory.
 
 ---
 
-### 🏗️ Step 3: Build and Sync Your App
+### 🏗️ Step 3: Build and Configure Your App
 
-This is where the magic happens. We'll build the web app and then sync it with Capacitor's native Android project.
+This is where the magic happens. We'll build the web app and then configure Capacitor to connect to it.
 
-> Run these commands in your terminal:
-
-1.  **Build the web app:**
+1.  **Build the web app:** This creates the `.next` folder that Capacitor needs.
     ```bash
     npm run build
     ```
 
-2.  **Sync the build with Capacitor:**
-    > **Important:** Your app requires a server. It will NOT run correctly if you open the files directly. You must configure the native app to load your app from a running server (e.g., `http://localhost:9002` for local development).
+2.  **Configure the Capacitor server:** Your app needs a live server to function. You must tell the native Android app to load your app from your server's URL.
+    > Open the `capacitor.config.json` file that was created in your project root and add the `server` configuration:
+
+    ```json
+    {
+      "appId": "com.example.bms",
+      "appName": "BMS",
+      "webDir": ".next",
+      "server": {
+        "url": "http://10.0.2.2:9002",
+        "cleartext": true
+      }
+    }
+    ```
+    **Why `10.0.2.2`?** This is a special IP address that the Android emulator uses to connect to your computer's `localhost`. If you are testing on a physical device, replace `10.0.2.2` with your computer's local IP address. For a real release, you would use your live, deployed application URL.
+
+3.  **Sync with Capacitor:** Now that the `.next` folder exists and the configuration is set, sync everything with the native project.
     ```bash
     npx cap sync
     ```
 
 ---
 
-### 🔧 Step 4: Configure Capacitor for a Server
-
-Because your app needs a server to function, you must tell the native Android app to load it from your server's URL.
-
-> Open the `capacitor.config.json` file that was created in your project root and add the `server` configuration:
-
-```json
-{
-  "appId": "com.example.bms",
-  "appName": "BMS",
-  "webDir": ".next",
-  "server": {
-    "url": "http://localhost:9002", // <-- For local testing with `npm run dev`
-    "cleartext": true
-  }
-}
-```
-**Note:** For a real release, you would replace `http://localhost:9002` with the URL of your live, deployed application.
-
----
-
-### 📱 Step 5: Run on Android
+### 📱 Step 4: Run on Android
 
 It's time to see your app running on an Android device!
 
-1.  **Run your local server:**
+1.  **Run your local server:** You must have your Next.js development server running for the app to connect to it.
     > Keep this terminal running.
     ```bash
     npm run dev
     ```
 
-2.  **Open in Android Studio:**
-    > This command will open the native Android project in Android Studio.
+2.  **Open in Android Studio:** This command will open the native Android project.
     ```bash
     npx cap open android
     ```
@@ -105,7 +96,7 @@ It's time to see your app running on an Android device!
 
 ---
 
-### ✨ Step 6: Prepare for the Google Play Store
+### ✨ Step 5: Prepare for the Google Play Store
 
 When you are ready to release, you'll need to deploy your Next.js app to a hosting provider that supports Node.js (like Vercel, Firebase App Hosting, etc.).
 
