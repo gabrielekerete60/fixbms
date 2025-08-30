@@ -16,60 +16,58 @@ Before we begin, make sure you have the following installed on your computer.
 
 ---
 
-### 🚀 Step 1: Install Capacitor
+### 🚀 Step 1: Build Your Web App for Export
 
-First, we need to add Capacitor to your project. Capacitor is the magic that wraps your web app in a native shell.
+First, we need to create a static, exportable version of your web application. This is the version that Capacitor will wrap into a native app. The command below will create a new `out` folder in your project with all the necessary files.
 
 > Open your project's terminal and run this command:
 
 ```bash
-npm install @capacitor/core @capacitor/android @capacitor/cli
+npm run build
 ```
 
 ---
 
-### ⚙️ Step 2: Initialize Capacitor for Android
+### ⚙️ Step 2: Install and Initialize Capacitor
 
-Now, let's set up Capacitor within your project. This will create the necessary configuration files and the native Android project.
+Now, let's add Capacitor to your project. This will create the native Android project.
 
 > Run the following commands one by one:
 
 ```bash
-npx cap init "BMS" "com.example.bms" --web-dir ".next"
+npm install @capacitor/core @capacitor/android @capacitor/cli
+```
+```bash
+npx cap init "BMS" "com.example.bms" --web-dir "out"
 ```
 ```bash
 npx cap add android
 ```
-This tells Capacitor your app's name, gives it a unique package ID, and specifies that the web app's output will be in the `.next` directory.
+This tells Capacitor your app's name, gives it a unique package ID, and specifies that your web app is in the `out` directory we created in Step 1.
 
 ---
 
-### 🏗️ Step 3: Build and Configure Your App
+### 🏗️ Step 3: Configure Your App for a Live Server
 
-This is where the magic happens. We'll build the web app and then configure Capacitor to connect to it.
+Your app is dynamic and needs to talk to a live server to function correctly. You must tell the native Android app to load your app from your server's URL.
 
-1.  **Build the web app:** This creates the `.next` folder that Capacitor needs.
-    ```bash
-    npm run build
-    ```
-
-2.  **Configure the Capacitor server:** Your app needs a live server to function. You must tell the native Android app to load your app from your server's URL.
+1.  **Configure the Capacitor server:**
     > Open the `capacitor.config.json` file that was created in your project root and add the `server` configuration:
 
     ```json
     {
       "appId": "com.example.bms",
       "appName": "BMS",
-      "webDir": ".next",
+      "webDir": "out",
       "server": {
         "url": "http://10.0.2.2:9002",
         "cleartext": true
       }
     }
     ```
-    **Why `10.0.2.2`?** This is a special IP address that the Android emulator uses to connect to your computer's `localhost`. If you are testing on a physical device, replace `10.0.2.2` with your computer's local IP address. For a real release, you would use your live, deployed application URL.
+    **Why `10.0.2.2`?** This is a special IP address that the Android emulator uses to connect back to your computer's `localhost`. If you are testing on a physical device, replace `10.0.2.2` with your computer's local IP address. For a real release, you would use your live, deployed application URL.
 
-3.  **Sync with Capacitor:** Now that the `.next` folder exists and the configuration is set, sync everything with the native project.
+2.  **Sync with Capacitor:** Now that the configuration is set, sync everything with the native project.
     ```bash
     npx cap sync
     ```
