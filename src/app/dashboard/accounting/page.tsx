@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -573,7 +573,7 @@ function FinancialsTab() {
             <CardHeader>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <CardTitle>Trading, Profit & Loss Statement</CardTitle>
+                        <CardTitle>Trading, Profit &amp; Loss Statement</CardTitle>
                         <CardDescription>For the period ending {date?.to ? format(date.to, 'PPP') : format(new Date(), 'PPP')}</CardDescription>
                     </div>
                      <DateRangeFilter date={date} setDate={setDate} />
@@ -917,8 +917,8 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                 ))}
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-5">
-                <Card className="xl:col-span-3">
+            <div className="grid gap-6 lg:grid-cols-5">
+                <Card className="lg:col-span-3">
                     <CardHeader>
                         <div className="flex flex-col gap-4">
                             <div className="space-y-1.5">
@@ -985,7 +985,7 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="xl:col-span-2">
+                <Card className="lg:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top direct costs.</CardDescription>
@@ -1088,8 +1088,8 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                 ))}
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-5">
-                <Card className="xl:col-span-3">
+            <div className="grid gap-6 lg:grid-cols-5">
+                <Card className="lg:col-span-3">
                      <CardHeader>
                         <div className="flex flex-col gap-4">
                             <div className="space-y-1.5">
@@ -1150,7 +1150,7 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="xl:col-span-2">
+                <Card className="lg:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top indirect costs.</CardDescription>
@@ -2531,7 +2531,7 @@ export default function AccountingPage() {
                         {notificationCounts.approvals > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.approvals}</Badge>}
                     </TabsTrigger>
                     <TabsTrigger value="payment-requests" className="relative">
-                        Payment & Expense Requests
+                        Payment &amp; Expense Requests
                         {notificationCounts.payments > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.payments}</Badge>}
                     </TabsTrigger>
                 </TabsList>
@@ -2547,3 +2547,5 @@ export default function AccountingPage() {
     </div>
   );
 }
+
+    
