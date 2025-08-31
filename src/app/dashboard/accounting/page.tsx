@@ -573,7 +573,7 @@ function FinancialsTab() {
             <CardHeader>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <CardTitle>Trading, Profit &amp; Loss Statement</CardTitle>
+                        <CardTitle>Trading, Profit & Loss Statement</CardTitle>
                         <CardDescription>For the period ending {date?.to ? format(date.to, 'PPP') : format(new Date(), 'PPP')}</CardDescription>
                     </div>
                      <DateRangeFilter date={date} setDate={setDate} />
@@ -924,19 +924,21 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                             <CardTitle>Direct Costs Log</CardTitle>
                             <CardDescription>All costs directly tied to production, like ingredients.</CardDescription>
                         </div>
-                        <div className="flex w-full flex-wrap md:flex-nowrap md:w-auto items-center gap-2">
+                        <div className="flex w-full flex-col md:flex-row md:items-center gap-2">
                              <div className="relative flex-1 md:flex-initial">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
-                            <AddDirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly} />
-                            <DateRangeFilter date={date} setDate={setDate} />
+                            <div className="flex gap-2">
+                                <AddDirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly} />
+                                <DateRangeFilter date={date} setDate={setDate} />
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent>
                         <div className="md:hidden space-y-4">
                             {paginatedCosts.map(c => (
-                                <Card key={c.id} className="p-4 cursor-pointer" onClick={() => setViewingCost(c)}>
+                                <Card key={c.id} className="p-4" onClick={() => setViewingCost(c)}>
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <p className="font-semibold">{c.description}</p>
@@ -1091,19 +1093,21 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                             <CardTitle>Indirect Costs Log</CardTitle>
                             <CardDescription>All operational costs not tied to a single product.</CardDescription>
                         </div>
-                        <div className="flex w-full flex-wrap md:flex-nowrap md:w-auto items-center gap-2">
+                        <div className="flex w-full flex-col md:flex-row md:items-center gap-2">
                              <div className="relative flex-1 md:flex-initial">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
-                            <AddIndirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly}/>
-                            <DateRangeFilter date={date} setDate={setDate} />
+                            <div className="flex gap-2">
+                                <AddIndirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly}/>
+                                <DateRangeFilter date={date} setDate={setDate} />
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent>
                          <div className="md:hidden space-y-4">
                             {paginatedCosts.map(c => (
-                                <Card key={c.id} className="p-4 cursor-pointer" onClick={() => setViewingCost(c)}>
+                                <Card key={c.id} className="p-4" onClick={() => setViewingCost(c)}>
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <p className="font-semibold">{c.description}</p>
@@ -2539,5 +2543,3 @@ export default function AccountingPage() {
     </div>
   );
 }
-
-    
