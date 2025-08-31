@@ -704,7 +704,7 @@ function DebtorsCreditorsTab({ isReadOnly }: { isReadOnly?: boolean }) {
                         ))}
                         {paginatedCreditors.length === 0 && <p className="text-center text-muted-foreground py-12">No outstanding creditors.</p>}
                     </div>
-                    <div className="hidden md:block overflow-x-auto">
+                    <div className="hidden md:block">
                         <Table>
                             <TableHeader><TableRow><TableHead>Supplier</TableHead><TableHead>Contact</TableHead><TableHead className="text-right">Balance</TableHead><TableHead className="text-center">Action</TableHead></TableRow></TableHeader>
                             <TableBody>
@@ -745,7 +745,7 @@ function DebtorsCreditorsTab({ isReadOnly }: { isReadOnly?: boolean }) {
                             ))}
                             {paginatedDebtors.length === 0 && <p className="text-center text-muted-foreground py-12">No outstanding debtors.</p>}
                         </div>
-                        <div className="hidden md:block overflow-x-auto">
+                        <div className="hidden md:block">
                         <Table>
                             <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Amount Owed</TableHead><TableHead className="text-right">Amount Paid</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader>
                             <TableBody>
@@ -792,7 +792,7 @@ function DebtorsCreditorsTab({ isReadOnly }: { isReadOnly?: boolean }) {
                         ))}
                          {paginatedLedger.length === 0 && <p className="text-center text-muted-foreground py-12">No ledger entries for this period.</p>}
                     </div>
-                    <div className="hidden md:block overflow-x-auto">
+                    <div className="hidden md:block">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -920,12 +920,12 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
             <div className="grid gap-6 lg:grid-cols-5">
                 <Card className="lg:col-span-3">
                     <CardHeader>
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
                                 <CardTitle>Direct Costs Log</CardTitle>
                                 <CardDescription>All costs directly tied to production, like ingredients.</CardDescription>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto flex-wrap">
                                 <div className="relative flex-grow">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -956,7 +956,7 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                                 </Card>
                             ))}
                         </div>
-                        <div className="hidden md:block overflow-x-auto">
+                        <div className="hidden md:block">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -1091,12 +1091,12 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
             <div className="grid gap-6 lg:grid-cols-5">
                 <Card className="lg:col-span-3">
                      <CardHeader>
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
                                 <CardTitle>Indirect Costs Log</CardTitle>
                                 <CardDescription>All operational costs not tied to a single product.</CardDescription>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto flex-wrap">
                                 <div className="relative flex-grow">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -1123,7 +1123,7 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                                 </Card>
                             ))}
                         </div>
-                        <div className="hidden md:block overflow-x-auto">
+                        <div className="hidden md:block">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -1265,7 +1265,7 @@ function PaymentsRequestsTab({ user, notificationBadge, isReadOnly }: { user: { 
                            ))
                         )}
                     </div>
-                   <div className="hidden md:block overflow-x-auto">
+                   <div className="hidden md:block">
                     <Table>
                         <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Run ID</TableHead><TableHead>Customer</TableHead><TableHead>Amount</TableHead><TableHead>Method</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
@@ -1331,7 +1331,7 @@ function PaymentsRequestsTab({ user, notificationBadge, isReadOnly }: { user: { 
                              ))
                         )}
                     </div>
-                    <div className="hidden md:block overflow-x-auto">
+                    <div className="hidden md:block">
                     <Table>
                          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Amount</TableHead><TableHead>Method</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                          <TableBody>
@@ -1522,7 +1522,7 @@ function SalesRecordsTab() {
                             </Card>
                         ))}
                     </div>
-                    <div className="hidden md:block overflow-x-auto">
+                    <div className="hidden md:block">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -1646,7 +1646,20 @@ function DrinkSalesTab() {
                 </div>
             </CardHeader>
             <CardContent>
-                 <div className="overflow-x-auto">
+                 <div className="md:hidden space-y-4">
+                    {paginatedReport.map(r => (
+                        <Card key={r.productId} className="p-4 space-y-2">
+                            <p className="font-semibold">{r.productName}</p>
+                            <div className="text-sm pt-2 border-t space-y-1">
+                                <div className="flex justify-between"><span>Qty Sold:</span><span>{r.quantitySold}</span></div>
+                                <div className="flex justify-between"><span>Qty Rem:</span><span>{r.quantityRemaining}</span></div>
+                                <div className="flex justify-between"><span>Amount:</span><span>{formatCurrency(r.amount)}</span></div>
+                                <div className="flex justify-between font-bold"><span>Total (+Margin):</span><span>{formatCurrency(r.salesMarginTotal)}</span></div>
+                            </div>
+                        </Card>
+                    ))}
+                 </div>
+                 <div className="hidden md:block">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -1982,7 +1995,7 @@ function WagesTab() {
                         </Card>
                     ))}
                 </div>
-                <div className="hidden md:block overflow-x-auto">
+                <div className="hidden md:block">
                     <Table>
                         <TableHeader>
                             <TableRow>
