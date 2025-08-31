@@ -938,20 +938,46 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-4">
+                        {/* Mobile View */}
+                        <div className="md:hidden space-y-4">
                             {paginatedCosts.map(c => (
-                                <Card key={c.id} className="p-4 flex flex-col md:flex-row justify-between md:items-center gap-2 cursor-pointer hover:bg-muted/50" onClick={() => setViewingCost(c)}>
-                                    <div className="flex-1">
-                                        <p className="font-semibold">{c.description}</p>
-                                        <p className="text-sm"><Badge variant="outline">{c.category}</Badge></p>
-                                        <p className="text-xs text-muted-foreground">{format(new Date(c.date), 'PPP')}</p>
+                                <Card key={c.id} className="p-4" onClick={() => setViewingCost(c)}>
+                                    <div className="flex justify-between items-start">
+                                        <p className="font-semibold flex-1 pr-2">{c.description}</p>
+                                        <p className="font-bold text-lg">{formatCurrency(c.total)}</p>
                                     </div>
-                                    <div className="flex md:flex-col items-end md:text-right gap-4 md:gap-0">
-                                        <p className="font-bold text-lg md:text-base">{formatCurrency(c.total)}</p>
-                                        <p className="text-sm text-muted-foreground">Qty: {c.quantity}</p>
+                                    <div className="text-sm text-muted-foreground mt-2 flex justify-between">
+                                        <Badge variant="outline">{c.category}</Badge>
+                                        <span>{format(new Date(c.date), 'PPP')}</span>
                                     </div>
                                 </Card>
                             ))}
+                        </div>
+
+                        {/* Desktop View */}
+                        <div className="hidden md:block">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead className="text-right">Quantity</TableHead>
+                                        <TableHead className="text-right">Total</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedCosts.map(c => (
+                                        <TableRow key={c.id} onClick={() => setViewingCost(c)} className="cursor-pointer">
+                                            <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
+                                            <TableCell>{c.description}</TableCell>
+                                            <TableCell><Badge variant="outline">{c.category}</Badge></TableCell>
+                                            <TableCell className="text-right">{c.quantity}</TableCell>
+                                            <TableCell className="text-right font-bold">{formatCurrency(c.total)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
                         </div>
                     </CardContent>
                     <CardFooter>
@@ -1082,17 +1108,44 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-4">
+                         {/* Mobile View */}
+                        <div className="md:hidden space-y-4">
                             {paginatedCosts.map(c => (
-                                <Card key={c.id} className="p-4 flex flex-col md:flex-row justify-between md:items-center gap-2 cursor-pointer hover:bg-muted/50" onClick={() => setViewingCost(c)}>
-                                    <div className="flex-1">
-                                        <p className="font-semibold">{c.description}</p>
-                                        <p className="text-sm"><Badge variant="outline">{c.category}</Badge></p>
-                                        <p className="text-xs text-muted-foreground">{format(new Date(c.date), 'PPP')}</p>
+                                <Card key={c.id} className="p-4" onClick={() => setViewingCost(c)}>
+                                    <div className="flex justify-between items-start">
+                                        <p className="font-semibold flex-1 pr-2">{c.description}</p>
+                                        <p className="font-bold text-lg">{formatCurrency(c.amount)}</p>
                                     </div>
-                                    <p className="font-bold text-lg md:text-base self-end md:self-center">{formatCurrency(c.amount)}</p>
+                                    <div className="text-sm text-muted-foreground mt-2 flex justify-between">
+                                        <Badge variant="outline">{c.category}</Badge>
+                                        <span>{format(new Date(c.date), 'PPP')}</span>
+                                    </div>
                                 </Card>
                             ))}
+                        </div>
+
+                        {/* Desktop View */}
+                        <div className="hidden md:block">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedCosts.map(c => (
+                                        <TableRow key={c.id} onClick={() => setViewingCost(c)} className="cursor-pointer">
+                                            <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
+                                            <TableCell>{c.description}</TableCell>
+                                            <TableCell><Badge variant="outline">{c.category}</Badge></TableCell>
+                                            <TableCell className="text-right font-bold">{formatCurrency(c.amount)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
                         </div>
                     </CardContent>
                     <CardFooter>
@@ -2425,21 +2478,19 @@ export default function AccountingPage() {
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-bold font-headline">Accounting</h1>
       <Tabs defaultValue="summary" className="space-y-4">
-        <div className="overflow-x-auto pb-2">
-            <TabsList>
-                <TabsTrigger value="summary">Summary</TabsTrigger>
-                <TabsTrigger value="pnl-statement">P&amp;L Statement</TabsTrigger>
-                <TabsTrigger value="business-health">Business Health</TabsTrigger>
-                <TabsTrigger value="expenses">Expenses</TabsTrigger>
-                <TabsTrigger value="sales">Sales</TabsTrigger>
-                <TabsTrigger value="debt-payments">Debt &amp; Payments</TabsTrigger>
-                <TabsTrigger value="assets-wages">Assets &amp; Wages</TabsTrigger>
-                 <TabsTrigger value="approvals" className="relative">
-                    Approvals
-                    {(notificationCounts.approvals + notificationCounts.payments) > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.approvals + notificationCounts.payments}</Badge>}
-                </TabsTrigger>
-            </TabsList>
-        </div>
+        <TabsList className="h-auto flex-wrap">
+            <TabsTrigger value="summary">Summary</TabsTrigger>
+            <TabsTrigger value="pnl-statement">P&amp;L Statement</TabsTrigger>
+            <TabsTrigger value="business-health">Business Health</TabsTrigger>
+            <TabsTrigger value="expenses">Expenses</TabsTrigger>
+            <TabsTrigger value="sales">Sales</TabsTrigger>
+            <TabsTrigger value="debt-payments">Debt &amp; Payments</TabsTrigger>
+            <TabsTrigger value="assets-wages">Assets &amp; Wages</TabsTrigger>
+             <TabsTrigger value="approvals" className="relative">
+                Approvals
+                {(notificationCounts.approvals + notificationCounts.payments) > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.approvals + notificationCounts.payments}</Badge>}
+            </TabsTrigger>
+        </TabsList>
 
         <TabsContent value="summary"><SummaryTab /></TabsContent>
         <TabsContent value="pnl-statement"><FinancialsTab /></TabsContent>
@@ -2509,4 +2560,3 @@ export default function AccountingPage() {
     </div>
   );
 }
-
