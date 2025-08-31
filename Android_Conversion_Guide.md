@@ -1,7 +1,7 @@
 
 # 🌟 Your Guide to Android Conversion 🌟
 
-Hello there! You're ready to take your web application to the next level and turn it into a native Android app. That's fantastic! This guide will walk you through the entire process, from setup to deployment.
+Hello there! This guide will walk you through converting your dynamic Next.js application into a native Android app using Capacitor. Because your app uses server features, we'll use a live development server to power the Android app.
 
 Let's get started!
 
@@ -11,63 +11,67 @@ Let's get started!
 
 Before we begin, make sure you have the following installed on your computer.
 
-- **Android Studio**: The official tool for Android development. If you don't have it, [download it here](https://developer.android.com/studio).
+- **Android Studio**: The official tool for Android development. [Download it here](https://developer.android.com/studio).
 - **Node.js & npm**: The backbone of your Next.js project. [Download it here](https://nodejs.org/).
 
 ---
 
-### 🚀 Step 1: Build Your Web App for Export
+### ⚙️ Step 1: Install Capacitor
 
-First, we need to create a static, exportable version of your web application. This is the version that Capacitor will wrap into a native app. The command below will create a new `out` folder in your project with all the necessary files.
+First, let's add Capacitor to your project. This will create the native Android project.
 
-> Open your project's terminal and run this command:
-
-```bash
-npm run build
-```
-
----
-
-### ⚙️ Step 2: Install and Initialize Capacitor
-
-Now, let's add Capacitor to your project. This will create the native Android project.
-
-> Run the following commands one by one:
+> In your project's terminal, run the following commands one by one:
 
 ```bash
 npm install @capacitor/core @capacitor/android @capacitor/cli
 ```
+
+---
+
+### 🏗️ Step 2: Initialize Your Android Project
+
+This command tells Capacitor your app's name, gives it a unique package ID, and adds the native Android folder.
+
+> Run the following commands:
+
 ```bash
-npx cap init "BMS" "com.example.bms" --web-dir "out"
+npx cap init "BMS" "com.gabrielekerete.bms"
 ```
 ```bash
 npx cap add android
 ```
-This tells Capacitor your app's name, gives it a unique package ID, and specifies that your web app is in the `out` directory we created in Step 1.
+**Note:** You might see a warning about a missing web directory. This is expected and will be resolved.
 
 ---
 
-### 🏗️ Step 3: Configure Your App for a Live Server
+### 🔌 Step 3: Configure for a Live Server
 
-Your app is dynamic and needs to talk to a live server to function correctly. You must tell the native Android app to load your app from your server's URL.
+Your app is dynamic and needs to talk to a live server. We must tell the native Android app to load your app from your local development server's URL.
 
-1.  **Configure the Capacitor server:**
-    > Open the `capacitor.config.json` file that was created in your project root and add the `server` configuration:
+1.  **Configure the Capacitor server URL:**
+    > Open the `capacitor.config.json` file that was created in your project root and add the `server` configuration. **This is the most important step.**
 
     ```json
     {
-      "appId": "com.example.bms",
+      "appId": "com.gabrielekerete.bms",
       "appName": "BMS",
-      "webDir": "out",
+      "webDir": ".next",
       "server": {
         "url": "http://10.0.2.2:9002",
         "cleartext": true
       }
     }
     ```
-    **Why `10.0.2.2`?** This is a special IP address that the Android emulator uses to connect back to your computer's `localhost`. If you are testing on a physical device, replace `10.0.2.2` with your computer's local IP address. For a real release, you would use your live, deployed application URL.
+    **Why `10.0.2.2`?** This is a special IP address that the Android emulator uses to connect to your computer's `localhost`.
+    - **If you are testing on a PHYSICAL DEVICE:** Replace `10.0.2.2` with your computer's local IP address (e.g., `http://192.168.1.10:9002`). You can find your IP address by running `ipconfig` (Windows) or `ifconfig` (macOS/Linux) in your terminal.
+    - **For a REAL RELEASE:** You would use your live, deployed application URL (e.g., `https://your-live-app.com`).
 
-2.  **Sync with Capacitor:** Now that the configuration is set, sync everything with the native project.
+2.  **Build Your Web App:** Now, create the production build of your app. This populates the `.next` directory that Capacitor uses as a base.
+    ```bash
+    npm run build
+    ```
+
+3.  **Sync with Capacitor:** Now that the build is done and the configuration is set, sync everything with the native project.
     ```bash
     npx cap sync
     ```
@@ -76,15 +80,15 @@ Your app is dynamic and needs to talk to a live server to function correctly. Yo
 
 ### 📱 Step 4: Run on Android
 
-It's time to see your app running on an Android device!
+It's time to see your app running on an Android device! This requires two terminals running at the same time.
 
-1.  **Run your local server:** You must have your Next.js development server running for the app to connect to it.
+1.  **Terminal 1: Run your local server:** You must have your Next.js development server running for the app to connect to it.
     > Keep this terminal running.
     ```bash
     npm run dev
     ```
 
-2.  **Open in Android Studio:** This command will open the native Android project.
+2.  **Terminal 2: Open in Android Studio:** This command will open the native Android project.
     ```bash
     npx cap open android
     ```
@@ -102,4 +106,4 @@ When you are ready to release, you'll need to deploy your Next.js app to a hosti
 2.  **Generate a Signed App Bundle:** In Android Studio, go to `Build > Generate Signed Bundle / APK...`. Follow the wizard to create a new keystore, which is a file that digitally signs your app.
 3.  **Upload to Google Play:** Create a developer account on the [Google Play Console](https://play.google.com/console), create a new app listing, and upload the `.aab` file you generated.
 
-And that's it! You've successfully converted your web app into a fully functional Android app. Congratulations!
+And that's it! You've successfully configured your app for Android. Congratulations!
