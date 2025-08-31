@@ -925,12 +925,12 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                                 <CardTitle>Direct Costs Log</CardTitle>
                                 <CardDescription>All costs directly tied to production, like ingredients.</CardDescription>
                             </div>
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                <div className="relative w-full sm:w-auto flex-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="relative w-full flex-grow sm:w-auto">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
-                                <div className="flex w-full sm:w-auto items-center gap-2">
+                                <div className="flex w-full flex-wrap sm:w-auto items-center gap-2">
                                     <AddDirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly} />
                                     <DateRangeFilter date={date} setDate={setDate} />
                                 </div>
@@ -1096,12 +1096,12 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                                 <CardTitle>Indirect Costs Log</CardTitle>
                                 <CardDescription>All operational costs not tied to a single product.</CardDescription>
                             </div>
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                <div className="relative w-full sm:w-auto flex-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="relative w-full flex-grow sm:w-auto">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
-                                <div className="flex w-full sm:w-auto items-center gap-2">
+                                <div className="flex w-full flex-wrap sm:w-auto items-center gap-2">
                                     <AddIndirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly}/>
                                     <DateRangeFilter date={date} setDate={setDate} />
                                 </div>
@@ -2547,5 +2547,3 @@ export default function AccountingPage() {
     </div>
   );
 }
-
-    
