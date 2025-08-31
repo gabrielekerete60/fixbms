@@ -487,28 +487,42 @@ function SummaryTab() {
                 </div>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="font-bold">Account</TableHead>
-                            <TableHead className="text-right font-bold">Amount (₦)</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {summaryOrder.map(key => (
-                            <TableRow key={key}>
-                                <TableCell>{key}</TableCell>
-                                <TableCell className="text-right font-medium">{formatCurrency(summary[key])}</TableCell>
+                <div className="md:hidden space-y-4">
+                    {summaryOrder.map(key => (
+                        <Card key={key} className="p-4 flex justify-between items-center">
+                            <span className="font-medium">{key}</span>
+                            <span className="font-bold">{formatCurrency(summary[key])}</span>
+                        </Card>
+                    ))}
+                    <Card className="p-4 flex justify-between items-center bg-muted">
+                        <span className="font-bold">Grand Total</span>
+                        <span className="font-bold">{formatCurrency(totalSummary)}</span>
+                    </Card>
+                </div>
+                <div className="hidden md:block">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="font-bold">Account</TableHead>
+                                <TableHead className="text-right font-bold">Amount (₦)</TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                    <TableFooter>
-                        <TableRow>
-                            <TableCell colSpan={1} className="text-right font-bold">Grand Total</TableCell>
-                            <TableCell className="text-right font-bold">{formatCurrency(totalSummary)}</TableCell>
-                        </TableRow>
-                    </TableFooter>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {summaryOrder.map(key => (
+                                <TableRow key={key}>
+                                    <TableCell>{key}</TableCell>
+                                    <TableCell className="text-right font-medium">{formatCurrency(summary[key])}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                        <TableFooter>
+                            <TableRow>
+                                <TableCell colSpan={1} className="text-right font-bold">Grand Total</TableCell>
+                                <TableCell className="text-right font-bold">{formatCurrency(totalSummary)}</TableCell>
+                            </TableRow>
+                        </TableFooter>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
