@@ -920,18 +920,20 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
             <div className="grid gap-6 xl:grid-cols-5">
                 <Card className="xl:col-span-3">
                     <CardHeader>
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="flex flex-col gap-4">
                             <div className="space-y-1.5">
                                 <CardTitle>Direct Costs Log</CardTitle>
                                 <CardDescription>All costs directly tied to production, like ingredients.</CardDescription>
                             </div>
-                            <div className="flex w-full flex-col sm:flex-row items-center gap-2">
-                                <div className="relative flex-1 w-full sm:w-auto">
+                            <div className="flex flex-col md:flex-row items-center gap-2">
+                                <div className="relative w-full flex-1">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
-                                <AddDirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly} />
-                                <DateRangeFilter date={date} setDate={setDate} />
+                                <div className="flex w-full md:w-auto gap-2">
+                                    <AddDirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly} />
+                                    <DateRangeFilter date={date} setDate={setDate} />
+                                </div>
                             </div>
                         </div>
                     </CardHeader>
@@ -1088,19 +1090,21 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
 
             <div className="grid gap-6 xl:grid-cols-5">
                 <Card className="xl:col-span-3">
-                    <CardHeader>
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                     <CardHeader>
+                        <div className="flex flex-col gap-4">
                             <div className="space-y-1.5">
                                 <CardTitle>Indirect Costs Log</CardTitle>
                                 <CardDescription>All operational costs not tied to a single product.</CardDescription>
                             </div>
-                            <div className="flex w-full flex-col sm:flex-row items-center gap-2">
-                                <div className="relative flex-1 w-full sm:w-auto">
+                            <div className="flex flex-col md:flex-row items-center gap-2">
+                                <div className="relative w-full flex-1">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search descriptions..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
-                                <AddIndirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly}/>
-                                <DateRangeFilter date={date} setDate={setDate} />
+                                <div className="flex w-full md:w-auto gap-2">
+                                    <AddIndirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly}/>
+                                    <DateRangeFilter date={date} setDate={setDate} />
+                                </div>
                             </div>
                         </div>
                     </CardHeader>
