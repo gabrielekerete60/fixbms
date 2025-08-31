@@ -49,7 +49,7 @@ type DirectCost = { id: string; date: string; description: string; category: str
 type IndirectCost = { id: string; date: string; description: string; category: string; amount: number; details?: { name: string, amount: number }[] };
 type ClosingStock = { name: string; value: number; quantity: number; unit: string; };
 type DiscountRecord = { id: string; bread_type: string; amount: number };
-type Wage = { id: string; date: string; name: string; department: string; position: string; salary: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; netPay: number; };
+type Wage = { id: string; staffName: string; month: string; date: string; netPay: number; basePay: number; additions: number; deductions: { shortages: number; advanceSalary: number; debt: number; fine: number; }; role: string; };
 type Sale = { id: string; date: any; description: string; cash: number; transfer: number; pos: number; creditSales: number; shortage: number; total: number; staffName?: string; };
 type DrinkSaleSummary = { productId: string; productName: string; quantitySold: number; totalRevenue: number; costPrice: number, stock: number };
 
@@ -670,7 +670,27 @@ function DebtorsCreditorsTab({ isReadOnly }: { isReadOnly?: boolean }) {
                         <CardDescription>Suppliers to whom the business has an outstanding balance.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                    <div className="overflow-x-auto">
+                    <div className="md:hidden space-y-4">
+                        {paginatedCreditors.map(c => (
+                            <Card key={c.id} className="p-4">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-semibold">{c.name}</p>
+                                        <p className="text-sm text-muted-foreground">{c.contactPerson}</p>
+                                    </div>
+                                    <LogPaymentDialog creditor={c} onPaymentLogged={fetchData} disabled={isReadOnly} />
+                                </div>
+                                <div className="mt-2 pt-2 border-t">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">Balance:</span>
+                                        <span className="font-bold text-destructive">{formatCurrency(c.balance)}</span>
+                                    </div>
+                                </div>
+                            </Card>
+                        ))}
+                        {paginatedCreditors.length === 0 && <p className="text-center text-muted-foreground py-12">No outstanding creditors.</p>}
+                    </div>
+                    <div className="hidden md:block overflow-x-auto">
                         <Table>
                             <TableHeader><TableRow><TableHead>Supplier</TableHead><TableHead>Contact</TableHead><TableHead className="text-right">Balance</TableHead><TableHead className="text-center">Action</TableHead></TableRow></TableHeader>
                             <TableBody>
@@ -697,7 +717,21 @@ function DebtorsCreditorsTab({ isReadOnly }: { isReadOnly?: boolean }) {
                         <CardDescription>Customers who have an outstanding credit balance with the business.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="overflow-x-auto">
+                        <div className="md:hidden space-y-4">
+                            {paginatedDebtors.map(d => (
+                                <Card key={d.id} className="p-4 space-y-2">
+                                    <p className="font-semibold">{d.name}</p>
+                                    <p className="text-sm text-muted-foreground">{d.phone}</p>
+                                    <div className="text-sm pt-2 border-t">
+                                        <div className="flex justify-between"><span>Owed:</span><span>{formatCurrency(d.amountOwed)}</span></div>
+                                        <div className="flex justify-between"><span>Paid:</span><span className="text-green-500">{formatCurrency(d.amountPaid)}</span></div>
+                                        <div className="flex justify-between font-bold"><span>Balance:</span><span>{formatCurrency(d.balance)}</span></div>
+                                    </div>
+                                </Card>
+                            ))}
+                            {paginatedDebtors.length === 0 && <p className="text-center text-muted-foreground py-12">No outstanding debtors.</p>}
+                        </div>
+                        <div className="hidden md:block overflow-x-auto">
                         <Table>
                             <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Amount Owed</TableHead><TableHead className="text-right">Amount Paid</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader>
                             <TableBody>
@@ -722,7 +756,7 @@ function DebtorsCreditorsTab({ isReadOnly }: { isReadOnly?: boolean }) {
             </div>
              <Card>
                 <CardHeader>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                         <div>
                             <CardTitle>Debtor/Creditor Ledger</CardTitle>
                             <CardDescription>A summary ledger of debits and credits from the accounting period.</CardDescription>
@@ -731,7 +765,20 @@ function DebtorsCreditorsTab({ isReadOnly }: { isReadOnly?: boolean }) {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
+                    <div className="md:hidden space-y-4">
+                        {paginatedLedger.map(item => (
+                             <Card key={item.id} className="p-4 space-y-2">
+                                <p className="font-semibold">{item.description}</p>
+                                <p className="text-sm text-muted-foreground">{format(new Date(item.date), 'Pp')}</p>
+                                <div className="text-sm pt-2 border-t">
+                                    <div className="flex justify-between"><span>Debit:</span><span>{item.debit ? formatCurrency(item.debit) : '-'}</span></div>
+                                    <div className="flex justify-between"><span>Credit:</span><span>{item.credit ? formatCurrency(item.credit) : '-'}</span></div>
+                                </div>
+                            </Card>
+                        ))}
+                         {paginatedLedger.length === 0 && <p className="text-center text-muted-foreground py-12">No ledger entries for this period.</p>}
+                    </div>
+                    <div className="hidden md:block overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -873,7 +920,25 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="overflow-x-auto">
+                        <div className="md:hidden space-y-4">
+                            {paginatedCosts.map(c => (
+                                <Card key={c.id} className="p-4 cursor-pointer" onClick={() => setViewingCost(c)}>
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold">{c.description}</p>
+                                            <p className="text-sm"><Badge variant="outline">{c.category}</Badge></p>
+                                            <p className="text-xs text-muted-foreground">{format(new Date(c.date), 'PPP')}</p>
+                                        </div>
+                                        <p className="font-bold">{formatCurrency(c.total)}</p>
+                                    </div>
+                                    <div className="text-sm mt-2 pt-2 border-t flex justify-between">
+                                        <span>Quantity:</span>
+                                        <span>{c.quantity}</span>
+                                    </div>
+                                </Card>
+                            ))}
+                        </div>
+                        <div className="hidden md:block overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -1022,7 +1087,21 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="overflow-x-auto">
+                         <div className="md:hidden space-y-4">
+                            {paginatedCosts.map(c => (
+                                <Card key={c.id} className="p-4 cursor-pointer" onClick={() => setViewingCost(c)}>
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold">{c.description}</p>
+                                            <p className="text-sm"><Badge variant="outline">{c.category}</Badge></p>
+                                            <p className="text-xs text-muted-foreground">{format(new Date(c.date), 'PPP')}</p>
+                                        </div>
+                                        <p className="font-bold">{formatCurrency(c.amount)}</p>
+                                    </div>
+                                </Card>
+                            ))}
+                        </div>
+                        <div className="hidden md:block overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -1600,13 +1679,13 @@ function ClosingStockTab() {
             </div>
             <div className="grid md:grid-cols-2 gap-6">
                 <Card>
-                    <CardHeader className="flex flex-row justify-between items-center">
+                    <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
                         <div>
                             <CardTitle>Closing Stock</CardTitle>
                             <CardDescription>Value of inventory at the end of the accounting period.</CardDescription>
                         </div>
                          <Select value={stockFilter} onValueChange={(val: any) => setStockFilter(val)}>
-                            <SelectTrigger className="w-[180px]">
+                            <SelectTrigger className="w-full sm:w-[180px] mt-2 sm:mt-0">
                                 <SelectValue placeholder="Filter by type" />
                             </SelectTrigger>
                             <SelectContent>
@@ -1716,7 +1795,7 @@ function WagesTab() {
 
     const totals = useMemo(() => {
         return records.reduce((acc, curr) => {
-            acc.salary += curr.salary || 0;
+            acc.salary += curr.basePay || 0;
             acc.shortages += curr.deductions?.shortages || 0;
             acc.advanceSalary += curr.deductions?.advanceSalary || 0;
             acc.debt += curr.deductions?.debt || 0;
@@ -1737,7 +1816,7 @@ function WagesTab() {
     return (
         <Card>
             <CardHeader>
-                 <div className="flex justify-between items-center">
+                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                     <div>
                         <CardTitle>Wages &amp; Salaries</CardTitle>
                         <CardDescription>Monthly staff emolument records.</CardDescription>
@@ -1746,12 +1825,25 @@ function WagesTab() {
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="overflow-x-auto">
+                <div className="md:hidden space-y-4">
+                    {paginatedRecords.map(r => (
+                        <Card key={r.id} className="p-4 space-y-2">
+                            <p className="font-semibold">{r.staffName}</p>
+                            <p className="text-sm text-muted-foreground">{r.role}</p>
+                             <div className="text-sm pt-2 border-t">
+                                <div className="flex justify-between"><span>Salary:</span><span>{formatCurrency(r.basePay)}</span></div>
+                                <div className="flex justify-between"><span>Deductions:</span><span className="text-destructive">{formatCurrency(totalDeductions(r))}</span></div>
+                                <div className="flex justify-between font-bold"><span>Net Pay:</span><span>{formatCurrency(r.netPay)}</span></div>
+                            </div>
+                        </Card>
+                    ))}
+                </div>
+                <div className="hidden md:block overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Name</TableHead>
-                                <TableHead>Position</TableHead>
+                                <TableHead>Role</TableHead>
                                 <TableHead className="text-right">Salary</TableHead>
                                 <TableHead className="text-right">Total Deductions</TableHead>
                                 <TableHead className="text-right">Net Pay</TableHead>
@@ -1760,9 +1852,9 @@ function WagesTab() {
                         <TableBody>
                             {paginatedRecords.map(r => (
                                 <TableRow key={r.id}>
-                                    <TableCell>{r.name}</TableCell>
-                                    <TableCell>{r.position}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(r.salary)}</TableCell>
+                                    <TableCell>{r.staffName}</TableCell>
+                                    <TableCell>{r.role}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.basePay)}</TableCell>
                                     <TableCell className="text-right text-destructive">{formatCurrency(totalDeductions(r))}</TableCell>
                                     <TableCell className="text-right font-bold">{formatCurrency(r.netPay)}</TableCell>
                                 </TableRow>
@@ -2046,6 +2138,44 @@ function ApprovalsTab({ user, notificationBadge, isReadOnly }: { user: { staff_i
                 <CardDescription>Review and approve stock increase requests from the storekeeper.</CardDescription>
             </CardHeader>
             <CardContent>
+                <div className="md:hidden space-y-4">
+                    {isLoading ? (
+                        <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                    ) : requests.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-12">No pending supply requests.</p>
+                    ) : (
+                        requests.map(req => (
+                            <Card key={req.id} className="p-4">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-semibold">{req.ingredientName}</p>
+                                        <p className="text-sm text-muted-foreground">Qty: {req.quantity}</p>
+                                        <p className="text-xs text-muted-foreground">From: {req.requesterName} on {format(new Date(req.requestDate), 'PPP')}</p>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Button size="sm" onClick={() => setSelectedRequest(req)} disabled={isReadOnly}>Approve</Button>
+                                         <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="destructive" size="sm" disabled={!!actioningId || isReadOnly}>Decline</Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                    <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDecline(req.id)}>Decline</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                </div>
+                            </Card>
+                        ))
+                    )}
+                </div>
+                <div className="hidden md:block">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -2093,6 +2223,7 @@ function ApprovalsTab({ user, notificationBadge, isReadOnly }: { user: { staff_i
                         )}
                     </TableBody>
                 </Table>
+                </div>
             </CardContent>
 
             <Dialog open={!!selectedRequest} onOpenChange={() => setSelectedRequest(null)}>
@@ -2209,7 +2340,7 @@ export default function AccountingPage() {
         <TabsContent value="business-health"><BusinessHealthTab /></TabsContent>
         <TabsContent value="expenses">
             <Tabs defaultValue="indirect" className="space-y-4">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                     <TabsList>
                         <TabsTrigger value="indirect">Indirect Costs</TabsTrigger>
                         <TabsTrigger value="direct">Direct Costs</TabsTrigger>
