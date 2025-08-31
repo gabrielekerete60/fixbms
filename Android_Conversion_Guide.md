@@ -20,7 +20,7 @@ Before we begin, make sure you have the following installed on your computer.
 
 First, let's add Capacitor to your project. This will create the native Android project.
 
-> In your project's terminal, run the following commands one by one:
+> In your project's terminal, run the following command:
 
 ```bash
 npm install @capacitor/core @capacitor/android @capacitor/cli
@@ -40,7 +40,7 @@ npx cap init "BMS" "com.gabrielekerete.bms"
 ```bash
 npx cap add android
 ```
-**Note:** You might see a warning about a missing web directory. This is expected and will be resolved.
+**Note:** You might see a warning about a missing `public` or `www` directory. This is expected and will be resolved in the next step.
 
 ---
 
@@ -49,18 +49,22 @@ npx cap add android
 Your app is dynamic and needs to talk to a live server. We must tell the native Android app to load your app from your local development server's URL.
 
 1.  **Configure the Capacitor server URL:**
-    > Open the `capacitor.config.json` file that was created in your project root and add the `server` configuration. **This is the most important step.**
+    > Open the `capacitor.config.ts` file that was created in your project root and **replace its entire contents** with the code below. **This is the most important step.**
 
-    ```json
-    {
-      "appId": "com.gabrielekerete.bms",
-      "appName": "BMS",
-      "webDir": ".next",
-      "server": {
-        "url": "http://10.0.2.2:9002",
-        "cleartext": true
-      }
-    }
+    ```typescript
+    import type { CapacitorConfig } from '@capacitor/cli';
+
+    const config: CapacitorConfig = {
+      appId: 'com.gabrielekerete.bms',
+      appName: 'BMS',
+      webDir: '.next',
+      server: {
+        url: 'http://10.0.2.2:9002',
+        cleartext: true,
+      },
+    };
+
+    export default config;
     ```
     **Why `10.0.2.2`?** This is a special IP address that the Android emulator uses to connect to your computer's `localhost`.
     - **If you are testing on a PHYSICAL DEVICE:** Replace `10.0.2.2` with your computer's local IP address (e.g., `http://192.168.1.10:9002`). You can find your IP address by running `ipconfig` (Windows) or `ifconfig` (macOS/Linux) in your terminal.
@@ -102,7 +106,7 @@ It's time to see your app running on an Android device! This requires two termin
 
 When you are ready to release, you'll need to deploy your Next.js app to a hosting provider that supports Node.js (like Vercel, Firebase App Hosting, etc.).
 
-1.  **Update `capacitor.config.json`:** Change the `server.url` to your live application's URL.
+1.  **Update `capacitor.config.ts`:** Change the `server.url` to your live application's URL.
 2.  **Generate a Signed App Bundle:** In Android Studio, go to `Build > Generate Signed Bundle / APK...`. Follow the wizard to create a new keystore, which is a file that digitally signs your app.
 3.  **Upload to Google Play:** Create a developer account on the [Google Play Console](https://play.google.com/console), create a new app listing, and upload the `.aab` file you generated.
 
