@@ -300,9 +300,9 @@ function ViewReportsTab() {
                         <CardHeader>
                            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                                 <CardTitle>Reports - <span className="capitalize">{activeTab.replace('_', ' ')}</span></CardTitle>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-col sm:flex-row items-center gap-2">
                                      <Select value={typeFilter} onValueChange={setTypeFilter}>
-                                        <SelectTrigger className="w-[180px]">
+                                        <SelectTrigger className="w-full sm:w-[180px]">
                                             <SelectValue placeholder="Filter by type" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -310,7 +310,7 @@ function ViewReportsTab() {
                                         </SelectContent>
                                     </Select>
                                      <Select value={staffFilter} onValueChange={setStaffFilter}>
-                                        <SelectTrigger className="w-[180px]">
+                                        <SelectTrigger className="w-full sm:w-[180px]">
                                             <SelectValue placeholder="Filter by staff" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -322,38 +322,60 @@ function ViewReportsTab() {
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>From</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Subject</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (
-                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                    ) : paginatedReports.length === 0 ? (
-                                        <TableRow><TableCell colSpan={5} className="h-24 text-center">No reports found in this category.</TableCell></TableRow>
-                                    ) : (
-                                        paginatedReports.map(report => (
-                                            <TableRow key={report.id}>
-                                                <TableCell>{report.timestamp ? format(report.timestamp.toDate(), 'PPp') : 'N/A'}</TableCell>
-                                                <TableCell>{report.staffName}</TableCell>
-                                                <TableCell><Badge variant={getTypeVariant(report.reportType)}>{report.reportType}</Badge></TableCell>
-                                                <TableCell>{report.subject}</TableCell>
-                                                <TableCell className="text-right">
-                                                    <Button variant="outline" size="sm" onClick={() => setViewingReport(report)}>
-                                                        <Eye className="mr-2 h-4 w-4"/>View
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
+                            <div className="md:hidden space-y-4">
+                                {isLoading ? (
+                                     <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin"/></div>
+                                ) : paginatedReports.length === 0 ? (
+                                    <p className="text-center text-muted-foreground py-12">No reports found.</p>
+                                ) : (
+                                    paginatedReports.map(report => (
+                                        <Card key={report.id} className="p-4" onClick={() => setViewingReport(report)}>
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-semibold">{report.subject}</p>
+                                                    <p className="text-sm text-muted-foreground">{report.staffName}</p>
+                                                    <p className="text-xs text-muted-foreground">{report.timestamp ? format(report.timestamp.toDate(), 'PPp') : 'N/A'}</p>
+                                                </div>
+                                                <Badge variant={getTypeVariant(report.reportType)}>{report.reportType}</Badge>
+                                            </div>
+                                        </Card>
+                                    ))
+                                )}
+                            </div>
+                            <div className="hidden md:block">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>From</TableHead>
+                                            <TableHead>Type</TableHead>
+                                            <TableHead>Subject</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isLoading ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                        ) : paginatedReports.length === 0 ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center">No reports found in this category.</TableCell></TableRow>
+                                        ) : (
+                                            paginatedReports.map(report => (
+                                                <TableRow key={report.id}>
+                                                    <TableCell>{report.timestamp ? format(report.timestamp.toDate(), 'PPp') : 'N/A'}</TableCell>
+                                                    <TableCell>{report.staffName}</TableCell>
+                                                    <TableCell><Badge variant={getTypeVariant(report.reportType)}>{report.reportType}</Badge></TableCell>
+                                                    <TableCell>{report.subject}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Button variant="outline" size="sm" onClick={() => setViewingReport(report)}>
+                                                            <Eye className="mr-2 h-4 w-4"/>View
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                         <CardFooter>
                             <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredReports.length} />

@@ -1213,7 +1213,37 @@ function PaymentsRequestsTab({ notificationBadge, isReadOnly }: { notificationBa
                      <CardDescription>Review and approve cash payments reported by drivers.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                   <div className="overflow-x-auto">
+                    <div className="md:hidden space-y-4">
+                        {isLoading ? (
+                            <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                        ) : paginatedPending.length === 0 ? (
+                             <p className="text-center text-muted-foreground py-12">No pending confirmations.</p>
+                        ) : (
+                           paginatedPending.map(c => (
+                            <Card key={c.id} className="p-4 space-y-3">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-semibold">{formatCurrency(c.amount)}</p>
+                                        <p className="text-sm text-muted-foreground">{c.driverName}</p>
+                                        <p className="text-xs text-muted-foreground">{format(new Date(c.date), 'Pp')}</p>
+                                    </div>
+                                    <Badge variant="outline">{c.paymentMethod}</Badge>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-3 border-t">
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild><Button variant="destructive" size="sm" disabled={!!actioningId || isReadOnly}>Decline</Button></AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader><AlertDialogTitle>Are you sure you want to decline?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                            <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleAction(c.id, 'decline')}>Decline</AlertDialogAction></AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                    <Button size="sm" onClick={() => handleAction(c.id, 'approve')} disabled={actioningId === c.id || isReadOnly}>{actioningId === c.id ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Approve'}</Button>
+                                </div>
+                            </Card>
+                           ))
+                        )}
+                    </div>
+                   <div className="hidden md:block overflow-x-auto">
                     <Table>
                         <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Run ID</TableHead><TableHead>Customer</TableHead><TableHead>Amount</TableHead><TableHead>Method</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
@@ -1259,7 +1289,27 @@ function PaymentsRequestsTab({ notificationBadge, isReadOnly }: { notificationBa
                     <CardDescription>A log of all previously approved and declined payment requests.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
+                    <div className="md:hidden space-y-4">
+                        {isLoading ? (
+                            <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                        ) : paginatedResolved.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-12">No resolved requests.</p>
+                        ) : (
+                             paginatedResolved.map(c => (
+                                <Card key={c.id} className="p-4">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold">{formatCurrency(c.amount)}</p>
+                                            <p className="text-sm text-muted-foreground">{c.driverName} - {c.paymentMethod}</p>
+                                        </div>
+                                        <Badge variant={c.status === 'approved' ? 'default' : 'destructive'}>{c.status}</Badge>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-2">{format(new Date(c.date), 'Pp')}</p>
+                                </Card>
+                             ))
+                        )}
+                    </div>
+                    <div className="hidden md:block overflow-x-auto">
                     <Table>
                          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Driver</TableHead><TableHead>Amount</TableHead><TableHead>Method</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                          <TableBody>
@@ -1433,7 +1483,24 @@ function SalesRecordsTab() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
+                    <div className="md:hidden space-y-4">
+                        {paginatedRecords.map(r => (
+                            <Card key={r.id} className="p-4 cursor-pointer" onClick={() => setViewingRecord(r)}>
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-semibold">{r.description}</p>
+                                        <p className="text-xs text-muted-foreground">{r.date ? format(new Date(r.date), 'PPP') : 'Invalid Date'}</p>
+                                    </div>
+                                    <p className="font-bold text-lg">{formatCurrency(r.total)}</p>
+                                </div>
+                                <div className="text-xs mt-2 pt-2 border-t flex justify-between">
+                                    <span className="text-destructive">Shortage: {formatCurrency(r.shortage)}</span>
+                                    <span>Cash: {formatCurrency(r.cash)}</span>
+                                </div>
+                            </Card>
+                        ))}
+                    </div>
+                    <div className="hidden md:block overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -1538,13 +1605,13 @@ function DrinkSalesTab() {
     return (
         <Card>
             <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <CardTitle>Drink Sales Record</CardTitle>
                         <CardDescription>A detailed record of drink sales for the selected period.</CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Label htmlFor="sales-margin">Sales Margin %</Label>
+                        <Label htmlFor="sales-margin" className="shrink-0">Sales Margin %</Label>
                         <Input 
                             id="sales-margin"
                             type="number"
@@ -1828,12 +1895,16 @@ function WagesTab() {
                 <div className="md:hidden space-y-4">
                     {paginatedRecords.map(r => (
                         <Card key={r.id} className="p-4 space-y-2">
-                            <p className="font-semibold">{r.staffName}</p>
-                            <p className="text-sm text-muted-foreground">{r.role}</p>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="font-semibold">{r.staffName}</p>
+                                    <p className="text-sm text-muted-foreground">{r.role}</p>
+                                </div>
+                                <p className="font-bold text-lg">{formatCurrency(r.netPay)}</p>
+                            </div>
                              <div className="text-sm pt-2 border-t">
                                 <div className="flex justify-between"><span>Salary:</span><span>{formatCurrency(r.basePay)}</span></div>
                                 <div className="flex justify-between"><span>Deductions:</span><span className="text-destructive">{formatCurrency(totalDeductions(r))}</span></div>
-                                <div className="flex justify-between font-bold"><span>Net Pay:</span><span>{formatCurrency(r.netPay)}</span></div>
                             </div>
                         </Card>
                     ))}

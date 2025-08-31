@@ -8,6 +8,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import {
   Table,
@@ -234,58 +235,102 @@ export default function CustomerProfilesPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Customer</TableHead>
-                                <TableHead>Phone</TableHead>
-                                <TableHead>Joined Date</TableHead>
-                                <TableHead>Total Spent</TableHead>
-                                <TableHead><span className="sr-only">Actions</span></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
+                    <div className="md:hidden space-y-4">
+                        {isLoading ? (
+                            <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                        ) : customers.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-12">No customers found.</p>
+                        ) : (
+                            customers.map(customer => (
+                                <Card key={customer.id} className="p-4">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold">{customer.name}</p>
+                                            <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                                            <p className="text-xs text-muted-foreground">Joined: {new Date(customer.joinedDate).toLocaleDateString()}</p>
+                                        </div>
+                                         <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button aria-haspopup="true" size="icon" variant="ghost">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                    <span className="sr-only">Toggle menu</span>
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                <DropdownMenuItem onSelect={() => openEditDialog(customer)}>Edit</DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem className="text-destructive" onSelect={() => setCustomerToDelete(customer)}>Delete</DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                    <div className="mt-2 pt-2 border-t text-sm">
+                                        <span>Total Spent:</span>
+                                        <span className="font-bold float-right">₦{customer.totalSpent.toFixed(2)}</span>
+                                    </div>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                    <div className="hidden md:block">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">
-                                        <Loader2 className="mx-auto h-8 w-8 animate-spin" />
-                                    </TableCell>
+                                    <TableHead>Customer</TableHead>
+                                    <TableHead>Phone</TableHead>
+                                    <TableHead>Joined Date</TableHead>
+                                    <TableHead>Total Spent</TableHead>
+                                    <TableHead><span className="sr-only">Actions</span></TableHead>
                                 </TableRow>
-                            ) : customers.length > 0 ? (
-                                customers.map(customer => (
-                                    <TableRow key={customer.id}>
-                                        <TableCell className="font-medium">{customer.name}</TableCell>
-                                        <TableCell>{customer.phone}</TableCell>
-                                        <TableCell>{new Date(customer.joinedDate).toLocaleDateString()}</TableCell>
-                                        <TableCell>₦{customer.totalSpent.toFixed(2)}</TableCell>
-                                        <TableCell>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button aria-haspopup="true" size="icon" variant="ghost">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                        <span className="sr-only">Toggle menu</span>
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                    <DropdownMenuItem onSelect={() => openEditDialog(customer)}>Edit</DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem className="text-destructive" onSelect={() => setCustomerToDelete(customer)}>Delete</DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">
+                                            <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">
-                                        Showing 0 of 0 customers.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                                ) : customers.length > 0 ? (
+                                    customers.map(customer => (
+                                        <TableRow key={customer.id}>
+                                            <TableCell className="font-medium">{customer.name}</TableCell>
+                                            <TableCell>{customer.phone}</TableCell>
+                                            <TableCell>{new Date(customer.joinedDate).toLocaleDateString()}</TableCell>
+                                            <TableCell>₦{customer.totalSpent.toFixed(2)}</TableCell>
+                                            <TableCell>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button aria-haspopup="true" size="icon" variant="ghost">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                            <span className="sr-only">Toggle menu</span>
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                        <DropdownMenuItem onSelect={() => openEditDialog(customer)}>Edit</DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setCustomerToDelete(customer)}>Delete</DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">
+                                            Showing 0 of 0 customers.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
+                 <CardFooter>
+                    <div className="text-xs text-muted-foreground">
+                        Showing <strong>{customers.length}</strong> customers.
+                    </div>
+                </CardFooter>
             </Card>
 
             <AlertDialog open={!!customerToDelete} onOpenChange={(open) => !open && setCustomerToDelete(null)}>

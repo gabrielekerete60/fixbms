@@ -435,7 +435,51 @@ export default function StaffManagementPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
+                    <div className="md:hidden space-y-4">
+                        {isLoading ? (
+                            <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                        ) : staffList.length === 0 ? (
+                             <p className="text-center text-muted-foreground py-12">No staff members found.</p>
+                        ) : (
+                            staffList.map(staff => (
+                                <Card key={staff.staff_id} className="p-4" onClick={() => openDetailDialog(staff)}>
+                                    <div className="flex justify-between items-start">
+                                         <div className="flex items-center gap-3">
+                                            <Avatar>
+                                                <AvatarImage src={`https://placehold.co/40x40.png?text=${staff.name.charAt(0)}`} alt={staff.name} data-ai-hint="person face" />
+                                                <AvatarFallback>{staff.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <p className="font-semibold">{staff.name}</p>
+                                                <p className="text-sm text-muted-foreground">{staff.role}</p>
+                                            </div>
+                                        </div>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                                <Button aria-haspopup="true" size="icon" variant="ghost">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                    <span className="sr-only">Toggle menu</span>
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                <DropdownMenuItem onSelect={() => openEditDialog(staff)}>Edit</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => openDetailDialog(staff)}>View Details</DropdownMenuItem>
+                                                <DropdownMenuItem disabled>Pay Staff</DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem className="text-destructive" onSelect={() => setStaffToDelete(staff)}>Delete</DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                    <div className="mt-2 pt-2 border-t flex justify-between items-center text-sm">
+                                        <Badge variant={getStatusVariant(staff.is_active)}>{staff.is_active ? 'Active' : 'Inactive'}</Badge>
+                                        <span className="font-medium">₦{(staff.pay_rate || 0).toLocaleString()}/{staff.pay_type === 'Salary' ? 'mo' : 'hr'}</span>
+                                    </div>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                    <div className="hidden md:block overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>

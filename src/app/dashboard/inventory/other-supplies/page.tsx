@@ -420,68 +420,108 @@ export default function OtherSuppliesPage() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Supply Name</TableHead>
-                                <TableHead>Category</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Stock</TableHead>
-                                <TableHead>Cost/Unit</TableHead>
-                                <TableHead>Total Cost</TableHead>
-                                <TableHead><span className="sr-only">Actions</span></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
+                    <div className="md:hidden space-y-4">
+                        {isLoading ? (
+                            <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                        ) : filteredSupplies.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-12">No supplies found for this filter.</p>
+                        ) : (
+                            filteredSupplies.map(supply => (
+                                <Card key={supply.id} className="p-4">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold">{supply.name}</p>
+                                            <p className="text-sm text-muted-foreground">{supply.category}</p>
+                                            <div className="mt-1">{getStatusBadge(supply.stock, supply.lowStockThreshold)}</div>
+                                        </div>
+                                         <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button aria-haspopup="true" size="icon" variant="ghost">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                    <span className="sr-only">Toggle menu</span>
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                <DropdownMenuItem onSelect={() => openEditDialog(supply)}>Edit</DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem className="text-destructive" onSelect={() => setSupplyToDelete(supply)}>Delete</DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                    <div className="mt-2 pt-2 border-t text-sm space-y-1">
+                                        <div className="flex justify-between"><span>Stock:</span><span>{supply.stock.toFixed(2)} {supply.unit}</span></div>
+                                        <div className="flex justify-between"><span>Cost/Unit:</span><span>₦{supply.costPerUnit.toFixed(2)}</span></div>
+                                        <div className="flex justify-between font-bold"><span>Total Cost:</span><span>₦{(supply.stock * supply.costPerUnit).toFixed(2)}</span></div>
+                                    </div>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                    <div className="hidden md:block">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-24 text-center">
-                                        <Loader2 className="mx-auto h-8 w-8 animate-spin" />
-                                    </TableCell>
+                                    <TableHead>Supply Name</TableHead>
+                                    <TableHead>Category</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Stock</TableHead>
+                                    <TableHead>Cost/Unit</TableHead>
+                                    <TableHead>Total Cost</TableHead>
+                                    <TableHead><span className="sr-only">Actions</span></TableHead>
                                 </TableRow>
-                            ) : filteredSupplies.length > 0 ? (
-                                filteredSupplies.map(supply => (
-                                    <TableRow key={supply.id}>
-                                        <TableCell className="font-medium">{supply.name}</TableCell>
-                                        <TableCell>{supply.category}</TableCell>
-                                        <TableCell>{getStatusBadge(supply.stock, supply.lowStockThreshold)}</TableCell>
-                                        <TableCell>{supply.stock.toFixed(2)} {supply.unit}</TableCell>
-                                        <TableCell>₦{supply.costPerUnit.toFixed(2)}</TableCell>
-                                        <TableCell>₦{(supply.stock * supply.costPerUnit).toFixed(2)}</TableCell>
-                                        <TableCell>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button aria-haspopup="true" size="icon" variant="ghost">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                        <span className="sr-only">Toggle menu</span>
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                    <DropdownMenuItem onSelect={() => openEditDialog(supply)}>Edit</DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem className="text-destructive" onSelect={() => setSupplyToDelete(supply)}>Delete</DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="h-24 text-center">
+                                            <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            ) : (
+                                ) : filteredSupplies.length > 0 ? (
+                                    filteredSupplies.map(supply => (
+                                        <TableRow key={supply.id}>
+                                            <TableCell className="font-medium">{supply.name}</TableCell>
+                                            <TableCell>{supply.category}</TableCell>
+                                            <TableCell>{getStatusBadge(supply.stock, supply.lowStockThreshold)}</TableCell>
+                                            <TableCell>{supply.stock.toFixed(2)} {supply.unit}</TableCell>
+                                            <TableCell>₦{supply.costPerUnit.toFixed(2)}</TableCell>
+                                            <TableCell>₦{(supply.stock * supply.costPerUnit).toFixed(2)}</TableCell>
+                                            <TableCell>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button aria-haspopup="true" size="icon" variant="ghost">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                            <span className="sr-only">Toggle menu</span>
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                        <DropdownMenuItem onSelect={() => openEditDialog(supply)}>Edit</DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem className="text-destructive" onSelect={() => setSupplyToDelete(supply)}>Delete</DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="h-24 text-center">
+                                            No supplies found.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                            <TableFooter>
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-24 text-center">
-                                        No supplies found.
-                                    </TableCell>
+                                    <TableCell colSpan={5} className="font-bold text-right">Grand Total</TableCell>
+                                    <TableCell className="font-bold">₦{grandTotalCost.toFixed(2)}</TableCell>
+                                    <TableCell></TableCell>
                                 </TableRow>
-                            )}
-                        </TableBody>
-                         <TableFooter>
-                            <TableRow>
-                                <TableCell colSpan={5} className="font-bold text-right">Grand Total</TableCell>
-                                <TableCell className="font-bold">₦{grandTotalCost.toFixed(2)}</TableCell>
-                                <TableCell></TableCell>
-                            </TableRow>
-                        </TableFooter>
-                    </Table>
+                            </TableFooter>
+                        </Table>
+                    </div>
                 </CardContent>
             </Card>
 

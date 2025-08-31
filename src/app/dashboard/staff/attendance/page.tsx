@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -8,6 +9,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter
 } from "@/components/ui/card";
 import {
   Table,
@@ -195,7 +197,25 @@ export default function AttendancePage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="overflow-x-auto">
+                        <div className="md:hidden space-y-4">
+                            {isLoading ? (
+                                <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                            ) : todaysActivity.length === 0 ? (
+                                <p className="text-center text-muted-foreground py-12">No staff activity recorded today.</p>
+                            ) : (
+                                todaysActivity.map(record => (
+                                    <Card key={record.id} className="p-4">
+                                        <p className="font-semibold">{record.staff_name}</p>
+                                        <div className="text-sm text-muted-foreground">
+                                            <span>In: {format(record.clock_in_time.toDate(), 'p')}</span>
+                                            <span className="mx-2">|</span>
+                                            <span>Out: {record.clock_out_time ? format(record.clock_out_time.toDate(), 'p') : '--'}</span>
+                                        </div>
+                                    </Card>
+                                ))
+                            )}
+                        </div>
+                        <div className="hidden md:block overflow-x-auto">
                         <Table>
                         <TableHeader>
                             <TableRow>
@@ -283,7 +303,7 @@ export default function AttendancePage() {
              <TabsContent value="logs" className="mt-4">
                 <Card>
                      <CardHeader>
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                             <div>
                                <CardTitle>Attendance Log</CardTitle>
                                <CardDescription>A complete history of all clock-in and clock-out events.</CardDescription>
@@ -294,7 +314,7 @@ export default function AttendancePage() {
                                     id="date"
                                     variant={"outline"}
                                     className={cn(
-                                    "w-[260px] justify-start text-left font-normal",
+                                    "w-full sm:w-[260px] justify-start text-left font-normal",
                                     !date && "text-muted-foreground"
                                     )}
                                 >
@@ -330,7 +350,33 @@ export default function AttendancePage() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                         <div className="overflow-x-auto">
+                        <div className="md:hidden space-y-4">
+                             {isLoading ? (
+                                <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                            ) : filteredLogs.length === 0 ? (
+                                <p className="text-center text-muted-foreground py-12">No attendance records for this period.</p>
+                            ) : (
+                                filteredLogs.map(record => {
+                                    let hours = 'N/A';
+                                    if (record.clock_out_time) {
+                                        const diff = record.clock_out_time.toMillis() - record.clock_in_time.toMillis();
+                                        hours = (diff / (1000 * 60 * 60)).toFixed(2);
+                                    }
+                                    return (
+                                        <Card key={record.id} className="p-4 space-y-2">
+                                            <p className="font-semibold">{record.staff_name}</p>
+                                            <p className="text-sm text-muted-foreground">{format(record.clock_in_time.toDate(), 'PPP')}</p>
+                                            <div className="text-sm pt-2 border-t space-y-1">
+                                                <div className="flex justify-between"><span>Clock-in:</span><span>{format(record.clock_in_time.toDate(), 'p')}</span></div>
+                                                <div className="flex justify-between"><span>Clock-out:</span><span>{record.clock_out_time ? format(record.clock_out_time.toDate(), 'p') : '--'}</span></div>
+                                                <div className="flex justify-between font-bold"><span>Total Hours:</span><span>{hours}</span></div>
+                                            </div>
+                                        </Card>
+                                    )
+                                })
+                            )}
+                        </div>
+                         <div className="hidden md:block overflow-x-auto">
                          <Table>
                             <TableHeader>
                                 <TableRow>
@@ -378,6 +424,11 @@ export default function AttendancePage() {
                         </Table>
                          </div>
                     </CardContent>
+                     <CardFooter>
+                        <div className="text-xs text-muted-foreground">
+                            Showing <strong>{filteredLogs.length}</strong> of <strong>{allAttendance.length}</strong> records.
+                        </div>
+                    </CardFooter>
                 </Card>
             </TabsContent>
         </Tabs>
