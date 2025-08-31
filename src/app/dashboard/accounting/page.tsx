@@ -2181,7 +2181,7 @@ function BusinessHealthTab() {
     );
 }
 
-function ApprovalsTab({ user, notificationBadge, isReadOnly }: { user: { staff_id: string, name: string }, notificationBadge?: React.ReactNode, isReadOnly?: boolean }) {
+function ApprovalsTab({ user, notificationBadge, isReadOnly }: { user: { staff_id: string; name: string }, notificationBadge?: React.ReactNode, isReadOnly?: boolean }) {
     const { toast } = useToast();
     const [requests, setRequests] = useState<SupplyRequest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -2525,3 +2525,5 @@ export default function AccountingPage() {
     </div>
   );
 }
+
+    
