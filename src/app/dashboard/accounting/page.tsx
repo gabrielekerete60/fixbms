@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -918,15 +917,15 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                 ))}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-5">
-                <Card className="lg:col-span-3">
+            <div className="grid gap-6 xl:grid-cols-5">
+                <Card className="xl:col-span-3">
                     <CardHeader>
-                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
                                 <CardTitle>Direct Costs Log</CardTitle>
                                 <CardDescription>All costs directly tied to production, like ingredients.</CardDescription>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto flex-wrap">
+                            <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2 w-full md:w-auto">
                                 <div className="relative flex-grow">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -986,7 +985,7 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="lg:col-span-2">
+                <Card className="xl:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top direct costs.</CardDescription>
@@ -1089,15 +1088,15 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                 ))}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-5">
-                <Card className="lg:col-span-3">
+            <div className="grid gap-6 xl:grid-cols-5">
+                <Card className="xl:col-span-3">
                      <CardHeader>
-                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
                                 <CardTitle>Indirect Costs Log</CardTitle>
                                 <CardDescription>All operational costs not tied to a single product.</CardDescription>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto flex-wrap">
+                            <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2 w-full md:w-auto">
                                 <div className="relative flex-grow">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -1151,7 +1150,7 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="lg:col-span-2">
+                <Card className="xl:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top indirect costs.</CardDescription>
@@ -2561,4 +2560,3 @@ export default function AccountingPage() {
     </div>
   );
 }
-
