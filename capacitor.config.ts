@@ -5,7 +5,8 @@ const config: CapacitorConfig = {
   appName: 'BMS',
   webDir: '.next',
   server: {
-    url: 'http://10.0.2.2:9002',
+    // This should be your Vercel deployment URL
+    url: 'https://management-app-bakery.vercel.app', 
     cleartext: true,
   },
 };

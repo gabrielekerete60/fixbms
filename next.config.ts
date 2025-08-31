@@ -18,6 +18,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'management-app-bakery.vercel.app',
+        port: '',
+        pathname: '/**',
+      }
     ],
   },
 };

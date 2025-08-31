@@ -28,9 +28,9 @@ npm install @capacitor/core @capacitor/android @capacitor/cli
 
 ---
 
-### 🔌 Step 2: Configure for a Live Server
+### 🔌 Step 2: Configure for Your Server
 
-Your app is dynamic and needs to talk to a live server. We must tell the native Android app to load your app from your local development server's URL.
+Your app is dynamic and needs to talk to a live server. We must tell the native Android app where to load your app from.
 
 1.  **Create/Update the Capacitor Config:**
     > Open (or create) the `capacitor.config.ts` file in your project root and **replace its entire contents** with the code below. **This is the most important step.**
@@ -43,16 +43,20 @@ Your app is dynamic and needs to talk to a live server. We must tell the native 
       appName: 'BMS',
       webDir: '.next',
       server: {
-        url: 'http://10.0.2.2:9002',
+        // For local development with the Android emulator
+        // url: 'http://10.0.2.2:9002',
+        
+        // For a live app deployed to Vercel/other hosting
+        url: 'https://management-app-bakery.vercel.app', 
         cleartext: true,
       },
     };
 
     export default config;
     ```
-    **Why `10.0.2.2`?** This is a special IP address that the Android emulator uses to connect to your computer's `localhost`.
-    - **If you are testing on a PHYSICAL DEVICE:** Replace `10.0.2.2` with your computer's local IP address (e.g., `http://192.168.1.10:9002`). You can find your IP address by running `ipconfig` (Windows) or `ifconfig` (macOS/Linux) in your terminal.
-    - **For a REAL RELEASE:** You would use your live, deployed application URL (e.g., `https://your-live-app.com`).
+    **Important Note on URLs:**
+    - **For Local Testing:** Use `http://10.0.2.2:9002` to connect to your computer's `localhost` from the Android emulator. If you test on a **physical device**, you must replace `10.0.2.2` with your computer's local network IP address (e.g., `http://192.168.1.10:9002`).
+    - **For a Real Release:** Use your live, deployed application URL (e.g., `https://management-app-bakery.vercel.app`), as we have done now.
 
 2.  **Build Your Web App:** Now, create the production build of your app. This populates the `.next` directory that Capacitor uses as a base.
     ```bash
@@ -63,7 +67,7 @@ Your app is dynamic and needs to talk to a live server. We must tell the native 
 
 ### 🏗️ Step 3: Add the Android Platform
 
-Now that the configuration is set, you can add the native Android folder to your project.
+Now that the configuration is set, you can add the native Android folder to your project. If it already exists, you can skip this step.
 
 > Run the following command:
 
@@ -76,9 +80,9 @@ npx cap add android
 
 ### 📱 Step 4: Run on Android
 
-It's time to see your app running on an Android device! This requires two terminals running at the same time.
+It's time to see your app running on an Android device! This requires two terminals running at the same time if you are testing locally.
 
-1.  **Terminal 1: Run your local server:** You must have your Next.js development server running for the app to connect to it.
+1.  **If testing locally, run your local server:** You must have your Next.js development server running for the app to connect to it. For a live URL, you can skip this.
     > Keep this terminal running.
     ```bash
     npm run dev
@@ -93,7 +97,7 @@ It's time to see your app running on an Android device! This requires two termin
     ```
 
 3.  **Run the App:**
-    > Inside Android Studio, wait for the project to sync. Then, click the green "Run" button (▶️) at the top. You can choose to run it on an emulator or a physical Android device connected to your computer. The app will load its content from your running local server.
+    > Inside Android Studio, wait for the project to sync. Then, click the green "Run" button (▶️) at the top. You can choose to run it on an emulator or a physical Android device connected to your computer. The app will load its content from your specified server URL.
 
 ---
 
@@ -101,7 +105,7 @@ It's time to see your app running on an Android device! This requires two termin
 
 When you are ready to release, you'll need to deploy your Next.js app to a hosting provider that supports Node.js (like Vercel, Firebase App Hosting, etc.).
 
-1.  **Update `capacitor.config.ts`:** Change the `server.url` to your live application's URL.
+1.  **Update `capacitor.config.ts`:** Ensure the `server.url` is your live application's URL.
 2.  **Generate a Signed App Bundle:** In Android Studio, go to `Build > Generate Signed Bundle / APK...`. Follow the wizard to create a new keystore, which is a file that digitally signs your app.
 3.  **Upload to Google Play:** Create a developer account on the [Google Play Console](https://play.google.com/console), create a new app listing, and upload the `.aab` file you generated.
 
