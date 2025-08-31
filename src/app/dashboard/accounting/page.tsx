@@ -1151,7 +1151,7 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
 }
 
 // --- New Payments & Requests Tab ---
-function PaymentsRequestsTab({ notificationBadge, isReadOnly }: { notificationBadge?: React.ReactNode, isReadOnly?: boolean }) {
+function PaymentsRequestsTab({ user, notificationBadge, isReadOnly }: { user: { staff_id: string; name: string }, notificationBadge?: React.ReactNode, isReadOnly?: boolean }) {
     const { toast } = useToast();
     const [confirmations, setConfirmations] = useState<PaymentConfirmation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -1763,30 +1763,47 @@ function ClosingStockTab() {
                         </Select>
                     </CardHeader>
                     <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Item</TableHead>
-                                    <TableHead className="text-right">Quantity</TableHead>
-                                    <TableHead className="text-right">Amount (₦)</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {closingStock.map(r => (
-                                    <TableRow key={r.name}>
-                                        <TableCell>{r.name}</TableCell>
-                                        <TableCell className="text-right">{r.quantity.toFixed(2)} {r.unit}</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(r.value)}</TableCell>
+                        <div className="md:hidden space-y-4">
+                            {closingStock.map(r => (
+                                <Card key={r.name} className="p-4 space-y-2">
+                                    <p className="font-semibold">{r.name}</p>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">Quantity:</span>
+                                        <span>{r.quantity.toFixed(2)} {r.unit}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm font-bold">
+                                        <span className="text-muted-foreground">Amount:</span>
+                                        <span>{formatCurrency(r.value)}</span>
+                                    </div>
+                                </Card>
+                            ))}
+                        </div>
+                        <div className="hidden md:block">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Item</TableHead>
+                                        <TableHead className="text-right">Quantity</TableHead>
+                                        <TableHead className="text-right">Amount (₦)</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                            <TableFooter>
-                                <TableRow>
-                                    <TableCell colSpan={2} className="font-bold text-right">Total Closing Stock</TableCell>
-                                    <TableCell className="font-bold text-right">{formatCurrency(totalClosingStock)}</TableCell>
-                                </TableRow>
-                            </TableFooter>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {closingStock.map(r => (
+                                        <TableRow key={r.name}>
+                                            <TableCell>{r.name}</TableCell>
+                                            <TableCell className="text-right">{r.quantity.toFixed(2)} {r.unit}</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(r.value)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                                <TableFooter>
+                                    <TableRow>
+                                        <TableCell colSpan={2} className="font-bold text-right">Total Closing Stock</TableCell>
+                                        <TableCell className="font-bold text-right">{formatCurrency(totalClosingStock)}</TableCell>
+                                    </TableRow>
+                                </TableFooter>
+                            </Table>
+                        </div>
                     </CardContent>
                 </Card>
                  <Card>
@@ -1795,11 +1812,25 @@ function ClosingStockTab() {
                         <CardDescription>A log of business loans.</CardDescription>
                     </CardHeader>
                     <CardContent>
+                         <div className="md:hidden space-y-4">
+                            {paginatedLoanAccount.map(r => (
+                                <Card key={r.id} className="p-4 space-y-2">
+                                    <p className="font-semibold">{r.description}</p>
+                                    <p className="text-xs text-muted-foreground">{format(new Date(r.date), 'PPP')}</p>
+                                    <div className="flex justify-between text-sm font-bold">
+                                        <span className="text-muted-foreground">Debit:</span>
+                                        <span>{formatCurrency(r.debit)}</span>
+                                    </div>
+                                </Card>
+                            ))}
+                        </div>
+                        <div className="hidden md:block">
                         <Table>
                             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Debit</TableHead></TableRow></TableHeader>
                             <TableBody>{paginatedLoanAccount.map(r => <TableRow key={r.id}><TableCell>{format(new Date(r.date), 'PPP')}</TableCell><TableCell>{r.description}</TableCell><TableCell className="text-right">{formatCurrency(r.debit)}</TableCell></TableRow>)}</TableBody>
                             <TableFooter><TableRow><TableCell colSpan={2} className="font-bold text-right">Total Loan</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalLoanDebit)}</TableCell></TableRow></TableFooter>
                         </Table>
+                        </div>
                     </CardContent>
                      <CardFooter>
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredLoanAccount.length} />
@@ -1814,10 +1845,20 @@ function ClosingStockTab() {
                         <CardDescription>A log of bread reported as damaged.</CardDescription>
                     </CardHeader>
                     <CardContent>
+                        <div className="md:hidden space-y-4">
+                            {paginatedBadBread.map(r => (
+                                <Card key={r.id} className="p-4 flex justify-between items-center">
+                                    <p className="font-semibold">{r.productName}</p>
+                                    <p className="font-bold">{r.quantity}</p>
+                                </Card>
+                            ))}
+                        </div>
+                        <div className="hidden md:block">
                         <Table>
                             <TableHeader><TableRow><TableHead>Bread Type</TableHead><TableHead className="text-right">Quantity</TableHead></TableRow></TableHeader>
                             <TableBody>{paginatedBadBread.map(r => <TableRow key={r.id}><TableCell>{r.productName}</TableCell><TableCell className="text-right">{r.quantity}</TableCell></TableRow>)}</TableBody>
                         </Table>
+                        </div>
                     </CardContent>
                      <CardFooter>
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredBadBread.length} />
@@ -1830,11 +1871,21 @@ function ClosingStockTab() {
                         <CardDescription>A log of discounts given on bread types.</CardDescription>
                     </CardHeader>
                     <CardContent>
+                         <div className="md:hidden space-y-4">
+                            {discounts.map(r => (
+                                <Card key={r.id} className="p-4 flex justify-between items-center">
+                                    <p className="font-semibold">{r.bread_type}</p>
+                                    <p className="font-bold">{formatCurrency(r.amount)}</p>
+                                </Card>
+                            ))}
+                        </div>
+                        <div className="hidden md:block">
                          <Table>
                             <TableHeader><TableRow><TableHead>Bread Type</TableHead><TableHead className="text-right">Amount (₦)</TableHead></TableRow></TableHeader>
                             <TableBody>{discounts.map(r => <TableRow key={r.id}><TableCell>{r.bread_type}</TableCell><TableCell className="text-right">{formatCurrency(r.amount)}</TableCell></TableRow>)}</TableBody>
                             <TableFooter><TableRow><TableCell className="font-bold text-right">Total Discount</TableCell><TableCell className="font-bold text-right">{formatCurrency(totalDiscounts)}</TableCell></TableRow></TableFooter>
                         </Table>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
@@ -2466,7 +2517,7 @@ export default function AccountingPage() {
                     <ApprovalsTab user={user} notificationBadge={null} isReadOnly={isReadOnly}/>
                 </TabsContent>
                 <TabsContent value="payment-requests">
-                    <PaymentsRequestsTab notificationBadge={null} isReadOnly={isReadOnly}/>
+                    <PaymentsRequestsTab user={user} notificationBadge={null} isReadOnly={isReadOnly}/>
                 </TabsContent>
             </Tabs>
         </TabsContent>
