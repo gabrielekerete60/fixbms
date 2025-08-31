@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -92,7 +93,7 @@ function PaginationControls({
             <div className="flex items-center gap-1">
                 <Input 
                     type="number" 
-                    className="h-8 w-16" 
+                    className="h-8 w-20" 
                     placeholder="Custom"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
@@ -2560,3 +2561,4 @@ export default function AccountingPage() {
     </div>
   );
 }
+
