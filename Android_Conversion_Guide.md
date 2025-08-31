@@ -28,28 +28,12 @@ npm install @capacitor/core @capacitor/android @capacitor/cli
 
 ---
 
-### 🏗️ Step 2: Initialize Your Android Project
-
-This command tells Capacitor your app's name, gives it a unique package ID, and adds the native Android folder.
-
-> Run the following commands:
-
-```bash
-npx cap init "BMS" "com.gabrielekerete.bms"
-```
-```bash
-npx cap add android
-```
-**Note:** You might see a warning about a missing `public` or `www` directory. This is expected and will be resolved in the next step.
-
----
-
-### 🔌 Step 3: Configure for a Live Server
+### 🔌 Step 2: Configure for a Live Server
 
 Your app is dynamic and needs to talk to a live server. We must tell the native Android app to load your app from your local development server's URL.
 
-1.  **Configure the Capacitor server URL:**
-    > Open the `capacitor.config.ts` file that was created in your project root and **replace its entire contents** with the code below. **This is the most important step.**
+1.  **Create/Update the Capacitor Config:**
+    > Open (or create) the `capacitor.config.ts` file in your project root and **replace its entire contents** with the code below. **This is the most important step.**
 
     ```typescript
     import type { CapacitorConfig } from '@capacitor/cli';
@@ -75,10 +59,18 @@ Your app is dynamic and needs to talk to a live server. We must tell the native 
     npm run build
     ```
 
-3.  **Sync with Capacitor:** Now that the build is done and the configuration is set, sync everything with the native project.
-    ```bash
-    npx cap sync
-    ```
+---
+
+### 🏗️ Step 3: Add the Android Platform
+
+Now that the configuration is set, you can add the native Android folder to your project.
+
+> Run the following command:
+
+```bash
+npx cap add android
+```
+**Note:** You might see a warning like `sync could not run--missing .next directory`. This is expected if you haven't run `npm run build` yet. It will be resolved after you sync.
 
 ---
 
@@ -92,7 +84,10 @@ It's time to see your app running on an Android device! This requires two termin
     npm run dev
     ```
 
-2.  **Terminal 2: Open in Android Studio:** This command will open the native Android project.
+2.  **Terminal 2: Sync and Open in Android Studio:** The `sync` command copies your web build and config into the native project. The `open` command opens it in Android Studio.
+    ```bash
+    npx cap sync
+    ```
     ```bash
     npx cap open android
     ```
