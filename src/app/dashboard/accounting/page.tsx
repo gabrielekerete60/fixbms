@@ -894,7 +894,7 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
     return (
         <div className="space-y-6">
             <ExpenseDetailDialog isOpen={!!viewingCost} onOpenChange={() => setViewingCost(null)} cost={viewingCost} />
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Direct Cost</CardTitle>
@@ -917,8 +917,8 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                 ))}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-5">
-                <Card className="lg:col-span-3">
+            <div className="grid gap-6 xl:grid-cols-5">
+                <Card className="xl:col-span-3">
                     <CardHeader>
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
@@ -958,7 +958,7 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="lg:col-span-2">
+                <Card className="xl:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top direct costs.</CardDescription>
@@ -1038,7 +1038,7 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
     return (
         <div className="space-y-6">
             <ExpenseDetailDialog isOpen={!!viewingCost} onOpenChange={() => setViewingCost(null)} cost={viewingCost} />
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Indirect Cost</CardTitle>
@@ -1061,8 +1061,8 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                 ))}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-5">
-                <Card className="lg:col-span-3">
+            <div className="grid gap-6 xl:grid-cols-5">
+                <Card className="xl:col-span-3">
                      <CardHeader>
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
@@ -1102,7 +1102,7 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="lg:col-span-2">
+                <Card className="xl:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top indirect costs.</CardDescription>
