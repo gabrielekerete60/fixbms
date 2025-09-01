@@ -545,7 +545,7 @@ export default function RecipesPage() {
             setUser(JSON.parse(storedUser));
         }
         fetchStaticData();
-    }, [fetchStaticData]);
+    }, []);
     
     // Real-time listeners
     useEffect(() => {
@@ -912,3 +912,4 @@ export default function RecipesPage() {
         </div>
     );
 }
+
