@@ -926,7 +926,7 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                                 <CardDescription>All costs directly tied to production, like ingredients.</CardDescription>
                             </div>
                             <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2 w-full md:w-auto">
-                                <div className="relative flex-grow">
+                                <div className="relative flex-grow w-full sm:w-auto">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
@@ -938,46 +938,19 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                         </div>
                     </CardHeader>
                     <CardContent>
-                        {/* Mobile View */}
-                        <div className="md:hidden space-y-4">
+                        <div className="space-y-2">
                             {paginatedCosts.map(c => (
-                                <Card key={c.id} className="p-4" onClick={() => setViewingCost(c)}>
-                                    <div className="flex justify-between items-start">
-                                        <p className="font-semibold flex-1 pr-2">{c.description}</p>
-                                        <p className="font-bold text-lg">{formatCurrency(c.total)}</p>
+                                <div key={c.id} onClick={() => setViewingCost(c)} className="cursor-pointer flex flex-col md:flex-row justify-between md:items-center p-3 rounded-md border hover:bg-muted/50">
+                                    <div className="flex-1 mb-2 md:mb-0">
+                                        <p className="font-semibold">{c.description}</p>
+                                        <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                            <Badge variant="outline" className="text-xs">{c.category}</Badge>
+                                            <span>{format(new Date(c.date), 'PPP')}</span>
+                                        </div>
                                     </div>
-                                    <div className="text-sm text-muted-foreground mt-2 flex justify-between">
-                                        <Badge variant="outline">{c.category}</Badge>
-                                        <span>{format(new Date(c.date), 'PPP')}</span>
-                                    </div>
-                                </Card>
+                                    <div className="w-full md:w-auto text-right font-bold text-lg">{formatCurrency(c.total)}</div>
+                                </div>
                             ))}
-                        </div>
-
-                        {/* Desktop View */}
-                        <div className="hidden md:block">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead>Category</TableHead>
-                                        <TableHead className="text-right">Quantity</TableHead>
-                                        <TableHead className="text-right">Total</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {paginatedCosts.map(c => (
-                                        <TableRow key={c.id} onClick={() => setViewingCost(c)} className="cursor-pointer">
-                                            <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
-                                            <TableCell>{c.description}</TableCell>
-                                            <TableCell><Badge variant="outline">{c.category}</Badge></TableCell>
-                                            <TableCell className="text-right">{c.quantity}</TableCell>
-                                            <TableCell className="text-right font-bold">{formatCurrency(c.total)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
                         </div>
                     </CardContent>
                     <CardFooter>
@@ -1095,8 +1068,8 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                                 <CardTitle>Indirect Costs Log</CardTitle>
                                 <CardDescription>All operational costs not tied to a single product.</CardDescription>
                             </div>
-                            <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2 w-full md:w-auto">
-                                <div className="relative flex-grow">
+                             <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2 w-full md:w-auto">
+                                <div className="relative flex-grow w-full sm:w-auto">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
@@ -1108,44 +1081,19 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                         </div>
                     </CardHeader>
                     <CardContent>
-                         {/* Mobile View */}
-                        <div className="md:hidden space-y-4">
+                         <div className="space-y-2">
                             {paginatedCosts.map(c => (
-                                <Card key={c.id} className="p-4" onClick={() => setViewingCost(c)}>
-                                    <div className="flex justify-between items-start">
-                                        <p className="font-semibold flex-1 pr-2">{c.description}</p>
-                                        <p className="font-bold text-lg">{formatCurrency(c.amount)}</p>
+                                <div key={c.id} onClick={() => setViewingCost(c)} className="cursor-pointer flex flex-col md:flex-row justify-between md:items-center p-3 rounded-md border hover:bg-muted/50">
+                                    <div className="flex-1 mb-2 md:mb-0">
+                                        <p className="font-semibold">{c.description}</p>
+                                        <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                            <Badge variant="outline" className="text-xs">{c.category}</Badge>
+                                            <span>{format(new Date(c.date), 'PPP')}</span>
+                                        </div>
                                     </div>
-                                    <div className="text-sm text-muted-foreground mt-2 flex justify-between">
-                                        <Badge variant="outline">{c.category}</Badge>
-                                        <span>{format(new Date(c.date), 'PPP')}</span>
-                                    </div>
-                                </Card>
+                                    <div className="w-full md:w-auto text-right font-bold text-lg">{formatCurrency(c.amount)}</div>
+                                </div>
                             ))}
-                        </div>
-
-                        {/* Desktop View */}
-                        <div className="hidden md:block">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead>Category</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {paginatedCosts.map(c => (
-                                        <TableRow key={c.id} onClick={() => setViewingCost(c)} className="cursor-pointer">
-                                            <TableCell>{format(new Date(c.date), 'PPP')}</TableCell>
-                                            <TableCell>{c.description}</TableCell>
-                                            <TableCell><Badge variant="outline">{c.category}</Badge></TableCell>
-                                            <TableCell className="text-right font-bold">{formatCurrency(c.amount)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
                         </div>
                     </CardContent>
                     <CardFooter>
