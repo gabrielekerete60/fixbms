@@ -126,7 +126,7 @@ function ThemeSettings({ user }: { user: User }) {
         const result = await handleUpdateTheme(user.staff_id, selectedTheme);
         if (result.success) {
             const updatedUser = { ...user, theme: selectedTheme };
-            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser)); // Update local storage immediately
+            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
             toast({ title: 'Theme saved!', description: 'Reloading to apply new theme...' });
             setTimeout(() => {
                 window.location.reload();

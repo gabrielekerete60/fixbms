@@ -212,10 +212,11 @@ export default function DashboardLayout({
       returnedStock: 0,
       productionTransfers: 0,
   });
-  
+
   const applyTheme = useCallback((theme: string | undefined) => {
     const root = document.documentElement;
-    root.className = ''; // Clear all existing theme classes
+    const themes = ['theme-midnight', 'theme-forest', 'theme-rose-gold', 'theme-classic-light'];
+    root.classList.remove(...themes); // Remove all possible theme classes
     if (theme && theme !== 'default') {
       root.classList.add(`theme-${theme}`);
     }
@@ -231,46 +232,35 @@ export default function DashboardLayout({
     });
   }, [router, toast]);
   
-   useEffect(() => {
-        // This function now handles theme application and user verification
-        const initializeUserSession = () => {
-            const storedUserStr = localStorage.getItem('loggedInUser');
-            if (storedUserStr) {
-                const localUser: User = JSON.parse(storedUserStr);
-                setUser(localUser);
-                applyTheme(localUser.theme);
-                setIsLoading(false);
-                
-                // Set up Firestore listener to keep local storage in sync for theme changes
-                const unsub = onSnapshot(doc(db, "staff", localUser.staff_id), (doc) => {
-                    if (doc.exists()) {
-                        const firestoreUser = doc.data();
-                        const currentLocalUserStr = localStorage.getItem('loggedInUser');
-                        if(currentLocalUserStr){
-                           const currentLocalUser = JSON.parse(currentLocalUserStr);
-                           if (firestoreUser.theme !== currentLocalUser.theme) {
-                                const updatedUser = { ...currentLocalUser, theme: firestoreUser.theme };
-                                localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-                                setUser(updatedUser);
-                                applyTheme(updatedUser.theme);
-                            }
-                        }
-                    }
-                });
-                return unsub;
-            } else {
-                router.push('/');
-            }
-        };
+  useEffect(() => {
+    const storedUserStr = localStorage.getItem('loggedInUser');
+    if (storedUserStr) {
+        const localUser: User = JSON.parse(storedUserStr);
+        setUser(localUser);
+        applyTheme(localUser.theme);
+        setIsLoading(false);
 
-        const unsubscribe = initializeUserSession();
-        
-        return () => {
-            if (unsubscribe) {
-                unsubscribe();
+        // Firestore listener to sync theme changes from other devices
+        const unsub = onSnapshot(doc(db, "staff", localUser.staff_id), (doc) => {
+            if (doc.exists()) {
+                const firestoreTheme = doc.data()?.theme;
+                const currentLocalUserStr = localStorage.getItem('loggedInUser');
+                if (currentLocalUserStr) {
+                    const currentLocalUser = JSON.parse(currentLocalUserStr);
+                    if (firestoreTheme !== currentLocalUser.theme) {
+                        const updatedUser = { ...currentLocalUser, theme: firestoreTheme };
+                        localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+                        setUser(updatedUser);
+                        applyTheme(updatedUser.theme);
+                    }
+                }
             }
-        };
-    }, [router, applyTheme]);
+        });
+        return () => unsub();
+    } else {
+        router.push('/');
+    }
+}, [router, applyTheme]);
 
   useEffect(() => {
     if (!user?.staff_id) return;
