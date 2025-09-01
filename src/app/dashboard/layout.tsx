@@ -228,32 +228,36 @@ export default function DashboardLayout({
     localStorage.removeItem('loggedInUser');
     setUser(null);
     router.push("/");
-    toast({
-      variant: message ? "destructive" : "default",
-      title: message || "Logged Out",
-      description: description || "You have been successfully logged out.",
-    });
+    if (message || description) {
+        toast({
+            variant: message ? "destructive" : "default",
+            title: message || "Logged Out",
+            description: description || "You have been successfully logged out.",
+        });
+    }
   }, [router, toast, setUser]);
   
   useEffect(() => {
-    // This effect handles initial setup and theme application.
+    const userStr = localStorage.getItem('loggedInUser');
+    if (!userStr) {
+      router.push('/');
+      return;
+    }
+
+    const currentUser = JSON.parse(userStr);
+    setUser(currentUser);
+    setIsLoading(false);
+  }, [router, setUser]);
+  
+  useEffect(() => {
     if (user?.theme) {
-      applyTheme(user.theme);
+        applyTheme(user.theme);
     }
-    if (user === null && !isLoading) {
-        // If there's no user in state and we're not loading, means we should redirect.
-        handleLogout('Session Expired', 'Please log in again.');
-    } else if (user) {
-        setIsLoading(false);
-    }
-  }, [user, applyTheme, isLoading, handleLogout]);
+  }, [user?.theme, applyTheme]);
 
 
   useEffect(() => {
-    // This effect sets up all the real-time listeners for notifications.
     if (!user?.staff_id) {
-        // If there's no staff_id, we can't set up listeners.
-        // We also check if we're done with the initial loading phase.
         if(!isLoading) setIsLoading(false);
         return;
     };
@@ -321,7 +325,6 @@ export default function DashboardLayout({
     const unsubProductionTransfers = onSnapshot(productionTransfersQuery, (snap) => setNotificationCounts(prev => ({ ...prev, productionTransfers: snap.size })));
 
 
-    // Announcement listener
     const announcementsQuery = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
     const unsubAnnouncements = onSnapshot(announcementsQuery, (snap) => {
         const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${user.staff_id}`);
@@ -329,7 +332,7 @@ export default function DashboardLayout({
             if (doc.data().staffId === user.staff_id) {
                 return false;
             }
-            if (!lastReadTimestamp) return true; // If never read, all are new
+            if (!lastReadTimestamp) return true;
             const timestamp = doc.data().timestamp;
             if (!timestamp) return true;
             return timestamp.toDate() > new Date(lastReadTimestamp);
@@ -342,6 +345,24 @@ export default function DashboardLayout({
     }
     
     window.addEventListener('announcementsRead', handleAnnouncementsRead);
+    
+    // Also listen for changes to the user's own document (for theme changes)
+    const userDocRef = doc(db, 'staff', user.staff_id);
+    const unsubUserDoc = onSnapshot(userDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const freshUserData = docSnap.data() as User;
+            const localUserStr = localStorage.getItem('loggedInUser');
+            if (localUserStr) {
+                const localUser = JSON.parse(localUserStr);
+                if (localUser.theme !== freshUserData.theme) {
+                    const updatedUser = { ...localUser, theme: freshUserData.theme };
+                    setUser(updatedUser); // This updates the hook's state
+                    localStorage.setItem('loggedInUser', JSON.stringify(updatedUser)); // This updates storage
+                    applyTheme(freshUserData.theme); // Apply the new theme
+                }
+            }
+        }
+    });
 
     return () => {
         clearInterval(timer);
@@ -356,9 +377,10 @@ export default function DashboardLayout({
         unsubApprovals();
         unsubReturnedStock();
         unsubProductionTransfers();
+        unsubUserDoc();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
-  }, [user?.staff_id]);
+  }, [user?.staff_id, isLoading, applyTheme, setUser]);
   
   const handleClockInOut = async () => {
     if (!user) return;
