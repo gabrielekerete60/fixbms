@@ -61,7 +61,7 @@ import { cn } from '@/lib/utils';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getAttendanceStatus, handleClockIn, handleClockOut } from '../actions';
-import { doc, onSnapshot, collection, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, orderBy, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 
@@ -232,24 +232,44 @@ export default function DashboardLayout({
   }, [router, toast]);
   
   useEffect(() => {
-    const storedUser = localStorage.getItem('loggedInUser');
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
-      applyTheme(parsedUser.theme);
+    const storedUserStr = localStorage.getItem('loggedInUser');
+    if (storedUserStr) {
+        const storedUser = JSON.parse(storedUserStr);
+        setUser(storedUser);
+        applyTheme(storedUser.theme);
+        setIsLoading(false);
     } else {
-      router.push('/');
+        router.push('/');
     }
-    setIsLoading(false);
   }, [router, applyTheme]);
 
-
   useEffect(() => {
-    if (!user) return;
+    if (!user?.staff_id) return;
+
+    const userDocRef = doc(db, "staff", user.staff_id);
+    const unsubUser = onSnapshot(userDocRef, (doc) => {
+        if (doc.exists()) {
+            const firestoreUser = doc.data();
+            const localUserStr = localStorage.getItem('loggedInUser');
+            const localUser = localUserStr ? JSON.parse(localUserStr) : {};
+
+            if (firestoreUser.theme !== localUser.theme || firestoreUser.name !== localUser.name || firestoreUser.role !== localUser.role) {
+                const updatedUser = {
+                    staff_id: user.staff_id,
+                    name: firestoreUser.name,
+                    role: firestoreUser.role,
+                    theme: firestoreUser.theme,
+                };
+                localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+                setUser(updatedUser);
+                applyTheme(updatedUser.theme);
+            }
+        }
+    });
 
     let hasCheckedAttendance = false;
     const checkAttendance = async () => {
-        if(hasCheckedAttendance) return;
+        if(hasCheckedAttendance || !user?.staff_id) return;
         hasCheckedAttendance = true;
         setIsClocking(true);
         try {
@@ -272,32 +292,6 @@ export default function DashboardLayout({
     const timer = setInterval(() => {
       setTime(new Date().toLocaleTimeString());
     }, 1000);
-    
-    const userDocRef = doc(db, "staff", user.staff_id);
-    const unsubUser = onSnapshot(userDocRef, (doc) => {
-        if (doc.exists()) {
-            const userData = doc.data();
-            if (!userData.is_active) {
-                handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
-                return;
-            }
-            
-            const newTheme = userData.theme || 'default';
-            if (user.theme !== newTheme) {
-                 const updatedUser = { ...user, name: userData.name, role: userData.role, theme: newTheme };
-                 setUser(updatedUser);
-                 localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-                 applyTheme(newTheme);
-            } else if (user.name !== userData.name || user.role !== userData.role) {
-                const updatedUser = { ...user, name: userData.name, role: userData.role, theme: newTheme };
-                setUser(updatedUser);
-                localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-            }
-
-        } else {
-            handleLogout("Account Deleted", "Your staff profile could not be found.");
-        }
-    });
 
     const pendingTransfersQuery = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'pending'));
     const unsubPending = onSnapshot(pendingTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingTransfers: snap.size })));
@@ -374,7 +368,7 @@ export default function DashboardLayout({
         unsubProductionTransfers();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
-  }, [user, handleLogout, applyTheme]);
+  }, [user?.staff_id]);
   
   const handleClockInOut = async () => {
     if (!user) return;
