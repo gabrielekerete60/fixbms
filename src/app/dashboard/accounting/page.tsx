@@ -917,7 +917,7 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                 ))}
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-5">
+            <div className="grid gap-6 lg:grid-cols-1 xl:grid-cols-5">
                 <Card className="xl:col-span-3">
                     <CardHeader>
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -942,7 +942,7 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                             <Card key={c.id} className="p-3 flex flex-col md:flex-row justify-between md:items-center gap-2 cursor-pointer hover:bg-muted/50" onClick={() => setViewingCost(c)}>
                                 <div className="flex-1 space-y-1">
                                     <p className="font-semibold">{c.description}</p>
-                                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                    <div className="text-xs text-muted-foreground flex items-center flex-wrap gap-2">
                                         <Badge variant="outline" className="text-xs">{c.category}</Badge>
                                         <span>{format(new Date(c.date), 'PPP')}</span>
                                     </div>
@@ -1061,7 +1061,7 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                 ))}
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-5">
+            <div className="grid gap-6 lg:grid-cols-1 xl:grid-cols-5">
                 <Card className="xl:col-span-3">
                      <CardHeader>
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1086,7 +1086,7 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                              <Card key={c.id} className="p-3 flex flex-col md:flex-row justify-between md:items-center gap-2 cursor-pointer hover:bg-muted/50" onClick={() => setViewingCost(c)}>
                                 <div className="flex-1 space-y-1">
                                     <p className="font-semibold">{c.description}</p>
-                                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                    <div className="text-xs text-muted-foreground flex items-center flex-wrap gap-2">
                                         <Badge variant="outline" className="text-xs">{c.category}</Badge>
                                         <span>{format(new Date(c.date), 'PPP')}</span>
                                     </div>
