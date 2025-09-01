@@ -108,7 +108,26 @@ npx cap add android
 
 ---
 
-### 📱 Step 5: Run on Android
+### ✨ Step 5: Generate the App Icon
+
+To give your app a professional look, you'll want to add a custom app icon. This new, automated script makes it easy!
+
+1.  **Prepare Your Icon:** Make sure your high-resolution square logo is saved as `logo.png` inside the `public` directory. A size of **1024x1024 pixels** is ideal.
+
+2.  **Run the Icon Generation Script:** This command will automatically resize your `logo.png` into all the required sizes for Android and place them in the correct folders.
+    > In your project's terminal, run:
+    ```bash
+    npm run generate-icons
+    ```
+
+3.  **Sync the Project:** After the script finishes, you need to sync these new icons with the native Android project.
+    ```bash
+    npx cap sync
+    ```
+
+---
+
+### 📱 Step 6: Run on Android
 
 It's time to see your app running on an Android device! This requires two terminals running at the same time if you are testing locally.
 
@@ -118,43 +137,14 @@ It's time to see your app running on an Android device! This requires two termin
     npm run dev
     ```
 
-2.  **Terminal 2: Sync and Open in Android Studio:** The `sync` command copies your web build and config into the native project. The `open` command opens it in Android Studio.
-    ```bash
-    npx cap sync
-    ```
+2.  **Terminal 2: Sync and Open in Android Studio:** The `open` command opens the native project in Android Studio.
     ```bash
     npx cap open android
     ```
 
 3.  **Run the App:**
-    > Inside Android Studio, wait for the project to sync. Then, click the green "Run" button (▶️) at the top. You can choose to run it on an emulator or a physical Android device connected to your computer. The app will load its content from your specified server URL.
+    > Inside Android Studio, wait for the project to sync. Then, click the green "Run" button (▶️) at the top. You can choose to run it on an emulator or a physical Android device connected to your computer. The app will load its content from your specified server URL and should now display your new icon!
 
----
-
-### ✨ Step 6: Changing the App Icon
-
-To give your app a professional look, you'll want to add a custom app icon.
-
-1.  **Prepare Your Icon:** Create your app icon as a high-resolution square image, ideally **1024x1024 pixels**. Save it as a PNG file.
-
-2.  **Generate Icon Sizes:** Android requires the icon in multiple sizes for different screen densities. A free and easy way to generate these is with an online tool.
-    > Go to **[Android Asset Studio's Launcher icon generator](https://romannurik.github.io/AndroidAssetStudio/icons-launcher.html)**.
-    > - Upload your icon image.
-    > - Adjust padding and color if needed.
-    > - Click the **Download .zip** button.
-
-3.  **Replace the Icons in Your Project:**
-    > - Unzip the downloaded file. You will see several folders named `mipmap-mdpi`, `mipmap-hdpi`, etc.
-    > - In your project, navigate to the `android/app/src/main/res/` directory.
-    > - **Delete** the existing `mipmap-*` folders inside the `res` directory.
-    > - **Copy and paste** all the `mipmap-*` folders from your downloaded zip into the `android/app/src/main/res/` directory.
-
-4.  **Sync and Run:**
-    > After replacing the folders, run the `sync` command again and open Android Studio to see your new icon.
-    ```bash
-    npx cap sync
-    npx cap open android
-    ```
 ---
 
 ### 🚀 Step 7: Prepare for the Google Play Store
