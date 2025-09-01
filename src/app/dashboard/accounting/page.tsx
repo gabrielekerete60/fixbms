@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle, MessageSquareQuote, CheckCircle, PackageSearch, Banknote, PlusCircle, Trash2, Settings2, Eye, FileDigit } from 'lucide-react';
+import { Loader2, DollarSign, Receipt, TrendingDown, TrendingUp, PenSquare, RefreshCcw, HandCoins, Search, Calendar as CalendarIcon, ArrowRight, MoreVertical, AlertTriangle, MessageSquareQuote, CheckCircle, PackageSearch, Banknote, PlusCircle, Trash2, Settings2, Eye, FileDigit, CornerDownRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear as dateFnsEndOfYear } from 'date-fns';
 import { getFinancialSummary, getDebtRecords, getDirectCosts, getIndirectCosts, getClosingStocks, getWages, addDirectCost, addIndirectCost, getSales, getDrinkSalesSummary, PaymentConfirmation, getPaymentConfirmations, getCreditors, getDebtors, Creditor, Debtor, handleLogPayment, getWasteLogs, WasteLog, getDiscountRecords, getProfitAndLossStatement, ProfitAndLossStatement, getAccountSummary, SupplyRequest, getPendingSupplyRequests, approveStockIncrease, declineStockIncrease, handlePaymentConfirmation } from '@/app/actions';
@@ -949,6 +949,9 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                                                 <span>{format(new Date(c.date), 'PPP')}</span>
                                             </div>
                                         </div>
+                                        <div className="flex md:hidden items-center text-muted-foreground">
+                                            <CornerDownRight className="h-4 w-4 mr-2"/>
+                                        </div>
                                         <p className="w-full md:w-auto text-left md:text-right font-bold text-lg">{formatCurrency(c.total)}</p>
                                     </div>
                                 </Card>
@@ -1093,6 +1096,9 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                                                 <Badge variant="outline" className="text-xs">{c.category}</Badge>
                                                 <span>{format(new Date(c.date), 'PPP')}</span>
                                             </div>
+                                        </div>
+                                         <div className="flex md:hidden items-center text-muted-foreground">
+                                            <CornerDownRight className="h-4 w-4 mr-2"/>
                                         </div>
                                         <p className="w-full md:w-auto text-left md:text-right font-bold text-lg">{formatCurrency(c.amount)}</p>
                                     </div>
