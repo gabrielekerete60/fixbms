@@ -37,6 +37,13 @@ bash create_styles.sh
 ```
 This script will automatically create the `tailwind.config.ts` and `src/app/globals.css` files with the new styles.
 
+#### What Do These Styles Do?
+This script gives your application a complete visual overhaul with a modern, professional dark theme. Here’s what you'll notice:
+- **Background**: Changes from the default brownish dark theme to a deep, elegant midnight blue.
+- **Text**: Becomes a crisp, bright white for better contrast and readability.
+- **Buttons & Accents**: Primary buttons and highlights will change from orangey-brown to a clean, stark white with dark text.
+- **Inputs & Borders**: All input fields and card borders will adopt a sleeker, darker blue scheme.
+
 ---
 
 ### ⚙️ Step 2: Install Capacitor
