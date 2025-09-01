@@ -346,19 +346,18 @@ export default function DashboardLayout({
     
     window.addEventListener('announcementsRead', handleAnnouncementsRead);
     
-    // Also listen for changes to the user's own document (for theme changes)
     const userDocRef = doc(db, 'staff', user.staff_id);
     const unsubUserDoc = onSnapshot(userDocRef, (docSnap) => {
         if (docSnap.exists()) {
-            const freshUserData = docSnap.data() as User;
+            const freshUserData = docSnap.data();
             const localUserStr = localStorage.getItem('loggedInUser');
             if (localUserStr) {
                 const localUser = JSON.parse(localUserStr);
                 if (localUser.theme !== freshUserData.theme) {
                     const updatedUser = { ...localUser, theme: freshUserData.theme };
-                    setUser(updatedUser); // This updates the hook's state
-                    localStorage.setItem('loggedInUser', JSON.stringify(updatedUser)); // This updates storage
-                    applyTheme(freshUserData.theme); // Apply the new theme
+                    localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+                    // Intentionally NOT calling setUser here to avoid re-renders
+                    applyTheme(freshUserData.theme); 
                 }
             }
         }
@@ -380,7 +379,7 @@ export default function DashboardLayout({
         unsubUserDoc();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
-  }, [user?.staff_id, isLoading, applyTheme, setUser]);
+  }, [user?.staff_id, isLoading, applyTheme]);
   
   const handleClockInOut = async () => {
     if (!user) return;
