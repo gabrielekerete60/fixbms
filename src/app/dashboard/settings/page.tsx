@@ -17,6 +17,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useLocalStorage } from '@/hooks/use-local-storage';
+
 
 type User = {
     name: string;
@@ -114,6 +116,7 @@ function ChangePasswordForm({ user }: { user: User }) {
 
 function ThemeSettings({ user }: { user: User }) {
     const { toast } = useToast();
+    const [localUser, setLocalUser] = useLocalStorage<User | null>('loggedInUser', null);
     const [selectedTheme, setSelectedTheme] = useState(user.theme || 'default');
     const [isSaving, setIsSaving] = useState(false);
 
@@ -125,16 +128,13 @@ function ThemeSettings({ user }: { user: User }) {
         setIsSaving(true);
         const result = await handleUpdateTheme(user.staff_id, selectedTheme);
         if (result.success) {
-            const updatedUser = { ...user, theme: selectedTheme };
-            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-            toast({ title: 'Theme saved!', description: 'Reloading to apply new theme...' });
-            setTimeout(() => {
-                window.location.reload();
-            }, 500);
+            // Update local storage directly to trigger layout effect
+            setLocalUser({ ...user, theme: selectedTheme });
+            toast({ title: 'Theme saved!', description: 'Your new theme has been applied.' });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save your theme preference.' });
-            setIsSaving(false);
         }
+        setIsSaving(false);
     };
     
     return (

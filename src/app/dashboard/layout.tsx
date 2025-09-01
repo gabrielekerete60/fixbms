@@ -64,6 +64,8 @@ import { getAttendanceStatus, handleClockIn, handleClockOut } from '../actions';
 import { doc, onSnapshot, collection, query, where, orderBy, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
+import { useLocalStorage } from '@/hooks/use-local-storage';
+
 
 type User = {
   name: string;
@@ -194,7 +196,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const { toast } = useToast();
   const [time, setTime] = useState('');
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useLocalStorage<User | null>('loggedInUser', null);
   const [isLoading, setIsLoading] = useState(true);
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [attendanceId, setAttendanceId] = useState<string | null>(null);
@@ -213,10 +215,10 @@ export default function DashboardLayout({
       productionTransfers: 0,
   });
 
-  const applyTheme = useCallback((theme: string | undefined) => {
+  const applyTheme = useCallback((theme?: string) => {
     const root = document.documentElement;
-    const themes = ['theme-midnight', 'theme-forest', 'theme-rose-gold', 'theme-classic-light'];
-    root.classList.remove(...themes); // Remove all possible theme classes
+    const themes = ['theme-midnight', 'theme-forest', 'theme-rose-gold', 'theme-classic-light', 'theme-slate', 'theme-crimson', 'theme-emerald', 'theme-abyss', 'theme-sunset', 'theme-solaris', 'theme-oceanic', 'theme-lavender', 'theme-vintage', 'theme-sakura'];
+    root.classList.remove(...themes);
     if (theme && theme !== 'default') {
       root.classList.add(`theme-${theme}`);
     }
@@ -224,46 +226,37 @@ export default function DashboardLayout({
   
   const handleLogout = useCallback((message?: string, description?: string) => {
     localStorage.removeItem('loggedInUser');
+    setUser(null);
     router.push("/");
     toast({
       variant: message ? "destructive" : "default",
       title: message || "Logged Out",
       description: description || "You have been successfully logged out.",
     });
-  }, [router, toast]);
+  }, [router, toast, setUser]);
   
   useEffect(() => {
-    const storedUserStr = localStorage.getItem('loggedInUser');
-    if (storedUserStr) {
-        const localUser: User = JSON.parse(storedUserStr);
-        setUser(localUser);
-        applyTheme(localUser.theme);
-        setIsLoading(false);
-
-        // Firestore listener to sync theme changes from other devices
-        const unsub = onSnapshot(doc(db, "staff", localUser.staff_id), (doc) => {
-            if (doc.exists()) {
-                const firestoreTheme = doc.data()?.theme;
-                const currentLocalUserStr = localStorage.getItem('loggedInUser');
-                if (currentLocalUserStr) {
-                    const currentLocalUser = JSON.parse(currentLocalUserStr);
-                    if (firestoreTheme !== currentLocalUser.theme) {
-                        const updatedUser = { ...currentLocalUser, theme: firestoreTheme };
-                        localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-                        setUser(updatedUser);
-                        applyTheme(updatedUser.theme);
-                    }
-                }
-            }
-        });
-        return () => unsub();
-    } else {
-        router.push('/');
+    // This effect handles initial setup and theme application.
+    if (user?.theme) {
+      applyTheme(user.theme);
     }
-}, [router, applyTheme]);
+    if (user === null && !isLoading) {
+        // If there's no user in state and we're not loading, means we should redirect.
+        handleLogout('Session Expired', 'Please log in again.');
+    } else if (user) {
+        setIsLoading(false);
+    }
+  }, [user, applyTheme, isLoading, handleLogout]);
+
 
   useEffect(() => {
-    if (!user?.staff_id) return;
+    // This effect sets up all the real-time listeners for notifications.
+    if (!user?.staff_id) {
+        // If there's no staff_id, we can't set up listeners.
+        // We also check if we're done with the initial loading phase.
+        if(!isLoading) setIsLoading(false);
+        return;
+    };
 
     let hasCheckedAttendance = false;
     const checkAttendance = async () => {
