@@ -58,7 +58,7 @@ import {
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getAttendanceStatus, handleClockIn, handleClockOut } from '../actions';
 import { doc, onSnapshot, collection, query, where, orderBy, Timestamp, getDoc } from 'firebase/firestore';
@@ -236,31 +236,21 @@ export default function DashboardLayout({
         });
     }
   }, [router, toast, setUser]);
-  
-  useEffect(() => {
-    const userStr = localStorage.getItem('loggedInUser');
-    if (!userStr) {
-      router.push('/');
-      return;
-    }
-
-    const currentUser = JSON.parse(userStr);
-    setUser(currentUser);
-    setIsLoading(false);
-  }, [router, setUser]);
-  
-  useEffect(() => {
-    if (user?.theme) {
-        applyTheme(user.theme);
-    }
-  }, [user?.theme, applyTheme]);
-
 
   useEffect(() => {
-    if (!user?.staff_id) {
-        if(!isLoading) setIsLoading(false);
+    const storedUser = localStorage.getItem('loggedInUser');
+    if (!storedUser) {
+        router.push('/');
         return;
-    };
+    }
+    const currentUser = JSON.parse(storedUser);
+    setUser(currentUser);
+    applyTheme(currentUser.theme);
+    setIsLoading(false);
+  }, []);
+  
+  useEffect(() => {
+    if (!user?.staff_id) return;
 
     let hasCheckedAttendance = false;
     const checkAttendance = async () => {
@@ -356,7 +346,6 @@ export default function DashboardLayout({
                 if (localUser.theme !== freshUserData.theme) {
                     const updatedUser = { ...localUser, theme: freshUserData.theme };
                     localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-                    // Intentionally NOT calling setUser here to avoid re-renders
                     applyTheme(freshUserData.theme); 
                 }
             }
@@ -379,7 +368,7 @@ export default function DashboardLayout({
         unsubUserDoc();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
-  }, [user?.staff_id, isLoading, applyTheme]);
+  }, [user?.staff_id]);
   
   const handleClockInOut = async () => {
     if (!user) return;
