@@ -281,21 +281,15 @@ export default function DashboardLayout({
                 handleLogout("Account Deactivated", "Your account has been deactivated by an administrator.");
                 return;
             }
-            setUser(currentUser => {
-                if (!currentUser) return null;
-                const newTheme = userData.theme || 'default';
-                const hasChanged = currentUser.name !== userData.name || 
-                                   currentUser.role !== userData.role || 
-                                   currentUser.theme !== newTheme;
-
-                if (hasChanged) {
-                    const updatedUser = { ...currentUser, name: userData.name, role: userData.role, theme: newTheme };
-                    localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-                    applyTheme(newTheme);
-                    return updatedUser;
-                }
-                return currentUser;
-            });
+            
+            // This logic is now simplified to directly check and apply theme.
+            const newTheme = userData.theme || 'default';
+            if (user.theme !== newTheme) {
+                 const updatedUser = { ...user, name: userData.name, role: userData.role, theme: newTheme };
+                 setUser(updatedUser);
+                 localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+                 applyTheme(newTheme);
+            }
         } else {
             handleLogout("Account Deleted", "Your staff profile could not be found.");
         }
