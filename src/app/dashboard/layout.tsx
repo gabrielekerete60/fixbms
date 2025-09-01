@@ -220,7 +220,7 @@ export default function DashboardLayout({
       root.classList.add(`theme-${theme}`);
     }
   }, []);
-
+  
   const handleLogout = useCallback((message?: string, description?: string) => {
     localStorage.removeItem('loggedInUser');
     router.push("/");
@@ -231,38 +231,46 @@ export default function DashboardLayout({
     });
   }, [router, toast]);
   
-  useEffect(() => {
-    const storedUserStr = localStorage.getItem('loggedInUser');
-    if (!storedUserStr) {
-      router.push('/');
-      return;
-    }
-    const localUser = JSON.parse(storedUserStr);
-    setUser(localUser);
-    applyTheme(localUser.theme);
-    setIsLoading(false);
-
-    // Set up Firestore listener to keep local storage in sync
-    const unsub = onSnapshot(doc(db, "staff", localUser.staff_id), (doc) => {
-        if (doc.exists()) {
-            const firestoreUser = doc.data();
-            const currentLocalUserStr = localStorage.getItem('loggedInUser');
-            const currentLocalUser = currentLocalUserStr ? JSON.parse(currentLocalUserStr) : {};
-
-            if (firestoreUser.theme !== currentLocalUser.theme) {
-                const updatedUser = {
-                    ...currentLocalUser,
-                    theme: firestoreUser.theme,
-                };
-                localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-                setUser(updatedUser);
-                applyTheme(updatedUser.theme);
+   useEffect(() => {
+        // This function now handles theme application and user verification
+        const initializeUserSession = () => {
+            const storedUserStr = localStorage.getItem('loggedInUser');
+            if (storedUserStr) {
+                const localUser: User = JSON.parse(storedUserStr);
+                setUser(localUser);
+                applyTheme(localUser.theme);
+                setIsLoading(false);
+                
+                // Set up Firestore listener to keep local storage in sync for theme changes
+                const unsub = onSnapshot(doc(db, "staff", localUser.staff_id), (doc) => {
+                    if (doc.exists()) {
+                        const firestoreUser = doc.data();
+                        const currentLocalUserStr = localStorage.getItem('loggedInUser');
+                        if(currentLocalUserStr){
+                           const currentLocalUser = JSON.parse(currentLocalUserStr);
+                           if (firestoreUser.theme !== currentLocalUser.theme) {
+                                const updatedUser = { ...currentLocalUser, theme: firestoreUser.theme };
+                                localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+                                setUser(updatedUser);
+                                applyTheme(updatedUser.theme);
+                            }
+                        }
+                    }
+                });
+                return unsub;
+            } else {
+                router.push('/');
             }
-        }
-    });
+        };
 
-    return () => unsub();
-  }, [router, applyTheme]);
+        const unsubscribe = initializeUserSession();
+        
+        return () => {
+            if (unsubscribe) {
+                unsubscribe();
+            }
+        };
+    }, [router, applyTheme]);
 
   useEffect(() => {
     if (!user?.staff_id) return;
