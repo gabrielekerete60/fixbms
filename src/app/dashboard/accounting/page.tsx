@@ -940,16 +940,18 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                     <CardContent>
                         <div className="space-y-2">
                             {paginatedCosts.map(c => (
-                                <div key={c.id} onClick={() => setViewingCost(c)} className="cursor-pointer flex flex-col md:flex-row justify-between md:items-center p-3 rounded-md border hover:bg-muted/50">
-                                    <div className="flex-1 mb-2 md:mb-0">
-                                        <p className="font-semibold">{c.description}</p>
-                                        <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                            <Badge variant="outline" className="text-xs">{c.category}</Badge>
-                                            <span>{format(new Date(c.date), 'PPP')}</span>
+                                <Card key={c.id} className="p-3 cursor-pointer hover:bg-muted/50" onClick={() => setViewingCost(c)}>
+                                    <div className="flex flex-col md:flex-row justify-between md:items-center gap-2">
+                                        <div className="flex-1 space-y-1">
+                                            <p className="font-semibold">{c.description}</p>
+                                            <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                                <Badge variant="outline" className="text-xs">{c.category}</Badge>
+                                                <span>{format(new Date(c.date), 'PPP')}</span>
+                                            </div>
                                         </div>
+                                        <p className="w-full md:w-auto text-left md:text-right font-bold text-lg">{formatCurrency(c.total)}</p>
                                     </div>
-                                    <div className="w-full md:w-auto text-right font-bold text-lg">{formatCurrency(c.total)}</div>
-                                </div>
+                                </Card>
                             ))}
                         </div>
                     </CardContent>
@@ -1081,18 +1083,20 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                         </div>
                     </CardHeader>
                     <CardContent>
-                         <div className="space-y-2">
+                        <div className="space-y-2">
                             {paginatedCosts.map(c => (
-                                <div key={c.id} onClick={() => setViewingCost(c)} className="cursor-pointer flex flex-col md:flex-row justify-between md:items-center p-3 rounded-md border hover:bg-muted/50">
-                                    <div className="flex-1 mb-2 md:mb-0">
-                                        <p className="font-semibold">{c.description}</p>
-                                        <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                            <Badge variant="outline" className="text-xs">{c.category}</Badge>
-                                            <span>{format(new Date(c.date), 'PPP')}</span>
+                                <Card key={c.id} className="p-3 cursor-pointer hover:bg-muted/50" onClick={() => setViewingCost(c)}>
+                                    <div className="flex flex-col md:flex-row justify-between md:items-center gap-2">
+                                        <div className="flex-1 space-y-1">
+                                            <p className="font-semibold">{c.description}</p>
+                                            <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                                <Badge variant="outline" className="text-xs">{c.category}</Badge>
+                                                <span>{format(new Date(c.date), 'PPP')}</span>
+                                            </div>
                                         </div>
+                                        <p className="w-full md:w-auto text-left md:text-right font-bold text-lg">{formatCurrency(c.amount)}</p>
                                     </div>
-                                    <div className="w-full md:w-auto text-right font-bold text-lg">{formatCurrency(c.amount)}</div>
-                                </div>
+                                </Card>
                             ))}
                         </div>
                     </CardContent>
@@ -2426,19 +2430,21 @@ export default function AccountingPage() {
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-bold font-headline">Accounting</h1>
       <Tabs defaultValue="summary" className="space-y-4">
-        <TabsList className="h-auto flex-wrap">
-            <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="pnl-statement">P&amp;L Statement</TabsTrigger>
-            <TabsTrigger value="business-health">Business Health</TabsTrigger>
-            <TabsTrigger value="expenses">Expenses</TabsTrigger>
-            <TabsTrigger value="sales">Sales</TabsTrigger>
-            <TabsTrigger value="debt-payments">Debt &amp; Payments</TabsTrigger>
-            <TabsTrigger value="assets-wages">Assets &amp; Wages</TabsTrigger>
-             <TabsTrigger value="approvals" className="relative">
-                Approvals
-                {(notificationCounts.approvals + notificationCounts.payments) > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.approvals + notificationCounts.payments}</Badge>}
-            </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-2">
+            <TabsList className="h-auto flex-wrap justify-start">
+                <TabsTrigger value="summary">Summary</TabsTrigger>
+                <TabsTrigger value="pnl-statement">P&amp;L Statement</TabsTrigger>
+                <TabsTrigger value="business-health">Business Health</TabsTrigger>
+                <TabsTrigger value="expenses">Expenses</TabsTrigger>
+                <TabsTrigger value="sales">Sales</TabsTrigger>
+                <TabsTrigger value="debt-payments">Debt &amp; Payments</TabsTrigger>
+                <TabsTrigger value="assets-wages">Assets &amp; Wages</TabsTrigger>
+                 <TabsTrigger value="approvals" className="relative">
+                    Approvals
+                    {(notificationCounts.approvals + notificationCounts.payments) > 0 && <Badge variant="destructive" className="ml-2">{notificationCounts.approvals + notificationCounts.payments}</Badge>}
+                </TabsTrigger>
+            </TabsList>
+        </div>
 
         <TabsContent value="summary"><SummaryTab /></TabsContent>
         <TabsContent value="pnl-statement"><FinancialsTab /></TabsContent>
