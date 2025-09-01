@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -12,7 +11,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye, Edit, Rocket, CookingPot, CalendarIcon } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye, Edit, Rocket, CookingPot, CalendarIcon, Ban } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +39,7 @@ import { collection, onSnapshot, query, orderBy, where, doc, addDoc, getDoc, upd
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getProducts, getIngredients, getStaffByRole, getProductionBatch, getProductionLogs, handleSaveRecipe, handleDeleteRecipe } from "@/app/actions";
+import { startProductionBatch, approveIngredientRequest, declineProductionBatch, completeProductionBatch, ProductionBatch, ProductionLog, getRecipes, getProducts, getIngredients, getStaffByRole, getProductionBatch, getProductionLogs, handleSaveRecipe, handleDeleteRecipe, cancelProductionBatch, getProductionBatches } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, startOfDay, endOfDay } from "date-fns";
@@ -457,7 +456,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
                 <DialogHeader>
                     <DialogTitle>Approve Production Batch?</DialogTitle>
                     <DialogDescription>
-                        Batch ID: {batch.id.substring(0,6)}...<br/>
+                        Batch ID: {batch.id.substring(0,6)}...&lt;br/&gt;
                         Request for <strong>{batch.recipeName}</strong>. This will deduct ingredients from inventory.
                     </DialogDescription>
                 </DialogHeader>
@@ -504,11 +503,11 @@ export default function RecipesPage() {
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     
     // Real-time states
-    const [productionBatches, setProductionBatches] = useState<ProductionBatch[]>([]);
+    const [productionBatches, setProductionBatches] = useState<{ pending: ProductionBatch[], in_production: ProductionBatch[], completed: ProductionBatch[], other: ProductionBatch[] }>({ pending: [], in_production: [], completed: [], other: [] });
     const [productionLogs, setProductionLogs] = useState<ProductionLog[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
-    const [viewingLog, setViewingLog] = useState<ProductionLog | null>(null);
+    const [viewingLog, setViewingLog = useState<ProductionLog | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     const [logActionFilter, setLogActionFilter] = useState('all');
@@ -550,30 +549,29 @@ export default function RecipesPage() {
     
     // Real-time listeners
     useEffect(() => {
-        const qBatches = query(collection(db, 'production_batches'), where('status', 'in', ['pending_approval', 'in_production']));
-        const unsubBatches = onSnapshot(qBatches, (snapshot) => {
-            setProductionBatches(snapshot.docs.map(doc => {
-                const data = doc.data();
+        const unsubBatches = onSnapshot(query(collection(db, 'production_batches'), orderBy('createdAt', 'desc')), (snapshot) => {
+            const allBatches = snapshot.docs.map(docSnap => {
+                 const data = docSnap.data();
                 return {
-                    id: doc.id,
-                    ...data,
-                    createdAt: data.createdAt.toDate().toISOString(),
-                    approvedAt: data.approvedAt ? (data.approvedAt)?.toDate().toISOString() : null,
-                    completedAt: data.completedAt ? (data.completedAt)?.toDate().toISOString() : null,
+                    id: docSnap.id, ...data,
+                    createdAt: (data.createdAt as any)?.toDate().toISOString(),
+                    approvedAt: (data.approvedAt as any)?.toDate().toISOString(),
+                    completedAt: (data.completedAt as any)?.toDate().toISOString(),
                 } as ProductionBatch
-            }));
+            });
+             setProductionBatches({
+                pending: allBatches.filter(b => b.status === 'pending_approval'),
+                in_production: allBatches.filter(b => b.status === 'in_production'),
+                completed: allBatches.filter(b => b.status === 'completed'),
+                other: allBatches.filter(b => ['declined', 'cancelled'].includes(b.status)),
+            });
         });
 
-        const qLogs = query(collection(db, 'production_logs'), orderBy('timestamp', 'desc'));
-        const unsubLogs = onSnapshot(qLogs, (snapshot) => {
+        const unsubLogs = onSnapshot(query(collection(db, 'production_logs'), orderBy('timestamp', 'desc')), (snapshot) => {
              const logs = snapshot.docs.map(doc => {
                  const data = doc.data();
                  const timestamp = (data.timestamp as any)?.toDate ? (data.timestamp as any).toDate().toISOString() : data.timestamp;
-                 return {
-                    id: doc.id,
-                    ...data,
-                    timestamp,
-                } as ProductionLog
+                 return { id: doc.id, ...data, timestamp } as ProductionLog
              });
             setProductionLogs(logs);
         });
@@ -610,6 +608,18 @@ export default function RecipesPage() {
         }
         setIsSubmitting(false);
     }
+
+    const handleCancelRequest = async (batchId: string) => {
+        if (!user) return;
+        setIsSubmitting(true);
+        const result = await cancelProductionBatch(batchId, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Production request has been cancelled.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    };
     
      const handleRecipeEdit = (index: number, quantity: string) => {
         if (!editedRecipe) return;
@@ -680,6 +690,7 @@ export default function RecipesPage() {
         switch(status) {
             case 'pending_approval': return 'destructive';
             case 'in_production': return 'default';
+            case 'completed': return 'outline';
             default: return 'secondary';
         }
     }
@@ -702,8 +713,8 @@ export default function RecipesPage() {
                     {!isBaker && <TabsTrigger value="recipes">Recipes</TabsTrigger>}
                     <TabsTrigger value="production" className="relative">
                         Production Batches
-                        {productionBatches.length > 0 && (
-                            <Badge variant="destructive" className="ml-2">{productionBatches.length}</Badge>
+                        {productionBatches.pending.length > 0 && (
+                            <Badge variant="destructive" className="ml-2">{productionBatches.pending.length}</Badge>
                         )}
                     </TabsTrigger>
                     <TabsTrigger value="logs">Production Logs</TabsTrigger>
@@ -771,8 +782,8 @@ export default function RecipesPage() {
                      <Card>
                         <CardHeader className="flex flex-row justify-between items-center">
                             <div>
-                                <CardTitle>Active Production Batches</CardTitle>
-                                <CardDescription>Batches that are pending approval or are currently being produced.</CardDescription>
+                                <CardTitle>Production Queue</CardTitle>
+                                <CardDescription>Manage and track all production batches.</CardDescription>
                             </div>
                              {canStartProduction && (
                                  <AlertDialog open={isProductionDialogOpen} onOpenChange={setIsProductionDialogOpen}>
@@ -797,28 +808,45 @@ export default function RecipesPage() {
                                 </AlertDialog>
                              )}
                         </CardHeader>
-                        <CardContent>
-                             <Table>
-                                <TableHeader><TableRow><TableHead>Time Started</TableHead><TableHead>Recipe</TableHead><TableHead>Requested By</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                     {productionBatches.length > 0 ? productionBatches.map(batch => (
-                                        <TableRow key={batch.id} onClick={() => { if(!isBaker) setViewingLog({ action: 'Batch Details', details: `Details for batch ${batch.id}`, staffId: batch.requestedById, staffName: batch.requestedByName, timestamp: batch.createdAt, id: batch.id })}} className={cn(!isBaker && "cursor-pointer")}>
-                                            <TableCell>{batch.approvedAt ? format(new Date(batch.approvedAt), 'Pp') : format(new Date(batch.createdAt), 'Pp')}</TableCell>
-                                            <TableCell>{batch.recipeName}</TableCell>
-                                            <TableCell>{batch.requestedByName}</TableCell>
-                                            <TableCell><Badge variant={getStatusVariant(batch.status)}>{batch.status.replace('_', ' ')}</Badge></TableCell>
-                                            <TableCell>
-                                                {batch.status === 'pending_approval' && canApproveBatches && (
-                                                    <ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchStaticData} />
-                                                )}
-                                                {batch.status === 'in_production' && canCompleteBatches && (
-                                                    <CompleteBatchDialog batch={batch} user={user} onBatchCompleted={fetchStaticData} products={products} />
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    )) : <TableRow><TableCell colSpan={6} className="text-center h-24">No active batches.</TableCell></TableRow>}
-                                </TableBody>
-                            </Table>
+                        <CardContent className="space-y-4">
+                            {[
+                                { title: 'Pending Approval', batches: productionBatches.pending },
+                                { title: 'In Production', batches: productionBatches.in_production },
+                                { title: 'Completed', batches: productionBatches.completed },
+                                { title: 'Declined / Cancelled', batches: productionBatches.other }
+                            ].map(section => (
+                                (isBaker || section.batches.length > 0) && (
+                                <div key={section.title}>
+                                    <h3 className="font-semibold mb-2">{section.title} ({section.batches.length})</h3>
+                                    <div className="border rounded-md">
+                                    <Table>
+                                        <TableHeader><TableRow><TableHead>Time</TableHead><TableHead>Recipe</TableHead><TableHead>Requested By</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+                                        <TableBody>
+                                            {section.batches.length > 0 ? section.batches.map(batch => (
+                                                <TableRow key={batch.id} onClick={() => { if(!isBaker) setViewingLog({ action: 'Batch Details', details: `Details for batch ${batch.id}`, staffId: batch.requestedById, staffName: batch.requestedByName, timestamp: batch.createdAt, id: batch.id })}} className={cn(!isBaker && "cursor-pointer")}>
+                                                    <TableCell>{format(new Date(batch.createdAt), 'Pp')}</TableCell>
+                                                    <TableCell>{batch.recipeName}</TableCell>
+                                                    <TableCell>{batch.requestedByName}</TableCell>
+                                                    <TableCell><Badge variant={getStatusVariant(batch.status)}>{batch.status.replace('_', ' ')}</Badge></TableCell>
+                                                    <TableCell>
+                                                        {batch.status === 'pending_approval' && canApproveBatches && (
+                                                            <ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchStaticData} />
+                                                        )}
+                                                         {batch.status === 'pending_approval' && isBaker && (
+                                                            <Button size="sm" variant="destructive" onClick={() => handleCancelRequest(batch.id)} disabled={isSubmitting}><Ban className="mr-2 h-4 w-4"/> Cancel</Button>
+                                                        )}
+                                                        {batch.status === 'in_production' && canCompleteBatches && (
+                                                            <CompleteBatchDialog batch={batch} user={user} onBatchCompleted={fetchStaticData} products={products} />
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )) : <TableRow><TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No batches in this stage.</TableCell></TableRow>}
+                                        </TableBody>
+                                    </Table>
+                                    </div>
+                                </div>
+                                )
+                            ))}
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -884,3 +912,5 @@ export default function RecipesPage() {
         </div>
     );
 }
+
+    

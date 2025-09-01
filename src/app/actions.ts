@@ -1,3 +1,4 @@
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -2000,7 +2001,7 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
       collection(db, 'transfers'),
       where('status', '==', 'pending'),
       where('notes', '>=', 'Return from production batch'),
-      where('notes', '<', 'Return from production batch' + '\uf8ff')
+      where('notes', '&lt;', 'Return from production batch' + '\uf8ff')
     );
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docSnap => {
@@ -2159,7 +2160,7 @@ export type ProductionBatch = {
     requestedById: string;
     requestedByName: string;
     quantityToProduce: number;
-    status: 'pending_approval' | 'in_production' | 'completed' | 'declined';
+    status: 'pending_approval' | 'in_production' | 'completed' | 'declined' | 'cancelled';
     createdAt: string; 
     approvedAt?: string;
     completedAt?: string;
@@ -2176,7 +2177,7 @@ export type ProductionBatch = {
 };
 
 
-export async function getProductionBatches(): Promise<{ pending: ProductionBatch[], in_production: ProductionBatch[], completed: ProductionBatch[] }> {
+export async function getProductionBatches(): Promise<{ pending: ProductionBatch[], in_production: ProductionBatch[], completed: ProductionBatch[], other: ProductionBatch[] }> {
     try {
         const q = query(collection(db, 'production_batches'), orderBy('createdAt', 'desc'));
         const snapshot = await getDocs(q);
@@ -2184,22 +2185,25 @@ export async function getProductionBatches(): Promise<{ pending: ProductionBatch
             const data = docSnap.data();
             const createdAt = (data.createdAt as Timestamp)?.toDate().toISOString();
             const approvedAt = (data.approvedAt as Timestamp)?.toDate().toISOString();
+            const completedAt = (data.completedAt as Timestamp)?.toDate().toISOString();
             return {
                 id: docSnap.id,
                 ...data,
                 createdAt,
                 approvedAt,
+                completedAt
             } as ProductionBatch;
         });
         
         const pending = allBatches.filter(b => b.status === 'pending_approval');
         const in_production = allBatches.filter(b => b.status === 'in_production');
         const completed = allBatches.filter(b => b.status === 'completed');
+        const other = allBatches.filter(b => b.status === 'declined' || b.status === 'cancelled');
 
-        return { pending, in_production, completed };
+        return { pending, in_production, completed, other };
     } catch (error) {
         console.error("Error fetching production batches:", error);
-        return { pending: [], in_production: [], completed: [] };
+        return { pending: [], in_production: [], completed: [], other: [] };
     }
 }
 
@@ -2338,6 +2342,26 @@ export async function declineProductionBatch(batchId: string, user: { staff_id: 
     } catch (error) {
         console.error("Error declining production batch:", error);
         return { success: false, error: "Failed to decline batch." };
+    }
+}
+
+export async function cancelProductionBatch(batchId: string, user: { staff_id: string, name: string, role: string }): Promise<{success: boolean, error?: string}> {
+    try {
+        const batchRef = doc(db, 'production_batches', batchId);
+        const batchDoc = await getDoc(batchRef);
+        if (!batchDoc.exists() || batchDoc.data()?.status !== 'pending_approval') {
+            return { success: false, error: "Only pending batches can be cancelled." };
+        }
+
+        await updateDoc(batchRef, { status: 'cancelled' });
+        
+        const batchData = batchDoc.data();
+        await createProductionLog('Batch Cancelled', `Cancelled batch for ${batchData?.quantityToProduce} of ${batchData?.productName}: ${batchId}`, user);
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error cancelling production batch:", error);
+        return { success: false, error: "Failed to cancel batch." };
     }
 }
 
@@ -2513,7 +2537,7 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', 'in', ['completed', 'active']), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'staff'), where('is_active', '==', true), where('role', '!=', 'Developer'))),
         () => getDocs(query(collection(db, 'transfers'), where('status', '==', 'pending_return'))),
-        () => getDocs(query(collection(db, 'transfers'), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'), where('notes', '<', 'Return from production batch' + '\uf8ff')))
+        () => getDocs(query(collection(db, 'transfers'), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'), where('notes', '&lt;', 'Return from production batch' + '\uf8ff')))
     ];
 
     const missingIndexes = new Set<string>();
@@ -3372,3 +3396,5 @@ export async function resetSalesRun(runId: string): Promise<ActionResult> {
         return { success: false, error: (error as Error).message || "An unexpected error occurred." };
     }
 }
+
+    
