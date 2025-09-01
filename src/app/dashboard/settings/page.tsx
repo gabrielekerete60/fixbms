@@ -152,8 +152,19 @@ function ThemeSettings({ user }: { user: User }) {
                         <SelectItem value="default">Default Dark</SelectItem>
                         <SelectItem value="midnight">Midnight</SelectItem>
                         <SelectItem value="forest">Forest</SelectItem>
-                        <SelectItem value="rose-gold">Rosé Gold (Light)</SelectItem>
+                        <SelectItem value="slate">Slate</SelectItem>
+                        <SelectItem value="crimson">Crimson</SelectItem>
+                        <SelectItem value="emerald">Emerald</SelectItem>
+                        <SelectItem value="abyss">Abyss</SelectItem>
+                        <SelectItem value="sunset">Sunset</SelectItem>
+                        <Separator className="my-1" />
                         <SelectItem value="classic-light">Classic Light</SelectItem>
+                        <SelectItem value="rose-gold">Rosé Gold (Light)</SelectItem>
+                        <SelectItem value="solaris">Solaris (Light)</SelectItem>
+                        <SelectItem value="oceanic">Oceanic (Light)</SelectItem>
+                        <SelectItem value="lavender">Lavender (Light)</SelectItem>
+                        <SelectItem value="vintage">Vintage (Light)</SelectItem>
+                        <SelectItem value="sakura">Sakura (Light)</SelectItem>
                     </SelectContent>
                 </Select>
             </CardContent>
