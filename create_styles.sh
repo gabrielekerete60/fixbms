@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 # This script creates the necessary style files for the application.
@@ -129,4 +128,3 @@ EOF
 
 echo "Style files created successfully."
 echo "You can now run 'npm install' to make sure all dependencies are up to date."
-
