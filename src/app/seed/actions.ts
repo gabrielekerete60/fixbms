@@ -1,3 +1,4 @@
+
 "use server";
 
 import { db } from "@/lib/firebase";
@@ -14,6 +15,8 @@ const daysAgo = (days: number): Timestamp => {
 
 const generateRandomDate = (startDaysAgo: number, endDaysAgo: number): Timestamp => {
     const randomDays = Math.floor(Math.random() * (startDaysAgo - endDaysAgo + 1)) + endDaysAgo;
+    const date = new Date();
+    date.setDate(date.getDate() - randomDays)
     return Timestamp.fromDate(date);
 };
 
@@ -112,7 +115,7 @@ const recipesData = [
 const deliveryStaff = staffData.filter(s => s.role === 'Delivery Staff');
 
 const wagesData = staffData.filter(s => s.role !== 'Developer').map(s => {
-    const totalDeductions = (s as any).deductions?.shortages || 0 + (s as any).deductions?.advanceSalary || 0 + (s as any).deductions?.debt || 0 + (s as any).deductions?.fine || 0;
+    const totalDeductions = ((s as any).deductions?.shortages || 0) + ((s as any).deductions?.advanceSalary || 0) + ((s as any).deductions?.debt || 0) + ((s as any).deductions?.fine || 0);
     const netPay = (s.pay_rate || 0) + ((s as any).additions || 0) - totalDeductions;
     return {
         id: `wage_${s.staff_id}`,
@@ -348,11 +351,11 @@ export async function seedOperationalData(): Promise<ActionResult> {
             const product = productsData[Math.floor(Math.random() * productsData.length)];
             const quantity = Math.floor(Math.random() * 5) + 1;
             return {
-                id: `ord_${i + 1}`, items: [{ productId: product.id, name: product.name, price: product.price, quantity, costPrice: product.costPrice }], total: product.price * quantity, date: generateRandomDate(0, 30), paymentMethod: Math.random() > 0.5 ? 'Card' : 'Cash', customerName: `Customer ${Math.floor(Math.random() * 10) + 1}`, customerId: `cust_${Math.floor(Math.random() * 10) + 1}`, status: 'Completed', staffId: '500002', staffName: 'Mary Felix Ating'
+                id: `ord_${i + 1}`, items: [{ productId: product.id, name: product.name, price: product.price, quantity, costPrice: product.costPrice }], total: product.price * quantity, date: generateRandomDate(0, 30), paymentMethod: Math.random() > 0.5 ? 'Card' : 'Cash', customerName: `Customer ${Math.floor(Math.random() * 10) + 1}`, customerId: `cust_${Math.floor(Math.random() * 10) + 1}`, status: 'Completed', staffId: '500001', staffName: 'Mr Patrick'
             }
         }), "orders");
         
-        await batchCommit(Array.from({ length: 10 }, (_, i) => ({ id: `waste_${i + 1}`, productId: `prod_${(i % 10) + 1}`, productName: productsData[i % 10].name, productCategory: productsData[i % 10].category, quantity: Math.floor(Math.random() * 5) + 1, reason: ['Spoiled', 'Damaged', 'Burnt', 'Error'][i % 4], notes: 'Generated seed data', date: generateRandomDate(0, 30), staffId: `500002`, staffName: `Mary Felix Ating` })), "waste_logs");
+        await batchCommit(Array.from({ length: 10 }, (_, i) => ({ id: `waste_${i + 1}`, productId: `prod_${(i % 10) + 1}`, productName: productsData[i % 10].name, productCategory: productsData[i % 10].category, quantity: Math.floor(Math.random() * 5) + 1, reason: ['Spoiled', 'Damaged', 'Burnt', 'Error'][i % 4], notes: 'Generated seed data', date: generateRandomDate(0, 30), staffId: `500001`, staffName: `Mr Patrick` })), "waste_logs");
         await batchCommit(Array.from({ length: 5 }, (_, i) => ({ id: `batch_${i + 1}`, recipeId: `rec_general`, recipeName: 'General Bread Production', productId: 'multi-product', productName: 'General Production', requestedById: '300001', requestedByName: 'MR Bassey OFFIONG', quantityToProduce: 1, status: i < 2 ? 'pending_approval' : (i < 4 ? 'in_production' : 'completed'), createdAt: generateRandomDate(0, 30), approvedAt: generateRandomDate(0, 30), successfullyProduced: Math.floor(Math.random() * 45) + 15, wasted: Math.floor(Math.random() * 5), ingredients: recipesData[0].ingredients })), "production_batches");
         return { success: true };
     } catch(e) { return { success: false, error: (e as Error).message } }
@@ -367,9 +370,9 @@ export async function seedCommunicationData(): Promise<ActionResult> {
         ], "announcements");
         await batchCommit([
             { id: 'rep_1', subject: 'Oven #2 Not Heating Properly', reportType: 'Maintenance', message: 'The main oven (number 2) is not reaching the set temperature. It took much longer to bake the last batch of Family Loaf.', staffId: '300001', staffName: 'MR Bassey OFFIONG', timestamp: daysAgo(2), status: 'new' },
-            { id: 'rep_2', subject: 'Suggestion for New Product', reportType: 'Suggestion', message: 'Many customers have been asking if we could start making coconut bread. I think it would be a popular addition.', staffId: '500002', staffName: 'Mary Felix Ating', timestamp: daysAgo(3), status: 'in_progress' },
+            { id: 'rep_2', subject: 'Suggestion for New Product', reportType: 'Suggestion', message: 'Many customers have been asking if we could start making coconut bread. I think it would be a popular addition.', staffId: '500001', staffName: 'Mr Patrick', timestamp: daysAgo(3), status: 'in_progress' },
             { id: 'rep_3', subject: 'Leaky Faucet in Washroom', reportType: 'Maintenance', message: 'The faucet in the staff washroom has been dripping constantly for two days.', staffId: '700001', staffName: 'Nnamso George Walter', timestamp: daysAgo(1), status: 'resolved' },
-            { id: 'rep_4', subject: 'Customer Complaint - Meat Pie', reportType: 'Complaint', message: 'A customer reported that the meat pie they bought yesterday was too salty. This was a verbal complaint made at the counter.', staffId: '500002', staffName: 'Mary Felix Ating', timestamp: daysAgo(1), status: 'new' },
+            { id: 'rep_4', subject: 'Customer Complaint - Meat Pie', reportType: 'Complaint', message: 'A customer reported that the meat pie they bought yesterday was too salty. This was a verbal complaint made at the counter.', staffId: '500001', staffName: 'Mr Patrick', timestamp: daysAgo(1), status: 'new' },
         ], "reports");
         return { success: true };
     } catch(e) { return { success: false, error: (e as Error).message } }

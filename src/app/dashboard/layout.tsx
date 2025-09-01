@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import Link from 'next/link';
@@ -377,7 +376,7 @@ export default function DashboardLayout({
         unsubProductionTransfers();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
-  }, [user?.staff_id, handleLogout, applyTheme]);
+  }, [user, handleLogout, applyTheme]);
   
   const handleClockInOut = async () => {
     if (!user) return;
@@ -627,4 +626,3 @@ export default function DashboardLayout({
     </div>
   );
 }
-

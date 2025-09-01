@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -156,6 +155,9 @@ function ThemeSettings({ user }: { user: User }) {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="default">Default Dark</SelectItem>
+                        <SelectItem value="midnight">Midnight</SelectItem>
+                        <SelectItem value="forest">Forest</SelectItem>
+                        <SelectItem value="rose-gold">Rosé Gold (Light)</SelectItem>
                         <SelectItem value="classic-light">Classic Light</SelectItem>
                     </SelectContent>
                 </Select>
