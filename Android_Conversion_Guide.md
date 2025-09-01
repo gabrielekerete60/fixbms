@@ -30,7 +30,7 @@ The commands in this guide are designed for a Unix-style terminal (like on Mac o
 
 ### 🎨 Step 1: Apply Custom Styles (Optional)
 
-If you'd like to use the new visual theme I've prepared, run the following command in your terminal. For Windows users, please use **Git Bash**.
+If you'd like to use the new visual theme I've prepared, run the following command in your project's root terminal. For Windows users, please use **Git Bash**. The script is already in your project directory; you do not need to move it.
 
 ```bash
 bash create_styles.sh
