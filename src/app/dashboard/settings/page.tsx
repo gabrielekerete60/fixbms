@@ -112,7 +112,7 @@ function ChangePasswordForm({ user }: { user: User }) {
     )
 }
 
-function ThemeSettings({ user }: { user: User }) {
+function ThemeSettings({ user, setUser }: { user: User, setUser: React.Dispatch<React.SetStateAction<User | null>> }) {
     const { toast } = useToast();
     const [selectedTheme, setSelectedTheme] = useState(user.theme || 'default');
     const [isSaving, setIsSaving] = useState(false);
@@ -120,21 +120,15 @@ function ThemeSettings({ user }: { user: User }) {
     useEffect(() => {
         setSelectedTheme(user.theme || 'default');
     }, [user.theme]);
-    
-    const applyTheme = (theme: string) => {
-        const root = document.documentElement;
-        root.className = ''; // Clear all existing theme classes
-        if (theme && theme !== 'default') {
-            root.classList.add(`theme-${theme}`);
-        }
-    }
 
     const handleSaveTheme = async () => {
         setIsSaving(true);
         const result = await handleUpdateTheme(user.staff_id, selectedTheme);
         if (result.success) {
-            localStorage.setItem('loggedInUser', JSON.stringify({ ...user, theme: selectedTheme }));
-            applyTheme(selectedTheme);
+            // Optimistically update local user state to trigger layout re-render
+            const updatedUser = { ...user, theme: selectedTheme };
+            setUser(updatedUser);
+            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
             toast({ title: 'Theme saved!', description: 'Your new theme has been applied.' });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save your theme preference.' });
@@ -314,7 +308,7 @@ export default function SettingsPage() {
                 if (doc.exists()) {
                     const data = doc.data();
                     setIsMfaEnabled(data.mfa_enabled || false);
-                    setUser(prev => ({...prev!, theme: data.theme || 'default'}));
+                    setUser(prev => ({...prev!, ...data}));
                 }
                 if (isLoading) setIsLoading(false);
             });
@@ -379,7 +373,7 @@ export default function SettingsPage() {
 
             {canCustomizeStore && <StoreCustomization currentSettings={appSettings} />}
 
-            <ThemeSettings user={user} />
+            <ThemeSettings user={user} setUser={setUser} />
             
             <ChangePasswordForm user={user} />
             

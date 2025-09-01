@@ -282,14 +282,18 @@ export default function DashboardLayout({
                 return;
             }
             
-            // This logic is now simplified to directly check and apply theme.
             const newTheme = userData.theme || 'default';
             if (user.theme !== newTheme) {
                  const updatedUser = { ...user, name: userData.name, role: userData.role, theme: newTheme };
                  setUser(updatedUser);
                  localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
                  applyTheme(newTheme);
+            } else if (user.name !== userData.name || user.role !== userData.role) {
+                const updatedUser = { ...user, name: userData.name, role: userData.role, theme: newTheme };
+                setUser(updatedUser);
+                localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
             }
+
         } else {
             handleLogout("Account Deleted", "Your staff profile could not be found.");
         }
