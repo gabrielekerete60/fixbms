@@ -13,10 +13,33 @@ Before we begin, make sure you have the following installed on your computer.
 
 - **Android Studio**: The official tool for Android development. [Download it here](https://developer.android.com/studio).
 - **Node.js & npm**: The backbone of your Next.js project. [Download it here](https://nodejs.org/).
+- **Git for Windows (for Windows users)**: This includes **Git Bash**, a tool that lets you run the commands in this guide. [Download it here](https://git-scm.com/download/win).
 
 ---
 
-### ⚙️ Step 1: Install Capacitor
+### 🖥️ A Note for Windows Users
+
+The commands in this guide are designed for a Unix-style terminal (like on Mac or Linux). To run them on Windows, you will need **Git Bash**.
+
+1.  After installing Git for Windows, open your project folder in File Explorer.
+2.  **Right-click** inside the folder.
+3.  Select **"Git Bash Here"** from the context menu.
+4.  This will open a terminal where you can run all the commands mentioned in this guide, including `npm`, `npx`, and `bash`.
+
+---
+
+### 🎨 Step 1: Apply Custom Styles (Optional)
+
+If you'd like to use the new visual theme I've prepared, run the following command in your terminal. For Windows users, please use **Git Bash**.
+
+```bash
+bash create_styles.sh
+```
+This script will automatically create the `tailwind.config.ts` and `src/app/globals.css` files with the new styles.
+
+---
+
+### ⚙️ Step 2: Install Capacitor
 
 First, let's add Capacitor to your project. This will create the native Android project.
 
@@ -28,7 +51,7 @@ npm install @capacitor/core @capacitor/android @capacitor/cli
 
 ---
 
-### 🔌 Step 2: Configure for Your Server
+### 🔌 Step 3: Configure for Your Server
 
 Your app is dynamic and needs to talk to a live server. We must tell the native Android app where to load your app from.
 
@@ -65,7 +88,7 @@ Your app is dynamic and needs to talk to a live server. We must tell the native 
 
 ---
 
-### 🏗️ Step 3: Add the Android Platform
+### 🏗️ Step 4: Add the Android Platform
 
 Now that the configuration is set, you can add the native Android folder to your project. If it already exists, you can skip this step.
 
@@ -78,7 +101,7 @@ npx cap add android
 
 ---
 
-### 📱 Step 4: Run on Android
+### 📱 Step 5: Run on Android
 
 It's time to see your app running on an Android device! This requires two terminals running at the same time if you are testing locally.
 
@@ -101,7 +124,33 @@ It's time to see your app running on an Android device! This requires two termin
 
 ---
 
-### ✨ Step 5: Prepare for the Google Play Store
+### ✨ Step 6: Changing the App Icon
+
+To give your app a professional look, you'll want to add a custom app icon.
+
+1.  **Prepare Your Icon:** Create your app icon as a high-resolution square image, ideally **1024x1024 pixels**. Save it as a PNG file.
+
+2.  **Generate Icon Sizes:** Android requires the icon in multiple sizes for different screen densities. A free and easy way to generate these is with an online tool.
+    > Go to **[Android Asset Studio's Launcher icon generator](https://romannurik.github.io/AndroidAssetStudio/icons-launcher.html)**.
+    > - Upload your icon image.
+    > - Adjust padding and color if needed.
+    > - Click the **Download .zip** button.
+
+3.  **Replace the Icons in Your Project:**
+    > - Unzip the downloaded file. You will see several folders named `mipmap-mdpi`, `mipmap-hdpi`, etc.
+    > - In your project, navigate to the `android/app/src/main/res/` directory.
+    > - **Delete** the existing `mipmap-*` folders inside the `res` directory.
+    > - **Copy and paste** all the `mipmap-*` folders from your downloaded zip into the `android/app/src/main/res/` directory.
+
+4.  **Sync and Run:**
+    > After replacing the folders, run the `sync` command again and open Android Studio to see your new icon.
+    ```bash
+    npx cap sync
+    npx cap open android
+    ```
+---
+
+### 🚀 Step 7: Prepare for the Google Play Store
 
 When you are ready to release, you'll need to deploy your Next.js app to a hosting provider that supports Node.js (like Vercel, Firebase App Hosting, etc.).
 
