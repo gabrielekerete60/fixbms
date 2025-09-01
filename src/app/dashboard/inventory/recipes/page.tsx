@@ -456,7 +456,7 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
                 <DialogHeader>
                     <DialogTitle>Approve Production Batch?</DialogTitle>
                     <DialogDescription>
-                        Batch ID: {batch.id.substring(0,6)}...&lt;br/&gt;
+                        Batch ID: {batch.id.substring(0,6)}...<br/>
                         Request for <strong>{batch.recipeName}</strong>. This will deduct ingredients from inventory.
                     </DialogDescription>
                 </DialogHeader>
@@ -507,7 +507,7 @@ export default function RecipesPage() {
     const [productionLogs, setProductionLogs] = useState<ProductionLog[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
-    const [viewingLog, setViewingLog = useState<ProductionLog | null>(null);
+    const [viewingLog, setViewingLog] = useState<ProductionLog | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     const [logActionFilter, setLogActionFilter] = useState('all');
@@ -812,7 +812,7 @@ export default function RecipesPage() {
                             {[
                                 { title: 'Pending Approval', batches: productionBatches.pending },
                                 { title: 'In Production', batches: productionBatches.in_production },
-                                { title: 'Completed', batches: productionBatches.completed },
+                                { title: 'Completed & Returned', batches: productionBatches.completed },
                                 { title: 'Declined / Cancelled', batches: productionBatches.other }
                             ].map(section => (
                                 (isBaker || section.batches.length > 0) && (
@@ -827,7 +827,7 @@ export default function RecipesPage() {
                                                     <TableCell>{format(new Date(batch.createdAt), 'Pp')}</TableCell>
                                                     <TableCell>{batch.recipeName}</TableCell>
                                                     <TableCell>{batch.requestedByName}</TableCell>
-                                                    <TableCell><Badge variant={getStatusVariant(batch.status)}>{batch.status.replace('_', ' ')}</Badge></TableCell>
+                                                    <TableCell><Badge variant={getStatusVariant(batch.status)}>{batch.status.replace(/_/g, ' ')}</Badge></TableCell>
                                                     <TableCell>
                                                         {batch.status === 'pending_approval' && canApproveBatches && (
                                                             <ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchStaticData} />
@@ -912,5 +912,3 @@ export default function RecipesPage() {
         </div>
     );
 }
-
-    
