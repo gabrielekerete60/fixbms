@@ -125,15 +125,17 @@ function ThemeSettings({ user, setUser }: { user: User, setUser: React.Dispatch<
         setIsSaving(true);
         const result = await handleUpdateTheme(user.staff_id, selectedTheme);
         if (result.success) {
-            // Optimistically update local user state to trigger layout re-render
             const updatedUser = { ...user, theme: selectedTheme };
             setUser(updatedUser);
             localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-            toast({ title: 'Theme saved!', description: 'Your new theme has been applied.' });
+            toast({ title: 'Theme saved!', description: 'Reloading to apply new theme...' });
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
         } else {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save your theme preference.' });
+            setIsSaving(false);
         }
-        setIsSaving(false);
     };
     
     return (
