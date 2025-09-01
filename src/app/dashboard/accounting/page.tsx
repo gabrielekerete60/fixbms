@@ -917,8 +917,8 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                 ))}
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-5">
-                <Card className="xl:col-span-3">
+            <div className="grid gap-6 lg:grid-cols-5">
+                <Card className="lg:col-span-3">
                     <CardHeader>
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
@@ -962,7 +962,7 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="xl:col-span-2">
+                <Card className="lg:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top direct costs.</CardDescription>
@@ -1065,8 +1065,8 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                 ))}
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-5">
-                <Card className="xl:col-span-3">
+            <div className="grid gap-6 lg:grid-cols-5">
+                <Card className="lg:col-span-3">
                      <CardHeader>
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
@@ -1110,7 +1110,7 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
                     </CardFooter>
                 </Card>
-                <Card className="xl:col-span-2">
+                <Card className="lg:col-span-2">
                     <CardHeader>
                         <CardTitle>Top 5 Expense Categories</CardTitle>
                         <CardDescription>A visual breakdown of your top indirect costs.</CardDescription>
