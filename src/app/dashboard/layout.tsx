@@ -233,39 +233,43 @@ export default function DashboardLayout({
   
   useEffect(() => {
     const storedUserStr = localStorage.getItem('loggedInUser');
-    if (storedUserStr) {
-        const storedUser = JSON.parse(storedUserStr);
-        setUser(storedUser);
-        applyTheme(storedUser.theme);
-        setIsLoading(false);
-    } else {
-        router.push('/');
+    if (!storedUserStr) {
+      router.push('/');
+      return;
     }
+
+    const localUser = JSON.parse(storedUserStr);
+    setUser(localUser);
+    applyTheme(localUser.theme);
+    setIsLoading(false);
+
+    // Set up Firestore listener after initial setup
+    const unsub = onSnapshot(doc(db, "staff", localUser.staff_id), (doc) => {
+      if (doc.exists()) {
+        const firestoreUser = doc.data();
+        // Get the latest from localStorage again inside the listener
+        const currentLocalUserStr = localStorage.getItem('loggedInUser');
+        const currentLocalUser = currentLocalUserStr ? JSON.parse(currentLocalUserStr) : {};
+
+        // Only update if there is a difference
+        if (firestoreUser.theme !== currentLocalUser.theme) {
+            const updatedUser = {
+                ...currentLocalUser,
+                theme: firestoreUser.theme,
+            };
+            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+            setUser(updatedUser);
+            applyTheme(updatedUser.theme);
+        }
+      }
+    });
+
+    return () => unsub(); // Cleanup listener on component unmount
+
   }, [router, applyTheme]);
 
   useEffect(() => {
     if (!user?.staff_id) return;
-
-    const userDocRef = doc(db, "staff", user.staff_id);
-    const unsubUser = onSnapshot(userDocRef, (doc) => {
-        if (doc.exists()) {
-            const firestoreUser = doc.data();
-            const localUserStr = localStorage.getItem('loggedInUser');
-            const localUser = localUserStr ? JSON.parse(localUserStr) : {};
-
-            if (firestoreUser.theme !== localUser.theme || firestoreUser.name !== localUser.name || firestoreUser.role !== localUser.role) {
-                const updatedUser = {
-                    staff_id: user.staff_id,
-                    name: firestoreUser.name,
-                    role: firestoreUser.role,
-                    theme: firestoreUser.theme,
-                };
-                localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-                setUser(updatedUser);
-                applyTheme(updatedUser.theme);
-            }
-        }
-    });
 
     let hasCheckedAttendance = false;
     const checkAttendance = async () => {
@@ -354,7 +358,6 @@ export default function DashboardLayout({
 
     return () => {
         clearInterval(timer);
-        unsubUser();
         unsubPending();
         unsubActiveRuns();
         unsubBatches();
