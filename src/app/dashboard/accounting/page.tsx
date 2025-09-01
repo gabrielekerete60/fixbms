@@ -917,16 +917,16 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                 ))}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-5">
-                <Card className="lg:col-span-3">
+            <div className="grid gap-6 xl:grid-cols-5">
+                <Card className="xl:col-span-3">
                     <CardHeader>
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
                                 <CardTitle>Direct Costs Log</CardTitle>
                                 <CardDescription>All costs directly tied to production, like ingredients.</CardDescription>
                             </div>
-                            <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2 w-full md:w-auto">
-                                <div className="relative flex-grow w-full sm:w-auto">
+                            <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+                                <div className="relative w-full sm:w-auto">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
@@ -937,26 +937,22 @@ function DirectCostsTab({ categories, isReadOnly }: { categories: CostCategory[]
                              <AddDirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly} />
                         </div>
                     </CardHeader>
-                    <CardContent>
-                        <div className="space-y-2">
-                            {paginatedCosts.map(c => (
-                                <Card key={c.id} className="p-3 cursor-pointer hover:bg-muted/50" onClick={() => setViewingCost(c)}>
-                                    <div className="flex flex-col md:flex-row justify-between md:items-center gap-2">
-                                        <div className="flex-1 space-y-1">
-                                            <p className="font-semibold">{c.description}</p>
-                                            <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                                <Badge variant="outline" className="text-xs">{c.category}</Badge>
-                                                <span>{format(new Date(c.date), 'PPP')}</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex md:hidden items-center text-muted-foreground">
-                                            <CornerDownRight className="h-4 w-4 mr-2"/>
-                                        </div>
-                                        <p className="w-full md:w-auto text-left md:text-right font-bold text-lg">{formatCurrency(c.total)}</p>
+                    <CardContent className="space-y-2">
+                        {paginatedCosts.map(c => (
+                            <Card key={c.id} className="p-3 flex flex-col md:flex-row justify-between md:items-center gap-2 cursor-pointer hover:bg-muted/50" onClick={() => setViewingCost(c)}>
+                                <div className="flex-1 space-y-1">
+                                    <p className="font-semibold">{c.description}</p>
+                                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                        <Badge variant="outline" className="text-xs">{c.category}</Badge>
+                                        <span>{format(new Date(c.date), 'PPP')}</span>
                                     </div>
-                                </Card>
-                            ))}
-                        </div>
+                                </div>
+                                <div className="flex md:hidden items-center text-muted-foreground self-start mt-2">
+                                    <CornerDownRight className="h-4 w-4 mr-2"/>
+                                </div>
+                                <p className="w-full md:w-auto text-left md:text-right font-bold text-lg">{formatCurrency(c.total)}</p>
+                            </Card>
+                        ))}
                     </CardContent>
                     <CardFooter>
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
@@ -1065,16 +1061,16 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                 ))}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-5">
-                <Card className="lg:col-span-3">
+            <div className="grid gap-6 xl:grid-cols-5">
+                <Card className="xl:col-span-3">
                      <CardHeader>
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
                                 <CardTitle>Indirect Costs Log</CardTitle>
                                 <CardDescription>All operational costs not tied to a single product.</CardDescription>
                             </div>
-                             <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2 w-full md:w-auto">
-                                <div className="relative flex-grow w-full sm:w-auto">
+                             <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+                                <div className="relative w-full sm:w-auto">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Search..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
@@ -1085,26 +1081,22 @@ function IndirectCostsTab({ categories, isReadOnly }: { categories: CostCategory
                             <AddIndirectCostDialog onCostAdded={fetchCosts} categories={categories} disabled={isReadOnly}/>
                         </div>
                     </CardHeader>
-                    <CardContent>
-                        <div className="space-y-2">
-                            {paginatedCosts.map(c => (
-                                <Card key={c.id} className="p-3 cursor-pointer hover:bg-muted/50" onClick={() => setViewingCost(c)}>
-                                    <div className="flex flex-col md:flex-row justify-between md:items-center gap-2">
-                                        <div className="flex-1 space-y-1">
-                                            <p className="font-semibold">{c.description}</p>
-                                            <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                                <Badge variant="outline" className="text-xs">{c.category}</Badge>
-                                                <span>{format(new Date(c.date), 'PPP')}</span>
-                                            </div>
-                                        </div>
-                                         <div className="flex md:hidden items-center text-muted-foreground">
-                                            <CornerDownRight className="h-4 w-4 mr-2"/>
-                                        </div>
-                                        <p className="w-full md:w-auto text-left md:text-right font-bold text-lg">{formatCurrency(c.amount)}</p>
+                    <CardContent className="space-y-2">
+                        {paginatedCosts.map(c => (
+                             <Card key={c.id} className="p-3 flex flex-col md:flex-row justify-between md:items-center gap-2 cursor-pointer hover:bg-muted/50" onClick={() => setViewingCost(c)}>
+                                <div className="flex-1 space-y-1">
+                                    <p className="font-semibold">{c.description}</p>
+                                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                        <Badge variant="outline" className="text-xs">{c.category}</Badge>
+                                        <span>{format(new Date(c.date), 'PPP')}</span>
                                     </div>
-                                </Card>
-                            ))}
-                        </div>
+                                </div>
+                                <div className="flex md:hidden items-center text-muted-foreground self-start mt-2">
+                                    <CornerDownRight className="h-4 w-4 mr-2"/>
+                                </div>
+                                <p className="w-full md:w-auto text-left md:text-right font-bold text-lg">{formatCurrency(c.amount)}</p>
+                            </Card>
+                        ))}
                     </CardContent>
                     <CardFooter>
                         <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={filteredCosts.length} />
