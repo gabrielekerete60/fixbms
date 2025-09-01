@@ -237,35 +237,31 @@ export default function DashboardLayout({
       router.push('/');
       return;
     }
-
     const localUser = JSON.parse(storedUserStr);
     setUser(localUser);
     applyTheme(localUser.theme);
     setIsLoading(false);
 
-    // Set up Firestore listener after initial setup
+    // Set up Firestore listener to keep local storage in sync
     const unsub = onSnapshot(doc(db, "staff", localUser.staff_id), (doc) => {
-      if (doc.exists()) {
-        const firestoreUser = doc.data();
-        // Get the latest from localStorage again inside the listener
-        const currentLocalUserStr = localStorage.getItem('loggedInUser');
-        const currentLocalUser = currentLocalUserStr ? JSON.parse(currentLocalUserStr) : {};
+        if (doc.exists()) {
+            const firestoreUser = doc.data();
+            const currentLocalUserStr = localStorage.getItem('loggedInUser');
+            const currentLocalUser = currentLocalUserStr ? JSON.parse(currentLocalUserStr) : {};
 
-        // Only update if there is a difference
-        if (firestoreUser.theme !== currentLocalUser.theme) {
-            const updatedUser = {
-                ...currentLocalUser,
-                theme: firestoreUser.theme,
-            };
-            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-            setUser(updatedUser);
-            applyTheme(updatedUser.theme);
+            if (firestoreUser.theme !== currentLocalUser.theme) {
+                const updatedUser = {
+                    ...currentLocalUser,
+                    theme: firestoreUser.theme,
+                };
+                localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+                setUser(updatedUser);
+                applyTheme(updatedUser.theme);
+            }
         }
-      }
     });
 
-    return () => unsub(); // Cleanup listener on component unmount
-
+    return () => unsub();
   }, [router, applyTheme]);
 
   useEffect(() => {

@@ -112,7 +112,7 @@ function ChangePasswordForm({ user }: { user: User }) {
     )
 }
 
-function ThemeSettings({ user, setUser }: { user: User, setUser: React.Dispatch<React.SetStateAction<User | null>> }) {
+function ThemeSettings({ user }: { user: User }) {
     const { toast } = useToast();
     const [selectedTheme, setSelectedTheme] = useState(user.theme || 'default');
     const [isSaving, setIsSaving] = useState(false);
@@ -126,8 +126,7 @@ function ThemeSettings({ user, setUser }: { user: User, setUser: React.Dispatch<
         const result = await handleUpdateTheme(user.staff_id, selectedTheme);
         if (result.success) {
             const updatedUser = { ...user, theme: selectedTheme };
-            setUser(updatedUser);
-            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+            localStorage.setItem('loggedInUser', JSON.stringify(updatedUser)); // Update local storage immediately
             toast({ title: 'Theme saved!', description: 'Reloading to apply new theme...' });
             setTimeout(() => {
                 window.location.reload();
@@ -375,7 +374,7 @@ export default function SettingsPage() {
 
             {canCustomizeStore && <StoreCustomization currentSettings={appSettings} />}
 
-            <ThemeSettings user={user} setUser={setUser} />
+            <ThemeSettings user={user} />
             
             <ChangePasswordForm user={user} />
             
