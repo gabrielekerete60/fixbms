@@ -1,3 +1,4 @@
+
 "use server";
 
 import { db } from "@/lib/firebase";
@@ -86,7 +87,7 @@ const ingredientsData = [
     { id: "ing_10", name: "Lux Essence", stock: 0, unit: 'g', costPerUnit: 17.00, expiryDate: null, lowStockThreshold: 50 },
     { id: "ing_11", name: "Eggs", stock: 0, unit: 'pcs', costPerUnit: 176.67, expiryDate: null, lowStockThreshold: 24 },
     { id: "ing_12", name: "Water", stock: 0, unit: 'ml', costPerUnit: 0.00, expiryDate: null, lowStockThreshold: 5000 },
-    { id: "ing_13", name: "Vegetable Oil", stock: 0, unit: 'g', costPerUnit: 3.40, expiryDate: null, lowStockThreshold: 500 }, // Changed unit to g
+    { id: "ing_13", name: "Vegetable Oil", stock: 0, unit: 'ml', costPerUnit: 3.40, expiryDate: null, lowStockThreshold: 500 },
     { id: "ing_14", name: "Bread Improver", stock: 0, unit: 'g', costPerUnit: 60, expiryDate: null, lowStockThreshold: 100 },
     
     // New Ingredients
@@ -118,7 +119,7 @@ const recipesData = [
            { ingredientId: "ing_10", ingredientName: "Lux Essence", quantity: 100, unit: "g" },
            { ingredientId: "ing_11", ingredientName: "Eggs", quantity: 12, unit: "pcs" },
            { ingredientId: "ing_12", ingredientName: "Water", quantity: 20000, unit: "ml" },
-           { ingredientId: "ing_13", ingredientName: "Vegetable Oil", quantity: 300, unit: "g" },
+           { ingredientId: "ing_13", ingredientName: "Vegetable Oil", quantity: 300, unit: "ml" },
            { ingredientId: "ing_14", ingredientName: "Bread Improver", quantity: 250, unit: "g" },
        ]
     }
@@ -448,7 +449,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         // 1. Clear specified collections
         const collectionsToWipe = [
             "products", "staff", "recipes", "promotions", 
-            "ingredients", "customers", "orders", "transfers", 
+            "ingredients", "other_supplies", "customers", "orders", "transfers", 
             "production_batches", "waste_logs", "attendance", "sales", "debt", 
             "directCosts", "indirectCosts", "wages", "closingStocks", 
             "discount_records", "announcements", "reports", "cost_categories",
@@ -495,18 +496,18 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         // 5. Seed Ingredients with specific stock
         const specialIngredients = ingredientsData.map(i => {
             const stockMap: Record<string, number> = {
-                "ing_1": 49300,      // Flour (g)
-                "ing_7": 5200,       // butter (g)
-                "ing_4": 430,        // yeast (g) + 9 packs (assuming 1 pack is negligible or not tracked in 'g')
-                "ing_2": 50002.7,    // sugar (g)
-                "ing_6": 2,          // Tin Milk (pcs)
-                "ing_10": 695,       // lux essence (g)
-                "ing_9": 870,        // zeast (g)
-                "ing_8": 165,        // butter scotch (g) + 14 bottles (not tracked in 'g')
-                "ing_5": 510,        // preservative (g) + 1 pack
-                "ing_13": 3480,      // vegetable oil (3100ml -> 3100g + 380g)
-                "ing_11": 35,        // eggs (pcs)
-                "ing_3": 26000,      // salt (g)
+                "ing_1": 49300,      // Flour
+                "ing_7": 5200,       // butter
+                "ing_4": 4930,       // yeast
+                "ing_2": 50002.7,    // sugar
+                "ing_6": 2,          // Tin Milk
+                "ing_10": 695,       // lux essence
+                "ing_9": 870,        // zeast
+                "ing_8": 7165,       // butter scotch
+                "ing_5": 1010,       // preservative
+                "ing_13": 3480,      // vegetable oil
+                "ing_11": 35,        // eggs
+                "ing_3": 26000,      // salt
                 "ing_20": 500,       // pineapple flavor
                 "ing_21": 500,       // banana flavor
             };
@@ -570,4 +571,3 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
-
