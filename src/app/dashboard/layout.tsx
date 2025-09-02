@@ -172,7 +172,7 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: NavL
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { toast } = useToast();
-  const { user, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const [time, setTime] = useState('');
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [attendanceId, setAttendanceId] = useState<string | null>(null);
@@ -340,7 +340,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         unsubUserDoc();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
-  }, [user?.staff_id, user?.theme]);
+  }, [user?.staff_id, user?.theme, login]);
   
   const navLinks: NavLink[] = useMemo(() => {
     const allLinks: NavLink[] = [
