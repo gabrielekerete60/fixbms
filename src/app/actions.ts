@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour, startOfYear as dateFnsStartOfYear } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour, startOfYear as dateFnsStartOfYear } from "date-fns";
 import { db } from "@/lib/firebase";
 import { randomUUID } from 'crypto';
 import speakeasy from 'speakeasy';
@@ -2004,7 +2004,7 @@ export async function getProductionTransfers(): Promise<Transfer[]> {
       collection(db, 'transfers'),
       where('status', '==', 'pending'),
       where('notes', '>=', 'Return from production batch'),
-      where('notes', '&lt;', 'Return from production batch' + '\uf8ff')
+      where('notes', '<', 'Return from production batch' + '\uf8ff')
     );
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docSnap => {
@@ -2540,7 +2540,7 @@ export async function checkForMissingIndexes(): Promise<{ requiredIndexes: strin
         () => getDocs(query(collection(db, 'transfers'), where('to_staff_id', '==', 'test'), where('status', 'in', ['completed', 'active']), orderBy('date', 'desc'))),
         () => getDocs(query(collection(db, 'staff'), where('is_active', '==', true), where('role', '!=', 'Developer'))),
         () => getDocs(query(collection(db, 'transfers'), where('status', '==', 'pending_return'))),
-        () => getDocs(query(collection(db, 'transfers'), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'), where('notes', '&lt;', 'Return from production batch' + '\uf8ff')))
+        () => getDocs(query(collection(db, 'transfers'), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'), where('notes', '<', 'Return from production batch' + '\uf8ff')))
     ];
 
     const missingIndexes = new Set<string>();
