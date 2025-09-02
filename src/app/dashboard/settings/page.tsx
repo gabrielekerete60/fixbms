@@ -128,13 +128,14 @@ function ThemeSettings({ user }: { user: User }) {
         setIsSaving(true);
         const result = await handleUpdateTheme(user.staff_id, selectedTheme);
         if (result.success) {
-            // Update local storage directly to trigger layout effect
             setLocalUser({ ...user, theme: selectedTheme });
-            toast({ title: 'Theme saved!', description: 'Your new theme has been applied.' });
+            toast({ title: 'Theme saved!', description: 'Applying new theme...' });
+            // Force a reload to ensure all components get the new theme from CSS variables
+            window.location.reload();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not save your theme preference.' });
+            setIsSaving(false);
         }
-        setIsSaving(false);
     };
     
     return (

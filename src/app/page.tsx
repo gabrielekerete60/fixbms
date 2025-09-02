@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -33,10 +32,15 @@ export default function LoginPage() {
   const [staffIdLength, setStaffIdLength] = useState(6); // Default length
   const router = useRouter();
   const { toast } = useToast();
-  const { user, login } = useAuth();
+  const { user, login, isLoading: isAuthLoading } = useAuth();
 
   useEffect(() => {
-    if (user) {
+    // Force default theme on login page
+    const root = document.documentElement;
+    const themes = ['theme-midnight', 'theme-forest', 'theme-rose-gold', 'theme-classic-light', 'theme-slate', 'theme-crimson', 'theme-emerald', 'theme-abyss', 'theme-sunset', 'theme-solaris', 'theme-oceanic', 'theme-lavender', 'theme-vintage', 'theme-sakura'];
+    root.classList.remove(...themes);
+
+    if (!isAuthLoading && user) {
       router.push('/dashboard');
       return; 
     }
@@ -52,7 +56,7 @@ export default function LoginPage() {
       }
     };
     fetchSettings();
-  }, [user, router]);
+  }, [user, isAuthLoading, router]);
 
 
   const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -204,14 +208,11 @@ export default function LoginPage() {
       </Card>
   )
   
-  // While the app is checking for a user, show a loading state.
-  // If a user is found, the parent layout will redirect.
-  // If no user is found, this component will render the login form.
-  if (user) {
+  if (isAuthLoading || user) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </main>
+        <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </main>
     );
   }
 
