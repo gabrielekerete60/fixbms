@@ -292,25 +292,28 @@ type AttendanceStatusResult = {
 } | null;
 
 export async function getAttendanceStatus(staffId: string): Promise<AttendanceStatusResult> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
+    const today = startOfDay(new Date());
+    const tomorrow = endOfDay(today);
+    
+    // Firestore limitation: Cannot have a range filter on one field and an equality filter on another.
+    // So we first query for today's records for the user.
     const q = query(
         collection(db, "attendance"),
         where("staff_id", "==", staffId),
         where("clock_in_time", ">=", Timestamp.fromDate(today)),
         where("clock_in_time", "<", Timestamp.fromDate(tomorrow)),
-        where("clock_out_time", "==", null),
-        limit(1)
+        orderBy("clock_in_time", "desc") // Get the latest one first
     );
 
     const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-        const docSnap = querySnapshot.docs[0];
-        return { attendanceId: docSnap.id };
+
+    // Then, we filter in memory for the one that has not been clocked out.
+    for (const docSnap of querySnapshot.docs) {
+        if (docSnap.data().clock_out_time === null) {
+            return { attendanceId: docSnap.id };
+        }
     }
+
     return null;
 }
 
