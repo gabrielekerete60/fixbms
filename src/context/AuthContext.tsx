@@ -2,7 +2,8 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
 type User = {
   name: string;
@@ -56,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     isLoading
-  }), [user, isLoading]);
+  }), [user, isLoading, login, logout]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -71,4 +72,26 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+}
+
+export function ProtectedRoute({ children }: { children: ReactNode }) {
+    const auth = useAuth();
+    const router = useRouter();
+    const pathname = usePathname();
+
+    useEffect(() => {
+        if (!auth.isLoading && !auth.user && pathname.startsWith('/dashboard')) {
+            router.push('/');
+        }
+    }, [auth.isLoading, auth.user, router, pathname]);
+
+    if (auth.isLoading || (!auth.user && pathname.startsWith('/dashboard'))) {
+         return (
+            <div className="flex h-screen w-screen items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    return <>{children}</>;
 }

@@ -4,58 +4,16 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Home,
-  ShoppingBag,
-  Package,
-  Users,
-  LineChart,
-  Settings,
-  CircleUser,
-  Pizza,
-  Inbox,
-  ChevronRight,
-  Users2,
-  Car,
-  Wallet,
-  BookOpen,
-  Clock,
-  PanelLeft,
-  LogOut,
-  LogIn,
-  Loader2,
-  HelpingHand,
-  MessageSquare,
-  Database,
-  Trash,
-  Wrench,
-  Undo2,
+  Home, ShoppingBag, Package, Users, LineChart, Settings, CircleUser, Pizza, Inbox,
+  ChevronRight, Users2, Car, Wallet, BookOpen, Clock, PanelLeft, LogOut, LogIn, Loader2,
+  HelpingHand, MessageSquare, Database, Trash, Wrench, Undo2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-} from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Card, CardContent } from '@/components/ui/card';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -64,7 +22,7 @@ import { getAttendanceStatus, handleClockIn, handleClockOut } from '../actions';
 import { doc, onSnapshot, collection, query, where, orderBy, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
-import { useLocalStorage } from '@/hooks/use-local-storage';
+import { useAuth, ProtectedRoute } from '@/context/AuthContext';
 
 
 type User = {
@@ -84,6 +42,32 @@ type NavLink = {
     notificationKey?: string;
 };
 
+// Moved SidebarFooter and SidebarNav outside of DashboardLayout
+const SidebarFooter = ({ user, isClockedIn, isClocking, time, handleClockInOut }: { user: User, isClockedIn: boolean, isClocking: boolean, time: string, handleClockInOut: () => void }) => {
+    return (
+        <div className="mt-auto p-4 border-t shrink-0">
+            <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
+                <span><Clock className="inline h-4 w-4 mr-1" />{time}</span>
+                <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut} disabled={isClocking}>
+                    {isClocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>)}
+                    {isClocking ? 'Loading...' : (isClockedIn ? 'Clock Out' : 'Clock In')}
+                </Button>
+            </div>
+            <Card>
+                <CardContent className="p-2 flex items-center gap-2">
+                    <Avatar>
+                        <AvatarImage src="https://placehold.co/40x40.png" alt={user.name} data-ai-hint="profile person" />
+                        <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                        <p className='font-semibold text-sm'>{user.name}</p>
+                        <p className='text-xs text-muted-foreground'>Role: {user.role}</p>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
 
 function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: NavLink[], pathname: string, notificationCounts: Record<string, number> }) {
   const { toast } = useToast();
@@ -186,36 +170,19 @@ function SidebarNav({ navLinks, pathname, notificationCounts }: { navLinks: NavL
   );
 }
 
-
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { toast } = useToast();
+  const { user, logout } = useAuth();
   const [time, setTime] = useState('');
-  const [user, setUser] = useLocalStorage<User | null>('loggedInUser', null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [attendanceId, setAttendanceId] = useState<string | null>(null);
   const [isClocking, setIsClocking] = useState(true);
   const [notificationCounts, setNotificationCounts] = useState({
-      pendingTransfers: 0,
-      activeRuns: 0,
-      pendingBatches: 0,
-      inProductionBatches: 0, 
-      pendingPayments: 0,
-      newReports: 0,
-      inProgressReports: 0,
-      unreadAnnouncements: 0,
-      pendingApprovals: 0,
-      returnedStock: 0,
-      productionTransfers: 0,
+      pendingTransfers: 0, activeRuns: 0, pendingBatches: 0, inProductionBatches: 0, 
+      pendingPayments: 0, newReports: 0, inProgressReports: 0, unreadAnnouncements: 0,
+      pendingApprovals: 0, returnedStock: 0, productionTransfers: 0,
   });
-  
-  const firstRender = useRef(true);
 
   const applyTheme = useCallback((theme?: string) => {
     const root = document.documentElement;
@@ -225,157 +192,12 @@ export default function DashboardLayout({
       root.classList.add(`theme-${theme}`);
     }
   }, []);
-  
-  const handleLogout = useCallback((message?: string, description?: string) => {
-    localStorage.removeItem('loggedInUser');
-    setUser(null);
-    router.push("/");
-    if (message || description) {
-        toast({
-            variant: message ? "destructive" : "default",
-            title: message || "Logged Out",
-            description: description || "You have been successfully logged out.",
-        });
-    }
-  }, [router, toast, setUser]);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('loggedInUser');
-    if (!storedUser) {
-        router.push('/');
-        return;
+    if (user?.theme) {
+      applyTheme(user.theme);
     }
-    const currentUser = JSON.parse(storedUser);
-    if (currentUser) {
-        setUser(currentUser);
-        applyTheme(currentUser.theme);
-    }
-    setIsLoading(false);
-  }, [router, setUser, applyTheme]);
-  
-   useEffect(() => {
-    if (!user?.staff_id) {
-        return;
-    }
-
-    if (firstRender.current) {
-        let hasCheckedAttendance = false;
-        const checkAttendance = async () => {
-            if(hasCheckedAttendance || !user?.staff_id) return;
-            hasCheckedAttendance = true;
-            setIsClocking(true);
-            try {
-                const status = await getAttendanceStatus(user.staff_id);
-                if (status) {
-                    setIsClockedIn(true);
-                    setAttendanceId(status.attendanceId);
-                } else {
-                    setIsClockedIn(false);
-                    setAttendanceId(null);
-                }
-            } catch (error) {
-                console.error("Failed to check attendance status:", error);
-            } finally {
-                setIsClocking(false);
-            }
-        };
-        checkAttendance();
-        firstRender.current = false;
-    }
-    
-    const timer = setInterval(() => {
-      setTime(new Date().toLocaleTimeString());
-    }, 1000);
-
-    const pendingTransfersQuery = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'pending'));
-    const unsubPending = onSnapshot(pendingTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingTransfers: snap.size })));
-    
-    const activeRunsQuery = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'active'));
-    const unsubActiveRuns = onSnapshot(activeRunsQuery, (snap) => setNotificationCounts(prev => ({...prev, activeRuns: snap.size })));
-
-    const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
-    const unsubBatches = onSnapshot(pendingBatchesQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingBatches: snap.size })));
-    
-    const inProductionBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
-    const unsubInProduction = onSnapshot(inProductionBatchesQuery, (snap) => {
-        const bakerBatches = snap.docs.filter(d => d.data().requestedById === user.staff_id);
-        setNotificationCounts(prev => ({ ...prev, inProductionBatches: bakerBatches.length }));
-    });
-
-    const pendingPaymentsQuery = query(collection(db, 'payment_confirmations'), where('status', '==', 'pending'));
-    const unsubPayments = onSnapshot(pendingPaymentsQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingPayments: snap.size })));
-
-    const newReportsQuery = query(collection(db, 'reports'), where('status', '==', 'new'));
-    const unsubReports = onSnapshot(newReportsQuery, (snap) => setNotificationCounts(prev => ({...prev, newReports: snap.size })));
-    
-    const inProgressReportsQuery = query(collection(db, 'reports'), where('status', '==', 'in_progress'));
-    const unsubInProgress = onSnapshot(inProgressReportsQuery, (snap) => setNotificationCounts(prev => ({...prev, inProgressReports: snap.size })));
-
-    const qApprovals = query(collection(db, "supply_requests"), where('status', '==', 'pending'));
-    const unsubApprovals = onSnapshot(qApprovals, (snapshot) => {
-        setNotificationCounts(prev => ({...prev, pendingApprovals: snapshot.size }));
-    });
-    
-    const returnedStockQuery = query(collection(db, 'transfers'), where('status', '==', 'pending_return'));
-    const unsubReturnedStock = onSnapshot(returnedStockQuery, (snap) => setNotificationCounts(prev => ({...prev, returnedStock: snap.size })));
-
-    const productionTransfersQuery = query(collection(db, 'transfers'), where('notes', '>=', 'Return from production batch'), where('notes', '<', 'Return from production batch' + '\uf8ff'), where('status', '==', 'pending'));
-    const unsubProductionTransfers = onSnapshot(productionTransfersQuery, (snap) => setNotificationCounts(prev => ({ ...prev, productionTransfers: snap.size })));
-
-    const announcementsQuery = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
-    const unsubAnnouncements = onSnapshot(announcementsQuery, (snap) => {
-        const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${user.staff_id}`);
-        const newCount = snap.docs.filter(doc => {
-            if (doc.data().staffId === user.staff_id) {
-                return false;
-            }
-            if (!lastReadTimestamp) return true;
-            const timestamp = doc.data().timestamp;
-            if (!timestamp) return true;
-            return timestamp.toDate() > new Date(lastReadTimestamp);
-        }).length;
-        setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
-    });
-
-    const handleAnnouncementsRead = () => {
-        setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
-    }
-    
-    window.addEventListener('announcementsRead', handleAnnouncementsRead);
-    
-    const userDocRef = doc(db, 'staff', user.staff_id);
-    const unsubUserDoc = onSnapshot(userDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-            const freshUserData = docSnap.data();
-            const localUserStr = localStorage.getItem('loggedInUser');
-            if (localUserStr) {
-                const localUser = JSON.parse(localUserStr);
-                if (localUser.theme !== freshUserData.theme) {
-                    const updatedUser = { ...localUser, theme: freshUserData.theme };
-                    localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-                    applyTheme(freshUserData.theme); 
-                }
-            }
-        }
-    });
-
-    return () => {
-        clearInterval(timer);
-        unsubPending();
-        unsubActiveRuns();
-        unsubBatches();
-        unsubInProduction();
-        unsubPayments();
-        unsubReports();
-        unsubAnnouncements();
-        unsubInProgress();
-        unsubApprovals();
-        unsubReturnedStock();
-        unsubProductionTransfers();
-        unsubUserDoc();
-        window.removeEventListener('announcementsRead', handleAnnouncementsRead);
-    };
-  }, [user?.staff_id, applyTheme]);
+  }, [user?.theme, applyTheme]);
   
   const handleClockInOut = async () => {
     if (!user) return;
@@ -404,7 +226,7 @@ export default function DashboardLayout({
     window.dispatchEvent(new CustomEvent('attendanceChanged'));
     setIsClocking(false);
   };
-
+  
   const navLinks: NavLink[] = useMemo(() => {
     const allLinks: NavLink[] = [
       { href: "/dashboard", icon: Home, label: "Dashboard", roles: ['Manager', 'Supervisor', 'Accountant', 'Showroom Staff', 'Delivery Staff', 'Baker', 'Storekeeper', 'Developer'] },
@@ -521,37 +343,10 @@ export default function DashboardLayout({
       }
   }, [notificationCounts, user]);
 
-  if (isLoading) {
-    return <div className="flex justify-center items-center h-screen w-screen"><Loader2 className="h-16 w-16 animate-spin"/></div>;
+  if (!user) {
+    return null; // The ProtectedRoute HOC will handle the redirect
   }
   
-  const SidebarFooter = () => {
-    if (!user) return null;
-    return (
-        <div className="mt-auto p-4 border-t shrink-0">
-            <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
-                <span><Clock className="inline h-4 w-4 mr-1" />{time}</span>
-                <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut} disabled={isClocking}>
-                    {isClocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>)}
-                    {isClocking ? 'Loading...' : (isClockedIn ? 'Clock Out' : 'Clock In')}
-                </Button>
-            </div>
-            <Card>
-            <CardContent className="p-2 flex items-center gap-2">
-                <Avatar>
-                <AvatarImage src="https://placehold.co/40x40.png" alt={user.name} data-ai-hint="profile person" />
-                <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                </Avatar>
-                <div>
-                    <p className='font-semibold text-sm'>{user.name}</p>
-                    <p className='text-xs text-muted-foreground'>Role: {user.role}</p>
-                </div>
-            </CardContent>
-            </Card>
-        </div>
-    )
-  };
-
   return (
     <div className="grid h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       <div className="hidden border-r bg-muted/40 md:flex md:flex-col h-screen">
@@ -564,17 +359,13 @@ export default function DashboardLayout({
         <div className="flex-1 overflow-y-auto py-2">
           <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
         </div>
-        <SidebarFooter />
+        <SidebarFooter user={user} isClockedIn={isClockedIn} isClocking={isClocking} time={time} handleClockInOut={handleClockInOut} />
       </div>
       <div className="flex flex-col h-screen overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
           <Sheet>
               <SheetTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="shrink-0 md:hidden"
-                >
+                <Button variant="outline" size="icon" className="shrink-0 md:hidden">
                   <PanelLeft className="h-5 w-5" />
                   <span className="sr-only">Toggle navigation menu</span>
                 </Button>
@@ -589,33 +380,30 @@ export default function DashboardLayout({
                 <div className="overflow-y-auto flex-1 py-2">
                     <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
                 </div>
-                 <SidebarFooter />
+                 <SidebarFooter user={user} isClockedIn={isClockedIn} isClocking={isClocking} time={time} handleClockInOut={handleClockInOut} />
               </SheetContent>
             </Sheet>
-          <div className="w-full flex-1">
-          </div>
-          {user && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" size="icon" className="rounded-full">
-                  <CircleUser className="h-5 w-5" />
-                  <span className="sr-only">Toggle user menu</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <Link href="/dashboard/settings" passHref>
-                  <DropdownMenuItem>Settings</DropdownMenuItem>
-                </Link>
-                <Link href="/dashboard/support" passHref>
-                  <DropdownMenuItem disabled>Support</DropdownMenuItem>
-                </Link>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => handleLogout(undefined, "You have been successfully logged out.")}>Logout</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <div className="w-full flex-1"></div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary" size="icon" className="rounded-full">
+                <CircleUser className="h-5 w-5" />
+                <span className="sr-only">Toggle user menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <Link href="/dashboard/settings" passHref>
+                <DropdownMenuItem>Settings</DropdownMenuItem>
+              </Link>
+              <Link href="/dashboard/support" passHref>
+                <DropdownMenuItem disabled>Support</DropdownMenuItem>
+              </Link>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => logout()}>Logout</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
         <main className="flex-1 overflow-y-auto bg-background p-4 lg:p-6">
           <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
@@ -624,4 +412,13 @@ export default function DashboardLayout({
       </div>
     </div>
   );
+}
+
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+    return (
+        <ProtectedRoute>
+            <DashboardLayoutContent>{children}</DashboardLayoutContent>
+        </ProtectedRoute>
+    )
 }

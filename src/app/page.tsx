@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { handleLogin, verifyMfa } from "./actions";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -32,17 +33,12 @@ export default function LoginPage() {
   const [staffIdLength, setStaffIdLength] = useState(6); // Default length
   const router = useRouter();
   const { toast } = useToast();
-  const [isClient, setIsClient] = useState(false);
+  const { user, login } = useAuth();
 
   useEffect(() => {
-    // This effect runs only on the client, after the component has mounted.
-    // This prevents hydration errors by ensuring server and initial client render match.
-    setIsClient(true);
-
-    const storedUser = localStorage.getItem('loggedInUser');
-    if (storedUser) {
+    if (user) {
       router.push('/dashboard');
-      return; // Early exit if user is already logged in
+      return; 
     }
 
     const fetchSettings = async () => {
@@ -56,8 +52,7 @@ export default function LoginPage() {
       }
     };
     fetchSettings();
-
-  }, [router]);
+  }, [user, router]);
 
 
   const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -78,8 +73,7 @@ export default function LoginPage() {
                 title: "Login Successful",
                 description: `Welcome back, ${result.user.name}!`,
             });
-            localStorage.setItem('loggedInUser', JSON.stringify(result.user));
-            router.push("/dashboard");
+            login(result.user);
         }
     } else {
         toast({
@@ -103,8 +97,7 @@ export default function LoginPage() {
             title: "Login Successful",
             description: `Welcome back, ${result.user.name}!`,
         });
-        localStorage.setItem('loggedInUser', JSON.stringify(result.user));
-        router.push("/dashboard");
+        login(result.user);
     } else {
         toast({
             variant: "destructive",
@@ -211,12 +204,14 @@ export default function LoginPage() {
       </Card>
   )
   
-  if (!isClient) {
-    // Render a loading state on the server and initial client render
+  // While the app is checking for a user, show a loading state.
+  // If a user is found, the parent layout will redirect.
+  // If no user is found, this component will render the login form.
+  if (user) {
     return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        </main>
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </main>
     );
   }
 
