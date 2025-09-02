@@ -1,4 +1,3 @@
-
 "use server";
 
 import { db } from "@/lib/firebase";
@@ -32,6 +31,8 @@ const productsData = [
     { id: "prod_bread_5", name: "Round bread", price: 300, stock: 0, category: 'Bread', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 180, lowStockThreshold: 100, minPrice: 250, maxPrice: 350 },
     { id: "prod_bread_6", name: "Breakfast loaf", price: 1000, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'breakfast bread', costPrice: 650, lowStockThreshold: 40, minPrice: 900, maxPrice: 1100 },
     { id: "prod_bread_7", name: "Mini Bite", price: 800, stock: 0, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'small bread', costPrice: 500, lowStockThreshold: 60, minPrice: 700, maxPrice: 900 },
+    { id: "prod_bread_8", name: "Sandwich Bread", price: 1400, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'sandwich bread', costPrice: 900, lowStockThreshold: 40, minPrice: 1300, maxPrice: 1500 },
+
 
     // DRINKS
     { id: "prod_drinks_1", name: "Coke", price: 500, stock: 0, category: 'Drinks', unit: 'bottle', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'coca cola', costPrice: 350, lowStockThreshold: 100, minPrice: 450, maxPrice: 550 },
@@ -72,6 +73,7 @@ const staffData = [
 ];
 
 const ingredientsData = [
+    // Existing Ingredients
     { id: "ing_1", name: "Flour", stock: 0, unit: 'g', costPerUnit: 1.09, expiryDate: null, lowStockThreshold: 10000 },
     { id: "ing_2", name: "Sugar", stock: 0, unit: 'g', costPerUnit: 1.58, expiryDate: null, lowStockThreshold: 1000 },
     { id: "ing_3", name: "Salt", stock: 0, unit: 'g', costPerUnit: 0.34, expiryDate: null, lowStockThreshold: 500 },
@@ -84,9 +86,19 @@ const ingredientsData = [
     { id: "ing_10", name: "Lux Essence", stock: 0, unit: 'g', costPerUnit: 17.00, expiryDate: null, lowStockThreshold: 50 },
     { id: "ing_11", name: "Eggs", stock: 0, unit: 'pcs', costPerUnit: 176.67, expiryDate: null, lowStockThreshold: 24 },
     { id: "ing_12", name: "Water", stock: 0, unit: 'ml', costPerUnit: 0.00, expiryDate: null, lowStockThreshold: 5000 },
-    { id: "ing_13", name: "Vegetable Oil", stock: 0, unit: 'ml', costPerUnit: 3.40, expiryDate: null, lowStockThreshold: 500 },
+    { id: "ing_13", name: "Vegetable Oil", stock: 0, unit: 'g', costPerUnit: 3.40, expiryDate: null, lowStockThreshold: 500 }, // Changed unit to g
     { id: "ing_14", name: "Bread Improver", stock: 0, unit: 'g', costPerUnit: 60, expiryDate: null, lowStockThreshold: 100 },
+    
+    // New Ingredients
+    { id: "ing_15", name: "Milk Phantasy", stock: 0, unit: 'g', costPerUnit: 15.00, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_16", name: "Conflaco Butter Scotch", stock: 0, unit: 'g', costPerUnit: 20.00, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_17", name: "Condensed Milk Flavor", stock: 0, unit: 'g', costPerUnit: 18.00, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_18", name: "Condensed Milk (Big)", stock: 0, unit: 'pcs', costPerUnit: 1200.00, expiryDate: null, lowStockThreshold: 10 },
+    { id: "ing_19", name: "Strawberry Flavor", stock: 0, unit: 'g', costPerUnit: 12.00, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_20", name: "Pineapple Flavor", stock: 0, unit: 'g', costPerUnit: 12.00, expiryDate: null, lowStockThreshold: 50 },
+    { id: "ing_21", name: "Banana Flavor", stock: 0, unit: 'g', costPerUnit: 12.00, expiryDate: null, lowStockThreshold: 50 },
 ];
+
 
 const recipesData = [
     {
@@ -106,7 +118,7 @@ const recipesData = [
            { ingredientId: "ing_10", ingredientName: "Lux Essence", quantity: 100, unit: "g" },
            { ingredientId: "ing_11", ingredientName: "Eggs", quantity: 12, unit: "pcs" },
            { ingredientId: "ing_12", ingredientName: "Water", quantity: 20000, unit: "ml" },
-           { ingredientId: "ing_13", ingredientName: "Vegetable Oil", quantity: 300, unit: "ml" },
+           { ingredientId: "ing_13", ingredientName: "Vegetable Oil", quantity: 300, unit: "g" },
            { ingredientId: "ing_14", ingredientName: "Bread Improver", quantity: 250, unit: "g" },
        ]
     }
@@ -431,10 +443,9 @@ export async function seedFullData(): Promise<ActionResult> {
     return { success: false, error: finalError };
 }
 
-
 export async function seedSpecialScenario(): Promise<ActionResult> {
     try {
-        // 1. Clear all data except suppliers and other_supplies
+        // 1. Clear specified collections
         const collectionsToWipe = [
             "products", "staff", "recipes", "promotions", 
             "ingredients", "customers", "orders", "transfers", 
@@ -446,106 +457,105 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         ];
         await clearMultipleCollections(collectionsToWipe);
         
-        // Clear supplier transaction logs by deleting and re-adding them
-        const suppliersSnapshot = await getDocs(collection(db, "suppliers"));
-        const suppliers = suppliersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        await clearCollection("suppliers");
-        await batchCommit(suppliers, "suppliers");
-
-
         // 2. Seed specific staff
         const staffToSeed = [
-            staffData.find(s => s.role === 'Manager'),
-            staffData.find(s => s.role === 'Developer'),
-            staffData.find(s => s.role === 'Accountant'),
-            staffData.find(s => s.role === 'Storekeeper'),
-            staffData.find(s => s.role === 'Baker'),
-            staffData.find(s => s.role === 'Delivery Staff'),
-            staffData.find(s => s.name === 'Mr Patrick' && s.role === 'Showroom Staff'),
-        ].filter(Boolean) as typeof staffData;
+            'Wisdom Effiong Edet', 'Angela Uwem', 'Mr Bassey Smith Daniel', 
+            'MR Bassey OFFIONG', 'Ubom Robert Okon', 'Zion Ekerete', 'Mary Ating', 
+            'Mr Patrick', 'Edet Edet Nyong', 'Gabriel Developer'
+        ].map(name => staffData.find(s => s.name === name)).filter(Boolean) as typeof staffData;
         
-        if (staffToSeed.length < 7) {
+        if (staffToSeed.length < 10) {
             return { success: false, error: "A required staff member for the special scenario was not found in the seed data." };
         }
         await batchCommit(staffToSeed, 'staff');
 
-        const manager = staffToSeed.find(s => s!.role === 'Manager')!;
-        const mrPatrick = staffToSeed.find(s => s!.name === 'Mr Patrick')!;
-
-        // 3. Seed Products with specific stock for MAIN INVENTORY (Storekeeper)
+        // 3. Seed Products with specific stock for MAIN INVENTORY
         const specialProducts = productsData.map(p => {
             const stockMap: Record<string, number> = {
-                "prod_bread_1": 19,  // Family Loaf
-                "prod_bread_2": 81,  // Short Loaf
-                "prod_bread_3": 39,  // Jumbo
-                "prod_bread_4": 8,  // Burger
-                "prod_bread_5": 0, // Round bread
+                "prod_bread_5": 260, // Round bread
+                "prod_bread_1": 27,  // Family Loaf
+                "prod_bread_2": 62,  // Short Loaf
+                "prod_bread_3": 49,  // Jumbo
+                "prod_bread_4": 14,  // Burger
             };
             return { ...p, stock: stockMap[p.id] || 0 };
         });
         await batchCommit(specialProducts, "products");
+        
+        // 4. Seed other supplies for the storekeeper
+        const otherSuppliesData = [
+            { id: "sup_nurse_cap", name: "Nurse Cap", stock: 10, unit: "packs", costPerUnit: 500, category: 'Production' },
+            { id: "sup_cotton_wool", name: "Cotton Wool", stock: 1, unit: "pack", costPerUnit: 300, category: 'Production' },
+            { id: "sup_spirit", name: "Spirit", stock: 1, unit: "pack", costPerUnit: 400, category: 'Production' },
+            { id: "sup_glove", name: "Glove", stock: 3, unit: "packs", costPerUnit: 250, category: 'Production' },
+        ];
+        await batchCommit(otherSuppliesData, "other_supplies");
 
-        // 4. Seed Ingredients with specific stock
+
+        // 5. Seed Ingredients with specific stock
         const specialIngredients = ingredientsData.map(i => {
             const stockMap: Record<string, number> = {
-                "ing_1": 0,      // Flour
-                "ing_7": 9400,   // butter - 9.4 KG
-                "ing_2": 23000,  // sugar - 23kg
-                "ing_3": 33600,  // salt - 33.6kg
-                "ing_9": 870,    // zeast
-                "ing_4": 15,     // yeast
-                "ing_10": 650,   // lux essence
-                "ing_8": 615,    // butter scotch
-                "ing_5": 455,    // preservative
-                "ing_13": 0,     // veg oil
-                "ing_11": 7,     // eggs (6 + 1)
+                "ing_1": 49300,      // Flour (g)
+                "ing_7": 5200,       // butter (g)
+                "ing_4": 430,        // yeast (g) + 9 packs (assuming 1 pack is negligible or not tracked in 'g')
+                "ing_2": 50002.7,    // sugar (g)
+                "ing_6": 2,          // Tin Milk (pcs)
+                "ing_10": 695,       // lux essence (g)
+                "ing_9": 870,        // zeast (g)
+                "ing_8": 165,        // butter scotch (g) + 14 bottles (not tracked in 'g')
+                "ing_5": 510,        // preservative (g) + 1 pack
+                "ing_13": 3480,      // vegetable oil (3100ml -> 3100g + 380g)
+                "ing_11": 35,        // eggs (pcs)
+                "ing_3": 26000,      // salt (g)
+                "ing_20": 500,       // pineapple flavor
+                "ing_21": 500,       // banana flavor
             };
             return { ...i, stock: stockMap[i.id] || 0 };
         });
         await batchCommit(specialIngredients, "ingredients");
+
+        // 6. Create a completed transfer to Mr Patrick (Showroom Staff)
+        const mrPatrick = staffToSeed.find(s => s!.name === 'Mr Patrick')!;
+        const manager = staffToSeed.find(s => s!.role === 'Manager')!;
         
-        // 5. Create and complete a transfer to Mr Patrick (Showroom Staff)
-        const patrickStock = [
-            // Breads
-            { productId: "prod_bread_2", productName: "Short Loaf", quantity: 21 },
-            { productId: "prod_bread_3", productName: "Jumbo", quantity: 5 },
-            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 17 },
-            { productId: "prod_bread_4", productName: "Burger", quantity: 4 },
-            // Drinks
-            { productId: "prod_drinks_13", productName: "Beta Malt", quantity: 6 },
+        const showroomStock = [
+            { productId: "prod_bread_5", productName: "Round bread", quantity: 8 },
+            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 5 },
+            { productId: "prod_bread_8", productName: "Sandwich Bread", quantity: 6 },
+            { productId: "prod_snacks_1", productName: "Meatpie", quantity: 12 },
+            { productId: "prod_bread_2", productName: "Short Loaf", quantity: 3 },
+            { productId: "prod_drinks_8", productName: "5Alive", quantity: 9 },
+            { productId: "prod_drinks_13", productName: "Beta Malt", quantity: 5 },
             { productId: "prod_drinks_14", productName: "Hi Malt", quantity: 6 },
-            { productId: "prod_drinks_1", productName: "Coke", quantity: 7 },
-            { productId: "prod_drinks_3", productName: "Sprite", quantity: 9 },
-            { productId: "prod_drinks_2", productName: "Fanta", quantity: 10 },
-            { productId: "prod_drinks_4", productName: "Pepsi", quantity: 8 },
-            { productId: "prod_drinks_7", productName: "Nutri Choco", quantity: 8 },
-            { productId: "prod_drinks_5", productName: "7up", quantity: 11 },
-            { productId: "prod_drinks_12", productName: "Exotic", quantity: 4 },
-            { productId: "prod_drinks_8", productName: "5Alive", quantity: 11 },
-            { productId: "prod_drinks_10", productName: "Freshyo", quantity: 1 },
-            { productId: "prod_drinks_11", productName: "Aquafina water", quantity: 6 },
+            { productId: "prod_drinks_7", productName: "Nutri Choco", quantity: 7 },
+            { productId: "prod_drinks_2", productName: "Fanta", quantity: 4 },
+            { productId: "prod_drinks_1", productName: "Coke", quantity: 2 },
+            { productId: "prod_drinks_3", productName: "Sprite", quantity: 4 },
+            { productId: "prod_drinks_5", productName: "7up", quantity: 9 },
+            { productId: "prod_drinks_12", productName: "Exotic", quantity: 3 },
+            { productId: "prod_drinks_11", productName: "Aquafina water", quantity: 5 },
+            { productId: "prod_drinks_4", productName: "Pepsi", quantity: 4 },
         ];
         
         const transferBatch = writeBatch(db);
-        
-        // Create the transfer document
         const transferRef = doc(collection(db, 'transfers'));
+        
         transferBatch.set(transferRef, {
             from_staff_id: manager.staff_id,
             from_staff_name: manager.name,
             to_staff_id: mrPatrick.staff_id,
             to_staff_name: mrPatrick.name,
-            items: patrickStock,
+            items: showroomStock,
             date: Timestamp.now(),
-            status: 'completed', // Mark as completed to simulate acceptance
+            status: 'completed',
             is_sales_run: false,
             time_received: Timestamp.now(),
             time_completed: Timestamp.now(),
-            totalRevenue: 0 // Not a sales run
+            totalRevenue: 0
         });
         
-        // Create personal stock for Mr Patrick
-        for (const item of patrickStock) {
+        // Set personal stock for showroom
+        for (const item of showroomStock) {
             const personalStockRef = doc(db, 'staff', mrPatrick.staff_id, 'personal_stock', item.productId);
             transferBatch.set(personalStockRef, {
                 productId: item.productId,
@@ -553,7 +563,6 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
                 stock: item.quantity
             });
         }
-        
         await transferBatch.commit();
         
         return { success: true };
@@ -561,3 +570,4 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
+
