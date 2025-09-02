@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -42,7 +42,6 @@ type NavLink = {
     notificationKey?: string;
 };
 
-// Moved SidebarFooter and SidebarNav outside of DashboardLayout
 const SidebarFooter = ({ user, isClockedIn, isClocking, time, handleClockInOut }: { user: User, isClockedIn: boolean, isClocking: boolean, time: string, handleClockInOut: () => void }) => {
     return (
         <div className="mt-auto p-4 border-t shrink-0">
@@ -226,6 +225,122 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     window.dispatchEvent(new CustomEvent('attendanceChanged'));
     setIsClocking(false);
   };
+
+  useEffect(() => {
+    if (!user?.staff_id) return;
+
+    let hasCheckedAttendance = false;
+    const checkAttendance = async () => {
+        if(hasCheckedAttendance || !user?.staff_id) return;
+        hasCheckedAttendance = true;
+        setIsClocking(true);
+        try {
+            const status = await getAttendanceStatus(user.staff_id);
+            if (status) {
+                setIsClockedIn(true);
+                setAttendanceId(status.attendanceId);
+            } else {
+                setIsClockedIn(false);
+                setAttendanceId(null);
+            }
+        } catch (error) {
+            console.error("Failed to check attendance status:", error);
+        } finally {
+            setIsClocking(false);
+        }
+    };
+    checkAttendance();
+    
+    const timer = setInterval(() => {
+      setTime(new Date().toLocaleTimeString());
+    }, 1000);
+
+    const pendingTransfersQuery = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'pending'));
+    const unsubPending = onSnapshot(pendingTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingTransfers: snap.size })));
+    
+    const activeRunsQuery = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'active'));
+    const unsubActiveRuns = onSnapshot(activeRunsQuery, (snap) => setNotificationCounts(prev => ({...prev, activeRuns: snap.size })));
+
+    const pendingBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
+    const unsubBatches = onSnapshot(pendingBatchesQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingBatches: snap.size })));
+    
+    const inProductionBatchesQuery = query(collection(db, 'production_batches'), where('status', '==', 'in_production'));
+    const unsubInProduction = onSnapshot(inProductionBatchesQuery, (snap) => {
+        const bakerBatches = snap.docs.filter(d => d.data().requestedById === user.staff_id);
+        setNotificationCounts(prev => ({ ...prev, inProductionBatches: bakerBatches.length }));
+    });
+
+
+    const pendingPaymentsQuery = query(collection(db, 'payment_confirmations'), where('status', '==', 'pending'));
+    const unsubPayments = onSnapshot(pendingPaymentsQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingPayments: snap.size })));
+
+    const newReportsQuery = query(collection(db, 'reports'), where('status', '==', 'new'));
+    const unsubReports = onSnapshot(newReportsQuery, (snap) => setNotificationCounts(prev => ({...prev, newReports: snap.size })));
+    
+    const inProgressReportsQuery = query(collection(db, 'reports'), where('status', '==', 'in_progress'));
+    const unsubInProgress = onSnapshot(inProgressReportsQuery, (snap) => setNotificationCounts(prev => ({...prev, inProgressReports: snap.size })));
+
+    const qApprovals = query(collection(db, "supply_requests"), where('status', '==', 'pending'));
+    const unsubApprovals = onSnapshot(qApprovals, (snapshot) => {
+        setNotificationCounts(prev => ({...prev, pendingApprovals: snapshot.size }));
+    });
+    
+    const returnedStockQuery = query(collection(db, 'transfers'), where('status', '==', 'pending_return'));
+    const unsubReturnedStock = onSnapshot(returnedStockQuery, (snap) => setNotificationCounts(prev => ({...prev, returnedStock: snap.size })));
+
+    const productionTransfersQuery = query(collection(db, 'transfers'), where('notes', '>=', 'Return from production batch'), where('notes', '<', 'Return from production batch' + '\uf8ff'), where('status', '==', 'pending'));
+    const unsubProductionTransfers = onSnapshot(productionTransfersQuery, (snap) => setNotificationCounts(prev => ({ ...prev, productionTransfers: snap.size })));
+
+
+    const announcementsQuery = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
+    const unsubAnnouncements = onSnapshot(announcementsQuery, (snap) => {
+        const lastReadTimestamp = localStorage.getItem(`lastReadAnnouncement_${user.staff_id}`);
+        const newCount = snap.docs.filter(doc => {
+            if (doc.data().staffId === user.staff_id) {
+                return false;
+            }
+            if (!lastReadTimestamp) return true;
+            const timestamp = doc.data().timestamp;
+            if (!timestamp) return true;
+            return timestamp.toDate() > new Date(lastReadTimestamp);
+        }).length;
+        setNotificationCounts(prev => ({...prev, unreadAnnouncements: newCount }));
+    });
+
+    const handleAnnouncementsRead = () => {
+        setNotificationCounts(prev => ({...prev, unreadAnnouncements: 0 }));
+    }
+    
+    window.addEventListener('announcementsRead', handleAnnouncementsRead);
+    
+    const userDocRef = doc(db, 'staff', user.staff_id);
+    const unsubUserDoc = onSnapshot(userDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const freshUserData = docSnap.data();
+            if (user?.theme !== freshUserData.theme) {
+                const updatedUser = { ...user, theme: freshUserData.theme };
+                login(updatedUser); 
+            }
+        }
+    });
+
+    return () => {
+        clearInterval(timer);
+        unsubPending();
+        unsubActiveRuns();
+        unsubBatches();
+        unsubInProduction();
+        unsubPayments();
+        unsubReports();
+        unsubAnnouncements();
+        unsubInProgress();
+        unsubApprovals();
+        unsubReturnedStock();
+        unsubProductionTransfers();
+        unsubUserDoc();
+        window.removeEventListener('announcementsRead', handleAnnouncementsRead);
+    };
+  }, [user?.staff_id, user?.theme]);
   
   const navLinks: NavLink[] = useMemo(() => {
     const allLinks: NavLink[] = [
@@ -422,3 +537,5 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </ProtectedRoute>
     )
 }
+
+    
