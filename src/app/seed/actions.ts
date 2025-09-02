@@ -469,7 +469,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
             return { success: false, error: "A required staff member for the special scenario was not found in the seed data." };
         }
         await batchCommit(staffToSeed, 'staff');
-
+        
         // 3. Seed Products with specific stock for MAIN INVENTORY
         const specialProducts = productsData.map(p => {
             const stockMap: Record<string, number> = {
@@ -497,19 +497,19 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         const specialIngredients = ingredientsData.map(i => {
             const stockMap: Record<string, number> = {
                 "ing_1": 49300,      // Flour
-                "ing_7": 5200,       // butter
-                "ing_4": 4930,       // yeast
-                "ing_2": 50002.7,    // sugar
+                "ing_7": 5200,       // Butter
+                "ing_4": 4930,       // Yeast
+                "ing_2": 52700,      // Sugar
                 "ing_6": 2,          // Tin Milk
-                "ing_10": 695,       // lux essence
-                "ing_9": 870,        // zeast
-                "ing_8": 7165,       // butter scotch
-                "ing_5": 1010,       // preservative
-                "ing_13": 3480,      // vegetable oil
-                "ing_11": 35,        // eggs
-                "ing_3": 26000,      // salt
-                "ing_20": 500,       // pineapple flavor
-                "ing_21": 500,       // banana flavor
+                "ing_10": 695,       // Lux Essence
+                "ing_9": 870,        // Zeast Flavor
+                "ing_8": 7165,       // Butterscotch Flavor
+                "ing_5": 1010,       // Preservative
+                "ing_13": 3480,      // Vegetable Oil
+                "ing_11": 35,        // Eggs
+                "ing_3": 26000,      // Salt
+                "ing_20": 500,       // Pineapple Flavor
+                "ing_21": 500,       // Banana Flavor
             };
             return { ...i, stock: stockMap[i.id] || 0 };
         });
@@ -571,3 +571,5 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
+
+    
