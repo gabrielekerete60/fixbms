@@ -621,7 +621,7 @@ export default function StockControlPage() {
         const userStr = localStorage.getItem('loggedInUser');
         if (!userStr) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
-            if (isLoading) setIsLoading(false);
+            setIsLoading(false);
             return;
         }
         const currentUser = JSON.parse(userStr);
@@ -667,11 +667,12 @@ export default function StockControlPage() {
             console.error("Error fetching data:", error);
             toast({ variant: "destructive", title: "Error", description: "Failed to load necessary data." });
         } finally {
-            if (isLoading) setIsLoading(false);
+            setIsLoading(false);
         }
-    }, [toast, isLoading]);
+    }, [toast]);
 
   useEffect(() => {
+    setIsLoading(true);
     fetchPageData();
 
     setIsLoadingBatches(true);
