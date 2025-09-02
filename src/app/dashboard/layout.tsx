@@ -214,6 +214,8 @@ export default function DashboardLayout({
       returnedStock: 0,
       productionTransfers: 0,
   });
+  
+  const firstRender = useRef(true);
 
   const applyTheme = useCallback((theme?: string) => {
     const root = document.documentElement;
@@ -244,35 +246,42 @@ export default function DashboardLayout({
         return;
     }
     const currentUser = JSON.parse(storedUser);
-    setUser(currentUser);
-    applyTheme(currentUser.theme);
+    if (currentUser) {
+        setUser(currentUser);
+        applyTheme(currentUser.theme);
+    }
     setIsLoading(false);
-  }, []);
+  }, [router, setUser, applyTheme]);
   
-  useEffect(() => {
-    if (!user?.staff_id) return;
+   useEffect(() => {
+    if (!user?.staff_id) {
+        return;
+    }
 
-    let hasCheckedAttendance = false;
-    const checkAttendance = async () => {
-        if(hasCheckedAttendance || !user?.staff_id) return;
-        hasCheckedAttendance = true;
-        setIsClocking(true);
-        try {
-            const status = await getAttendanceStatus(user.staff_id);
-            if (status) {
-                setIsClockedIn(true);
-                setAttendanceId(status.attendanceId);
-            } else {
-                setIsClockedIn(false);
-                setAttendanceId(null);
+    if (firstRender.current) {
+        let hasCheckedAttendance = false;
+        const checkAttendance = async () => {
+            if(hasCheckedAttendance || !user?.staff_id) return;
+            hasCheckedAttendance = true;
+            setIsClocking(true);
+            try {
+                const status = await getAttendanceStatus(user.staff_id);
+                if (status) {
+                    setIsClockedIn(true);
+                    setAttendanceId(status.attendanceId);
+                } else {
+                    setIsClockedIn(false);
+                    setAttendanceId(null);
+                }
+            } catch (error) {
+                console.error("Failed to check attendance status:", error);
+            } finally {
+                setIsClocking(false);
             }
-        } catch (error) {
-            console.error("Failed to check attendance status:", error);
-        } finally {
-            setIsClocking(false);
-        }
-    };
-    checkAttendance();
+        };
+        checkAttendance();
+        firstRender.current = false;
+    }
     
     const timer = setInterval(() => {
       setTime(new Date().toLocaleTimeString());
@@ -293,7 +302,6 @@ export default function DashboardLayout({
         setNotificationCounts(prev => ({ ...prev, inProductionBatches: bakerBatches.length }));
     });
 
-
     const pendingPaymentsQuery = query(collection(db, 'payment_confirmations'), where('status', '==', 'pending'));
     const unsubPayments = onSnapshot(pendingPaymentsQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingPayments: snap.size })));
 
@@ -313,7 +321,6 @@ export default function DashboardLayout({
 
     const productionTransfersQuery = query(collection(db, 'transfers'), where('notes', '>=', 'Return from production batch'), where('notes', '<', 'Return from production batch' + '\uf8ff'), where('status', '==', 'pending'));
     const unsubProductionTransfers = onSnapshot(productionTransfersQuery, (snap) => setNotificationCounts(prev => ({ ...prev, productionTransfers: snap.size })));
-
 
     const announcementsQuery = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'));
     const unsubAnnouncements = onSnapshot(announcementsQuery, (snap) => {
@@ -368,7 +375,7 @@ export default function DashboardLayout({
         unsubUserDoc();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
-  }, [user?.staff_id]);
+  }, [user?.staff_id, applyTheme]);
   
   const handleClockInOut = async () => {
     if (!user) return;
