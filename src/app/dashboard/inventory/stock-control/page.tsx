@@ -454,7 +454,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: { produ
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="waste-notes">Additional Notes (Optional)</Label>
-                    <Textarea id="waste-notes" value={notes} onChange={e => setNotes(e.target.value)} />
+                    <Input id="waste-notes" value={notes} onChange={e => setNotes(e.target.value)} />
                 </div>
                 <div className="flex justify-end">
                     <Button onClick={handleSubmit} disabled={isSubmitting}>
@@ -618,104 +618,76 @@ export default function StockControlPage() {
   const [visibleAllPendingRows, setVisibleAllPendingRows] = useState<number | 'all'>(10);
   
   const fetchPageData = useCallback(async () => {
-        const userStr = localStorage.getItem('loggedInUser');
-        if (!userStr) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
-            setIsLoading(false);
-            return;
+    const userStr = localStorage.getItem('loggedInUser');
+    if (!userStr) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not identify user.' });
+        setIsLoading(false);
+        return;
+    }
+    const currentUser = JSON.parse(userStr);
+    setUser(currentUser);
+    
+    try {
+        const staffQuery = query(collection(db, "staff"), where("role", "!=", "Developer"));
+        const staffSnapshot = await getDocs(staffQuery);
+        setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
+
+        const userRole = currentUser.role;
+        const canManageStore = ['Manager', 'Supervisor', 'Storekeeper', 'Developer'].includes(userRole);
+        if (canManageStore) {
+            const productsSnapshot = await getDocs(collection(db, "products"));
+            setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
         }
-        const currentUser = JSON.parse(userStr);
-        setUser(currentUser);
-
-        try {
-            const staffQuery = query(collection(db, "staff"), where("role", "!=", "Developer"));
-            const staffSnapshot = await getDocs(staffQuery);
-            setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
-
-            const userRole = currentUser.role;
-            const canManageStore = ['Manager', 'Supervisor', 'Storekeeper', 'Developer'].includes(userRole);
-            if (canManageStore) {
-                const productsSnapshot = await getDocs(collection(db, "products"));
-                setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
-            }
-             
-            const isSalesStaff = ['Delivery Staff', 'Showroom Staff'].includes(userRole);
-            if (isSalesStaff) {
-                const stockData = await getProductsForStaff(currentUser.staff_id);
-                setPersonalStock(stockData.map(d => ({productId: d.productId, productName: d.name, stock: d.stock})));
-            }
-            
-             const [pendingData, completedData, wasteData, prodTransfers, ingredientsSnapshot, initiatedTransfersSnapshot, returnedStockSnapshot] = await Promise.all([
-                getPendingTransfersForStaff(currentUser.staff_id),
-                getCompletedTransfersForStaff(currentUser.staff_id),
-                getWasteLogsForStaff(currentUser.staff_id),
-                getProductionTransfers(),
-                getDocs(collection(db, "ingredients")),
-                getDocs(query(collection(db, "transfers"), orderBy("date", "desc"))),
-                getReturnedStockTransfers(),
-            ]);
-
-            setPendingTransfers(pendingData);
-            setCompletedTransfers(completedData);
-            setMyWasteLogs(wasteData);
-            setProductionTransfers(prodTransfers);
-            setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock } as Ingredient)));
-            setInitiatedTransfers(initiatedTransfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
-            setReturnedStock(returnedStockSnapshot);
-
-        } catch (error) {
-            console.error("Error fetching data:", error);
-            toast({ variant: "destructive", title: "Error", description: "Failed to load necessary data." });
-        } finally {
-            setIsLoading(false);
+        
+        const isSalesStaff = ['Delivery Staff', 'Showroom Staff'].includes(userRole);
+        if (isSalesStaff) {
+            const stockData = await getProductsForStaff(currentUser.staff_id);
+            setPersonalStock(stockData.map(d => ({productId: d.productId, productName: d.name, stock: d.stock})));
         }
-    }, [toast]);
+        
+        const [pendingData, completedData, wasteData, prodTransfers, ingredientsSnapshot, initiatedTransfersSnapshot, returnedStockSnapshot] = await Promise.all([
+            getPendingTransfersForStaff(currentUser.staff_id),
+            getCompletedTransfersForStaff(currentUser.staff_id),
+            getWasteLogsForStaff(currentUser.staff_id),
+            getProductionTransfers(),
+            getDocs(collection(db, "ingredients")),
+            getDocs(query(collection(db, "transfers"), orderBy("date", "desc"))),
+            getReturnedStockTransfers(),
+        ]);
+
+        setPendingTransfers(pendingData);
+        setCompletedTransfers(completedData);
+        setMyWasteLogs(wasteData);
+        setProductionTransfers(prodTransfers);
+        setIngredients(ingredientsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, unit: doc.data().unit, stock: doc.data().stock } as Ingredient)));
+        setInitiatedTransfers(initiatedTransfersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate().toISOString() } as Transfer)));
+        setReturnedStock(returnedStockSnapshot);
+
+    } catch (error) {
+        console.error("Error fetching data:", error);
+        toast({ variant: "destructive", title: "Error", description: "Failed to load necessary data." });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    setIsLoading(true);
     fetchPageData();
 
-    setIsLoadingBatches(true);
     const userStr = localStorage.getItem('loggedInUser');
     if (userStr) {
-        const currentUser = JSON.parse(userStr);
+      const currentUser = JSON.parse(userStr);
+      const qPendingBatches = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
+      const unsubBatches = onSnapshot(qPendingBatches, (snapshot) => {
+          setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate().toISOString() } as ProductionBatch)));
+          setIsLoadingBatches(false);
+      });
 
-        const qPendingTransfers = query(collection(db, "transfers"), where('to_staff_id', '==', currentUser.staff_id), where('status', '==', 'pending'));
-        const unsubTransfers = onSnapshot(qPendingTransfers, async (snapshot) => {
-            const transfers = await Promise.all(snapshot.docs.map(async (docSnap) => {
-                 const data = docSnap.data();
-                 let totalValue = 0;
-                 const itemsWithPrices = await Promise.all(
-                    (data.items || []).map(async (item: any) => {
-                        const productDoc = await getDoc(doc(db, 'products', item.productId));
-                        const price = productDoc.exists() ? productDoc.data().price : 0;
-                        totalValue += price * item.quantity;
-                        return { ...item, price };
-                    })
-                );
-                 return { 
-                    id: docSnap.id,
-                    ...data,
-                    items: itemsWithPrices,
-                    totalValue,
-                    date: (data.date as Timestamp).toDate().toISOString(),
-                 } as Transfer;
-            }));
-            setPendingTransfers(transfers);
-        });
-        
-        const qPendingBatches = query(collection(db, 'production_batches'), where('status', '==', 'pending_approval'));
-        const unsubBatches = onSnapshot(qPendingBatches, (snapshot) => {
-            setPendingBatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate().toISOString() } as ProductionBatch)));
-            setIsLoadingBatches(false);
-        });
-
-        return () => {
-            unsubTransfers();
-            unsubBatches();
-        };
+      return () => {
+          unsubBatches();
+      };
     }
-  }, [fetchPageData]);
+  }, []);
 
   const handleTransferToChange = (staffId: string) => {
     setTransferTo(staffId);
@@ -733,7 +705,6 @@ export default function StockControlPage() {
         }
     }
   }
-
 
   const handleItemChange = (
     index: number,
