@@ -934,7 +934,6 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer | 
     const [isOpen, setIsOpen] = useState(false);
     const [amount, setAmount] = useState<number | string>('');
     const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'POS'>('Cash');
-    const [customerEmail, setCustomerEmail] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [customers, setCustomers] = useState<RunCustomer[]>([]);
     const [selectedCustomer, setSelectedCustomer] = useState<RunCustomer | null>(customer);
@@ -943,6 +942,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer | 
         if (isOpen) {
             getCustomersForRun(run.id).then(setCustomers);
             setSelectedCustomer(customer);
+            setAmount('');
         }
     }, [isOpen, run.id, customer]);
 
@@ -950,10 +950,10 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer | 
     
     useEffect(() => {
         const fetchCustomerEmail = async () => {
-            if (selectedCustomer?.customerId !== 'walk-in') {
-                const customerDoc = await getDoc(doc(db, "customers", selectedCustomer!.customerId));
+            if (selectedCustomer && selectedCustomer.customerId !== 'walk-in') {
+                const customerDoc = await getDoc(doc(db, "customers", selectedCustomer.customerId));
                 if (customerDoc.exists()) {
-                    setCustomerEmail(customerDoc.data().email || '');
+                    // setCustomerEmail(customerDoc.data().email || '');
                 }
             }
         }
