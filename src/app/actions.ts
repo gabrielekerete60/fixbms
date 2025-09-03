@@ -293,7 +293,7 @@ type AttendanceStatusResult = {
 
 export async function getAttendanceStatus(staffId: string): Promise<AttendanceStatusResult> {
     const today = startOfDay(new Date());
-    const tomorrow = endOfDay(today);
+    const tomorrow = endOfDay(new Date());
     
     // Firestore limitation: Cannot have a range filter on one field and an equality filter on another.
     // So we first query for today's records for the user.
@@ -2867,7 +2867,7 @@ export async function getProductsForStaff(staffId: string): Promise<any[]> {
     if (snapshot.empty) return [];
 
     const productPromises = snapshot.docs.map(stockDoc => {
-        return getDoc(doc(db, 'products', stockDoc.id));
+        return getDoc(doc(db, 'products', stockDoc.data().productId));
     });
     const productSnapshots = await Promise.all(productPromises);
     

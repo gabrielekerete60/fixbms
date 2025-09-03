@@ -929,20 +929,29 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
     );
 }
 
-function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, run: SalesRun, user: User | null }) {
+function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer | null, run: SalesRun, user: User | null }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [amount, setAmount] = useState<number | string>('');
     const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'POS'>('Cash');
     const [customerEmail, setCustomerEmail] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [customers, setCustomers] = useState<RunCustomer[]>([]);
+    const [selectedCustomer, setSelectedCustomer] = useState<RunCustomer | null>(customer);
 
-    const outstanding = customer.totalSold - customer.totalPaid;
+    useEffect(() => {
+        if (isOpen) {
+            getCustomersForRun(run.id).then(setCustomers);
+            setSelectedCustomer(customer);
+        }
+    }, [isOpen, run.id, customer]);
+
+    const outstanding = selectedCustomer ? selectedCustomer.totalSold - selectedCustomer.totalPaid : 0;
     
     useEffect(() => {
         const fetchCustomerEmail = async () => {
-            if (customer.customerId !== 'walk-in') {
-                const customerDoc = await getDoc(doc(db, "customers", customer.customerId));
+            if (selectedCustomer?.customerId !== 'walk-in') {
+                const customerDoc = await getDoc(doc(db, "customers", selectedCustomer!.customerId));
                 if (customerDoc.exists()) {
                     setCustomerEmail(customerDoc.data().email || '');
                 }
@@ -951,7 +960,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
         if (isOpen) {
             fetchCustomerEmail();
         }
-    }, [isOpen, customer.customerId]);
+    }, [isOpen, selectedCustomer]);
 
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
@@ -959,12 +968,8 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
             setAmount('');
             return;
         }
-
         const numValue = parseFloat(value);
-        if (isNaN(numValue)) {
-            return;
-        }
-
+        if (isNaN(numValue)) return;
         if (numValue > outstanding) {
             setAmount(outstanding);
             toast({ variant: 'destructive', title: 'Limit Exceeded', description: `Amount cannot be more than the outstanding balance of ${formatCurrency(outstanding)}` });
@@ -975,7 +980,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
 
 
     const handleRecordPayment = async () => {
-        if (!user || !run) return;
+        if (!user || !run || !selectedCustomer) return;
         const paymentAmount = Number(amount);
         if (isNaN(paymentAmount) || paymentAmount <= 0) {
             toast({ variant: 'destructive', title: 'Error', description: 'Please enter a valid amount.' });
@@ -990,8 +995,8 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
         
         const result = await handleRecordDebtPaymentForRun({
             runId: run.id,
-            customerId: customer.customerId,
-            customerName: customer.customerName,
+            customerId: selectedCustomer.customerId,
+            customerName: selectedCustomer.customerName,
             driverId: run.to_staff_id,
             driverName: run.to_staff_name || 'Unknown Driver',
             amount: paymentAmount,
@@ -1012,34 +1017,57 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer, r
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                 {outstanding > 0 && <Button size="sm" variant="outline">Record Payment</Button>}
+                 <Button variant="outline" className="w-full" disabled={run.status !== 'active'}>
+                    <HandCoins className="mr-2 h-5 w-5"/>
+                    <span>Record Debt Payment</span>
+                </Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Record Payment for {customer.customerName}</DialogTitle>
+                    <DialogTitle>Record Debt Payment</DialogTitle>
                     <DialogDescription>
-                        Outstanding Amount: <span className="font-bold text-destructive">₦{outstanding.toLocaleString()}</span>
+                        Record a payment received from a customer for an outstanding debt.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4">
                     <div className="space-y-2">
-                        <Label>Payment Method</Label>
-                        <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as any)}>
-                            <SelectTrigger><SelectValue/></SelectTrigger>
+                        <Label>Customer</Label>
+                        <Select
+                            value={selectedCustomer?.customerId}
+                            onValueChange={(customerId) => setSelectedCustomer(customers.find(c => c.customerId === customerId) || null)}
+                        >
+                            <SelectTrigger><SelectValue placeholder="Select a customer with debt..."/></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Cash">Cash</SelectItem>
-                                <SelectItem value="POS">POS</SelectItem>
+                                {customers.filter(c => (c.totalSold - c.totalPaid) > 0).map(c => (
+                                    <SelectItem key={c.customerId} value={c.customerId}>
+                                        {c.customerName} (Owes {formatCurrency(c.totalSold - c.totalPaid)})
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="payment-amount">Amount to Pay (₦)</Label>
-                        <Input id="payment-amount" type="number" value={amount} onChange={handleAmountChange} />
-                    </div>
+                    {selectedCustomer && (
+                        <>
+                            <div className="space-y-2">
+                                <Label>Payment Method</Label>
+                                <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as any)}>
+                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Cash">Cash</SelectItem>
+                                        <SelectItem value="POS">POS</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="payment-amount">Amount Paid (₦)</Label>
+                                <Input id="payment-amount" type="number" value={amount} onChange={handleAmountChange} />
+                            </div>
+                        </>
+                    )}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleRecordPayment} disabled={isSubmitting}>
+                    <Button onClick={handleRecordPayment} disabled={isSubmitting || !selectedCustomer}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Submit for Approval
                     </Button>
@@ -1447,6 +1475,7 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
                     </CardHeader>
                     <CardContent className="flex-grow grid grid-cols-2 gap-2">
                         <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
+                        <RecordPaymentDialog customer={null} run={run} user={user} />
                         <LogCustomSaleDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems} />
                         <LogExpenseDialog run={run} user={user} />
                         <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
