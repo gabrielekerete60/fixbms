@@ -1,8 +1,9 @@
 
+
 "use server";
 
 import { db } from "@/lib/firebase";
-import { collection, getDocs, writeBatch, doc, Timestamp, setDoc, getDoc, increment, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, writeBatch, doc, Timestamp, setDoc, getDoc, increment, deleteDoc, query, where } from "firebase/firestore";
 import { format } from "date-fns";
 
 // --- SEED DATA DEFINITIONS ---
@@ -27,8 +28,8 @@ const productsData = [
     // BREAD
     { id: "prod_bread_1", name: "Family Loaf", price: 1600, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'bread loaf', costPrice: 1000, lowStockThreshold: 50, minPrice: 1500, maxPrice: 1700 },
     { id: "prod_bread_2", name: "Short Loaf", price: 1300, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'short bread', costPrice: 800, lowStockThreshold: 50, minPrice: 1200, maxPrice: 1400 },
-    { id: "prod_bread_3", name: "Jumbo", price: 1800, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'jumbo bread', costPrice: 1200, lowStockThreshold: 25, minPrice: 1700, maxPrice: 1900 },
-    { id: "prod_bread_4", name: "Burger", price: 1800, stock: 0, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 1100, lowStockThreshold: 50, minPrice: 1700, maxPrice: 1900 },
+    { id: "prod_bread_3", name: "Jumbo Loaf", price: 1800, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'jumbo bread', costPrice: 1200, lowStockThreshold: 25, minPrice: 1700, maxPrice: 1900 },
+    { id: "prod_bread_4", name: "Burger Loaf", price: 1800, stock: 0, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 1100, lowStockThreshold: 50, minPrice: 1700, maxPrice: 1900 },
     { id: "prod_bread_5", name: "Round bread", price: 300, stock: 0, category: 'Bread', unit: 'pcs', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'round bread', costPrice: 180, lowStockThreshold: 100, minPrice: 250, maxPrice: 350 },
     { id: "prod_bread_6", name: "Breakfast loaf", price: 1000, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'breakfast bread', costPrice: 650, lowStockThreshold: 40, minPrice: 900, maxPrice: 1100 },
     { id: "prod_bread_7", name: "Mini Bite", price: 800, stock: 0, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'small bread', costPrice: 500, lowStockThreshold: 60, minPrice: 700, maxPrice: 900 },
@@ -255,62 +256,69 @@ export async function clearMultipleCollections(collectionNames: string[]): Promi
 
 // --- NEW CLEANUP FUNCTION ---
 
-export async function consolidateDuplicateProducts(): Promise<ActionResult> {
+export async function runSpecialProductCleanup(): Promise<ActionResult> {
     try {
-        const staffSnapshot = await getDocs(collection(db, 'staff'));
-        const productsSnapshot = await getDocs(collection(db, 'products'));
-        const productMap = new Map(productsSnapshot.docs.map(doc => [doc.id, doc.data()]));
-        
-        const nameMap = new Map<string, string>(); // Maps 'Jumbo' to 'prod_bread_x'
-        productMap.forEach((data, id) => {
-            nameMap.set(data.name, id);
-        });
+        const staffQuery = query(collection(db, 'staff'), where('role', 'in', ['Showroom Staff', 'Delivery Staff']));
+        const staffSnapshot = await getDocs(staffQuery);
 
-        const consolidationMap = {
-            'Jumbo': nameMap.get('Jumbo Loaf'),
-            'Burger': nameMap.get('Burger Loaf')
-        };
+        // Get product IDs for target loafs
+        const jumboLoafQuery = query(collection(db, 'products'), where('name', '==', 'Jumbo Loaf'));
+        const burgerLoafQuery = query(collection(db, 'products'), where('name', '==', 'Burger Loaf'));
+        const [jumboLoafSnap, burgerLoafSnap] = await Promise.all([getDocs(jumboLoafQuery), getDocs(burgerLoafQuery)]);
 
-        if (!consolidationMap.Jumbo || !consolidationMap.Burger) {
-             return { success: false, error: "Could not find target products 'Jumbo Loaf' or 'Burger Loaf' in products collection."};
+        const jumboLoafId = jumboLoafSnap.empty ? null : jumboLoafSnap.docs[0].id;
+        const burgerLoafId = burgerLoafSnap.empty ? null : burgerLoafSnap.docs[0].id;
+
+        if (!jumboLoafId || !burgerLoafId) {
+            return { success: false, error: "Target products 'Jumbo Loaf' or 'Burger Loaf' not found." };
         }
 
         for (const staffDoc of staffSnapshot.docs) {
-            const personalStockRef = collection(db, 'staff', staffDoc.id, 'personal_stock');
+            const staffId = staffDoc.id;
+            const staffRole = staffDoc.data().role;
+            const personalStockRef = collection(db, 'staff', staffId, 'personal_stock');
             const personalStockSnapshot = await getDocs(personalStockRef);
-            
-            if (personalStockSnapshot.empty) continue;
 
             const batch = writeBatch(db);
             let hasChanges = false;
+            
+            const stockMap = new Map<string, { docId: string, data: any }>();
+            personalStockSnapshot.forEach(doc => stockMap.set(doc.data().productName, { docId: doc.id, data: doc.data() }));
 
-            for (const stockDoc of personalStockSnapshot.docs) {
-                const stockData = stockDoc.data();
-                const productName = stockData.productName;
+            if (staffRole === 'Showroom Staff') {
+                // Delete "Jumbo"
+                if (stockMap.has('Jumbo')) {
+                    batch.delete(doc(personalStockRef, stockMap.get('Jumbo')!.docId));
+                    hasChanges = true;
+                }
+                
+                // Replace "Burger Loaf" stock with "Burger" stock, then delete "Burger"
+                if (stockMap.has('Burger')) {
+                    const burgerData = stockMap.get('Burger')!;
+                    const burgerLoafRef = doc(personalStockRef, burgerLoafId);
+                    
+                    // Set replaces the document, effectively replacing the stock.
+                    batch.set(burgerLoafRef, {
+                        productId: burgerLoafId,
+                        productName: 'Burger Loaf',
+                        stock: burgerData.data.stock || 0
+                    });
 
-                if (productName === 'Jumbo' || productName === 'Burger') {
-                    const targetProductId = consolidationMap[productName as keyof typeof consolidationMap];
-                    if (targetProductId) {
-                        const targetRef = doc(personalStockRef, targetProductId);
-                        
-                        // Check if target doc exists to decide between update and set
-                        const targetDocSnapshot = await getDoc(targetRef);
-                        if (targetDocSnapshot.exists()) {
-                             batch.update(targetRef, { stock: increment(stockData.stock || 0) });
-                        } else {
-                            const targetProductData = productMap.get(targetProductId);
-                            if (targetProductData) {
-                                batch.set(targetRef, {
-                                    productId: targetProductId,
-                                    productName: targetProductData.name,
-                                    stock: stockData.stock || 0
-                                });
-                            }
-                        }
-                        
-                        batch.delete(stockDoc.ref); // Delete the old "Jumbo" or "Burger" doc
-                        hasChanges = true;
-                    }
+                    batch.delete(doc(personalStockRef, burgerData.docId));
+                    hasChanges = true;
+                }
+            } else if (staffRole === 'Delivery Staff') {
+                // Rename "Jumbo" to "Jumbo Loaf"
+                if (stockMap.has('Jumbo')) {
+                    const jumboData = stockMap.get('Jumbo')!;
+                    batch.update(doc(personalStockRef, jumboData.docId), { productName: 'Jumbo Loaf' });
+                    hasChanges = true;
+                }
+                 // Rename "Burger" to "Burger Loaf"
+                if (stockMap.has('Burger')) {
+                    const burgerData = stockMap.get('Burger')!;
+                    batch.update(doc(personalStockRef, burgerData.docId), { productName: 'Burger Loaf' });
+                    hasChanges = true;
                 }
             }
 
@@ -319,9 +327,10 @@ export async function consolidateDuplicateProducts(): Promise<ActionResult> {
                 console.log(`Cleaned up stock for ${staffDoc.data().name}`);
             }
         }
+
         return { success: true };
     } catch (e) {
-        console.error("Error consolidating products:", e);
+        console.error("Error running special product cleanup:", e);
         return { success: false, error: (e as Error).message };
     }
 }
@@ -364,7 +373,12 @@ export async function seedUsersAndConfig(): Promise<ActionResult> {
 
 export async function seedProductsAndIngredients(): Promise<ActionResult> {
      try {
-        await batchCommit(productsData, "products");
+        const productsWithJumboAndBurger = [...productsData];
+        // Add plain "Jumbo" and "Burger" to simulate the cleanup scenario
+        productsWithJumboAndBurger.push({ id: "prod_bread_9", name: "Jumbo", price: 1800, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'jumbo bread', costPrice: 1200, lowStockThreshold: 25, minPrice: 1700, maxPrice: 1900 });
+        productsWithJumboAndBurger.push({ id: "prod_bread_10", name: "Burger", price: 1800, stock: 0, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 1100, lowStockThreshold: 50, minPrice: 1700, maxPrice: 1900 });
+
+        await batchCommit(productsWithJumboAndBurger, "products");
         await batchCommit(recipesData, "recipes");
         await batchCommit(ingredientsData, "ingredients");
         await batchCommit([
@@ -542,7 +556,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         if (staffToSeed.length < 10) {
             return { success: false, error: "A required staff member for the special scenario was not found in the seed data." };
         }
-        await batchCommit(staffToSeed, 'staff');
+        await batchCommit(staffToSeed, "staff");
         
         // 3. Seed Products with specific stock for MAIN INVENTORY
         const specialProducts = productsData.map(p => {

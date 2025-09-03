@@ -375,6 +375,8 @@ export default function ProductsPage() {
             case "stock_desc": return b.stock - a.stock;
             case "profit_asc": return a.totalProfit - b.totalProfit;
             case "profit_desc": return b.totalProfit - b.totalProfit;
+            case "category_asc": return a.category.localeCompare(b.category);
+            case "category_desc": return b.category.localeCompare(a.category);
             default: return 0;
         }
     });
@@ -447,6 +449,9 @@ export default function ProductsPage() {
                             <DropdownMenuRadioItem value="name_asc">Name (A-Z)</DropdownMenuRadioItem>
                             <DropdownMenuRadioItem value="name_desc">Name (Z-A)</DropdownMenuRadioItem>
                             <DropdownMenuSeparator />
+                             <DropdownMenuRadioItem value="category_asc">Category (A-Z)</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="category_desc">Category (Z-A)</DropdownMenuRadioItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuRadioItem value="price_desc">Price (High-Low)</DropdownMenuRadioItem>
                             <DropdownMenuRadioItem value="price_asc">Price (Low-High)</DropdownMenuRadioItem>
                             <DropdownMenuSeparator />
@@ -463,6 +468,7 @@ export default function ProductsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Selling Price</TableHead>
                     {canViewFinancials && <TableHead>Cost Price</TableHead>}
@@ -476,7 +482,7 @@ export default function ProductsPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={canViewFinancials ? 7 : 5} className="h-24 text-center">
+                      <TableCell colSpan={canViewFinancials ? 8 : 6} className="h-24 text-center">
                         <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                       </TableCell>
                     </TableRow>
@@ -498,6 +504,7 @@ export default function ProductsPage() {
                             <span>{product.name}</span>
                           </div>
                         </TableCell>
+                         <TableCell>{product.category}</TableCell>
                         <TableCell>{getStatusBadge(product.stock, product.lowStockThreshold)}</TableCell>
                         <TableCell>₦{product.price.toFixed(2)}</TableCell>
                         {canViewFinancials && <TableCell>₦{(product.costPrice || 0).toFixed(2)}</TableCell>}
@@ -533,7 +540,7 @@ export default function ProductsPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={canViewFinancials ? 7 : 5} className="h-24 text-center">
+                      <TableCell colSpan={canViewFinancials ? 8 : 6} className="h-24 text-center">
                         No products found for this filter.
                       </TableCell>
                     </TableRow>
@@ -542,7 +549,7 @@ export default function ProductsPage() {
                 {canViewFinancials && (
                     <TableFooter>
                         <TableRow>
-                            <TableCell colSpan={5} className="text-right font-bold">Grand Total Value</TableCell>
+                            <TableCell colSpan={6} className="text-right font-bold">Grand Total Value</TableCell>
                             <TableCell className="font-bold">₦{grandTotalValue.toFixed(2)}</TableCell>
                             <TableCell></TableCell>
                         </TableRow>

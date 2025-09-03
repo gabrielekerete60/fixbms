@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -20,6 +21,7 @@ import {
     seedSpecialScenario,
     seedRecipesOnly,
     consolidateDuplicateProducts,
+    runSpecialProductCleanup,
 } from "@/app/seed/actions";
 import { getAllSalesRuns, resetSalesRun, type SalesRun, getStaffList, getProductsForStaff, removeStockFromStaff } from "@/app/actions";
 import { Loader2, DatabaseZap, Trash2, ArrowLeft, RefreshCw, MinusCircle, Wand2 } from "lucide-react";
@@ -237,26 +239,26 @@ export default function DatabaseToolsPage() {
                         <CardDescription>Specialized actions for debugging and testing.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="space-y-2 p-3 border rounded-md">
-                            <Label>Clean Up Duplicate Products</Label>
-                             <p className="text-xs text-muted-foreground">Merges stock from products named "Jumbo" and "Burger" into "Jumbo Loaf" and "Burger Loaf" respectively, then deletes the original "Jumbo" and "Burger" entries from staff inventories.</p>
+                         <div className="space-y-2 p-3 border rounded-md">
+                            <Label>Special Product Cleanup</Label>
+                             <p className="text-xs text-muted-foreground">Merges & renames "Jumbo" and "Burger" stock to "Jumbo Loaf" and "Burger Loaf" based on specific staff roles. Use this for the special data scenario.</p>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button variant="secondary" className="w-full" disabled={isPending}>
                                         <Wand2 className="mr-2 h-4 w-4"/>
-                                        Run Product Cleanup
+                                        Run Special Cleanup
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            This will scan all personal stock and merge duplicates. This action is irreversible. It's recommended to back up data first.
+                                            This will run a highly specific data migration for "Jumbo" and "Burger" products across staff inventories. It is designed for a particular scenario and is irreversible.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleSeedAction('Product Cleanup', consolidateDuplicateProducts)}>Run Cleanup</AlertDialogAction>
+                                        <AlertDialogAction onClick={() => handleSeedAction('Special Product Cleanup', runSpecialProductCleanup)}>Run Special Cleanup</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
