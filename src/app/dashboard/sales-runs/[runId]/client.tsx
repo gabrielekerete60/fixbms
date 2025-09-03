@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordDebtPaymentForRun, initializePaystackTransaction, getOrdersForRun, verifyPaystackOnServerAndFinalizeOrder, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense, getProductsForStaff } from '@/app/actions';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordDebtPaymentForRun, getOrdersForRun, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense, getProductsForStaff, getStaffList } from '@/app/actions';
 import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal, FileSignature, Car, Fuel, Receipt as ReceiptIcon, Building } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
@@ -13,7 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select as ShadSelect, SelectContent as ShadSelectContent, SelectItem as ShadSelectItem, SelectTrigger as ShadSelectTrigger, SelectValue as ShadSelectValue } from '@/components/ui/select';
+import Select from 'react-select';
 import { Input } from '@/components/ui/input';
 import { collection, doc, Timestamp, onSnapshot, query, where, addDoc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -58,6 +59,12 @@ type User = {
     role: string;
     staff_id: string;
     email: string;
+};
+
+type StaffMember = {
+  staff_id: string;
+  name: string;
+  role: string;
 };
 
 type SortKey = 'customerName' | 'totalSold' | 'totalPaid' | 'outstanding';
@@ -380,11 +387,13 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                             {remainingItems.map(item => (
                                 <div key={item.productId} className="p-2 flex justify-between items-center border-b gap-2">
                                     <div>
-                                        <p>{item.name}</p>
+                                        <p className="font-semibold">{item.name}</p>
                                         <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
                                     </div>
-                                    <p className="text-sm">Avail: {item.quantity}</p>
-                                    <Button size="icon" variant="outline" onClick={() => handleAddToCart(item)}><PlusCircle className="h-4 w-4"/></Button>
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-sm">Avail: {item.quantity}</p>
+                                      <Button size="icon" variant="outline" onClick={() => handleAddToCart(item)}><PlusCircle className="h-4 w-4"/></Button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -394,25 +403,25 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                         <div className="space-y-2">
                             <Label>Customer</Label>
                             <div className="flex items-center gap-2">
-                                <Select value={customerType} onValueChange={(v) => setCustomerType(v as any)}>
-                                    <SelectTrigger><SelectValue/></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="walk-in">Walk-in</SelectItem>
-                                        <SelectItem value="registered">Registered</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <ShadSelect value={customerType} onValueChange={(v) => setCustomerType(v as any)}>
+                                    <ShadSelectTrigger><ShadSelectValue/></ShadSelectTrigger>
+                                    <ShadSelectContent>
+                                        <ShadSelectItem value="walk-in">Walk-in</ShadSelectItem>
+                                        <ShadSelectItem value="registered">Registered</ShadSelectItem>
+                                    </ShadSelectContent>
+                                </ShadSelect>
                                 <CreateCustomerDialog onCustomerCreated={onCustomerCreated}>
                                     <Button variant="outline" size="sm">New Customer</Button>
                                 </CreateCustomerDialog>
                             </div>
                         </div>
                         {customerType === 'registered' ? (
-                            <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                                <SelectTrigger><SelectValue placeholder="Select a customer..." /></SelectTrigger>
-                                <SelectContent>
-                                    {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
+                            <ShadSelect value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                                <ShadSelectTrigger><ShadSelectValue placeholder="Select a customer..." /></ShadSelectTrigger>
+                                <ShadSelectContent>
+                                    {customers.map(c => <ShadSelectItem key={c.id} value={c.id}>{c.name}</ShadSelectItem>)}
+                                </ShadSelectContent>
+                            </ShadSelect>
                         ) : (
                             <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Walk-in Customer Name"/>
                         )}
@@ -438,15 +447,15 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                         <div className="font-bold text-right">Total: {formatCurrency(total)}</div>
                         <div className="space-y-2">
                             <Label>Payment Method</Label>
-                            <Select onValueChange={(value) => setPaymentMethod(value as any)} value={paymentMethod}>
-                                <SelectTrigger><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</SelectItem>
-                                    <SelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</SelectItem>
-                                    <SelectItem value="Paystack"><ArrowRightLeft className="mr-2 h-4 w-4"/> Paystack</SelectItem>
-                                    <SelectItem value="Credit" disabled={customerType==='walk-in'}><CreditCard className="mr-2 h-4 w-4"/> Credit</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <ShadSelect onValueChange={(value) => setPaymentMethod(value as any)} value={paymentMethod}>
+                                <ShadSelectTrigger><ShadSelectValue/></ShadSelectTrigger>
+                                <ShadSelectContent>
+                                    <ShadSelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</ShadSelectItem>
+                                    <ShadSelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</ShadSelectItem>
+                                    <ShadSelectItem value="Paystack"><ArrowRightLeft className="mr-2 h-4 w-4"/> Paystack</ShadSelectItem>
+                                    <ShadSelectItem value="Credit" disabled={customerType==='walk-in'}><CreditCard className="mr-2 h-4 w-4"/> Credit</ShadSelectItem>
+                                </ShadSelectContent>
+                            </ShadSelect>
                         </div>
                     </div>
                 </div>
@@ -606,13 +615,13 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
                         <div className="space-y-2">
                             <Label>Customer</Label>
                             <div className="flex items-center gap-2">
-                                <Select value={customerType} onValueChange={(v) => setCustomerType(v as any)}>
-                                    <SelectTrigger><SelectValue/></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="walk-in">Walk-in</SelectItem>
-                                        <SelectItem value="registered">Registered</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <ShadSelect value={customerType} onValueChange={(v) => setCustomerType(v as any)}>
+                                    <ShadSelectTrigger><ShadSelectValue/></ShadSelectTrigger>
+                                    <ShadSelectContent>
+                                        <ShadSelectItem value="walk-in">Walk-in</ShadSelectItem>
+                                        <ShadSelectItem value="registered">Registered</ShadSelectItem>
+                                    </ShadSelectContent>
+                                </ShadSelect>
                                 <CreateCustomerDialog onCustomerCreated={onCustomerCreated}>
                                     <Button variant="outline" size="sm">New Customer</Button>
                                 </CreateCustomerDialog>
@@ -621,12 +630,12 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
                         {customerType === 'registered' ? (
                             <div className="space-y-2">
                                 <Label>Select Customer</Label>
-                                <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                                    <SelectTrigger><SelectValue placeholder="Select a customer..." /></SelectTrigger>
-                                    <SelectContent>
-                                        {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
+                                <ShadSelect value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                                    <ShadSelectTrigger><ShadSelectValue placeholder="Select a customer..." /></ShadSelectTrigger>
+                                    <ShadSelectContent>
+                                        {customers.map(c => <ShadSelectItem key={c.id} value={c.id}>{c.name}</ShadSelectItem>)}
+                                    </ShadSelectContent>
+                                </ShadSelect>
                             </div>
                         ) : (
                             <div className="space-y-2">
@@ -644,14 +653,14 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
                                     return (
                                     <div key={`cart-item-${index}`} className="space-y-2 border-b pb-2 last:border-b-0">
                                         <div className="flex justify-between items-start">
-                                            <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
-                                                <SelectTrigger className="w-2/3"><SelectValue placeholder="Select Product" /></SelectTrigger>
-                                                <SelectContent>
+                                            <ShadSelect value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
+                                                <ShadSelectTrigger className="w-2/3"><ShadSelectValue placeholder="Select Product" /></ShadSelectTrigger>
+                                                <ShadSelectContent>
                                                     {remainingItems.map(p => (
-                                                        <SelectItem key={p.productId} value={p.productId}>{p.name} (Avail: {p.quantity})</SelectItem>
+                                                        <ShadSelectItem key={p.productId} value={p.productId}>{p.name} (Avail: {p.quantity})</ShadSelectItem>
                                                     ))}
-                                                </SelectContent>
-                                            </Select>
+                                                </ShadSelectContent>
+                                            </ShadSelect>
                                             <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
                                         </div>
                                         <div className="flex gap-2">
@@ -670,14 +679,14 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
                     <div className="font-bold text-right">Total: {formatCurrency(total)}</div>
                      <div className="space-y-2">
                         <Label>Payment Method</Label>
-                        <Select onValueChange={(value) => setPaymentMethod(value as any)} defaultValue={paymentMethod}>
-                            <SelectTrigger><SelectValue/></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</SelectItem>
-                                <SelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</SelectItem>
-                                <SelectItem value="Credit" disabled={customerType === 'walk-in'}><CreditCard className="mr-2 h-4 w-4"/> Credit</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <ShadSelect onValueChange={(value) => setPaymentMethod(value as any)} defaultValue={paymentMethod}>
+                            <ShadSelectTrigger><ShadSelectValue/></ShadSelectTrigger>
+                            <ShadSelectContent>
+                                <ShadSelectItem value="Cash"><Wallet className="mr-2 h-4 w-4"/> Cash</ShadSelectItem>
+                                <ShadSelectItem value="POS"><SquareTerminal className="mr-2 h-4 w-4"/> POS</ShadSelectItem>
+                                <ShadSelectItem value="Credit" disabled={customerType === 'walk-in'}><CreditCard className="mr-2 h-4 w-4"/> Credit</ShadSelectItem>
+                            </ShadSelectContent>
+                        </ShadSelect>
                     </div>
                 </div>
                 <DialogFooter>
@@ -741,15 +750,15 @@ function LogExpenseDialog({ run, user }: { run: SalesRun, user: User | null }) {
                 <div className="py-4 space-y-4">
                      <div className="space-y-2">
                         <Label htmlFor="expense-category">Expense Category</Label>
-                        <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger><SelectValue placeholder="Select a category..."/></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Fuel">Fuel</SelectItem>
-                                <SelectItem value="Toll">Toll / Levies</SelectItem>
-                                <SelectItem value="Vehicle-Repairs">Vehicle Repairs</SelectItem>
-                                <SelectItem value="Other">Other</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <ShadSelect value={category} onValueChange={setCategory}>
+                            <ShadSelectTrigger><ShadSelectValue placeholder="Select a category..."/></ShadSelectTrigger>
+                            <ShadSelectContent>
+                                <ShadSelectItem value="Fuel">Fuel</ShadSelectItem>
+                                <ShadSelectItem value="Toll">Toll / Levies</ShadSelectItem>
+                                <ShadSelectItem value="Vehicle-Repairs">Vehicle Repairs</ShadSelectItem>
+                                <ShadSelectItem value="Other">Other</ShadSelectItem>
+                            </ShadSelectContent>
+                        </ShadSelect>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="expense-description">Description</Label>
@@ -878,16 +887,16 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
                                 const availableProducts = getAvailableProductsForRow(index);
                                 return (
                                     <div key={`waste-item-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
-                                        <Select value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
-                                            <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
-                                            <SelectContent>
+                                        <ShadSelect value={item.productId} onValueChange={(val) => handleItemChange(index, 'productId', val)}>
+                                            <ShadSelectTrigger><ShadSelectValue placeholder="Select a product" /></ShadSelectTrigger>
+                                            <ShadSelectContent>
                                                 {availableProducts.map((p) => (
-                                                    <SelectItem key={`${p.productId}-${index}`} value={p.productId}>
+                                                    <ShadSelectItem key={`${p.productId}-${index}`} value={p.productId}>
                                                         {p.name} (Avail: {p.quantity})
-                                                    </SelectItem>
+                                                    </ShadSelectItem>
                                                 ))}
-                                            </SelectContent>
-                                        </Select>
+                                            </ShadSelectContent>
+                                        </ShadSelect>
                                         <Input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
                                         <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                                     </div>
@@ -900,17 +909,17 @@ function ReportWasteDialog({ run, user, onWasteReported, remainingItems }: { run
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="waste-reason">Reason for Waste</Label>
-                        <Select value={reason} onValueChange={setReason}>
-                            <SelectTrigger id="waste-reason">
-                                <SelectValue placeholder="Select a reason" />
-                            </SelectTrigger>
-                            <SelectContent>
-                            <SelectItem value="Spoiled">Spoiled / Expired</SelectItem>
-                            <SelectItem value="Damaged">Damaged</SelectItem>
-                            <SelectItem value="Error">Error (Mistake)</SelectItem>
-                            <SelectItem value="Other">Other</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <ShadSelect value={reason} onValueChange={setReason}>
+                            <ShadSelectTrigger id="waste-reason">
+                                <ShadSelectValue placeholder="Select a reason" />
+                            </ShadSelectTrigger>
+                            <ShadSelectContent>
+                            <ShadSelectItem value="Spoiled">Spoiled / Expired</ShadSelectItem>
+                            <ShadSelectItem value="Damaged">Damaged</ShadSelectItem>
+                            <ShadSelectItem value="Error">Error (Mistake)</ShadSelectItem>
+                            <ShadSelectItem value="Other">Other</ShadSelectItem>
+                            </ShadSelectContent>
+                        </ShadSelect>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="waste-notes">Additional Notes (Optional)</Label>
@@ -937,6 +946,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer | 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [customers, setCustomers] = useState<RunCustomer[]>([]);
     const [selectedCustomer, setSelectedCustomer] = useState<RunCustomer | null>(customer);
+    const [customerEmail, setCustomerEmail] = useState('');
 
     useEffect(() => {
         if (isOpen) {
@@ -952,6 +962,9 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer | 
         const fetchCustomerEmail = async () => {
             if (isOpen && selectedCustomer && selectedCustomer.customerId !== 'walk-in') {
                 const customerDoc = await getDoc(doc(db, "customers", selectedCustomer.customerId));
+                if(customerDoc.exists()) {
+                    setCustomerEmail(customerDoc.data().email || '');
+                }
             }
         }
         if(isOpen && selectedCustomer) {
@@ -1029,31 +1042,31 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer | 
                 <div className="py-4 space-y-4">
                     <div className="space-y-2">
                         <Label>Customer</Label>
-                        <Select
+                        <ShadSelect
                             value={selectedCustomer?.customerId}
                             onValueChange={(customerId) => setSelectedCustomer(customers.find(c => c.customerId === customerId) || null)}
                         >
-                            <SelectTrigger><SelectValue placeholder="Select a customer with debt..."/></SelectTrigger>
-                            <SelectContent>
+                            <ShadSelectTrigger><ShadSelectValue placeholder="Select a customer with debt..."/></ShadSelectTrigger>
+                            <ShadSelectContent>
                                 {customers.filter(c => (c.totalSold - c.totalPaid) > 0).map(c => (
-                                    <SelectItem key={c.customerId} value={c.customerId}>
+                                    <ShadSelectItem key={c.customerId} value={c.customerId}>
                                         {c.customerName} (Owes {formatCurrency(c.totalSold - c.totalPaid)})
-                                    </SelectItem>
+                                    </ShadSelectItem>
                                 ))}
-                            </SelectContent>
-                        </Select>
+                            </ShadSelectContent>
+                        </ShadSelect>
                     </div>
                     {selectedCustomer && (
                         <>
                             <div className="space-y-2">
                                 <Label>Payment Method</Label>
-                                <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as any)}>
-                                    <SelectTrigger><SelectValue/></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Cash">Cash</SelectItem>
-                                        <SelectItem value="POS">POS</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <ShadSelect value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as any)}>
+                                    <ShadSelectTrigger><ShadSelectValue/></ShadSelectTrigger>
+                                    <ShadSelectContent>
+                                        <ShadSelectItem value="Cash">Cash</ShadSelectItem>
+                                        <ShadSelectItem value="POS">POS</ShadSelectItem>
+                                    </ShadSelectContent>
+                                </ShadSelect>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="payment-amount">Amount Paid (₦)</Label>
@@ -1067,6 +1080,140 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer | 
                     <Button onClick={handleRecordPayment} disabled={isSubmitting || !selectedCustomer}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Submit for Approval
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function ReturnStockDialog({ user, onReturn, remainingItems }: { user: User, onReturn: () => void, remainingItems: OrderItem[] }) {
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [itemsToReturn, setItemsToReturn] = useState<Record<string, number | string>>({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [returnTo, setReturnTo] = useState('');
+    const [staffList, setStaffList] = useState<StaffMember[]>([]);
+
+    useEffect(() => {
+        if (isOpen) {
+            getStaffList().then(list => {
+                const filteredStaff = list.filter(s => s.role === 'Storekeeper' || s.role === 'Showroom Staff');
+                setStaffList(filteredStaff);
+            });
+            setItemsToReturn({});
+            setReturnTo('');
+        }
+    }, [isOpen]);
+
+    const handleQuantityChange = (productId: string, value: string, maxStock: number) => {
+        const numValue = Number(value);
+        if (isNaN(numValue) || numValue < 0) {
+            setItemsToReturn(prev => ({...prev, [productId]: ''}));
+            return;
+        }
+
+        if (numValue > maxStock) {
+            toast({ variant: 'destructive', title: 'Error', description: `Cannot return more than the available ${maxStock} units.`});
+            setItemsToReturn(prev => ({...prev, [productId]: maxStock}));
+        } else {
+            setItemsToReturn(prev => ({...prev, [productId]: numValue}));
+        }
+    };
+    
+    const handleSubmit = async () => {
+        const items = Object.entries(itemsToReturn)
+            .map(([id, quantity]) => {
+                const stockItem = remainingItems.find(p => p.productId === id);
+                return {
+                    productId: id,
+                    productName: stockItem?.name || 'Unknown',
+                    quantity: Number(quantity),
+                };
+            })
+            .filter(item => item.quantity > 0);
+
+        if (items.length === 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please enter a quantity for at least one item.' });
+            return;
+        }
+        
+        if (!returnTo) {
+             toast({ variant: 'destructive', title: 'Error', description: 'Please select a staff member to return the stock to.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        const result = await handleReturnStock("showroom-return", items, user, returnTo);
+        
+        if (result.success) {
+            toast({ title: 'Success', description: 'Stock return request submitted for approval.' });
+            onReturn();
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="secondary" className="w-full">
+                    <Undo2 className="mr-2 h-4 w-4" /> Return Unsold Stock
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>Return Unsold Stock</DialogTitle>
+                    <DialogDescription>Enter quantities for products you want to return.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 max-h-96 overflow-y-auto space-y-4">
+                    <div className="space-y-2">
+                        <Label>Return to</Label>
+                        <ShadSelect value={returnTo} onValueChange={setReturnTo}>
+                            <ShadSelectTrigger><ShadSelectValue placeholder="Select staff to return to..." /></ShadSelectTrigger>
+                            <ShadSelectContent>
+                                {staffList.map(s => (
+                                    <ShadSelectItem key={s.staff_id} value={s.staff_id}>{s.name} ({s.role})</ShadSelectItem>
+                                ))}
+                            </ShadSelectContent>
+                        </ShadSelect>
+                    </div>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-center">Available</TableHead>
+                                <TableHead className="text-right">Quantity to Return</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {remainingItems.map(item => (
+                                <TableRow key={item.productId}>
+                                    <TableCell>{item.name}</TableCell>
+                                    <TableCell className="text-center">{item.quantity}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Input
+                                            type="number"
+                                            className="w-24 h-8 text-right ml-auto"
+                                            placeholder="0"
+                                            value={itemsToReturn[item.productId] || ''}
+                                            onChange={(e) => handleQuantityChange(item.productId, e.target.value, item.quantity)}
+                                            max={item.quantity}
+                                            min={0}
+                                        />
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Submit Return Request
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -1245,7 +1392,9 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
     const handleReturnStockAction = async () => {
         if (!run || !user) return;
         const unsold = getRemainingItems();
-        const result = await handleReturnStock(run.id, unsold, user);
+        // This is a simplified call; needs to allow selecting who to return to.
+        // For now, it defaults to the logic in the action.
+        const result = await handleReturnStock(run.id, unsold, user, ''); // Placeholder for recipient
         if (result.success) {
             toast({ title: 'Success!', description: 'Unsold stock has been sent for acknowledgement.'});
         } else {
@@ -1327,6 +1476,7 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
             return {
                 ...item,
                 price: item.price || 0,
+                name: item.productName,
                 quantity: remainingQuantity > 0 ? remainingQuantity : 0,
             };
         }).filter(item => item.quantity > 0);
@@ -1370,7 +1520,7 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
     const allDebtsPaid = run.totalOutstanding <= 0;
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
                 <Link href="/dashboard/deliveries" className="flex items-center gap-2 text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to Deliveries</Link>
                  <div className="flex items-center gap-2">
@@ -1438,7 +1588,7 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
             <h1 className="text-2xl font-bold font-headline">Sales Run: {(runId as string).substring(0,8)}...</h1>
              {runComplete && <Badge variant="outline">Completed</Badge>}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 <Card>
                     <CardHeader>
                         <CardTitle>Run Summary</CardTitle>
@@ -1476,20 +1626,10 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
                         <LogCustomSaleDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems} />
                         <LogExpenseDialog run={run} user={user} />
                         <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
+                        <ReturnStockDialog user={user!} onReturn={fetchRunData} remainingItems={remainingItems} />
                     </CardContent>
                     {canPerformActions && (
                         <CardFooter className="flex-col gap-2">
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="secondary" className="w-full" disabled={!canReturnStock}>
-                                        <Undo2 className="mr-2 h-4 w-4"/>Return Unsold Stock
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Confirm Stock Return</AlertDialogTitle><AlertDialogDescription>This will create a transfer request for all unsold items to be returned to the storekeeper. Are you sure?</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleReturnStockAction}>Confirm Return</AlertDialogAction></AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button disabled={runComplete || !allDebtsPaid || remainingItems.length > 0} className="w-full">
