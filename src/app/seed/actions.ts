@@ -335,6 +335,68 @@ export async function runSpecialProductCleanup(): Promise<ActionResult> {
     }
 }
 
+export async function consolidateDuplicateProducts(): Promise<ActionResult> {
+    try {
+        const staffSnapshot = await getDocs(collection(db, 'staff'));
+
+        for (const staffDoc of staffSnapshot.docs) {
+            const staffId = staffDoc.id;
+            const personalStockRef = collection(db, 'staff', staffId, 'personal_stock');
+            const personalStockSnapshot = await getDocs(personalStockRef);
+            
+            const stockMap = new Map<string, { docId: string, stock: number }[]>();
+            personalStockSnapshot.forEach(doc => {
+                const data = doc.data();
+                const name = data.productName;
+                if (!stockMap.has(name)) {
+                    stockMap.set(name, []);
+                }
+                stockMap.get(name)!.push({ docId: doc.id, stock: data.stock });
+            });
+
+            const batch = writeBatch(db);
+            let hasChanges = false;
+            
+            const handleMerge = (fromName: string, toName: string) => {
+                const fromItems = stockMap.get(fromName);
+                const toItems = stockMap.get(toName);
+
+                if (fromItems && fromItems.length > 0) {
+                    const totalFromStock = fromItems.reduce((sum, item) => sum + item.stock, 0);
+                    
+                    if (toItems && toItems.length > 0) {
+                        // Merge into existing target
+                        const targetRef = doc(personalStockRef, toItems[0].docId);
+                        batch.update(targetRef, { stock: increment(totalFromStock) });
+                    } else {
+                        // This case should be rare if products exist, but handles it.
+                        // We'd need the productId of the 'toName' product to create a new entry.
+                        // For this tool, we assume the target ('... Loaf') exists if the source does.
+                    }
+
+                    // Delete all source items
+                    fromItems.forEach(item => {
+                        batch.delete(doc(personalStockRef, item.docId));
+                    });
+                    hasChanges = true;
+                }
+            };
+            
+            handleMerge('Jumbo', 'Jumbo Loaf');
+            handleMerge('Burger', 'Burger Loaf');
+
+            if (hasChanges) {
+                await batch.commit();
+                console.log(`Consolidated stock for ${staffDoc.data().name}`);
+            }
+        }
+        return { success: true };
+    } catch (e) {
+        console.error("Error consolidating products:", e);
+        return { success: false, error: (e as Error).message };
+    }
+}
+
 
 // --- INDIVIDUAL SEEDING FUNCTIONS ---
 
@@ -365,7 +427,7 @@ export async function seedUsersAndConfig(): Promise<ActionResult> {
         await batchCommit(staffData, "staff");
         const settingsRef = doc(db, 'settings', 'app_config');
         const settingsBatch = writeBatch(db);
-        settingsBatch.set(settingsRef, { storeAddress: "123 Bakery Lane, Uyo, Akwa Ibom", staffIdLength: 6 });
+        settingsBatch.set(settingsRef, { storeAddress: "123 Bakery Lane, Uyo, Akwa Ibom", staffIdLength: 6, autoClockOutTime: '21:00', clockInEnabledTime: '06:00' });
         await settingsBatch.commit();
         return { success: true };
     } catch(e) { return { success: false, error: (e as Error).message } }
@@ -559,16 +621,16 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         await batchCommit(staffToSeed, "staff");
         
         // 3. Seed Products with specific stock for MAIN INVENTORY
-        const specialProducts = productsData.map(p => {
-            const stockMap: Record<string, number> = {
-                "prod_bread_5": 260, // Round bread
-                "prod_bread_1": 27,  // Family Loaf
-                "prod_bread_2": 62,  // Short Loaf
-                "prod_bread_3": 49,  // Jumbo
-                "prod_bread_4": 14,  // Burger
-            };
-            return { ...p, stock: stockMap[p.id] || 0 };
-        });
+        const specialProducts = [
+            { ...productsData.find(p => p.id === "prod_bread_5")!, stock: 260 }, // Round bread
+            { ...productsData.find(p => p.id === "prod_bread_1")!, stock: 27 },  // Family Loaf
+            { ...productsData.find(p => p.id === "prod_bread_2")!, stock: 62 },  // Short Loaf
+            { ...productsData.find(p => p.id === "prod_bread_3")!, stock: 0 },  // Jumbo Loaf (target)
+            { ...productsData.find(p => p.id === "prod_bread_4")!, stock: 0 },  // Burger Loaf (target)
+            // Add the old "Jumbo" and "Burger" for cleanup
+            { id: "prod_bread_9", name: "Jumbo", price: 1800, stock: 49, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'jumbo bread', costPrice: 1200, lowStockThreshold: 25, minPrice: 1700, maxPrice: 1900 },
+            { id: "prod_bread_10", name: "Burger", price: 1800, stock: 14, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 1100, lowStockThreshold: 50, minPrice: 1700, maxPrice: 1900 },
+        ];
         await batchCommit(specialProducts, "products");
         
         // 4. Seed other supplies for the storekeeper
@@ -659,3 +721,4 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
+
