@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
@@ -550,7 +549,7 @@ function POSPageContent() {
                         </div>
                     )}
                 </div>
-                <div className="relative">
+                <div className="relative w-full sm:w-auto">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                         <Input placeholder="Search products..." className="pl-10 w-full sm:w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
@@ -570,7 +569,7 @@ function POSPageContent() {
                 </div>
 
                 <TabsContent value={activeTab} className="mt-4 flex-grow">
-                    <ScrollArea className="h-[calc(100vh_-_24rem)]">
+                    <ScrollArea className="h-[calc(100vh_-_24rem)] xl:h-auto">
                         {isLoadingProducts ? (
                             <div className="flex items-center justify-center h-full">
                                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -618,7 +617,7 @@ function POSPageContent() {
                     </ScrollArea>
                 </TabsContent>
                 <TabsContent value="held-orders" className="mt-4">
-                    <ScrollArea className="h-[calc(100vh_-_22rem)]">
+                    <ScrollArea className="h-[calc(100vh_-_22rem)] xl:h-auto">
                         {heldOrders.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-muted-foreground">
                             <p>No orders on hold.</p>
@@ -626,13 +625,13 @@ function POSPageContent() {
                         ) : (
                         <div className="space-y-2 pr-4">
                             {heldOrders.map((heldCart, index) => (
-                            <Card key={index} className="p-2 flex justify-between items-center">
-                                <div>
-                                    <p className="font-semibold">Held Order #{index + 1}</p>
-                                    <p className="text-sm text-muted-foreground">{heldCart.length} items - Total: ₦{heldCart.reduce((acc, item) => acc + item.price * item.quantity, 0).toFixed(2)}</p>
-                                </div>
-                                <Button size="sm" onClick={() => resumeOrder(index)}>Resume</Button>
-                            </Card>
+                           <Card key={index} className="p-2 flex justify-between items-center">
+                              <div>
+                                <p className="font-semibold">Held Order #{index + 1}</p>
+                                <p className="text-sm text-muted-foreground">{heldCart.length} items - Total: ₦{heldCart.reduce((acc, item) => acc + item.price * item.quantity, 0).toFixed(2)}</p>
+                              </div>
+                              <Button size="sm" onClick={() => resumeOrder(index)}>Resume</Button>
+                           </Card>
                             ))}
                         </div>
                         )}
@@ -871,5 +870,3 @@ function POSPageWithSuspense() {
 export default function POSPageWithTypes() {
   return <POSPageWithSuspense />;
 }
-
-    
