@@ -368,10 +368,6 @@ export async function consolidateDuplicateProducts(): Promise<ActionResult> {
                         // Merge into existing target
                         const targetRef = doc(personalStockRef, toItems[0].docId);
                         batch.update(targetRef, { stock: increment(totalFromStock) });
-                    } else {
-                        // This case should be rare if products exist, but handles it.
-                        // We'd need the productId of the 'toName' product to create a new entry.
-                        // For this tool, we assume the target ('... Loaf') exists if the source does.
                     }
 
                     // Delete all source items
@@ -435,12 +431,7 @@ export async function seedUsersAndConfig(): Promise<ActionResult> {
 
 export async function seedProductsAndIngredients(): Promise<ActionResult> {
      try {
-        const productsWithJumboAndBurger = [...productsData];
-        // Add plain "Jumbo" and "Burger" to simulate the cleanup scenario
-        productsWithJumboAndBurger.push({ id: "prod_bread_9", name: "Jumbo", price: 1800, stock: 0, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'jumbo bread', costPrice: 1200, lowStockThreshold: 25, minPrice: 1700, maxPrice: 1900 });
-        productsWithJumboAndBurger.push({ id: "prod_bread_10", name: "Burger", price: 1800, stock: 0, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 1100, lowStockThreshold: 50, minPrice: 1700, maxPrice: 1900 });
-
-        await batchCommit(productsWithJumboAndBurger, "products");
+        await batchCommit(productsData, "products");
         await batchCommit(recipesData, "recipes");
         await batchCommit(ingredientsData, "ingredients");
         await batchCommit([
@@ -721,4 +712,3 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
-
