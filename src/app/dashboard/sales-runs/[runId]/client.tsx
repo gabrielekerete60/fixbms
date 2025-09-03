@@ -304,7 +304,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                     return prev;
                 }
             }
-            return [...prev, { ...item, quantity: 1, name: item.productName }];
+            return [...prev, { ...item, quantity: 1, name: item.name }];
         });
     };
 
@@ -402,7 +402,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                             {remainingItems.map(item => (
                                 <div key={item.productId} className="p-2 flex justify-between items-center border-b gap-2">
                                     <div>
-                                        <p className="font-semibold">{item.productName}</p>
+                                        <p className="font-semibold">{item.name}</p>
                                         <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -545,7 +545,7 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
 
         if(field === 'productId') {
             const product = remainingItems.find(p => p.productId === value);
-            newItems[index] = { ...item, productId: value, name: product?.productName || '', price: product?.price || 0, minPrice: product?.minPrice, maxPrice: product?.maxPrice, quantity: 1 };
+            newItems[index] = { ...item, productId: value, name: product?.name || '', price: product?.price || 0, minPrice: product?.minPrice, maxPrice: product?.maxPrice, quantity: 1 };
         } else {
              newItems[index].quantity = Number(value);
         }
@@ -686,7 +686,7 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
                                                 <ShadSelectTrigger className="w-2/3"><ShadSelectValue placeholder="Select Product" /></ShadSelectTrigger>
                                                 <ShadSelectContent>
                                                     {remainingItems.map(p => (
-                                                        <ShadSelectItem key={p.productId} value={p.productId}>{p.productName} (Avail: {p.quantity})</ShadSelectItem>
+                                                        <ShadSelectItem key={p.productId} value={p.productId}>{p.name} (Avail: {p.quantity})</ShadSelectItem>
                                                     ))}
                                                 </ShadSelectContent>
                                             </ShadSelect>
@@ -1139,13 +1139,13 @@ function ReturnStockDialog({ run, user, onReturn, remainingItems }: { run: Sales
                         return s.role === 'Storekeeper' || s.role === 'Delivery Staff';
                     }
                     return false;
-                });
+                }).filter(s => s.id !== user.staff_id);
                 setStaffList(filteredStaff);
             });
             setItemsToReturn({});
             setReturnTo('');
         }
-    }, [isOpen, user.role]);
+    }, [isOpen, user.role, user.staff_id]);
 
     const handleQuantityChange = (productId: string, value: string, maxStock: number) => {
         const numValue = Number(value);
@@ -1375,14 +1375,6 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [allProducts, setAllProducts] = useState<Product[]>([]);
 
-    useEffect(() => {
-      const userJSON = localStorage.getItem('loggedInUser');
-      if (userJSON) {
-          setUser(JSON.parse(userJSON));
-      }
-      getProducts().then(setAllProducts);
-    }, []);
-
     const fetchRunData = useCallback(async () => {
         if (!runId) return;
         setIsLoading(true);
@@ -1395,6 +1387,12 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
         let unsubRun: (() => void) | undefined;
         let unsubOrders: (() => void) | undefined;
         let unsubPayments: (() => void) | undefined;
+        
+        const userJSON = localStorage.getItem('loggedInUser');
+        if (userJSON) {
+            setUser(JSON.parse(userJSON));
+        }
+        getProducts().then(setAllProducts);
 
         if (runId) {
             getSalesRunDetails(runId as string).then(initialRun => {
@@ -1533,8 +1531,9 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
 
 
     const remainingItems = useMemo(getRemainingItems, [getRemainingItems]);
-
-    if (isLoading || !run) {
+    const productCategories = useMemo(() => ['All', ...new Set(allProducts.map(p => p.category))], [allProducts]);
+    
+    if (isLoading || !run || !user) {
         return (
             <div className="flex justify-center items-center h-48">
                 <Loader2 className="h-8 w-8 animate-spin" />
@@ -1549,8 +1548,7 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
     const canReturnStock = canPerformActions && (run.status === 'active' || isPendingReturn);
     const isReadOnly = user?.role === 'Manager';
     const allDebtsPaid = run.totalOutstanding <= 0;
-    const productCategories = useMemo(() => ['All', ...new Set(allProducts.map(p => p.category))], [allProducts]);
-
+    
     return (
         <div className="flex flex-col gap-6">
              <ProductEditDialog 
@@ -1664,8 +1662,8 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
                         <RecordPaymentDialog customer={null} run={run} user={user} />
                         <LogCustomSaleDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems} />
                         <LogExpenseDialog run={run} user={user} />
-                        <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
-                        {canReturnStock && <ReturnStockDialog user={user!} onReturn={fetchRunData} remainingItems={remainingItems} />}
+                        <ReportWasteDialog run={run} user={user} onWasteReported={fetchRunData} remainingItems={remainingItems} />
+                        {canReturnStock && <ReturnStockDialog user={user} onReturn={fetchRunData} remainingItems={remainingItems} />}
                     </CardContent>
                     {canPerformActions && (
                         <CardFooter className="flex-col gap-2">
@@ -1941,3 +1939,5 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
         </div>
     );
 }
+
+    
