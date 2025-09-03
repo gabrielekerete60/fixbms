@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, ShieldCheck, Copy, KeyRound, Eye, EyeOff, Store, Settings2 } from 'lucide-react';
+import { Loader2, ShieldCheck, Copy, KeyRound, Eye, EyeOff, Store, Settings2, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -183,13 +183,22 @@ function StoreCustomization({ currentSettings }: { currentSettings: any }) {
     const { toast } = useToast();
     const [storeAddress, setStoreAddress] = useState(currentSettings.storeAddress || '');
     const [staffIdLength, setStaffIdLength] = useState(currentSettings.staffIdLength || 6);
+    const [autoClockOutTime, setAutoClockOutTime] = useState(currentSettings.autoClockOutTime || '21:00');
+    const [clockInEnabledTime, setClockInEnabledTime] = useState(currentSettings.clockInEnabledTime || '06:00');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const timeOptions = Array.from({ length: 24 }, (_, i) => {
+        const hour = i.toString().padStart(2, '0');
+        return [`${hour}:00`, `${hour}:30`];
+    }).flat();
 
     const handleSave = async () => {
         setIsSubmitting(true);
         const result = await updateAppSettings({
             storeAddress,
-            staffIdLength: Number(staffIdLength)
+            staffIdLength: Number(staffIdLength),
+            autoClockOutTime,
+            clockInEnabledTime,
         });
         if (result.success) {
             toast({ title: 'Success!', description: 'Application settings have been updated.' });
@@ -202,19 +211,49 @@ function StoreCustomization({ currentSettings }: { currentSettings: any }) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Store Customization</CardTitle>
-                <CardDescription>Manage global settings for your store.</CardDescription>
+                <CardTitle>Store &amp; Time Settings</CardTitle>
+                <CardDescription>Manage global settings for your store, staff, and attendance.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="store-address">Store Address</Label>
-                    <Input id="store-address" value={storeAddress} onChange={e => setStoreAddress(e.target.value)} placeholder="e.g., 123 Bakery Lane, Uyo" />
-                    <p className="text-xs text-muted-foreground">This address will appear on printed receipts.</p>
+            <CardContent className="space-y-6">
+                <div className="space-y-4 p-4 border rounded-md">
+                     <h4 className="font-semibold text-lg flex items-center gap-2"><Store className="h-5 w-5"/> Store Settings</h4>
+                     <Separator/>
+                    <div className="space-y-2">
+                        <Label htmlFor="store-address">Store Address</Label>
+                        <Input id="store-address" value={storeAddress} onChange={e => setStoreAddress(e.target.value)} placeholder="e.g., 123 Bakery Lane, Uyo" />
+                        <p className="text-xs text-muted-foreground">This address will appear on printed receipts.</p>
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="staff-id-length">Staff ID Length</Label>
+                        <Input id="staff-id-length" type="number" min="4" max="10" value={staffIdLength} onChange={e => setStaffIdLength(Number(e.target.value))} />
+                        <p className="text-xs text-muted-foreground">Sets the character length for staff IDs (4-10). Changing this will update all existing staff IDs.</p>
+                    </div>
                 </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="staff-id-length">Staff ID Length</Label>
-                    <Input id="staff-id-length" type="number" min="4" max="10" value={staffIdLength} onChange={e => setStaffIdLength(Number(e.target.value))} />
-                    <p className="text-xs text-muted-foreground">Sets the character length for staff IDs (4-10). Changing this will update all existing staff IDs.</p>
+                 <div className="space-y-4 p-4 border rounded-md">
+                     <h4 className="font-semibold text-lg flex items-center gap-2"><Clock className="h-5 w-5"/> Time & Attendance</h4>
+                     <Separator/>
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="auto-clock-out">Auto Clock-Out Time</Label>
+                            <Select value={autoClockOutTime} onValueChange={setAutoClockOutTime}>
+                                <SelectTrigger id="auto-clock-out"><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                    {timeOptions.map(time => <SelectItem key={`out-${time}`} value={time}>{time}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">Automatically clocks out all staff at this time.</p>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="clock-in-enabled">Clock-In Enabled Time</Label>
+                             <Select value={clockInEnabledTime} onValueChange={setClockInEnabledTime}>
+                                <SelectTrigger id="clock-in-enabled"><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                    {timeOptions.map(time => <SelectItem key={`in-${time}`} value={time}>{time}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">Staff cannot clock in before this time.</p>
+                        </div>
+                    </div>
                 </div>
             </CardContent>
             <CardFooter>
@@ -222,7 +261,7 @@ function StoreCustomization({ currentSettings }: { currentSettings: any }) {
                     <AlertDialogTrigger asChild>
                          <Button disabled={isSubmitting}>
                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                            Save Customizations
+                            Save All Settings
                         </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>

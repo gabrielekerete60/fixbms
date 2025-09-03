@@ -42,14 +42,14 @@ type NavLink = {
     notificationKey?: string;
 };
 
-const SidebarFooter = ({ user, isClockedIn, isClocking, time, handleClockInOut }: { user: User, isClockedIn: boolean, isClocking: boolean, time: string, handleClockInOut: () => void }) => {
+const SidebarFooter = ({ user, isClockedIn, isClocking, time, handleClockInOut, clockInEnabled, clockInDisabledReason }: { user: User, isClockedIn: boolean, isClocking: boolean, time: string, handleClockInOut: () => void, clockInEnabled: boolean, clockInDisabledReason: string | null }) => {
     return (
         <div className="mt-auto p-4 border-t shrink-0">
             <div className='flex items-center justify-between text-sm text-muted-foreground mb-2'>
                 <span><Clock className="inline h-4 w-4 mr-1" />{time}</span>
-                <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut} disabled={isClocking}>
+                <Button variant={isClockedIn ? "destructive" : "outline"} size="sm" onClick={handleClockInOut} disabled={isClocking || !clockInEnabled}>
                     {isClocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isClockedIn ? <LogOut className="mr-2 h-4 w-4"/> : <LogIn className="mr-2 h-4 w-4"/>)}
-                    {isClocking ? 'Loading...' : (isClockedIn ? 'Clock Out' : 'Clock In')}
+                    {isClocking ? 'Loading...' : (isClockedIn ? 'Clock Out' : (clockInDisabledReason || 'Clock In'))}
                 </Button>
             </div>
             <Card>
@@ -177,6 +177,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [attendanceId, setAttendanceId] = useState<string | null>(null);
   const [isClocking, setIsClocking] = useState(true);
+  const [clockInEnabled, setClockInEnabled] = useState(true);
+  const [clockInDisabledReason, setClockInDisabledReason] = useState<string | null>(null);
+  const [timeSettings, setTimeSettings] = useState({ autoClockOutTime: '21:00', clockInEnabledTime: '06:00' });
   const [notificationCounts, setNotificationCounts] = useState({
       pendingTransfers: 0, activeRuns: 0, pendingBatches: 0, inProductionBatches: 0, 
       pendingPayments: 0, newReports: 0, inProgressReports: 0, unreadAnnouncements: 0,
@@ -251,9 +254,51 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     };
     checkAttendance();
     
+    // Time-based logic timer
     const timer = setInterval(() => {
-      setTime(new Date().toLocaleTimeString());
+        const now = new Date();
+        setTime(now.toLocaleTimeString());
+        
+        // Auto clock-out logic
+        const [autoHour, autoMinute] = timeSettings.autoClockOutTime.split(':').map(Number);
+        if (now.getHours() === autoHour && now.getMinutes() === autoMinute && now.getSeconds() === 0 && isClockedIn && attendanceId) {
+            handleClockOut(attendanceId).then(result => {
+                if (result.success) {
+                     toast({ title: "Auto Clocked Out", description: "You have been automatically clocked out for the day." });
+                     setIsClockedIn(false);
+                     setAttendanceId(null);
+                }
+            });
+        }
+        
+        // Clock-in enabled logic
+        const [enabledHour, enabledMinute] = timeSettings.clockInEnabledTime.split(':').map(Number);
+        const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
+        const enabledTimeInMinutes = enabledHour * 60 + enabledMinute;
+        
+        if (!isClockedIn) {
+            if (currentTimeInMinutes < enabledTimeInMinutes) {
+                setClockInEnabled(false);
+                setClockInDisabledReason(`Until ${timeSettings.clockInEnabledTime}`);
+            } else {
+                setClockInEnabled(true);
+                setClockInDisabledReason(null);
+            }
+        } else {
+             setClockInEnabled(true);
+             setClockInDisabledReason(null);
+        }
     }, 1000);
+
+    const unsubSettings = onSnapshot(doc(db, "settings", "app_config"), (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            setTimeSettings({
+                autoClockOutTime: data.autoClockOutTime || '21:00',
+                clockInEnabledTime: data.clockInEnabledTime || '06:00',
+            });
+        }
+    });
 
     const pendingTransfersQuery = query(collection(db, "transfers"), where('to_staff_id', '==', user.staff_id), where('status', '==', 'pending'));
     const unsubPending = onSnapshot(pendingTransfersQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingTransfers: snap.size })));
@@ -269,7 +314,6 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         const bakerBatches = snap.docs.filter(d => d.data().requestedById === user.staff_id);
         setNotificationCounts(prev => ({ ...prev, inProductionBatches: bakerBatches.length }));
     });
-
 
     const pendingPaymentsQuery = query(collection(db, 'payment_confirmations'), where('status', '==', 'pending'));
     const unsubPayments = onSnapshot(pendingPaymentsQuery, (snap) => setNotificationCounts(prev => ({...prev, pendingPayments: snap.size })));
@@ -338,9 +382,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         unsubReturnedStock();
         unsubProductionTransfers();
         unsubUserDoc();
+        unsubSettings();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
-  }, [user?.staff_id, user?.theme, login]);
+  }, [user?.staff_id, user?.theme, login, timeSettings.autoClockOutTime, timeSettings.clockInEnabledTime, isClockedIn, attendanceId]);
   
   const navLinks: NavLink[] = useMemo(() => {
     const allLinks: NavLink[] = [
@@ -474,7 +519,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         <div className="flex-1 overflow-y-auto py-2">
           <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
         </div>
-        <SidebarFooter user={user} isClockedIn={isClockedIn} isClocking={isClocking} time={time} handleClockInOut={handleClockInOut} />
+        <SidebarFooter user={user} isClockedIn={isClockedIn} isClocking={isClocking} time={time} handleClockInOut={handleClockInOut} clockInEnabled={clockInEnabled} clockInDisabledReason={clockInDisabledReason} />
       </div>
       <div className="flex flex-col h-screen overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
@@ -495,7 +540,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                 <div className="overflow-y-auto flex-1 py-2">
                     <SidebarNav navLinks={navLinks} pathname={pathname} notificationCounts={combinedNotificationCounts} />
                 </div>
-                 <SidebarFooter user={user} isClockedIn={isClockedIn} isClocking={isClocking} time={time} handleClockInOut={handleClockInOut} />
+                 <SidebarFooter user={user} isClockedIn={isClockedIn} isClocking={isClocking} time={time} handleClockInOut={handleClockInOut} clockInEnabled={clockInEnabled} clockInDisabledReason={clockInDisabledReason} />
               </SheetContent>
             </Sheet>
           <div className="w-full flex-1"></div>
@@ -537,5 +582,3 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </ProtectedRoute>
     )
 }
-
-    

@@ -950,16 +950,14 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer | 
     
     useEffect(() => {
         const fetchCustomerEmail = async () => {
-            if (selectedCustomer && selectedCustomer.customerId !== 'walk-in') {
+            if (isOpen && selectedCustomer && selectedCustomer.customerId !== 'walk-in') {
                 const customerDoc = await getDoc(doc(db, "customers", selectedCustomer.customerId));
                 if (customerDoc.exists()) {
                     // setCustomerEmail(customerDoc.data().email || '');
                 }
             }
         }
-        if (isOpen) {
-            fetchCustomerEmail();
-        }
+        fetchCustomerEmail();
     }, [isOpen, selectedCustomer]);
 
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1473,7 +1471,7 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
                         <CardTitle>Actions</CardTitle>
                         <CardDescription>Manage this sales run.</CardDescription>
                     </CardHeader>
-                    <CardContent className="flex-grow grid grid-cols-2 gap-2">
+                    <CardContent className="flex-grow flex flex-col gap-2">
                         <SellToCustomerDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems}/>
                         <RecordPaymentDialog customer={null} run={run} user={user} />
                         <LogCustomSaleDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems} />
