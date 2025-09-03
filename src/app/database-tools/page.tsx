@@ -19,9 +19,10 @@ import {
     seedDeveloperData,
     seedSpecialScenario,
     seedRecipesOnly,
+    consolidateDuplicateProducts, // <-- Import new function
 } from "@/app/seed/actions";
 import { getAllSalesRuns, resetSalesRun, type SalesRun, getStaffList, getProductsForStaff, removeStockFromStaff } from "@/app/actions";
-import { Loader2, DatabaseZap, Trash2, ArrowLeft, RefreshCw, MinusCircle } from "lucide-react";
+import { Loader2, DatabaseZap, Trash2, ArrowLeft, RefreshCw, MinusCircle, Wand2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -132,7 +133,7 @@ export default function DatabaseToolsPage() {
         toast({ title: "Success!", description: `Sales run ${selectedRun.substring(0,6)}... has been reset.`});
         fetchPageData();
       } else {
-        toast({ variant: 'destructive', title: "Error", description: result.error || 'Could not reset the sales run.' });
+        toast({ variant: 'destructive', title: 'Error', description: result.error || 'Could not reset the sales run.' });
       }
       setSelectedRun('');
       setCurrentlySeeding(null);
@@ -236,6 +237,30 @@ export default function DatabaseToolsPage() {
                         <CardDescription>Specialized actions for debugging and testing.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                        <div className="space-y-2 p-3 border rounded-md">
+                            <Label>Clean Up Duplicate Products</Label>
+                             <p className="text-xs text-muted-foreground">Merges stock from duplicate product names (e.g., "Jumbo") into the correct name ("Jumbo Loaf") across all staff inventories.</p>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="secondary" className="w-full" disabled={isPending}>
+                                        <Wand2 className="mr-2 h-4 w-4"/>
+                                        Run Product Cleanup
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will scan all personal stock and merge duplicates. This action is irreversible. It's recommended to back up data first.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleSeedAction('Product Cleanup', consolidateDuplicateProducts)}>Run Cleanup</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
                         <div className="space-y-2 p-3 border rounded-md">
                             <Label>Reset a Sales Run</Label>
                             <p className="text-xs text-muted-foreground">Select a run to reset it to its initial "active" state, clearing all associated orders and payments.</p>

@@ -2,7 +2,7 @@
 "use server";
 
 import { db } from "@/lib/firebase";
-import { collection, getDocs, writeBatch, doc, Timestamp, setDoc } from "firebase/firestore";
+import { collection, getDocs, writeBatch, doc, Timestamp, setDoc, getDoc, increment, deleteDoc } from "firebase/firestore";
 import { format } from "date-fns";
 
 // --- SEED DATA DEFINITIONS ---
@@ -252,6 +252,80 @@ export async function clearMultipleCollections(collectionNames: string[]): Promi
     }
     return { success: true, cleared };
 }
+
+// --- NEW CLEANUP FUNCTION ---
+
+export async function consolidateDuplicateProducts(): Promise<ActionResult> {
+    try {
+        const staffSnapshot = await getDocs(collection(db, 'staff'));
+        const productsSnapshot = await getDocs(collection(db, 'products'));
+        const productMap = new Map(productsSnapshot.docs.map(doc => [doc.id, doc.data()]));
+        
+        const nameMap = new Map<string, string>(); // Maps 'Jumbo' to 'prod_bread_x'
+        productMap.forEach((data, id) => {
+            nameMap.set(data.name, id);
+        });
+
+        const consolidationMap = {
+            'Jumbo': nameMap.get('Jumbo Loaf'),
+            'Burger': nameMap.get('Burger Loaf')
+        };
+
+        if (!consolidationMap.Jumbo || !consolidationMap.Burger) {
+             return { success: false, error: "Could not find target products 'Jumbo Loaf' or 'Burger Loaf' in products collection."};
+        }
+
+        for (const staffDoc of staffSnapshot.docs) {
+            const personalStockRef = collection(db, 'staff', staffDoc.id, 'personal_stock');
+            const personalStockSnapshot = await getDocs(personalStockRef);
+            
+            if (personalStockSnapshot.empty) continue;
+
+            const batch = writeBatch(db);
+            let hasChanges = false;
+
+            for (const stockDoc of personalStockSnapshot.docs) {
+                const stockData = stockDoc.data();
+                const productName = stockData.productName;
+
+                if (productName === 'Jumbo' || productName === 'Burger') {
+                    const targetProductId = consolidationMap[productName as keyof typeof consolidationMap];
+                    if (targetProductId) {
+                        const targetRef = doc(personalStockRef, targetProductId);
+                        
+                        // Check if target doc exists to decide between update and set
+                        const targetDocSnapshot = await getDoc(targetRef);
+                        if (targetDocSnapshot.exists()) {
+                             batch.update(targetRef, { stock: increment(stockData.stock || 0) });
+                        } else {
+                            const targetProductData = productMap.get(targetProductId);
+                            if (targetProductData) {
+                                batch.set(targetRef, {
+                                    productId: targetProductId,
+                                    productName: targetProductData.name,
+                                    stock: stockData.stock || 0
+                                });
+                            }
+                        }
+                        
+                        batch.delete(stockDoc.ref); // Delete the old "Jumbo" or "Burger" doc
+                        hasChanges = true;
+                    }
+                }
+            }
+
+            if (hasChanges) {
+                await batch.commit();
+                console.log(`Cleaned up stock for ${staffDoc.data().name}`);
+            }
+        }
+        return { success: true };
+    } catch (e) {
+        console.error("Error consolidating products:", e);
+        return { success: false, error: (e as Error).message };
+    }
+}
+
 
 // --- INDIVIDUAL SEEDING FUNCTIONS ---
 
@@ -571,5 +645,3 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
-
-    
