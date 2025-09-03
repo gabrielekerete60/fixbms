@@ -19,7 +19,7 @@ import {
     seedDeveloperData,
     seedSpecialScenario,
     seedRecipesOnly,
-    consolidateDuplicateProducts, // <-- Import new function
+    consolidateDuplicateProducts,
 } from "@/app/seed/actions";
 import { getAllSalesRuns, resetSalesRun, type SalesRun, getStaffList, getProductsForStaff, removeStockFromStaff } from "@/app/actions";
 import { Loader2, DatabaseZap, Trash2, ArrowLeft, RefreshCw, MinusCircle, Wand2 } from "lucide-react";
@@ -239,7 +239,7 @@ export default function DatabaseToolsPage() {
                     <CardContent className="space-y-4">
                         <div className="space-y-2 p-3 border rounded-md">
                             <Label>Clean Up Duplicate Products</Label>
-                             <p className="text-xs text-muted-foreground">Merges stock from duplicate product names (e.g., "Jumbo") into the correct name ("Jumbo Loaf") across all staff inventories.</p>
+                             <p className="text-xs text-muted-foreground">Merges stock from products named "Jumbo" and "Burger" into "Jumbo Loaf" and "Burger Loaf" respectively, then deletes the original "Jumbo" and "Burger" entries from staff inventories.</p>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button variant="secondary" className="w-full" disabled={isPending}>
