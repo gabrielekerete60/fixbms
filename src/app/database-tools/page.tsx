@@ -19,9 +19,11 @@ import {
     seedDeveloperData,
     seedSpecialScenario,
     seedRecipesOnly,
+    getProductsForStaff,
+    removeStockFromStaff,
 } from "@/app/seed/actions";
-import { getAllSalesRuns, resetSalesRun, type SalesRun } from "@/app/actions";
-import { Loader2, DatabaseZap, Trash2, ArrowLeft, RefreshCw } from "lucide-react";
+import { getAllSalesRuns, resetSalesRun, type SalesRun, getStaffList } from "@/app/actions";
+import { Loader2, DatabaseZap, Trash2, ArrowLeft, RefreshCw, MinusCircle } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,17 +62,36 @@ export default function DatabaseToolsPage() {
   const [password, setPassword] = useState('');
   const [salesRuns, setSalesRuns] = useState<SalesRun[]>([]);
   const [selectedRun, setSelectedRun] = useState('');
+  
+  // New state for stock removal tool
+  const [allStaff, setAllStaff] = useState<{ id: string, name: string, role: string }[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+  const [staffProducts, setStaffProducts] = useState<{ productId: string, name: string, stock: number }[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [quantityToRemove, setQuantityToRemove] = useState<number | string>(1);
 
-  const fetchSalesRuns = async () => {
+
+  const fetchPageData = async () => {
     const { active, completed } = await getAllSalesRuns();
     setSalesRuns([...active, ...completed]);
+    const staff = await getStaffList();
+    setAllStaff(staff);
   };
 
   useEffect(() => {
     if (isVerified) {
-        fetchSalesRuns();
+        fetchPageData();
     }
   }, [isVerified]);
+  
+  useEffect(() => {
+    if (selectedStaffId) {
+        getProductsForStaff(selectedStaffId).then(setStaffProducts);
+        setSelectedProductId(''); // Reset product selection
+    } else {
+        setStaffProducts([]);
+    }
+  }, [selectedStaffId]);
 
 
   const handleVerification = () => {
@@ -111,7 +132,7 @@ export default function DatabaseToolsPage() {
     resetSalesRun(selectedRun).then(result => {
       if (result.success) {
         toast({ title: "Success!", description: `Sales run ${selectedRun.substring(0,6)}... has been reset.`});
-        fetchSalesRuns();
+        fetchPageData();
       } else {
         toast({ variant: 'destructive', title: "Error", description: result.error || 'Could not reset the sales run.' });
       }
@@ -119,6 +140,28 @@ export default function DatabaseToolsPage() {
       setCurrentlySeeding(null);
       startTransition(false);
     })
+  }
+
+  const handleRemoveStock = async () => {
+    if (!selectedStaffId || !selectedProductId || Number(quantityToRemove) <= 0) {
+        toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Please select a staff, product, and valid quantity.' });
+        return;
+    }
+    setCurrentlySeeding('remove_stock');
+    startTransition(true);
+    const result = await removeStockFromStaff(selectedStaffId, selectedProductId, Number(quantityToRemove));
+    if (result.success) {
+        toast({ title: "Success!", description: `Stock removed successfully.` });
+        // Refresh product list for the selected staff
+        const updatedProducts = await getProductsForStaff(selectedStaffId);
+        setStaffProducts(updatedProducts);
+        setSelectedProductId('');
+        setQuantityToRemove(1);
+    } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+    }
+    setCurrentlySeeding(null);
+    startTransition(false);
   }
   
   const handleClearMultiple = async () => {
@@ -226,6 +269,50 @@ export default function DatabaseToolsPage() {
                                 </AlertDialog>
                             </div>
                         </div>
+
+                         <div className="space-y-2 p-3 border rounded-md">
+                            <Label>Manual Stock Adjustment</Label>
+                            <p className="text-xs text-muted-foreground">Directly remove a specified quantity of a product from a staff member's personal inventory.</p>
+                            <div className="space-y-2">
+                                <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
+                                    <SelectTrigger><SelectValue placeholder="Select staff..."/></SelectTrigger>
+                                    <SelectContent>
+                                        {allStaff.filter(s => ['Delivery Staff', 'Showroom Staff', 'Storekeeper'].includes(s.role)).map(s => (
+                                            <SelectItem key={s.id} value={s.id}>{s.name} ({s.role})</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <Select value={selectedProductId} onValueChange={setSelectedProductId} disabled={!selectedStaffId || staffProducts.length === 0}>
+                                    <SelectTrigger><SelectValue placeholder="Select product..."/></SelectTrigger>
+                                    <SelectContent>
+                                        {staffProducts.map(p => (
+                                            <SelectItem key={p.productId} value={p.productId}>{p.name} (Stock: {p.stock})</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <div className="flex items-center gap-2">
+                                    <Input type="number" placeholder="Quantity" value={quantityToRemove} onChange={e => setQuantityToRemove(e.target.value)} min={1} />
+                                     <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="destructive" disabled={!selectedProductId || isPending}><MinusCircle className="h-4 w-4"/></Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Remove Stock?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Are you sure you want to remove {quantityToRemove} unit(s) of {staffProducts.find(p => p.productId === selectedProductId)?.name} from {allStaff.find(s => s.id === selectedStaffId)?.name}'s inventory? This action cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleRemoveStock}>Confirm Removal</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
+                            </div>
+                        </div>
+
                     </CardContent>
                 </Card>
 

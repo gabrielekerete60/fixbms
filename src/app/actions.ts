@@ -3400,4 +3400,19 @@ export async function resetSalesRun(runId: string): Promise<ActionResult> {
     }
 }
 
+export async function removeStockFromStaff(staffId: string, productId: string, quantity: number): Promise<ActionResult> {
+    if (!staffId || !productId || quantity <= 0) {
+        return { success: false, error: "Invalid staff ID, product ID, or quantity." };
+    }
+    const staffStockRef = doc(db, 'staff', staffId, 'personal_stock', productId);
+    try {
+        await updateDoc(staffStockRef, {
+            stock: increment(-quantity)
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error removing stock from staff:", error);
+        return { success: false, error: "Failed to remove stock." };
+    }
+}
     
