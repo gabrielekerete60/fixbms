@@ -41,6 +41,7 @@ import {
   History,
   Undo2,
   BookUser,
+  Edit,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -66,6 +67,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
+import { ProductEditDialog } from "../../components/product-edit-dialog";
+
 
 type User = {
     name: string;
@@ -89,6 +92,14 @@ type Product = {
   id: string;
   name: string;
   stock: number;
+  category: string;
+  price: number;
+  image: string;
+  'data-ai-hint': string;
+  costPrice?: number;
+  lowStockThreshold?: number;
+  minPrice?: number;
+  maxPrice?: number;
 };
 
 type Ingredient = {
@@ -531,7 +542,7 @@ function ReturnStockDialog({ user, onReturn, personalStock, staffList, returnTyp
         
         let result;
         if(returnType === 'product') {
-            result = await handleReturnStock("showroom-return", items, user);
+            result = await handleReturnStock("showroom-return", items, user, returnTo);
         } else {
             // This is a simplified view, it should be a proper function
             result = await returnUnusedIngredients(items.map(i => ({ingredientId: i.productId, quantity: i.quantity, ingredientName: i.productName})), user);
@@ -559,7 +570,18 @@ function ReturnStockDialog({ user, onReturn, personalStock, staffList, returnTyp
                     <DialogTitle>{title}</DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
-                <div className="py-4 max-h-96 overflow-y-auto">
+                <div className="py-4 max-h-96 overflow-y-auto space-y-4">
+                    <div className="space-y-2">
+                        <Label>Return to</Label>
+                        <Select value={returnTo} onValueChange={setReturnTo}>
+                            <SelectTrigger><SelectValue placeholder="Select staff to return to..." /></SelectTrigger>
+                            <SelectContent>
+                                {returnableStaff.map(s => (
+                                    <SelectItem key={s.staff_id} value={s.staff_id}>{s.name} ({s.role})</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -591,7 +613,7 @@ function ReturnStockDialog({ user, onReturn, personalStock, staffList, returnTyp
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                    <Button onClick={handleSubmit} disabled={isSubmitting || !returnTo}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         Submit Return Request
                     </Button>
@@ -630,6 +652,8 @@ export default function StockControlPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingBatches, setIsLoadingBatches] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
 
   const [visiblePendingRows, setVisiblePendingRows] = useState<number | 'all'>(10);
   const [visibleHistoryRows, setVisibleHistoryRows] = useState<number | 'all'>(10);
@@ -653,10 +677,10 @@ export default function StockControlPage() {
 
         const userRole = currentUser.role;
         const canManageStore = ['Manager', 'Supervisor', 'Storekeeper', 'Developer'].includes(userRole);
-        if (canManageStore) {
-            const productsSnapshot = await getDocs(collection(db, "products"));
-            setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name, stock: doc.data().stock })));
-        }
+        
+        const productsSnapshot = await getDocs(collection(db, "products"));
+        setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+
         
         const isSalesStaff = ['Delivery Staff', 'Showroom Staff'].includes(userRole);
         if (isSalesStaff) {
@@ -865,6 +889,9 @@ export default function StockControlPage() {
     );
     return products.filter(p => !selectedIdsInOtherRows.has(p.id));
   };
+  
+  const productCategories = useMemo(() => ['All', ...new Set(products.map(p => p.category))], [products]);
+
 
   const userRole = user?.role;
   const isManagerOrDev = userRole === 'Manager' || userRole === 'Developer';
@@ -879,6 +906,13 @@ export default function StockControlPage() {
   if (!canInitiateTransfer) {
      return (
         <div className="space-y-6">
+             <ProductEditDialog 
+                product={editingProduct}
+                onOpenChange={() => setEditingProduct(null)}
+                onProductUpdate={fetchPageData}
+                user={user}
+                categories={productCategories}
+             />
             <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
             <Tabs defaultValue="my-stock" className="w-full">
                 <TabsList>
@@ -899,14 +933,26 @@ export default function StockControlPage() {
                                 </CardHeader>
                                 <CardContent>
                                     <Table>
-                                        <TableHeader><TableRow><TableHead>Product</TableHead><TableHead className="text-right">Quantity</TableHead></TableRow></TableHeader>
+                                        <TableHeader><TableRow><TableHead>Product</TableHead><TableHead className="text-right">Quantity</TableHead>{user.role === 'Developer' && <TableHead></TableHead>}</TableRow></TableHeader>
                                         <TableBody>
                                             {personalStock.length === 0 ? (
-                                                <TableRow><TableCell colSpan={2} className="h-24 text-center">Your personal stock is empty.</TableCell></TableRow>
+                                                <TableRow><TableCell colSpan={user.role === 'Developer' ? 3 : 2} className="h-24 text-center">Your personal stock is empty.</TableCell></TableRow>
                                             ) : (
-                                                personalStock.map(item => (
-                                                    <TableRow key={item.productId}><TableCell>{item.productName}</TableCell><TableCell className="text-right">{item.stock}</TableCell></TableRow>
-                                                ))
+                                                personalStock.map(item => {
+                                                    const fullProduct = products.find(p => p.id === item.productId);
+                                                    return (
+                                                    <TableRow key={item.productId}>
+                                                        <TableCell>{item.productName}</TableCell>
+                                                        <TableCell className="text-right">{item.stock}</TableCell>
+                                                        {user.role === 'Developer' && (
+                                                            <TableCell className="text-right">
+                                                                <Button variant="ghost" size="icon" onClick={() => setEditingProduct(fullProduct!)}>
+                                                                    <Edit className="h-4 w-4" />
+                                                                </Button>
+                                                            </TableCell>
+                                                        )}
+                                                    </TableRow>
+                                                )})
                                             )}
                                         </TableBody>
                                     </Table>
@@ -939,42 +985,71 @@ export default function StockControlPage() {
                             <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>From</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Items</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (
-                                        <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                    ) : paginatedPending.length === 0 ? (
-                                        <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
-                                    ) : (
-                                        paginatedPending.map(t => (
-                                            <TableRow key={t.id}>
-                                                <TableCell>{t.date ? format(new Date(t.date), 'Pp') : 'N/A'}</TableCell>
-                                                <TableCell>{t.from_staff_name}</TableCell>
-                                                <TableCell>
-                                                    {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <AcceptTransferDialog transfer={t} onAccept={handleAcknowledge}>
-                                                         <Button size="sm">View & Acknowledge</Button>
-                                                    </AcceptTransferDialog>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
+                            <div className="md:hidden space-y-4">
+                                {isLoading ? (
+                                    <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                                ) : paginatedPending.length === 0 ? (
+                                    <p className="text-center text-muted-foreground py-12">No pending transfers.</p>
+                                ) : (
+                                    paginatedPending.map(t => (
+                                        <Card key={t.id} className="p-4 space-y-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-semibold">{t.from_staff_name}</p>
+                                                    <p className="text-sm text-muted-foreground">{format(new Date(t.date), 'Pp')}</p>
+                                                </div>
+                                                {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
+                                            </div>
+                                            <div className="text-sm">
+                                                Items: {t.items.reduce((sum, item) => sum + item.quantity, 0)}
+                                            </div>
+                                            <div className="flex justify-end">
+                                                <AcceptTransferDialog transfer={t} onAccept={handleAcknowledge}>
+                                                    <Button size="sm">View & Acknowledge</Button>
+                                                </AcceptTransferDialog>
+                                            </div>
+                                        </Card>
+                                    ))
+                                )}
+                            </div>
+                            <div className="hidden md:block">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>From</TableHead>
+                                            <TableHead>Type</TableHead>
+                                            <TableHead>Items</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isLoading ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                        ) : paginatedPending.length === 0 ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers.</TableCell></TableRow>
+                                        ) : (
+                                            paginatedPending.map(t => (
+                                                <TableRow key={t.id}>
+                                                    <TableCell>{t.date ? format(new Date(t.date), 'Pp') : 'N/A'}</TableCell>
+                                                    <TableCell>{t.from_staff_name}</TableCell>
+                                                    <TableCell>
+                                                        {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {t.items.reduce((sum, item) => sum + item.quantity, 0)} items
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <AcceptTransferDialog transfer={t} onAccept={handleAcknowledge}>
+                                                            <Button size="sm">View & Acknowledge</Button>
+                                                        </AcceptTransferDialog>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                         <CardFooter>
                             <PaginationControls visibleRows={visiblePendingRows} setVisibleRows={setVisiblePendingRows} totalRows={pendingTransfers.length} />
@@ -988,44 +1063,67 @@ export default function StockControlPage() {
                             <CardDescription>A log of all stock transfers you have successfully accepted.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Received</TableHead>
-                                        <TableHead>Completed</TableHead>
-                                        <TableHead>From</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Action</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (
-                                    <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                ) : paginatedHistory.length === 0 ? (
-                                    <TableRow><TableCell colSpan={6} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
-                                ) : (
-                                    paginatedHistory.map(t => (
-                                        <TableRow key={t.id}>
-                                            <TableCell>{t.time_received ? format(new Date(t.time_received), 'Pp') : 'N/A'}</TableCell>
-                                            <TableCell>{t.time_completed ? format(new Date(t.time_completed), 'Pp') : 'N/A'}</TableCell>
-                                            <TableCell>{t.from_staff_name}</TableCell>
-                                            <TableCell>
-                                                {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
-                                            </TableCell>
-                                            <TableCell><Badge>{t.status}</Badge></TableCell>
-                                            <TableCell className="text-right">
-                                                {t.is_sales_run && t.status === 'active' && (
-                                                    <Button variant="outline" size="sm" asChild>
-                                                        <Link href={`/dashboard/deliveries`}><Eye className="mr-2 h-4 w-4"/>Manage Run</Link>
-                                                    </Button>
-                                                )}
-                                            </TableCell>
+                            <div className="md:hidden space-y-4">
+                                {paginatedHistory.map(t => (
+                                    <Card key={t.id} className="p-4 space-y-2">
+                                         <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="font-semibold">{t.from_staff_name}</p>
+                                                <p className="text-xs text-muted-foreground">Received: {t.time_received ? format(new Date(t.time_received), 'Pp') : 'N/A'}</p>
+                                            </div>
+                                            <Badge>{t.status}</Badge>
+                                        </div>
+                                         <div className="text-sm pt-2 border-t flex justify-between items-center">
+                                            {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
+                                            {t.is_sales_run && t.status === 'active' && (
+                                                <Button variant="outline" size="sm" asChild>
+                                                    <Link href={`/dashboard/deliveries`}><Eye className="mr-2 h-4 w-4"/>Manage</Link>
+                                                </Button>
+                                            )}
+                                         </div>
+                                    </Card>
+                                ))}
+                            </div>
+                            <div className="hidden md:block">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Received</TableHead>
+                                            <TableHead>Completed</TableHead>
+                                            <TableHead>From</TableHead>
+                                            <TableHead>Type</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead className="text-right">Action</TableHead>
                                         </TableRow>
-                                    ))
-                                )}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isLoading ? (
+                                        <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                    ) : paginatedHistory.length === 0 ? (
+                                        <TableRow><TableCell colSpan={6} className="h-24 text-center">You have no completed transfers.</TableCell></TableRow>
+                                    ) : (
+                                        paginatedHistory.map(t => (
+                                            <TableRow key={t.id}>
+                                                <TableCell>{t.time_received ? format(new Date(t.time_received), 'Pp') : 'N/A'}</TableCell>
+                                                <TableCell>{t.time_completed ? format(new Date(t.time_completed), 'Pp') : 'N/A'}</TableCell>
+                                                <TableCell>{t.from_staff_name}</TableCell>
+                                                <TableCell>
+                                                    {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
+                                                </TableCell>
+                                                <TableCell><Badge>{t.status}</Badge></TableCell>
+                                                <TableCell className="text-right">
+                                                    {t.is_sales_run && t.status === 'active' && (
+                                                        <Button variant="outline" size="sm" asChild>
+                                                            <Link href={`/dashboard/deliveries`}><Eye className="mr-2 h-4 w-4"/>Manage Run</Link>
+                                                        </Button>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                          <CardFooter>
                             <PaginationControls visibleRows={visibleHistoryRows} setVisibleRows={setVisibleHistoryRows} totalRows={completedTransfers.length} />
@@ -1212,22 +1310,43 @@ export default function StockControlPage() {
                     <CardDescription>Batches requested by bakers that need ingredient approval from the storekeeper.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Product</TableHead><TableHead>Quantity</TableHead><TableHead>Requested By</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            {isLoadingBatches ? (
-                                 <TableRow><TableCell colSpan={5} className="text-center h-24"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                            ) : pendingBatches.length > 0 ? pendingBatches.map(batch => (
-                                <TableRow key={batch.id}>
-                                    <TableCell>{format(new Date(batch.createdAt), 'PPP')}</TableCell>
-                                    <TableCell>{batch.productName}</TableCell>
-                                    <TableCell>{batch.quantityToProduce}</TableCell>
-                                    <TableCell>{batch.requestedByName}</TableCell>
-                                    <TableCell><ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchPageData} /></TableCell>
-                                </TableRow>
-                            )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are pending approval.</TableCell></TableRow>}
-                        </TableBody>
-                    </Table>
+                    <div className="md:hidden space-y-4">
+                        {isLoadingBatches ? (
+                            <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                        ) : pendingBatches.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-12">No batches are pending approval.</p>
+                        ) : (
+                            pendingBatches.map(batch => (
+                                <Card key={batch.id} className="p-4 space-y-3">
+                                    <div>
+                                        <p className="font-semibold">{batch.productName}</p>
+                                        <p className="text-sm text-muted-foreground">{batch.requestedByName} - {format(new Date(batch.createdAt), 'PPP')}</p>
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchPageData} />
+                                    </div>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                    <div className="hidden md:block">
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Product</TableHead><TableHead>Quantity</TableHead><TableHead>Requested By</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {isLoadingBatches ? (
+                                    <TableRow><TableCell colSpan={5} className="text-center h-24"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                ) : pendingBatches.length > 0 ? pendingBatches.map(batch => (
+                                    <TableRow key={batch.id}>
+                                        <TableCell>{format(new Date(batch.createdAt), 'PPP')}</TableCell>
+                                        <TableCell>{batch.productName}</TableCell>
+                                        <TableCell>{batch.quantityToProduce}</TableCell>
+                                        <TableCell>{batch.requestedByName}</TableCell>
+                                        <TableCell><ApproveBatchDialog batch={batch} user={user} allIngredients={ingredients} onApproval={fetchPageData} /></TableCell>
+                                    </TableRow>
+                                )) : <TableRow><TableCell colSpan={5} className="text-center h-24">No batches are pending approval.</TableCell></TableRow>}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
               </Card>
         </TabsContent>
@@ -1278,38 +1397,62 @@ export default function StockControlPage() {
                     <CardDescription>Acknowledge finished goods transferred from the production unit to the main store.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>From</TableHead>
-                                <TableHead>Items</TableHead>
-                                <TableHead className="text-right">Action</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                             {isLoading ? (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                            ) : productionTransfers.length > 0 ? (
-                                productionTransfers.map(t => (
-                                    <TableRow key={t.id}>
-                                        <TableCell>{t.date ? format(new Date(t.date), 'Pp') : 'N/A'}</TableCell>
-                                        <TableCell>{t.from_staff_name}</TableCell>
-                                        <TableCell>{t.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
-                                        <TableCell className="text-right">
-                                            <AcceptTransferDialog transfer={t} onAccept={handleAcknowledge}>
-                                                <Button size="sm">
-                                                    <Check className="mr-2 h-4 w-4" /> Accept
-                                                </Button>
-                                            </AcceptTransferDialog>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers from production.</TableCell></TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                    <div className="md:hidden space-y-4">
+                        {isLoading ? (
+                            <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                        ) : productionTransfers.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-12">No pending transfers from production.</p>
+                        ) : (
+                            productionTransfers.map(t => (
+                                <Card key={t.id} className="p-4 space-y-3">
+                                    <div>
+                                        <p className="font-semibold">{t.from_staff_name}</p>
+                                        <p className="text-xs text-muted-foreground">{t.date ? format(new Date(t.date), 'Pp') : 'N/A'}</p>
+                                        <p className="text-sm">Items: {t.items.reduce((sum, item) => sum + item.quantity, 0)}</p>
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <AcceptTransferDialog transfer={t} onAccept={handleAcknowledge}>
+                                            <Button size="sm">Acknowledge</Button>
+                                        </AcceptTransferDialog>
+                                    </div>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                    <div className="hidden md:block">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>From</TableHead>
+                                    <TableHead>Items</TableHead>
+                                    <TableHead className="text-right">Action</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                    <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                ) : productionTransfers.length > 0 ? (
+                                    productionTransfers.map(t => (
+                                        <TableRow key={t.id}>
+                                            <TableCell>{t.date ? format(new Date(t.date), 'Pp') : 'N/A'}</TableCell>
+                                            <TableCell>{t.from_staff_name}</TableCell>
+                                            <TableCell>{t.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
+                                            <TableCell className="text-right">
+                                                <AcceptTransferDialog transfer={t} onAccept={handleAcknowledge}>
+                                                    <Button size="sm">
+                                                        <Check className="mr-2 h-4 w-4" /> Accept
+                                                    </Button>
+                                                </AcceptTransferDialog>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow><TableCell colSpan={5} className="h-24 text-center">No pending transfers from production.</TableCell></TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
               </Card>
           </TabsContent>
@@ -1325,37 +1468,59 @@ export default function StockControlPage() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>From</TableHead>
-                                <TableHead>To</TableHead>
-                                <TableHead>Items</TableHead>
-                                <TableHead>Status</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
-                            ) : (
-                                paginatedAllPending.map((transfer) => (
-                                    <TableRow key={transfer.id}>
-                                        <TableCell>{transfer.date ? format(new Date(transfer.date), 'PPpp') : 'N/A'}</TableCell>
-                                        <TableCell>{transfer.from_staff_name}</TableCell>
-                                        <TableCell>{transfer.to_staff_name}</TableCell>
-                                        <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
-                                        <TableCell><Badge variant="secondary">{transfer.status}</Badge></TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                             { !isLoading && paginatedAllPending.length === 0 && (
+                    <div className="md:hidden space-y-4">
+                         {isLoading ? (
+                            <div className="text-center p-8"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></div>
+                        ) : paginatedAllPending.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-12">No pending transfers found.</p>
+                        ) : (
+                            paginatedAllPending.map(t => (
+                                <Card key={t.id} className="p-4 space-y-2">
+                                     <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold">To: {t.to_staff_name}</p>
+                                            <p className="text-xs text-muted-foreground">From: {t.from_staff_name} on {t.date ? format(new Date(t.date), 'PPp') : 'N/A'}</p>
+                                        </div>
+                                        <Badge variant="secondary">{t.status}</Badge>
+                                    </div>
+                                    <div className="text-sm">Items: {t.items.reduce((sum, item) => sum + item.quantity, 0)}</div>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                    <div className="hidden md:block">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">No pending transfers found.</TableCell>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>From</TableHead>
+                                    <TableHead>To</TableHead>
+                                    <TableHead>Items</TableHead>
+                                    <TableHead>Status</TableHead>
                                 </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                    <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="h-8 w-8 animate-spin" /></TableCell></TableRow>
+                                ) : (
+                                    paginatedAllPending.map((transfer) => (
+                                        <TableRow key={transfer.id}>
+                                            <TableCell>{transfer.date ? format(new Date(transfer.date), 'PPpp') : 'N/A'}</TableCell>
+                                            <TableCell>{transfer.from_staff_name}</TableCell>
+                                            <TableCell>{transfer.to_staff_name}</TableCell>
+                                            <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
+                                            <TableCell><Badge variant="secondary">{transfer.status}</Badge></TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                                { !isLoading && paginatedAllPending.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">No pending transfers found.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
                 <CardFooter>
                   <PaginationControls visibleRows={visibleAllPendingRows} setVisibleRows={setVisibleAllPendingRows} totalRows={allPendingTransfers.length} />
@@ -1363,57 +1528,7 @@ export default function StockControlPage() {
               </Card>
           </TabsContent>
       </Tabs>
-
-      <Card>
-        <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <CardTitle>My Initiated Transfers Log</CardTitle>
-                    <CardDescription>A log of transfers you have initiated.</CardDescription>
-                </div>
-                <DateRangeFilter date={date} setDate={setDate} />
-            </div>
-        </CardHeader>
-        <CardContent>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>From</TableHead>
-                        <TableHead>To</TableHead>
-                        <TableHead>Items</TableHead>
-                        <TableHead>Status</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {isLoading ? (
-                         <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">
-                                <Loader2 className="h-8 w-8 animate-spin"/>
-                            </TableCell>
-                        </TableRow>
-                    ) : paginatedLogs.length > 0 ? (
-                        paginatedLogs.map((transfer) => (
-                             <TableRow key={transfer.id}>
-                                <TableCell>{transfer.date ? format(new Date(transfer.date), 'PPpp') : 'N/A'}</TableCell>
-                                <TableCell>{transfer.from_staff_name}</TableCell>
-                                <TableCell>{transfer.to_staff_name}</TableCell>
-                                <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
-                                <TableCell><Badge variant={transfer.status === 'pending' ? 'secondary' : transfer.status === 'completed' || transfer.status === 'active' ? 'default' : 'destructive'}>{transfer.status}</Badge></TableCell>
-                            </TableRow>
-                        ))
-                    ) : (
-                        <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">No stock movements recorded for this period.</TableCell>
-                        </TableRow>
-                    )}
-                </TableBody>
-            </Table>
-        </CardContent>
-        <CardFooter>
-            <PaginationControls visibleRows={visibleLogRows} setVisibleRows={setVisibleLogRows} totalRows={initiatedTransfers.length} />
-        </CardFooter>
-      </Card>
     </div>
   );
 }
+
