@@ -190,8 +190,8 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
     const [address, setAddress] = useState('');
     
     const handleSave = async () => {
-        if (!name || !phone || !email) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Customer name, phone, and email are required.'});
+        if (!name || !phone) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Customer name and phone number are required.'});
             return;
         }
         
@@ -233,8 +233,8 @@ function CreateCustomerDialog({ onCustomerCreated, children }: { onCustomerCreat
                         <Input id="create-customer-phone" value={phone} onChange={e => setPhone(e.target.value)} required />
                     </div>
                      <div className="space-y-2">
-                        <Label htmlFor="create-customer-email">Email</Label>
-                        <Input id="create-customer-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                        <Label htmlFor="create-customer-email">Email (Optional)</Label>
+                        <Input id="create-customer-email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="create-customer-address">Address (Optional)</Label>
@@ -482,6 +482,7 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
     const [selectedCustomerId, setSelectedCustomerId] = useState<string>('walk-in');
     const [customerName, setCustomerName] = useState('');
     const [priceErrors, setPriceErrors] = useState<Record<string, string>>({});
+    const [stockErrors, setStockErrors] = useState<Record<string, string>>({});
 
     const fetchCustomers = useCallback(() => {
         getDocs(collection(db, 'customers')).then(snap => {
@@ -498,6 +499,7 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
             setCustomerName('');
             setPaymentMethod('Cash');
             setPriceErrors({});
+            setStockErrors({});
         }
     }, [isOpen, fetchCustomers]);
 
@@ -530,17 +532,29 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
             const product = remainingItems.find(p => p.productId === value);
             newItems[index] = { ...item, productId: value, name: product?.name || '', price: product?.price || 0, minPrice: product?.minPrice, maxPrice: product?.maxPrice, quantity: 1 };
         } else {
-            const productInfo = remainingItems.find(p => p.productId === item.productId);
-            const newQuantity = Number(value);
-            if (productInfo && newQuantity > productInfo.quantity) {
-                 toast({ variant: 'destructive', title: 'Error', description: `Cannot add more than ${productInfo.quantity} units.` });
-                newItems[index].quantity = productInfo.quantity;
-            } else {
-                newItems[index].quantity = newQuantity;
-            }
+             newItems[index].quantity = Number(value);
         }
         setCart(newItems);
     }
+
+    // Advanced stock validation
+    useEffect(() => {
+        const quantitiesInCart = cart.reduce((acc, item) => {
+            if (item.productId) {
+                acc[item.productId] = (acc[item.productId] || 0) + Number(item.quantity || 0);
+            }
+            return acc;
+        }, {} as Record<string, number>);
+
+        const newStockErrors: Record<string, string> = {};
+        for (const productId in quantitiesInCart) {
+            const productStock = remainingItems.find(p => p.productId === productId)?.quantity || 0;
+            if (quantitiesInCart[productId] > productStock) {
+                newStockErrors[productId] = `Total quantity exceeds available stock of ${productStock}.`;
+            }
+        }
+        setStockErrors(newStockErrors);
+    }, [cart, remainingItems]);
     
     const handleAddItem = () => {
         setCart(prev => [...prev, { productId: '', name: '', quantity: 1, price: 0 } as OrderItem]);
@@ -567,7 +581,7 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
     }
 
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const hasErrors = Object.keys(priceErrors).length > 0;
+    const hasErrors = Object.keys(priceErrors).length > 0 || Object.keys(stockErrors).length > 0;
     
     const handleSubmit = async () => {
         if (!user || hasErrors || cart.some(item => !item.productId || item.quantity <= 0) || (paymentMethod === 'Credit' && selectedCustomerId === 'walk-in')) {
@@ -650,6 +664,7 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
                             {cart.length === 0 ? <p className="text-center text-muted-foreground text-sm p-4">Cart is empty</p> : (
                                  cart.map((item, index) => {
                                     const product = remainingItems.find(p => p.productId === item.productId);
+                                    const stockError = stockErrors[item.productId];
                                     return (
                                     <div key={`cart-item-${index}`} className="space-y-2 border-b pb-2 last:border-b-0">
                                         <div className="flex justify-between items-start">
@@ -664,10 +679,11 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
                                             <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
                                         </div>
                                         <div className="flex gap-2">
-                                            <Input type="number" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', e.target.value)} placeholder="Qty"/>
+                                            <Input type="number" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', e.target.value)} placeholder="Qty" className={stockError ? 'border-destructive' : ''}/>
                                             <Input type="number" value={item.price} onChange={e => handlePriceChange(item.productId, e.target.value)} className={priceErrors[item.productId] ? 'border-destructive' : ''} placeholder="Price per item" />
                                         </div>
                                         {priceErrors[item.productId] && <p className="text-xs text-destructive">{priceErrors[item.productId]}</p>}
+                                        {stockError && !priceErrors[item.productId] && <p className="text-xs text-destructive">{stockError}</p>}
                                         <p className="text-xs text-muted-foreground">Standard Price: {formatCurrency(product?.price)}, Range: {formatCurrency(product?.minPrice)} - {formatCurrency(product?.maxPrice)}</p>
                                     </div>
                                     )
