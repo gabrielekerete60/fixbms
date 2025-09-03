@@ -1413,7 +1413,7 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
                         <TableBody>
                             {run.items.map(item => {
                                 const sold = item.quantity - (remainingItems.find(i => i.productId === item.productId)?.quantity || 0);
-                                return <TableRow key={item.productId}><TableCell className="p-1 text-xs">{item.name}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity}</TableCell><TableCell className="text-right p-1 text-xs">{sold}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity - sold}</TableCell></TableRow>
+                                return <TableRow key={item.productId}><TableCell className="p-1 text-xs">{item.productName}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity}</TableCell><TableCell className="text-right p-1 text-xs">{sold}</TableCell><TableCell className="text-right p-1 text-xs">{item.quantity - sold}</TableCell></TableRow>
                             })}
                         </TableBody>
                     </Table>
@@ -1530,7 +1530,7 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
                                 const remaining = item.quantity - soldQuantity;
                                 return (
                                     <TableRow key={item.productId}>
-                                        <TableCell>{item.name}</TableCell>
+                                        <TableCell>{item.productName}</TableCell>
                                         <TableCell className="text-right">{item.quantity}</TableCell>
                                         <TableCell className="text-right">{soldQuantity}</TableCell>
                                         <TableCell className="text-right font-bold">{remaining}</TableCell>
