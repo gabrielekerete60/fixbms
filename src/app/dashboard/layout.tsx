@@ -232,10 +232,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user?.staff_id) return;
 
-    let hasCheckedAttendance = false;
     const checkAttendance = async () => {
-        if(hasCheckedAttendance || !user?.staff_id) return;
-        hasCheckedAttendance = true;
         setIsClocking(true);
         try {
             const status = await getAttendanceStatus(user.staff_id);
@@ -385,7 +382,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         unsubSettings();
         window.removeEventListener('announcementsRead', handleAnnouncementsRead);
     };
-  }, [user?.staff_id, user?.theme, login, timeSettings.autoClockOutTime, timeSettings.clockInEnabledTime, isClockedIn, attendanceId]);
+  }, [user?.staff_id, user?.theme, login, timeSettings.autoClockOutTime, timeSettings.clockInEnabledTime, isClockedIn, attendanceId, toast]);
   
   const navLinks: NavLink[] = useMemo(() => {
     const allLinks: NavLink[] = [

@@ -479,7 +479,7 @@ export default function StaffManagementPage() {
                             ))
                         )}
                     </div>
-                    <div className="hidden md:block overflow-x-auto">
+                    <div className="hidden md:block">
                         <Table>
                             <TableHeader>
                                 <TableRow>
