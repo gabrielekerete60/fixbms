@@ -3422,3 +3422,34 @@ export async function removeStockFromStaff(staffId: string, productId: string, q
     }
 }
     
+export async function returnUnusedIngredients(
+    items: { ingredientId: string; quantity: number; ingredientName: string; }[],
+    user: { staff_id: string; name: string; }
+): Promise<{success: boolean; error?: string}> {
+    if (!items || items.length === 0) {
+        return { success: false, error: "No items to return." };
+    }
+    try {
+        const batch = writeBatch(db);
+        for(const item of items) {
+            const ingredientRef = doc(db, 'ingredients', item.ingredientId);
+            batch.update(ingredientRef, { stock: increment(item.quantity) });
+
+            const logRef = doc(collection(db, 'ingredient_stock_logs'));
+            batch.set(logRef, {
+                ingredientId: item.ingredientId,
+                ingredientName: item.ingredientName,
+                change: item.quantity,
+                reason: 'Returned unused from production',
+                date: serverTimestamp(),
+                staffName: user.name,
+                logRefId: `manual-return-${user.staff_id}`,
+            });
+        }
+        await batch.commit();
+        return { success: true };
+    } catch (error) {
+        console.error("Error returning ingredients:", error);
+        return { success: false, error: "Failed to return ingredients." };
+    }
+}

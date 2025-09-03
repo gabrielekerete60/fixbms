@@ -40,6 +40,7 @@ import {
   XCircle,
   History,
   Undo2,
+  BookUser,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -59,7 +60,7 @@ import { cn } from "@/lib/utils";
 import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts, getProductsForStaff, handleReturnStock, getReturnedStockTransfers } from "@/app/actions";
+import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts, getProductsForStaff, handleReturnStock, getReturnedStockTransfers, returnUnusedIngredients } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogHeader, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -467,17 +468,30 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: { produ
     );
 }
 
-
-function ReturnStockDialog({ user, onReturn, personalStock }: { user: User, onReturn: () => void, personalStock: { productId: string, productName: string, stock: number }[] }) {
+function ReturnStockDialog({ user, onReturn, personalStock, staffList, returnType }: { user: User, onReturn: () => void, personalStock: { productId: string, productName: string, stock: number }[], staffList: StaffMember[], returnType: 'product' | 'ingredient' }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [itemsToReturn, setItemsToReturn] = useState<Record<string, number | string>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [returnTo, setReturnTo] = useState('');
+
+    const title = returnType === 'product' ? 'Return Unsold Stock' : 'Return Unused Ingredients';
+    const description = returnType === 'product' ? 'Enter quantities for products you want to return.' : 'Return unused ingredients from a production run back to the main store.';
+
+    const returnableStaff = useMemo(() => {
+        if (user.role === 'Showroom Staff') {
+            return staffList.filter(s => s.role === 'Storekeeper' || s.role === 'Delivery Staff');
+        }
+        if (user.role === 'Baker' || user.role === 'Chief Baker') {
+            return staffList.filter(s => s.role === 'Storekeeper');
+        }
+        return [];
+    }, [staffList, user.role]);
     
     useEffect(() => {
         if (isOpen) {
-            // Reset state when dialog opens
             setItemsToReturn({});
+            setReturnTo('');
         }
     }, [isOpen]);
 
@@ -497,24 +511,31 @@ function ReturnStockDialog({ user, onReturn, personalStock }: { user: User, onRe
     };
     
     const handleSubmit = async () => {
-        const finalItemsToReturn = Object.entries(itemsToReturn)
-            .map(([productId, quantity]) => {
-                const product = personalStock.find(p => p.productId === productId);
+        const items = Object.entries(itemsToReturn)
+            .map(([id, quantity]) => {
+                const stockItem = personalStock.find(p => p.productId === id);
                 return {
-                    productId,
-                    productName: product?.productName || 'Unknown',
+                    productId: id,
+                    productName: stockItem?.productName || 'Unknown',
                     quantity: Number(quantity),
                 };
             })
             .filter(item => item.quantity > 0);
 
-        if (finalItemsToReturn.length === 0) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please enter a quantity for at least one item to return.' });
+        if (items.length === 0) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please enter a quantity for at least one item.' });
             return;
         }
 
         setIsSubmitting(true);
-        const result = await handleReturnStock("showroom-return", finalItemsToReturn, user);
+        
+        let result;
+        if(returnType === 'product') {
+            result = await handleReturnStock("showroom-return", items, user);
+        } else {
+            // This is a simplified view, it should be a proper function
+            result = await returnUnusedIngredients(items.map(i => ({ingredientId: i.productId, quantity: i.quantity, ingredientName: i.productName})), user);
+        }
         
         if (result.success) {
             toast({ title: 'Success', description: 'Stock return request submitted for approval.' });
@@ -530,15 +551,13 @@ function ReturnStockDialog({ user, onReturn, personalStock }: { user: User, onRe
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                 <Button variant="secondary" className="w-full">
-                    <Undo2 className="mr-2 h-4 w-4" /> Return Unsold Stock
+                    <Undo2 className="mr-2 h-4 w-4" /> {title}
                 </Button>
             </DialogTrigger>
             <DialogContent className="max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>Return Unsold Stock</DialogTitle>
-                    <DialogDescription>
-                        Enter quantities for items you want to return to the main store. Unspecified items will not be returned.
-                    </DialogDescription>
+                    <DialogTitle>{title}</DialogTitle>
+                    <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
                 <div className="py-4 max-h-96 overflow-y-auto">
                     <Table>
@@ -848,7 +867,10 @@ export default function StockControlPage() {
   };
 
   const userRole = user?.role;
-  const canInitiateTransfer = userRole === 'Manager' || userRole === 'Supervisor' || userRole === 'Storekeeper';
+  const isManagerOrDev = userRole === 'Manager' || userRole === 'Developer';
+  const isStorekeeper = userRole === 'Storekeeper';
+  const isBaker = userRole === 'Baker' || userRole === 'Chief Baker';
+  const canInitiateTransfer = isManagerOrDev || isStorekeeper;
   
   if (!user || isLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -858,14 +880,61 @@ export default function StockControlPage() {
      return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                <div className="lg:col-span-2 flex flex-col gap-6">
-                    <Card>
+            <Tabs defaultValue="my-stock" className="w-full">
+                <TabsList>
+                    <TabsTrigger value="my-stock">My Stock</TabsTrigger>
+                    <TabsTrigger value="acknowledge-stock" className="relative">
+                        Acknowledge Stock
+                        {pendingTransfers.length > 0 && <Badge variant="destructive" className="ml-2">{pendingTransfers.length}</Badge>}
+                    </TabsTrigger>
+                    <TabsTrigger value="history">History</TabsTrigger>
+                </TabsList>
+                <TabsContent value="my-stock" className="mt-4">
+                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                        <div className="lg:col-span-2 flex flex-col gap-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>My Personal Stock</CardTitle>
+                                    <CardDescription>Items currently in your possession.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <Table>
+                                        <TableHeader><TableRow><TableHead>Product</TableHead><TableHead className="text-right">Quantity</TableHead></TableRow></TableHeader>
+                                        <TableBody>
+                                            {personalStock.length === 0 ? (
+                                                <TableRow><TableCell colSpan={2} className="h-24 text-center">Your personal stock is empty.</TableCell></TableRow>
+                                            ) : (
+                                                personalStock.map(item => (
+                                                    <TableRow key={item.productId}><TableCell>{item.productName}</TableCell><TableCell className="text-right">{item.stock}</TableCell></TableRow>
+                                                ))
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            </Card>
+                             {isBaker && (
+                                <ReturnStockDialog user={user} onReturn={fetchPageData} personalStock={[]} staffList={staff} returnType="ingredient" />
+                            )}
+                        </div>
+                        <div className="lg:col-span-1 flex flex-col gap-6">
+                            <ReportWasteTab products={personalStock} user={user} onWasteReported={fetchPageData} />
+                            {(userRole === 'Showroom Staff' || isBaker) && (
+                                <Card>
+                                    <CardHeader><CardTitle>Return Stock</CardTitle></CardHeader>
+                                    <CardContent>
+                                        <ReturnStockDialog user={user} onReturn={fetchPageData} personalStock={personalStock} staffList={staff} returnType="product" />
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
+                    </div>
+                </TabsContent>
+                <TabsContent value="acknowledge-stock" className="mt-4">
+                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Package />
                                 Acknowledge Incoming Stock
-                                {pendingTransfers.length > 0 && <Badge variant="destructive">{pendingTransfers.length}</Badge>}
                             </CardTitle>
                             <CardDescription>Review and acknowledge stock transferred to you. Accepted Sales Runs will appear in your "Deliveries" tab.</CardDescription>
                         </CardHeader>
@@ -911,8 +980,9 @@ export default function StockControlPage() {
                             <PaginationControls visibleRows={visiblePendingRows} setVisibleRows={setVisiblePendingRows} totalRows={pendingTransfers.length} />
                         </CardFooter>
                     </Card>
-
-                    <Card>
+                </TabsContent>
+                <TabsContent value="history" className="mt-4">
+                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2"><History /> My Transfer History</CardTitle>
                             <CardDescription>A log of all stock transfers you have successfully accepted.</CardDescription>
@@ -961,21 +1031,8 @@ export default function StockControlPage() {
                             <PaginationControls visibleRows={visibleHistoryRows} setVisibleRows={setVisibleHistoryRows} totalRows={completedTransfers.length} />
                         </CardFooter>
                     </Card>
-                </div>
-                <div className="lg:col-span-1 flex flex-col gap-6">
-                    <ReportWasteTab products={personalStock} user={user} onWasteReported={fetchPageData} />
-                    {userRole === 'Showroom Staff' && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Return Stock</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ReturnStockDialog user={user} onReturn={fetchPageData} personalStock={personalStock} />
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
-            </div>
+                </TabsContent>
+            </Tabs>
          </div>
      )
   }
@@ -986,15 +1043,15 @@ export default function StockControlPage() {
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-bold font-headline">Stock Control</h1>
       </div>
-      <Tabs defaultValue={userRole === 'Manager' ? 'pending-transfers' : 'initiate-transfer'}>
+      <Tabs defaultValue={isStorekeeper ? 'initiate-transfer' : 'pending-transfers'}>
         <div className="overflow-x-auto pb-2">
             <TabsList>
-                {userRole !== 'Manager' && 
+                {isStorekeeper && 
                     <TabsTrigger value="initiate-transfer">
                         <Send className="mr-2 h-4 w-4" /> Initiate Transfer
                     </TabsTrigger>
                 }
-                 {userRole !== 'Manager' && 
+                 {isStorekeeper && 
                     <TabsTrigger value="batch-approvals" className="relative">
                         <Wrench className="mr-2 h-4 w-4" /> Batch Approvals
                         {pendingBatches.length > 0 && (
@@ -1004,7 +1061,7 @@ export default function StockControlPage() {
                         )}
                     </TabsTrigger>
                 }
-                 {userRole !== 'Manager' && 
+                 {isStorekeeper && 
                     <TabsTrigger value="returned-stock" className="relative">
                         <Undo2 className="mr-2 h-4 w-4" /> Returned Stock
                         {returnedStock.length > 0 && (
@@ -1014,7 +1071,7 @@ export default function StockControlPage() {
                         )}
                     </TabsTrigger>
                 }
-                 {userRole !== 'Manager' && 
+                 {isStorekeeper && 
                     <TabsTrigger value="production-transfers" className="relative">
                         <ArrowRightLeft className="mr-2 h-4 w-4" /> Production Transfers
                         {productionTransfers.length > 0 && (
@@ -1174,7 +1231,7 @@ export default function StockControlPage() {
                 </CardContent>
               </Card>
         </TabsContent>
-        <TabsContent value="returned-stock">
+         <TabsContent value="returned-stock">
             <Card>
                 <CardHeader>
                     <CardTitle>Returned Stock</CardTitle>

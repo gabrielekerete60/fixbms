@@ -50,6 +50,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import SelectLib from 'react-select';
+
 
 type User = {
     name: string;
@@ -83,6 +86,8 @@ type Recipe = {
   name: string;
   description: string;
   ingredients: RecipeIngredient[];
+  applicableProductIds?: string[];
+  isGeneralRecipe?: boolean;
 };
 
 type BatchItem = {
@@ -170,18 +175,23 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
     const [storekeepers, setStorekeepers] = useState<any[]>([]);
     const [producedItems, setProducedItems] = useState<BatchItem[]>([{ productId: '', productName: '', quantity: '' }]);
     const [wastedItems, setWastedItems] = useState<BatchItem[]>([]);
+    const [recipeDetails, setRecipeDetails] = useState<Recipe | null>(null);
     
     useEffect(() => {
         if (isOpen) {
-            const fetchStorekeepers = async () => {
+            const fetchDetails = async () => {
                 const staff = await getStaffByRole('Storekeeper');
                 setStorekeepers(staff);
+                const recipeDoc = await getDoc(doc(db, "recipes", batch.recipeId));
+                if (recipeDoc.exists()) {
+                    setRecipeDetails({ id: recipeDoc.id, ...recipeDoc.data() } as Recipe);
+                }
             };
-            fetchStorekeepers();
+            fetchDetails();
             setProducedItems([{ productId: '', productName: '', quantity: '' }]);
             setWastedItems([]);
         }
-    }, [isOpen]);
+    }, [isOpen, batch.recipeId]);
 
     const handleItemChange = (index: number, field: keyof BatchItem, value: string, type: 'produced' | 'wasted') => {
         const setItems = type === 'produced' ? setProducedItems : setWastedItems;
@@ -251,10 +261,13 @@ function CompleteBatchDialog({ batch, user, onBatchCompleted, products }: { batc
         const selectedIds = new Set(currentList.map(item => item.productId).filter(id => id)); // Get all selected IDs in the current list
         
         const currentItem = currentList[index];
-        
+
+        const recipeProductIds = recipeDetails?.applicableProductIds || [];
+        const isGeneral = recipeDetails?.isGeneralRecipe || false;
+
         return products.filter(p => 
-            p.category === 'Bread' && // Only show bread products
-            (!selectedIds.has(p.id) || p.id === currentItem.productId) // Allow the current item's product, but filter out others that are already selected
+            (isGeneral || recipeProductIds.includes(p.id)) &&
+            (!selectedIds.has(p.id) || p.id === currentItem.productId) 
         );
     };
 
@@ -494,11 +507,13 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
     );
 }
 
-function RecipeDialog({ onSave, allIngredients, recipe, user, children }: { onSave: (data: Omit<Recipe, 'id'>, id?: string) => void, allIngredients: Ingredient[], recipe?: Recipe | null, user: User, children: React.ReactNode }) {
+function RecipeDialog({ onSave, allIngredients, allProducts, recipe, user, children }: { onSave: (data: Omit<Recipe, 'id'>, id?: string) => void, allIngredients: Ingredient[], allProducts: Product[], recipe?: Recipe | null, user: User, children: React.ReactNode }) {
     const [isOpen, setIsOpen] = useState(false);
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
+    const [applicableProducts, setApplicableProducts] = useState<{ value: string, label: string }[]>([]);
+    const [isGeneral, setIsGeneral] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
@@ -508,13 +523,20 @@ function RecipeDialog({ onSave, allIngredients, recipe, user, children }: { onSa
                 setName(recipe.name);
                 setDescription(recipe.description);
                 setIngredients(JSON.parse(JSON.stringify(recipe.ingredients)));
+                setApplicableProducts(recipe.applicableProductIds?.map(id => {
+                    const product = allProducts.find(p => p.id === id);
+                    return { value: id, label: product?.name || 'Unknown Product' };
+                }) || []);
+                setIsGeneral(recipe.isGeneralRecipe || false);
             } else {
                 setName('');
                 setDescription('');
                 setIngredients([{ ingredientId: '', ingredientName: '', quantity: 0, unit: '' }]);
+                setApplicableProducts([]);
+                setIsGeneral(false);
             }
         }
-    }, [isOpen, recipe]);
+    }, [isOpen, recipe, allProducts]);
     
     const handleIngredientChange = (index: number, field: keyof RecipeIngredient, value: string) => {
         const newIngredients = [...ingredients];
@@ -546,7 +568,14 @@ function RecipeDialog({ onSave, allIngredients, recipe, user, children }: { onSa
             return;
         }
         setIsSubmitting(true);
-        const result = await handleSaveRecipe({ name, description, ingredients }, recipe?.id, user);
+        const recipeData = {
+            name,
+            description,
+            ingredients,
+            applicableProductIds: applicableProducts.map(p => p.value),
+            isGeneralRecipe: isGeneral,
+        };
+        const result = await handleSaveRecipe(recipeData, recipe?.id, user);
         if (result.success) {
             toast({ title: 'Success', description: 'Recipe saved successfully.' });
             setIsOpen(false);
@@ -556,6 +585,15 @@ function RecipeDialog({ onSave, allIngredients, recipe, user, children }: { onSa
         setIsSubmitting(false);
     };
     
+    const productOptions = useMemo(() => allProducts.map(p => ({ value: p.id, label: p.name })), [allProducts]);
+    
+    const customSelectStyles = {
+        control: (styles: any) => ({ ...styles, backgroundColor: 'hsl(var(--input))', borderColor: 'hsl(var(--border))' }),
+        menu: (styles: any) => ({ ...styles, backgroundColor: 'hsl(var(--popover))', zIndex: 9999 }),
+        option: (styles: any, { isFocused }: any) => ({ ...styles, backgroundColor: isFocused ? 'hsl(var(--accent))' : undefined }),
+        multiValue: (styles: any) => ({ ...styles, backgroundColor: 'hsl(var(--muted))' }),
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
@@ -572,6 +610,26 @@ function RecipeDialog({ onSave, allIngredients, recipe, user, children }: { onSa
                         <Label htmlFor="recipe-desc">Description</Label>
                         <Textarea id="recipe-desc" value={description} onChange={e => setDescription(e.target.value)} />
                     </div>
+
+                    <div className="space-y-2">
+                        <Label>Applicable Products</Label>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="general-recipe" checked={isGeneral} onCheckedChange={(checked) => setIsGeneral(checked as boolean)}/>
+                            <label htmlFor="general-recipe" className="text-sm font-medium leading-none">
+                                Applicable to all products
+                            </label>
+                        </div>
+                        {!isGeneral && (
+                             <SelectLib
+                                isMulti
+                                options={productOptions}
+                                value={applicableProducts}
+                                onChange={(selected) => setApplicableProducts(selected as any)}
+                                styles={customSelectStyles}
+                            />
+                        )}
+                    </div>
+
                     <div className="space-y-2">
                         <Label>Ingredients</Label>
                         <div className="space-y-2">
@@ -834,7 +892,7 @@ export default function RecipesPage() {
                                 <CardTitle>Recipe Book</CardTitle>
                                 <CardDescription>Manage all production recipes for the bakery.</CardDescription>
                             </div>
-                            <RecipeDialog onSave={handleSaveRecipeAction} allIngredients={ingredients} user={user}>
+                            <RecipeDialog onSave={handleSaveRecipeAction} allIngredients={ingredients} allProducts={products} user={user}>
                                 <Button disabled={!canEditRecipe}>
                                     <PlusCircle className="mr-2 h-4 w-4" /> Create New Recipe
                                 </Button>
@@ -869,7 +927,7 @@ export default function RecipesPage() {
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
                                                 </AlertDialog>
-                                                <RecipeDialog onSave={handleSaveRecipeAction} allIngredients={ingredients} recipe={recipe} user={user}>
+                                                <RecipeDialog onSave={handleSaveRecipeAction} allIngredients={ingredients} allProducts={products} recipe={recipe} user={user}>
                                                     <Button variant="outline" size="sm" disabled={!canEditRecipe}><Edit className="mr-2 h-4 w-4" /> Edit</Button>
                                                 </RecipeDialog>
                                             </CardFooter>
