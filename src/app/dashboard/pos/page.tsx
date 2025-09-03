@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, Suspense, useCallback } from "react";
 import Image from "next/image";
-import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet, ArrowRightLeft } from "lucide-react";
+import { Plus, Minus, X, Search, Trash2, Hand, CreditCard, Printer, User, Building, Loader2, Wallet, ArrowRightLeft, Edit } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -49,10 +49,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { handlePosSale, initializePaystackTransaction, verifyPaystackOnServerAndFinalizeOrder } from "@/app/actions";
+import { handlePosSale, initializePaystackTransaction, verifyPaystackOnServerAndFinalizeOrder, getProductsForStaff } from "@/app/actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { User, CartItem, Product, CompletedOrder, SelectableStaff } from "./types";
 import type PaystackPop from '@paystack/inline-js';
+import { ProductEditDialog } from "../../components/product-edit-dialog";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -165,6 +166,7 @@ function POSPageContent() {
   const [confirmMethod, setConfirmMethod] = useState<'Cash' | 'POS' | null>(null);
   const [storeAddress, setStoreAddress] = useState<string | undefined>();
   const [searchTerm, setSearchTerm] = useState("");
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed' | 'cancelled'>('idle');
 
@@ -181,11 +183,10 @@ function POSPageContent() {
 
   const total = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
 
-  const fetchProductsForStaff = async (staffId: string) => {
+  const fetchProductsForStaff = useCallback(async (staffId: string) => {
     setIsLoadingProducts(true);
-    const personalStockQuery = collection(db, 'staff', staffId, 'personal_stock');
     
-    return onSnapshot(personalStockQuery, async (stockSnapshot) => {
+    return onSnapshot(collection(db, 'staff', staffId, 'personal_stock'), async (stockSnapshot) => {
         if (stockSnapshot.empty) {
             setProducts([]);
             setIsLoadingProducts(false);
@@ -213,6 +214,9 @@ function POSPageContent() {
                     image: productDetails.image,
                     'data-ai-hint': productDetails['data-ai-hint'],
                     costPrice: productDetails.costPrice || 0,
+                    minPrice: productDetails.minPrice,
+                    maxPrice: productDetails.maxPrice,
+                    lowStockThreshold: productDetails.lowStockThreshold
                 } as Product;
             }
             return null;
@@ -221,7 +225,7 @@ function POSPageContent() {
         setProducts(productsList);
         setIsLoadingProducts(false);
     });
-  }
+  }, []);
 
   const clearCartAndStorage = useCallback(() => {
     setCart([]);
@@ -279,7 +283,7 @@ function POSPageContent() {
             unsubscribe();
         }
     };
-  }, [selectedStaffId])
+  }, [selectedStaffId, fetchProductsForStaff])
   
   useEffect(() => {
     if (isReceiptOpen && lastCompletedOrder) {
@@ -592,6 +596,19 @@ function POSPageContent() {
                                             className="rounded-t-lg object-cover w-full aspect-square transition-transform group-hover:scale-105"
                                             data-ai-hint={product['data-ai-hint']}
                                             />
+                                            {user?.role === 'Developer' && (
+                                                <Button
+                                                    variant="secondary"
+                                                    size="icon"
+                                                    className="absolute top-2 left-2 h-7 w-7 opacity-0 group-hover:opacity-100"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingProduct(product);
+                                                    }}
+                                                >
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                            )}
                                             <Badge variant="secondary" className="absolute top-2 right-2">
                                                 Stock: {product.stock}
                                             </Badge>
@@ -766,6 +783,13 @@ function POSPageContent() {
       </div>
 
        {/* ---- DIALOGS ---- */}
+       <ProductEditDialog
+          product={editingProduct}
+          onOpenChange={setEditingProduct}
+          onProductUpdate={() => fetchProductsForStaff(selectedStaffId!)}
+          user={user}
+          categories={categories}
+        />
 
         {/* Manager Staff Selection Dialog */}
         <Dialog open={isStaffSelectionOpen} onOpenChange={setIsStaffSelectionOpen}>
