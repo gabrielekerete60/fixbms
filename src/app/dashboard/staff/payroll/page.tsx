@@ -596,40 +596,42 @@ function AdvanceSalaryLogTab() {
                 </div>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Date & Time</TableHead>
-                            <TableHead>Staff Member</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead className="text-right">Amount (₦)</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading ? (
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center">
-                                    <Loader2 className="h-8 w-8 animate-spin" />
-                                </TableCell>
+                                <TableHead>Date & Time</TableHead>
+                                <TableHead>Staff Member</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead className="text-right">Amount (₦)</TableHead>
                             </TableRow>
-                        ) : paginatedLogs.length === 0 ? (
-                             <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center">
-                                    No salary advances recorded for this period.
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            paginatedLogs.map(log => (
-                                <TableRow key={log.id}>
-                                    <TableCell>{format(new Date(log.date), 'Pp')}</TableCell>
-                                    <TableCell>{log.staffName}</TableCell>
-                                    <TableCell>{log.description}</TableCell>
-                                    <TableCell className="text-right text-destructive">{Math.abs(log.netPay).toLocaleString()}</TableCell>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">
+                                        <Loader2 className="h-8 w-8 animate-spin" />
+                                    </TableCell>
                                 </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
+                            ) : paginatedLogs.length === 0 ? (
+                                 <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">
+                                        No salary advances recorded for this period.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                paginatedLogs.map(log => (
+                                    <TableRow key={log.id}>
+                                        <TableCell>{format(new Date(log.date), 'Pp')}</TableCell>
+                                        <TableCell>{log.staffName}</TableCell>
+                                        <TableCell>{log.description}</TableCell>
+                                        <TableCell className="text-right text-destructive">{Math.abs(log.netPay).toLocaleString()}</TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
              <CardFooter>
                 <PaginationControls visibleRows={visibleRows} setVisibleRows={setVisibleRows} totalRows={logs.length} />

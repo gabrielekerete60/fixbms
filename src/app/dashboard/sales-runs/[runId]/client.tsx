@@ -14,7 +14,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select as ShadSelect, SelectContent as ShadSelectContent, SelectItem as ShadSelectItem, SelectTrigger as ShadSelectTrigger, SelectValue as ShadSelectValue } from '@/components/ui/select';
-import Select from 'react-select';
 import { Input } from '@/components/ui/input';
 import { collection, doc, Timestamp, onSnapshot, query, where, addDoc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -24,6 +23,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
 import { Textarea } from '@/components/ui/textarea';
+import Select from 'react-select';
 
 
 type Customer = {
@@ -62,7 +62,7 @@ type User = {
 };
 
 type StaffMember = {
-  staff_id: string;
+  id: string;
   name: string;
   role: string;
 };
@@ -1087,7 +1087,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer | 
     )
 }
 
-function ReturnStockDialog({ user, onReturn, remainingItems }: { user: User, onReturn: () => void, remainingItems: OrderItem[] }) {
+function ReturnStockDialog({ run, user, onReturn, remainingItems }: { run: SalesRun, user: User, onReturn: () => void, remainingItems: OrderItem[] }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [itemsToReturn, setItemsToReturn] = useState<Record<string, number | string>>({});
@@ -1098,13 +1098,24 @@ function ReturnStockDialog({ user, onReturn, remainingItems }: { user: User, onR
     useEffect(() => {
         if (isOpen) {
             getStaffList().then(list => {
-                const filteredStaff = list.filter(s => s.role === 'Storekeeper' || s.role === 'Showroom Staff');
+                const isDeliveryStaff = user.role === 'Delivery Staff';
+                const isShowroomStaff = user.role === 'Showroom Staff';
+                
+                const filteredStaff = list.filter(s => {
+                    if (isDeliveryStaff) {
+                        return s.role === 'Storekeeper' || s.role === 'Showroom Staff';
+                    }
+                    if (isShowroomStaff) {
+                        return s.role === 'Storekeeper' || s.role === 'Delivery Staff';
+                    }
+                    return false; // Default case
+                });
                 setStaffList(filteredStaff);
             });
             setItemsToReturn({});
             setReturnTo('');
         }
-    }, [isOpen]);
+    }, [isOpen, user.role]);
 
     const handleQuantityChange = (productId: string, value: string, maxStock: number) => {
         const numValue = Number(value);
@@ -1144,7 +1155,7 @@ function ReturnStockDialog({ user, onReturn, remainingItems }: { user: User, onR
         }
 
         setIsSubmitting(true);
-        const result = await handleReturnStock("showroom-return", items, user, returnTo);
+        const result = await handleReturnStock(run.id, items, user, returnTo);
         
         if (result.success) {
             toast({ title: 'Success', description: 'Stock return request submitted for approval.' });
@@ -1175,7 +1186,7 @@ function ReturnStockDialog({ user, onReturn, remainingItems }: { user: User, onR
                             <ShadSelectTrigger><ShadSelectValue placeholder="Select staff to return to..." /></ShadSelectTrigger>
                             <ShadSelectContent>
                                 {staffList.map(s => (
-                                    <ShadSelectItem key={s.staff_id} value={s.staff_id}>{s.name} ({s.role})</ShadSelectItem>
+                                    <ShadSelectItem key={s.id} value={s.id}>{s.name} ({s.role})</ShadSelectItem>
                                 ))}
                             </ShadSelectContent>
                         </ShadSelect>
@@ -1389,19 +1400,6 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
         };
     }, [runId, isLoading]);
     
-    const handleReturnStockAction = async () => {
-        if (!run || !user) return;
-        const unsold = getRemainingItems();
-        // This is a simplified call; needs to allow selecting who to return to.
-        // For now, it defaults to the logic in the action.
-        const result = await handleReturnStock(run.id, unsold, user, ''); // Placeholder for recipient
-        if (result.success) {
-            toast({ title: 'Success!', description: 'Unsold stock has been sent for acknowledgement.'});
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
-    }
-
     const handleCompleteRunAction = async () => {
         if (!run) return;
         const result = await handleCompleteRun(run.id);
@@ -1626,7 +1624,7 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
                         <LogCustomSaleDialog run={run} user={user} onSaleMade={handleSaleMade} remainingItems={remainingItems} />
                         <LogExpenseDialog run={run} user={user} />
                         <ReportWasteDialog run={run} user={user!} onWasteReported={fetchRunData} remainingItems={remainingItems} />
-                        <ReturnStockDialog user={user!} onReturn={fetchRunData} remainingItems={remainingItems} />
+                        {canReturnStock && <ReturnStockDialog user={user!} onReturn={fetchRunData} remainingItems={remainingItems} />}
                     </CardContent>
                     {canPerformActions && (
                         <CardFooter className="flex-col gap-2">
