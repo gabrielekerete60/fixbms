@@ -951,7 +951,7 @@ function RecordPaymentDialog({ customer, run, user }: { customer: RunCustomer | 
     useEffect(() => {
         const fetchCustomerEmail = async () => {
             if (isOpen && selectedCustomer && selectedCustomer.customerId !== 'walk-in') {
-                const customerDoc = await getDoc(doc(db, "customers", selectedCustomer!.customerId));
+                const customerDoc = await getDoc(doc(db, "customers", selectedCustomer.customerId));
             }
         }
         if(isOpen && selectedCustomer) {
