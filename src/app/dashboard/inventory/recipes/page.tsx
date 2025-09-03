@@ -11,7 +11,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye, Edit, Rocket, CookingPot, CalendarIcon, Ban } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Loader2, Trash2, CheckCircle, XCircle, Search, Eye, Edit, Rocket, CookingPot, CalendarIcon, Ban, BookCopy } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +49,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
 
 type User = {
     name: string;
@@ -493,12 +494,120 @@ function ApproveBatchDialog({ batch, user, allIngredients, onApproval }: { batch
     );
 }
 
+function RecipeDialog({ onSave, allIngredients, recipe, user, children }: { onSave: (data: Omit<Recipe, 'id'>, id?: string) => void, allIngredients: Ingredient[], recipe?: Recipe | null, user: User, children: React.ReactNode }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
+    const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        if(isOpen) {
+            if (recipe) {
+                setName(recipe.name);
+                setDescription(recipe.description);
+                setIngredients(JSON.parse(JSON.stringify(recipe.ingredients)));
+            } else {
+                setName('');
+                setDescription('');
+                setIngredients([{ ingredientId: '', ingredientName: '', quantity: 0, unit: '' }]);
+            }
+        }
+    }, [isOpen, recipe]);
+    
+    const handleIngredientChange = (index: number, field: keyof RecipeIngredient, value: string) => {
+        const newIngredients = [...ingredients];
+        if (field === 'ingredientId') {
+            const selectedIngredient = allIngredients.find(i => i.id === value);
+            newIngredients[index] = {
+                ...newIngredients[index],
+                ingredientId: value,
+                ingredientName: selectedIngredient?.name || '',
+                unit: selectedIngredient?.unit || ''
+            };
+        } else if (field === 'quantity') {
+            newIngredients[index].quantity = Number(value);
+        }
+        setIngredients(newIngredients);
+    };
+
+    const handleAddIngredient = () => {
+        setIngredients([...ingredients, { ingredientId: '', ingredientName: '', quantity: 0, unit: '' }]);
+    };
+    
+    const handleRemoveIngredient = (index: number) => {
+        setIngredients(ingredients.filter((_, i) => i !== index));
+    };
+
+    const handleSubmit = async () => {
+        if (!name || ingredients.some(i => !i.ingredientId || i.quantity <= 0)) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Recipe name and all ingredient fields are required.' });
+            return;
+        }
+        setIsSubmitting(true);
+        const result = await handleSaveRecipe({ name, description, ingredients }, recipe?.id, user);
+        if (result.success) {
+            toast({ title: 'Success', description: 'Recipe saved successfully.' });
+            setIsOpen(false);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(false);
+    };
+    
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>{children}</DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>{recipe ? 'Edit Recipe' : 'Create New Recipe'}</DialogTitle>
+                </DialogHeader>
+                <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="recipe-name">Recipe Name</Label>
+                        <Input id="recipe-name" value={name} onChange={e => setName(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="recipe-desc">Description</Label>
+                        <Textarea id="recipe-desc" value={description} onChange={e => setDescription(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Ingredients</Label>
+                        <div className="space-y-2">
+                            {ingredients.map((ing, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                    <Select value={ing.ingredientId} onValueChange={val => handleIngredientChange(index, 'ingredientId', val)}>
+                                        <SelectTrigger><SelectValue placeholder="Select Ingredient" /></SelectTrigger>
+                                        <SelectContent>
+                                            {allIngredients.map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <Input type="number" placeholder="Qty" value={ing.quantity} onChange={e => handleIngredientChange(index, 'quantity', e.target.value)} className="w-28" />
+                                    <span className="w-12 text-sm text-muted-foreground">{ing.unit}</span>
+                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveIngredient(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                </div>
+                            ))}
+                        </div>
+                        <Button variant="outline" size="sm" onClick={handleAddIngredient}><PlusCircle className="mr-2 h-4 w-4"/>Add Ingredient</Button>
+                    </div>
+                </div>
+                 <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Save Recipe
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function RecipesPage() {
     const { toast } = useToast();
     const [user, setUser] = useState<User | null>(null);
-    const [generalRecipe, setGeneralRecipe] = useState<Recipe | null>(null);
-    const [editedRecipe, setEditedRecipe] = useState<Recipe | null>(null);
-    const [isEditing, setIsEditing] = useState(false);
+    const [recipes, setRecipes] = useState<Recipe[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [ingredients, setIngredients] = useState<Ingredient[]>([]);
     
@@ -525,9 +634,7 @@ export default function RecipesPage() {
                 getIngredients(),
             ]);
 
-            const general = recipeData.find((r: Recipe) => r.name === "General Bread Production") || null
-            setGeneralRecipe(general);
-            setEditedRecipe(general ? JSON.parse(JSON.stringify(general)) : null);
+            setRecipes(recipeData);
             setProducts(productData);
             setIngredients(ingredientData);
 
@@ -545,7 +652,7 @@ export default function RecipesPage() {
             setUser(JSON.parse(storedUser));
         }
         fetchStaticData();
-    }, []);
+    }, [fetchStaticData]);
     
     // Real-time listeners
     useEffect(() => {
@@ -582,22 +689,21 @@ export default function RecipesPage() {
         }
     }, []);
     
-    const handleStartProduction = async (batchSize: 'full' | 'half') => {
-        if (!generalRecipe || !user) {
-            toast({ variant: 'destructive', title: 'Invalid input', description: 'Recipe or user not found.' });
+    const handleStartProduction = async (recipe: Recipe) => {
+        if (!user) {
+            toast({ variant: 'destructive', title: 'Invalid input', description: 'User not found.' });
             return;
         }
         
         setIsSubmitting(true);
-        setIsProductionDialogOpen(false);
 
         const batchData = {
-            recipeId: generalRecipe.id,
-            recipeName: generalRecipe.name,
+            recipeId: recipe.id,
+            recipeName: recipe.name,
             productId: 'multi-product',
-            productName: 'General Production',
+            productName: recipe.name,
             quantityToProduce: 1,
-            batchSize: batchSize,
+            batchSize: 'full' as 'full' | 'half',
         };
         
         const result = await startProductionBatch(batchData, user);
@@ -620,35 +726,27 @@ export default function RecipesPage() {
         }
         setIsSubmitting(false);
     };
-    
-     const handleRecipeEdit = (index: number, quantity: string) => {
-        if (!editedRecipe) return;
-        const newIngredients = [...editedRecipe.ingredients];
-        newIngredients[index].quantity = Number(quantity);
-        setEditedRecipe({ ...editedRecipe, ingredients: newIngredients });
-    };
 
-    const handleSaveRecipeAction = async () => {
-        if (!editedRecipe || !user) return;
-        setIsSubmitting(true);
-        const result = await handleSaveRecipe(
-            { ingredients: editedRecipe.ingredients, name: editedRecipe.name },
-            editedRecipe.id,
-            user
-        );
+    const handleSaveRecipeAction = async (data: Omit<Recipe, 'id'>, id?: string) => {
+        if (!user) return;
+        const result = await handleSaveRecipe(data, id, user);
         if (result.success) {
-            toast({ title: "Recipe Saved", description: "The general production recipe has been updated." });
-            setGeneralRecipe(editedRecipe);
-            setIsEditing(false);
+            toast({ title: "Success", description: `Recipe "${data.name}" has been saved.` });
+            fetchStaticData();
         } else {
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not save the recipe.' });
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-        setIsSubmitting(false);
     };
-
-    const handleCancelEdit = () => {
-        setEditedRecipe(generalRecipe ? JSON.parse(JSON.stringify(generalRecipe)) : null);
-        setIsEditing(false);
+    
+    const handleDeleteRecipeAction = async (recipe: Recipe) => {
+        if (!user) return;
+        const result = await handleDeleteRecipe(recipe.id, recipe.name, user);
+        if (result.success) {
+            toast({ title: "Success", description: `Recipe "${recipe.name}" has been deleted.` });
+            fetchStaticData();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
     };
 
 
@@ -695,6 +793,16 @@ export default function RecipesPage() {
         }
     }
 
+    const calculateRecipeCost = (recipe: Recipe) => {
+        return recipe.ingredients.reduce((total, recipeIng) => {
+            const ingredientData = ingredients.find(ing => ing.id === recipeIng.ingredientId);
+            if(ingredientData) {
+                return total + (recipeIng.quantity * (ingredientData.costPerUnit || 0));
+            }
+            return total;
+        }, 0);
+    }
+
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
@@ -720,61 +828,55 @@ export default function RecipesPage() {
                     <TabsTrigger value="logs">Production Logs</TabsTrigger>
                 </TabsList>
                 <TabsContent value="recipes" className="mt-4">
-                    <Card>
+                     <Card>
                         <CardHeader className="flex flex-row justify-between items-start">
                             <div>
-                                <CardTitle>General Production Recipe</CardTitle>
-                                <CardDescription>This recipe is used for all bread production batches.</CardDescription>
+                                <CardTitle>Recipe Book</CardTitle>
+                                <CardDescription>Manage all production recipes for the bakery.</CardDescription>
                             </div>
-                            {canEditRecipe && (
-                                isEditing ? (
-                                    <div className="flex gap-2">
-                                        <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
-                                        <Button onClick={handleSaveRecipeAction} disabled={isSubmitting}>
-                                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                                            Save Recipe
-                                        </Button>
-                                    </div>
-                                ) : (
-                                    <Button variant="outline" onClick={() => setIsEditing(true)}>
-                                        <Edit className="mr-2 h-4 w-4" /> Edit Recipe
-                                    </Button>
-                                )
-                            )}
+                            <RecipeDialog onSave={handleSaveRecipeAction} allIngredients={ingredients} user={user}>
+                                <Button disabled={!canEditRecipe}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Create New Recipe
+                                </Button>
+                            </RecipeDialog>
                         </CardHeader>
                         <CardContent>
-                            {editedRecipe ? (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Ingredient</TableHead>
-                                            <TableHead className="text-right">Quantity</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {editedRecipe.ingredients.map((ing, index) => (
-                                            <TableRow key={ing.ingredientId}>
-                                                <TableCell>{ing.ingredientName}</TableCell>
-                                                <TableCell className="text-right flex justify-end items-center gap-2">
-                                                    {isEditing ? (
-                                                        <>
-                                                            <Input 
-                                                                type="number" 
-                                                                value={ing.quantity}
-                                                                onChange={(e) => handleRecipeEdit(index, e.target.value)}
-                                                                className="w-32 text-right"
-                                                            />
-                                                                <span>{ing.unit}</span>
-                                                        </>
-                                                    ) : (
-                                                        <span>{ing.quantity.toLocaleString()} {ing.unit}</span>
-                                                    )}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            ) : <p>General recipe not found.</p>}
+                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {isLoading ? <Loader2 className="h-8 w-8 animate-spin"/> : (
+                                    recipes.map(recipe => (
+                                        <Card key={recipe.id}>
+                                            <CardHeader>
+                                                <CardTitle className="text-xl">{recipe.name}</CardTitle>
+                                                <CardDescription>{recipe.description}</CardDescription>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="text-sm font-semibold mb-2">Total Ingredient Cost:</div>
+                                                <p className="text-2xl font-bold text-primary">₦{calculateRecipeCost(recipe).toLocaleString()}</p>
+                                            </CardContent>
+                                            <CardFooter className="flex justify-between">
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button variant="destructive" size="sm" disabled={!canEditRecipe}><Trash2 className="mr-2 h-4 w-4" /> Delete</Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>This will permanently delete the "{recipe.name}" recipe. This action cannot be undone.</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteRecipeAction(recipe)}>Delete</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                                <RecipeDialog onSave={handleSaveRecipeAction} allIngredients={ingredients} recipe={recipe} user={user}>
+                                                    <Button variant="outline" size="sm" disabled={!canEditRecipe}><Edit className="mr-2 h-4 w-4" /> Edit</Button>
+                                                </RecipeDialog>
+                                            </CardFooter>
+                                        </Card>
+                                    ))
+                                )}
+                             </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -786,26 +888,30 @@ export default function RecipesPage() {
                                 <CardDescription>Manage and track all production batches.</CardDescription>
                             </div>
                              {canStartProduction && (
-                                 <AlertDialog open={isProductionDialogOpen} onOpenChange={setIsProductionDialogOpen}>
-                                    <AlertDialogTrigger asChild>
+                                <Dialog open={isProductionDialogOpen} onOpenChange={setIsProductionDialogOpen}>
+                                    <DialogTrigger asChild>
                                         <Button>
-                                            <CookingPot className="mr-2 h-4 w-4" /> Start General Production Batch
+                                            <CookingPot className="mr-2 h-4 w-4" /> Start Production Batch
                                         </Button>
-                                    </AlertDialogTrigger>
-                                     <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Start Production: {generalRecipe?.name}?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                Choose the batch size. This will send a request for the required ingredients to the storekeeper for approval.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleStartProduction('half')}>Request Half Batch (25kg)</AlertDialogAction>
-                                            <AlertDialogAction onClick={() => handleStartProduction('full')}>Request Full Batch (50kg)</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>Start Production</DialogTitle>
+                                            <DialogDescription>Choose a recipe to start a production batch. This will send a request for approval.</DialogDescription>
+                                        </DialogHeader>
+                                        <div className="py-4 space-y-4">
+                                            {recipes.map(recipe => (
+                                                <Card key={recipe.id} className="p-4 flex justify-between items-center">
+                                                    <div>
+                                                        <p className="font-semibold">{recipe.name}</p>
+                                                        <p className="text-sm text-muted-foreground">{recipe.ingredients.length} ingredients</p>
+                                                    </div>
+                                                    <Button onClick={() => handleStartProduction(recipe)}>Start Batch</Button>
+                                                </Card>
+                                            ))}
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
                              )}
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -912,4 +1018,3 @@ export default function RecipesPage() {
         </div>
     );
 }
-

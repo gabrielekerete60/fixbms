@@ -2262,7 +2262,7 @@ export async function startProductionBatch(data: StartProductionData, user: { st
             requestedById: user.staff_id,
             requestedByName: user.name,
         });
-        await createProductionLog('Batch Requested', `Requested ${data.batchSize} batch for ${data.productName}`, user);
+        await createProductionLog('Batch Requested', `Requested a batch of ${data.recipeName}`, user);
         return { success: true };
     } catch (error) {
         console.error("Error starting production batch:", error);
@@ -2828,11 +2828,17 @@ export async function handleRecordDebtPaymentForRun(data: PaymentData): Promise<
 }
 
 // Recipe Actions with Logging
-export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, recipeId: string, user: { staff_id: string, name: string, role: string }) {
+export async function handleSaveRecipe(recipeData: Omit<any, 'id'>, recipeId: string | undefined, user: { staff_id: string, name: string, role: string }) {
     try {
-        const recipeRef = doc(db, 'recipes', recipeId);
-        await updateDoc(recipeRef, recipeData);
-        await createProductionLog('Recipe Updated', `Updated ingredients for recipe: ${recipeData.name}`, user);
+        if (recipeId) {
+            const recipeRef = doc(db, 'recipes', recipeId);
+            await updateDoc(recipeRef, recipeData);
+            await createProductionLog('Recipe Updated', `Updated recipe: ${recipeData.name}`, user);
+        } else {
+            const recipeRef = doc(collection(db, 'recipes'));
+            await setDoc(recipeRef, recipeData);
+            await createProductionLog('Recipe Created', `Created new recipe: ${recipeData.name}`, user);
+        }
         return { success: true };
     } catch (error) {
         console.error("Error saving recipe:", error);
