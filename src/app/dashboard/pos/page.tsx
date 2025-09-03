@@ -47,13 +47,13 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { collection, getDocs, doc, getDoc, query, where, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, doc, runTransaction, increment, getDoc, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { handlePosSale, initializePaystackTransaction, verifyPaystackOnServerAndFinalizeOrder, getProductsForStaff } from "@/app/actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { User, CartItem, Product, CompletedOrder, SelectableStaff } from "./types";
 import type PaystackPop from '@paystack/inline-js';
-import { ProductEditDialog } from "../../components/product-edit-dialog";
+import { ProductEditDialog } from "@/app/dashboard/components/product-edit-dialog";
 
 
 const Receipt = React.forwardRef<HTMLDivElement, { order: CompletedOrder, storeAddress?: string }>(({ order, storeAddress }, ref) => {
@@ -786,7 +786,7 @@ function POSPageContent() {
        <ProductEditDialog
           product={editingProduct}
           onOpenChange={setEditingProduct}
-          onProductUpdate={() => fetchProductsForStaff(selectedStaffId!)}
+          onProductUpdate={() => selectedStaffId && fetchProductsForStaff(selectedStaffId)}
           user={user}
           categories={categories}
         />
