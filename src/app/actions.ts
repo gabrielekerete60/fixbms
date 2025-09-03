@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour, startOfYear as dateFnsStartOfYear } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour, startOfYear as dateFnsStartOfYear } from "date-fns";
 import { db } from "@/lib/firebase";
 import { randomUUID } from 'crypto';
 import speakeasy from 'speakeasy';
@@ -244,7 +244,7 @@ export async function handleUpdateTheme(staffId: string, theme: string): Promise
     }
 }
 
-export async function updateAppSettings(settings: { storeAddress?: string, staffIdLength?: number }): Promise<{ success: boolean; error?: string }> {
+export async function updateAppSettings(settings: { storeAddress?: string, staffIdLength?: number, autoClockOutTime?: string, clockInEnabledTime?: string }): Promise<{ success: boolean; error?: string }> {
     try {
         const settingsRef = doc(db, 'settings', 'app_config');
         const currentSettingsDoc = await getDoc(settingsRef);
@@ -252,7 +252,6 @@ export async function updateAppSettings(settings: { storeAddress?: string, staff
         
         await setDoc(settingsRef, settings, { merge: true });
         
-        // Handle Staff ID length change if it's different from the current one
         if (settings.staffIdLength && settings.staffIdLength !== currentSettings.staffIdLength) {
             const allStaffQuery = collection(db, 'staff');
             const staffSnapshot = await getDocs(allStaffQuery);
@@ -271,7 +270,6 @@ export async function updateAppSettings(settings: { storeAddress?: string, staff
                 }
 
                 if (newId !== oldId) {
-                    // Re-create the document with the new ID and delete the old one
                     const newStaffRef = doc(db, 'staff', newId);
                     batch.set(newStaffRef, staffData);
                     batch.delete(staffDoc.ref);
@@ -293,21 +291,19 @@ type AttendanceStatusResult = {
 
 export async function getAttendanceStatus(staffId: string): Promise<AttendanceStatusResult> {
     const today = startOfDay(new Date());
-    const tomorrow = endOfDay(new Date());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
     
-    // Firestore limitation: Cannot have a range filter on one field and an equality filter on another.
-    // So we first query for today's records for the user.
     const q = query(
         collection(db, "attendance"),
         where("staff_id", "==", staffId),
         where("clock_in_time", ">=", Timestamp.fromDate(today)),
         where("clock_in_time", "<", Timestamp.fromDate(tomorrow)),
-        orderBy("clock_in_time", "desc") // Get the latest one first
+        orderBy("clock_in_time", "desc")
     );
 
     const querySnapshot = await getDocs(q);
 
-    // Then, we filter in memory for the one that has not been clocked out.
     for (const docSnap of querySnapshot.docs) {
         if (docSnap.data().clock_out_time === null) {
             return { attendanceId: docSnap.id };
@@ -328,7 +324,7 @@ export async function handleClockIn(staffId: string): Promise<ClockInResult> {
         const docRef = await addDoc(collection(db, "attendance"), {
             staff_id: staffId,
             clock_in_time: serverTimestamp(),
-            date: new Date().toISOString().split('T')[0], // Store just the date for easier querying
+            date: new Date().toISOString().split('T')[0],
             clock_out_time: null,
         });
         return { success: true, attendanceId: docRef.id };
@@ -384,7 +380,7 @@ export async function handleInitiateTransfer(data: any, user: { staff_id: string
             from_staff_name: user.name,
             date: serverTimestamp(),
             status: 'pending',
-            totalRevenue: totalRevenue // Store the calculated total revenue
+            totalRevenue: totalRevenue
         });
         return { success: true };
     } catch (error) {
@@ -421,7 +417,7 @@ export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' |
                 break;
             case 'yearly':
                 startOfPeriod = dateFnsStartOfYear(now);
-                endOfPeriod = endOfYear(now);
+                endOfPeriod = dateFnsEndOfYear(now);
                 break;
         }
         
@@ -508,7 +504,6 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         const now = new Date();
         const startOfCurrentMonth = startOfMonth(now);
 
-        // Fetch all active sales runs for the user
         const activeRunsQuery = query(
             collection(db, 'transfers'),
             where('to_staff_id', '==', staffId),
@@ -516,14 +511,12 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         );
         const activeRunsSnapshot = await getDocs(activeRunsQuery);
 
-        // Sum up the initial quantities from all active runs
         let initialStock = 0;
         activeRunsSnapshot.docs.forEach(doc => {
             const items = doc.data().items || [];
             initialStock += items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
         });
 
-        // Fetch all orders made by this user from their active sales runs
         const runIds = activeRunsSnapshot.docs.map(doc => doc.id);
         let soldStock = 0;
         if (runIds.length > 0) {
@@ -535,10 +528,8 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
             });
         }
         
-        // The remaining stock is the initial total minus what has been sold
         const personalStockCount = initialStock - soldStock;
 
-        // Calculate pending transfers
         const pendingTransfersQuery = query(
             collection(db, 'transfers'),
             where('to_staff_id', '==', staffId),
@@ -547,7 +538,6 @@ export async function getStaffDashboardStats(staffId: string): Promise<StaffDash
         const pendingTransfersSnapshot = await getDocs(pendingTransfersQuery);
         const pendingTransfersCount = pendingTransfersSnapshot.size;
 
-        // Calculate waste reports for the month
         const wasteLogsQuery = query(
             collection(db, 'waste_logs'),
             where('staffId', '==', staffId),
@@ -1247,7 +1237,7 @@ export async function addIndirectCost(data: IndirectCostData) {
 
 export async function getStaffList() {
     try {
-        const q = query(collection(db, "staff"), where("is_active", "==", true), where("role", "!=", "Developer"));
+        const q = query(collection(db, "staff"), where("is_active", "==", true));
         const snapshot = await getDocs(q);
         return snapshot.docs.map(docSnap => ({
             id: docSnap.id,
@@ -2083,7 +2073,7 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
                  throw new Error("This transfer has already been processed.");
             }
             
-            // This case handles a driver returning unsold stock to the storekeeper.
+            // This case handles a driver/showroom returning unsold stock to the storekeeper.
             if (transfer.status === 'pending_return') {
                  for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
@@ -2111,13 +2101,10 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
             else { 
                 const productRefs = transfer.items.map(item => doc(db, 'products', item.productId));
                 const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
-                const staffStockRefs = transfer.items.map(item => doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId));
-                const staffStockDocs = await Promise.all(staffStockRefs.map(ref => transaction.get(ref)));
-
+                
                 for (let i = 0; i < transfer.items.length; i++) {
                     const item = transfer.items[i];
                     const productDoc = productDocs[i];
-                    const staffStockDoc = staffStockDocs[i];
 
                     if (!productDoc.exists() || (productDoc.data().stock || 0) < item.quantity) {
                         throw new Error(`Not enough stock for ${item.productName} in main inventory.`);
@@ -2125,10 +2112,12 @@ export async function handleAcknowledgeTransfer(transferId: string, action: 'acc
 
                     transaction.update(productRefs[i], { stock: increment(-item.quantity) });
 
+                    const staffStockRef = doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId);
+                    const staffStockDoc = await transaction.get(staffStockRef);
                     if (staffStockDoc.exists()) {
-                        transaction.update(staffStockRefs[i], { stock: increment(item.quantity) });
+                        transaction.update(staffStockRef, { stock: increment(item.quantity) });
                     } else {
-                        transaction.set(staffStockRefs[i], {
+                        transaction.set(staffStockRef, {
                             productId: item.productId,
                             productName: item.productName,
                             stock: item.quantity,
@@ -2213,7 +2202,6 @@ export async function getProductionBatches(): Promise<{ pending: ProductionBatch
 async function createProductionLog(action: string, details: string, user: { staff_id: string, name: string, role: string }) {
     try {
         let loggedUser = { ...user };
-        // If the user is a developer, log the action as being performed by the manager.
         if (user.role === 'Developer') {
             loggedUser.name = 'Manager';
         }
@@ -2273,7 +2261,6 @@ export async function startProductionBatch(data: StartProductionData, user: { st
 export async function approveIngredientRequest(batchId: string, ingredients: { ingredientId: string, quantity: number, ingredientName: string, unit: string }[], user: { staff_id: string, name: string, role: string }): Promise<{success: boolean, error?: string}> {
     const batchRef = doc(db, 'production_batches', batchId);
 
-    // Transaction for batch and ingredient updates
     try {
         await runTransaction(db, async (transaction) => {
             const batchDoc = await transaction.get(batchRef);
@@ -2307,7 +2294,6 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
         return { success: false, error: (error as Error).message };
     }
     
-    // Separate transaction for logging
     try {
         const logRef = doc(collection(db, 'ingredient_stock_logs'));
         const batchDocForLog = await getDoc(batchRef);
@@ -2325,7 +2311,6 @@ export async function approveIngredientRequest(batchId: string, ingredients: { i
          await createProductionLog('Batch Approved', `Approved batch for ${batchData?.quantityToProduce} of ${batchData?.productName}: ${batchDocForLog.id}`, user);
     } catch (logError) {
          console.error("Error creating stock log for request:", logError);
-         // Don't fail the whole operation if logging fails
     }
 
     return { success: true };
@@ -2866,27 +2851,28 @@ export async function getProducts(): Promise<any[]> {
     const snapshot = await getDocs(collection(db, "products"));
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
-export async function getProductsForStaff(staffId: string): Promise<any[]> {
-    const q = query(collection(db, 'staff', staffId, 'personal_stock'));
-    const snapshot = await getDocs(q);
+export async function getProductsForStaff(staffId: string): Promise<{productId: string, name: string, stock: number, price: number, costPrice: number, minPrice: number, maxPrice: number}[]> {
+    const personalStockQuery = query(collection(db, 'staff', staffId, 'personal_stock'));
+    const stockSnapshot = await getDocs(personalStockQuery);
     
-    if (snapshot.empty) return [];
+    if (stockSnapshot.empty) return [];
 
-    const productPromises = snapshot.docs.map(stockDoc => {
+    const productPromises = stockSnapshot.docs.map(stockDoc => {
         return getDoc(doc(db, 'products', stockDoc.data().productId));
     });
     const productSnapshots = await Promise.all(productPromises);
     
-    return snapshot.docs.map((stockDoc, index) => {
+    return stockSnapshot.docs.map((stockDoc, index) => {
         const productDoc = productSnapshots[index];
+        const productData = productDoc.exists() ? productDoc.data() : {};
         return {
             productId: stockDoc.id,
             name: stockDoc.data().productName,
             stock: stockDoc.data().stock,
-            price: productDoc.exists() ? productDoc.data().price : 0,
-            costPrice: productDoc.exists() ? productDoc.data().costPrice : 0,
-            minPrice: productDoc.exists() ? productDoc.data().minPrice : 0,
-            maxPrice: productDoc.exists() ? productDoc.data().maxPrice : 0,
+            price: productData.price || 0,
+            costPrice: productData.costPrice || 0,
+            minPrice: productData.minPrice || 0,
+            maxPrice: productData.maxPrice || 0,
         };
     });
 }
@@ -3244,28 +3230,25 @@ export async function declineStockIncrease(requestId: string, user: { staff_id: 
     }
 }
 
-export async function handleReturnStock(runId: string, unsoldItems: { productId: string; productName: string; quantity: number }[], user: { staff_id: string; name: string }): Promise<{success: boolean, error?: string}> {
+export async function handleReturnStock(runId: string, unsoldItems: { productId: string; productName: string; quantity: number }[], user: { staff_id: string; name: string }, returnToStaffId: string): Promise<{success: boolean, error?: string}> {
     try {
         if (unsoldItems.length === 0) {
-            return { success: true }; // Nothing to return
+            return { success: false, error: "No items selected to return." };
         }
         
-        const storekeeperQuery = query(collection(db, "staff"), where("role", "==", "Storekeeper"), limit(1));
-        const storekeeperSnapshot = await getDocs(storekeeperQuery);
-        if (storekeeperSnapshot.empty) {
-            throw new Error("No storekeeper found to return stock to.");
+        const returnToStaffDoc = await getDoc(doc(db, "staff", returnToStaffId));
+        if (!returnToStaffDoc.exists()) {
+            throw new Error("Receiving staff member not found.");
         }
-        const storekeeper = storekeeperSnapshot.docs[0].data();
-        const storekeeperId = storekeeperSnapshot.docs[0].id;
+        const returnToStaff = returnToStaffDoc.data();
         
         await runTransaction(db, async (transaction) => {
-            // Create a new transfer document for the return
             const transferRef = doc(collection(db, 'transfers'));
             transaction.set(transferRef, {
                 from_staff_id: user.staff_id,
                 from_staff_name: user.name,
-                to_staff_id: storekeeperId,
-                to_staff_name: storekeeper.name,
+                to_staff_id: returnToStaffId,
+                to_staff_name: returnToStaff.name,
                 items: unsoldItems,
                 date: serverTimestamp(),
                 status: 'pending_return',
@@ -3274,10 +3257,14 @@ export async function handleReturnStock(runId: string, unsoldItems: { productId:
                 originalRunId: runId,
             });
 
-            // For showroom staff, runId might be a placeholder. Only update if it's a real document.
-            if (runId !== 'showroom-return') {
+            if (runId !== 'showroom-return' && runId !== 'delivery-return') {
                 const originalRunRef = doc(db, 'transfers', runId);
                 transaction.update(originalRunRef, { status: 'pending_return' });
+            }
+
+            for (const item of unsoldItems) {
+                const personalStockRef = doc(db, 'staff', user.staff_id, 'personal_stock', item.productId);
+                transaction.update(personalStockRef, { stock: increment(-item.quantity) });
             }
         });
         
@@ -3292,7 +3279,6 @@ export async function handleReturnStock(runId: string, unsoldItems: { productId:
 export async function handleCompleteRun(runId: string): Promise<{success: boolean, error?: string}> {
     try {
         await runTransaction(db, async (transaction) => {
-            // All reads must come before all writes
             const runRef = doc(db, 'transfers', runId);
             const runDoc = await transaction.get(runRef);
             
@@ -3302,13 +3288,12 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
             if (runData.status !== 'active') throw new Error("This run is not active or has already been completed.");
 
             const ordersQuery = query(collection(db, 'orders'), where('salesRunId', '==', runId));
-            const ordersSnapshot = await getDocs(ordersQuery); // This read is now before writes.
+            const ordersSnapshot = await getDocs(ordersQuery);
 
             const salesDocId = format(runData.date.toDate(), 'yyyy-MM-dd');
             const salesDocRef = doc(db, 'sales', salesDocId);
             const salesDoc = await transaction.get(salesDocRef);
 
-            // Calculations based on reads
             const creditSales = ordersSnapshot.docs
                 .filter(doc => doc.data().paymentMethod === 'Credit')
                 .reduce((sum, doc) => sum + doc.data().total, 0);
@@ -3317,13 +3302,12 @@ export async function handleCompleteRun(runId: string): Promise<{success: boolea
             const cashCollected = runData.totalCollected || 0;
             const shortage = expectedCash - cashCollected;
             
-            // All writes happen here at the end
             transaction.update(runRef, {
                 status: 'completed',
                 time_completed: serverTimestamp()
             });
             
-            if (Math.abs(shortage) > 0.01) { // Use a small epsilon for float comparison
+            if (Math.abs(shortage) > 0.01) { 
                 if (salesDoc.exists()) {
                     transaction.update(salesDocRef, { shortage: increment(shortage) });
                 } else {
@@ -3453,3 +3437,4 @@ export async function returnUnusedIngredients(
         return { success: false, error: "Failed to return ingredients." };
     }
 }
+
