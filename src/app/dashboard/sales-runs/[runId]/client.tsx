@@ -5,8 +5,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordDebtPaymentForRun, getOrdersForRun, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense, getProductsForStaff, getStaffList } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal, FileSignature, Car, Fuel, Receipt as ReceiptIcon, Building } from 'lucide-react';
+import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordDebtPaymentForRun, getOrdersForRun, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense, getProductsForStaff, getStaffList, getProducts } from '@/app/actions';
+import { Loader2, ArrowLeft, User, Package, HandCoins, PlusCircle, Trash2, CreditCard, Wallet, Plus, Minus, Printer, ArrowRightLeft, ArrowUpDown, RefreshCw, Undo2, CheckCircle, Trash, SquareTerminal, FileSignature, Car, Fuel, Receipt as ReceiptIcon, Building, Edit } from 'lucide-react';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -24,6 +24,7 @@ import { Separator } from '@/components/ui/separator';
 import { format } from "date-fns";
 import { Textarea } from '@/components/ui/textarea';
 import Select from 'react-select';
+import { ProductEditDialog } from '@/app/dashboard/components/product-edit-dialog';
 
 
 type Customer = {
@@ -65,6 +66,20 @@ type StaffMember = {
   id: string;
   name: string;
   role: string;
+};
+
+type Product = {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  category: string;
+  image: string;
+  "data-ai-hint": string;
+  costPrice?: number;
+  lowStockThreshold?: number;
+  minPrice?: number;
+  maxPrice?: number;
 };
 
 type SortKey = 'customerName' | 'totalSold' | 'totalPaid' | 'outstanding';
@@ -289,7 +304,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                     return prev;
                 }
             }
-            return [...prev, { ...item, quantity: 1, name: item.name }];
+            return [...prev, { ...item, quantity: 1, name: item.productName }];
         });
     };
 
@@ -387,7 +402,7 @@ function SellToCustomerDialog({ run, user, onSaleMade, remainingItems }: { run: 
                             {remainingItems.map(item => (
                                 <div key={item.productId} className="p-2 flex justify-between items-center border-b gap-2">
                                     <div>
-                                        <p className="font-semibold">{item.name}</p>
+                                        <p className="font-semibold">{item.productName}</p>
                                         <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -530,14 +545,13 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
 
         if(field === 'productId') {
             const product = remainingItems.find(p => p.productId === value);
-            newItems[index] = { ...item, productId: value, name: product?.name || '', price: product?.price || 0, minPrice: product?.minPrice, maxPrice: product?.maxPrice, quantity: 1 };
+            newItems[index] = { ...item, productId: value, name: product?.productName || '', price: product?.price || 0, minPrice: product?.minPrice, maxPrice: product?.maxPrice, quantity: 1 };
         } else {
              newItems[index].quantity = Number(value);
         }
         setCart(newItems);
     }
 
-    // Advanced stock validation
     useEffect(() => {
         const quantitiesInCart = cart.reduce((acc, item) => {
             if (item.productId) {
@@ -672,7 +686,7 @@ function LogCustomSaleDialog({ run, user, onSaleMade, remainingItems }: { run: S
                                                 <ShadSelectTrigger className="w-2/3"><ShadSelectValue placeholder="Select Product" /></ShadSelectTrigger>
                                                 <ShadSelectContent>
                                                     {remainingItems.map(p => (
-                                                        <ShadSelectItem key={p.productId} value={p.productId}>{p.name} (Avail: {p.quantity})</ShadSelectItem>
+                                                        <ShadSelectItem key={p.productId} value={p.productId}>{p.productName} (Avail: {p.quantity})</ShadSelectItem>
                                                     ))}
                                                 </ShadSelectContent>
                                             </ShadSelect>
@@ -1124,7 +1138,7 @@ function ReturnStockDialog({ run, user, onReturn, remainingItems }: { run: Sales
                     if (isShowroomStaff) {
                         return s.role === 'Storekeeper' || s.role === 'Delivery Staff';
                     }
-                    return false; // Default case
+                    return false;
                 });
                 setStaffList(filteredStaff);
             });
@@ -1238,7 +1252,7 @@ function ReturnStockDialog({ run, user, onReturn, remainingItems }: { run: Sales
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                    <Button onClick={handleSubmit} disabled={isSubmitting || !returnTo}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                         Submit Return Request
                     </Button>
@@ -1358,12 +1372,15 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
     const summaryReceiptRef = useRef<HTMLDivElement>(null);
     const [paymentConfirmations, setPaymentConfirmations] = useState<any[]>([]);
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'outstanding', direction: 'desc' });
+    const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+    const [allProducts, setAllProducts] = useState<Product[]>([]);
 
     useEffect(() => {
       const userJSON = localStorage.getItem('loggedInUser');
       if (userJSON) {
           setUser(JSON.parse(userJSON));
       }
+      getProducts().then(setAllProducts);
     }, []);
 
     const fetchRunData = useCallback(async () => {
@@ -1529,12 +1546,20 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
     const isPendingReturn = runStatus === 'pending_return';
     const canPerformActions = user?.staff_id === run?.to_staff_id;
     const canPerformSales = canPerformActions && !runComplete && !isPendingReturn;
-    const canReturnStock = canPerformActions && run.status === 'active';
+    const canReturnStock = canPerformActions && (run.status === 'active' || isPendingReturn);
     const isReadOnly = user?.role === 'Manager';
     const allDebtsPaid = run.totalOutstanding <= 0;
+    const productCategories = useMemo(() => ['All', ...new Set(allProducts.map(p => p.category))], [allProducts]);
 
     return (
         <div className="flex flex-col gap-6">
+             <ProductEditDialog 
+                product={editingProduct}
+                onOpenChange={() => setEditingProduct(null)}
+                onProductUpdate={fetchRunData}
+                user={user}
+                categories={productCategories}
+             />
             <div className="flex items-center justify-between">
                 <Link href="/dashboard/deliveries" className="flex items-center gap-2 text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to Deliveries</Link>
                  <div className="flex items-center gap-2">
@@ -1673,18 +1698,27 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
                                 <TableHead className="text-right">Initial Qty</TableHead>
                                 <TableHead className="text-right">Sold</TableHead>
                                 <TableHead className="text-right">Remaining</TableHead>
+                                {user?.role === 'Developer' && <TableHead className="text-right">Actions</TableHead>}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {run.items.map(item => {
                                 const soldQuantity = orders.flatMap(o => o.items).filter(i => i.productId === item.productId).reduce((sum, i) => sum + i.quantity, 0);
                                 const remaining = item.quantity - soldQuantity;
+                                const fullProduct = allProducts.find(p => p.id === item.productId);
                                 return (
                                     <TableRow key={item.productId}>
                                         <TableCell>{item.productName}</TableCell>
                                         <TableCell className="text-right">{item.quantity}</TableCell>
                                         <TableCell className="text-right">{soldQuantity}</TableCell>
                                         <TableCell className="text-right font-bold">{remaining}</TableCell>
+                                        {user?.role === 'Developer' && (
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="icon" onClick={() => setEditingProduct(fullProduct!)}>
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 );
                             })}
@@ -1710,45 +1744,70 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
                             <CardDescription>All customers in this run. Click headers to sort.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Name</TableHead>
-                                        <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('totalSold')}>
-                                            <div className="flex items-center justify-end">Total Sold {getSortIcon('totalSold')}</div>
-                                        </TableHead>
-                                        <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('totalPaid')}>
-                                            <div className="flex items-center justify-end">Total Paid {getSortIcon('totalPaid')}</div>
-                                        </TableHead>
-                                        <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('outstanding')}>
-                                            <div className="flex items-center justify-end">Outstanding {getSortIcon('outstanding')}</div>
-                                        </TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {sortedCustomers.map(customer => {
-                                        const outstanding = customer.totalSold - customer.totalPaid;
-                                        return (
-                                            <TableRow key={customer.customerId} onClick={() => setViewingCustomer(customer)} className="cursor-pointer">
-                                                <TableCell>{customer.customerName}</TableCell>
-                                                <TableCell className="text-right">{formatCurrency(customer.totalSold)}</TableCell>
-                                                <TableCell className="text-right">{formatCurrency(customer.totalPaid || 0)}</TableCell>
-                                                <TableCell className="text-right font-bold text-destructive">
-                                                    {outstanding > 0 ? formatCurrency(outstanding) : '-'}
-                                                </TableCell>
-                                                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                    {(canPerformActions && !runComplete && outstanding > 0) ? (
-                                                        <RecordPaymentDialog customer={customer} run={run} user={user} />
-                                                    ) : (
-                                                        <Button size="sm" variant="outline" disabled>Record Payment</Button>
-                                                    )}
-                                                </TableCell>
-                                            </TableRow>
-                                        )
-                                    })}
-                                </TableBody>
-                            </Table>
+                            <div className="md:hidden space-y-4">
+                                {sortedCustomers.map(customer => {
+                                    const outstanding = customer.totalSold - customer.totalPaid;
+                                    return (
+                                        <Card key={customer.customerId} className="p-4 space-y-2">
+                                            <div className="flex justify-between items-start">
+                                                <p className="font-semibold">{customer.customerName}</p>
+                                                <Button variant="ghost" size="sm" onClick={() => setViewingCustomer(customer)}>View Orders</Button>
+                                            </div>
+                                            <div className="text-sm pt-2 border-t space-y-1">
+                                                <div className="flex justify-between"><span>Sold:</span><span>{formatCurrency(customer.totalSold)}</span></div>
+                                                <div className="flex justify-between"><span>Paid:</span><span className="text-green-500">{formatCurrency(customer.totalPaid)}</span></div>
+                                                <div className="flex justify-between font-bold"><span>Owed:</span><span className="text-destructive">{formatCurrency(outstanding)}</span></div>
+                                            </div>
+                                             {canPerformActions && !runComplete && outstanding > 0 && (
+                                                <div className="pt-2 border-t">
+                                                    <RecordPaymentDialog customer={customer} run={run} user={user} />
+                                                </div>
+                                            )}
+                                        </Card>
+                                    )
+                                })}
+                            </div>
+                            <div className="hidden md:block">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Name</TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('totalSold')}>
+                                                <div className="flex items-center justify-end">Total Sold {getSortIcon('totalSold')}</div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('totalPaid')}>
+                                                <div className="flex items-center justify-end">Total Paid {getSortIcon('totalPaid')}</div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('outstanding')}>
+                                                <div className="flex items-center justify-end">Outstanding {getSortIcon('outstanding')}</div>
+                                            </TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {sortedCustomers.map(customer => {
+                                            const outstanding = customer.totalSold - customer.totalPaid;
+                                            return (
+                                                <TableRow key={customer.customerId} onClick={() => setViewingCustomer(customer)} className="cursor-pointer">
+                                                    <TableCell>{customer.customerName}</TableCell>
+                                                    <TableCell className="text-right">{formatCurrency(customer.totalSold)}</TableCell>
+                                                    <TableCell className="text-right">{formatCurrency(customer.totalPaid || 0)}</TableCell>
+                                                    <TableCell className="text-right font-bold text-destructive">
+                                                        {outstanding > 0 ? formatCurrency(outstanding) : '-'}
+                                                    </TableCell>
+                                                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                                        {(canPerformActions && !runComplete && outstanding > 0) ? (
+                                                            <RecordPaymentDialog customer={customer} run={run} user={user} />
+                                                        ) : (
+                                                            <Button size="sm" variant="outline" disabled>Record Payment</Button>
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -1759,28 +1818,47 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
                             <CardDescription>All sales made in this run.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Customer</TableHead>
-                                        <TableHead className="text-right">Total</TableHead>
-                                        <TableHead>Payment Method</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {orders.map(order => (
-                                        <TableRow key={order.id} className="cursor-pointer" onClick={() => setViewingOrder(order)}>
-                                            <TableCell>{format(new Date(order.date), 'Pp')}</TableCell>
-                                            <TableCell>{order.customerName}</TableCell>
-                                            <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
-                                            <TableCell>{order.paymentMethod}</TableCell>
-                                            <TableCell className="text-right"><Button variant="ghost" size="sm">View</Button></TableCell>
+                             <div className="md:hidden space-y-4">
+                                {orders.map(order => (
+                                     <Card key={order.id} className="p-4 space-y-2" onClick={() => setViewingOrder(order)}>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="font-semibold">{order.customerName}</p>
+                                                <p className="text-xs text-muted-foreground">{format(new Date(order.date), 'Pp')}</p>
+                                            </div>
+                                            <Badge variant="secondary">{order.paymentMethod}</Badge>
+                                        </div>
+                                         <div className="text-sm pt-2 border-t flex justify-between">
+                                            <span>{order.items.reduce((sum, i) => sum + i.quantity, 0)} items</span>
+                                            <span className="font-bold">{formatCurrency(order.total)}</span>
+                                        </div>
+                                     </Card>
+                                ))}
+                            </div>
+                            <div className="hidden md:block">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>Customer</TableHead>
+                                            <TableHead className="text-right">Total</TableHead>
+                                            <TableHead>Payment Method</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {orders.map(order => (
+                                            <TableRow key={order.id} className="cursor-pointer" onClick={() => setViewingOrder(order)}>
+                                                <TableCell>{format(new Date(order.date), 'Pp')}</TableCell>
+                                                <TableCell>{order.customerName}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
+                                                <TableCell>{order.paymentMethod}</TableCell>
+                                                <TableCell className="text-right"><Button variant="ghost" size="sm">View</Button></TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
