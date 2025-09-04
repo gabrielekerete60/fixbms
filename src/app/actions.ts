@@ -1,4 +1,5 @@
 
+
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
@@ -2476,11 +2477,11 @@ export async function getSalesRunDetails(runId: string): Promise<SalesRun | null
             
         const itemsWithPrices = await Promise.all(
           (data.items || []).map(async (item: any) => {
-            if (item.price !== undefined) return item;
             const productDoc = await getDoc(doc(db, 'products', item.productId));
-            const productData = productDoc.exists() ? productDoc.data() : { price: 0, costPrice: 0, minPrice: 0, maxPrice: 0 };
+            const productData = productDoc.exists() ? productDoc.data() : { price: 0, costPrice: 0, minPrice: 0, maxPrice: 0, name: 'Unknown Product' };
             return { 
                 ...item,
+                productName: productData.name, // Always use the current product name
                 price: productData.price,
                 costPrice: productData.costPrice,
                 minPrice: productData.minPrice,
@@ -3437,4 +3438,5 @@ export async function returnUnusedIngredients(
         return { success: false, error: "Failed to return ingredients." };
     }
 }
+
 
