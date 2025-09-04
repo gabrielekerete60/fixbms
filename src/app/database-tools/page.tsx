@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -241,7 +240,7 @@ export default function DatabaseToolsPage() {
                     <CardContent className="space-y-4">
                          <div className="space-y-2 p-3 border rounded-md">
                             <Label>Special Product Cleanup</Label>
-                             <p className="text-xs text-muted-foreground">Merges & renames "Jumbo" and "Burger" stock to "Jumbo Loaf" and "Burger Loaf" based on specific staff roles. Use this for the special data scenario.</p>
+                             <p className="text-xs text-muted-foreground">Fixes the stock for Burger/Jumbo loafs for specific staff roles, and deletes the old product names.</p>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button variant="secondary" className="w-full" disabled={isPending}>

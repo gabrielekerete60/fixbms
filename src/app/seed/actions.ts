@@ -613,12 +613,11 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         
         // 3. Seed Products with specific stock for MAIN INVENTORY
         const specialProducts = [
-            { ...productsData.find(p => p.id === "prod_bread_5")!, stock: 260 }, // Round bread
             { ...productsData.find(p => p.id === "prod_bread_1")!, stock: 27 },  // Family Loaf
             { ...productsData.find(p => p.id === "prod_bread_2")!, stock: 62 },  // Short Loaf
-            { ...productsData.find(p => p.id === "prod_bread_3")!, stock: 0 },  // Jumbo Loaf (target)
-            { ...productsData.find(p => p.id === "prod_bread_4")!, stock: 0 },  // Burger Loaf (target)
-            // Add the old "Jumbo" and "Burger" for cleanup
+            { ...productsData.find(p => p.id === "prod_bread_3")!, stock: 0 },   // Jumbo Loaf (target)
+            { ...productsData.find(p => p.id === "prod_bread_4")!, stock: 0 },   // Burger Loaf (target)
+            { ...productsData.find(p => p.id === "prod_bread_5")!, stock: 260 }, // Round bread
             { id: "prod_bread_9", name: "Jumbo", price: 1800, stock: 49, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'jumbo bread', costPrice: 1200, lowStockThreshold: 25, minPrice: 1700, maxPrice: 1900 },
             { id: "prod_bread_10", name: "Burger", price: 1800, stock: 14, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 1100, lowStockThreshold: 50, minPrice: 1700, maxPrice: 1900 },
         ];
