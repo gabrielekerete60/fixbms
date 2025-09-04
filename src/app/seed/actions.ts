@@ -258,75 +258,69 @@ export async function clearMultipleCollections(collectionNames: string[]): Promi
 
 export async function runSpecialProductCleanup(): Promise<ActionResult> {
     try {
-        const staffQuery = query(collection(db, 'staff'), where('role', 'in', ['Showroom Staff', 'Delivery Staff']));
+        const staffQuery = query(collection(db, 'staff'), where('role', '==', 'Showroom Staff'));
         const staffSnapshot = await getDocs(staffQuery);
 
-        // Get product IDs for target loafs
-        const jumboLoafQuery = query(collection(db, 'products'), where('name', '==', 'Jumbo Loaf'));
-        const burgerLoafQuery = query(collection(db, 'products'), where('name', '==', 'Burger Loaf'));
-        const [jumboLoafSnap, burgerLoafSnap] = await Promise.all([getDocs(jumboLoafQuery), getDocs(burgerLoafQuery)]);
-
-        const jumboLoafId = jumboLoafSnap.empty ? null : jumboLoafSnap.docs[0].id;
-        const burgerLoafId = burgerLoafSnap.empty ? null : burgerLoafSnap.docs[0].id;
-
-        if (!jumboLoafId || !burgerLoafId) {
-            return { success: false, error: "Target products 'Jumbo Loaf' or 'Burger Loaf' not found." };
+        if (staffSnapshot.empty) {
+            return { success: false, error: "No showroom staff found." };
         }
 
-        for (const staffDoc of staffSnapshot.docs) {
-            const staffId = staffDoc.id;
-            const staffRole = staffDoc.data().role;
-            const personalStockRef = collection(db, 'staff', staffId, 'personal_stock');
-            const personalStockSnapshot = await getDocs(personalStockRef);
+        const showroomStaffDoc = staffSnapshot.docs[0];
+        const personalStockRef = collection(db, 'staff', showroomStaffDoc.id, 'personal_stock');
+        const personalStockSnapshot = await getDocs(personalStockRef);
+        
+        const batch = writeBatch(db);
+        let familyLoafStock = 0;
+        let familyLoafProductId = '';
+        let hasFamilyLoafDoc = false;
 
-            const batch = writeBatch(db);
-            let hasChanges = false;
-            
-            const stockMap = new Map<string, { docId: string, data: any }>();
-            personalStockSnapshot.forEach(doc => stockMap.set(doc.data().productName, { docId: doc.id, data: doc.data() }));
-
-            if (staffRole === 'Showroom Staff') {
-                // Delete "Jumbo"
-                if (stockMap.has('Jumbo')) {
-                    batch.delete(doc(personalStockRef, stockMap.get('Jumbo')!.docId));
-                    hasChanges = true;
-                }
-                
-                // Replace "Burger Loaf" stock with "Burger" stock, then delete "Burger"
-                if (stockMap.has('Burger')) {
-                    const burgerData = stockMap.get('Burger')!;
-                    const burgerLoafRef = doc(personalStockRef, burgerLoafId);
-                    
-                    // Set replaces the document, effectively replacing the stock.
-                    batch.set(burgerLoafRef, {
-                        productId: burgerLoafId,
-                        productName: 'Burger Loaf',
-                        stock: burgerData.data.stock || 0
-                    });
-
-                    batch.delete(doc(personalStockRef, burgerData.docId));
-                    hasChanges = true;
-                }
-            } else if (staffRole === 'Delivery Staff') {
-                // Rename "Jumbo" to "Jumbo Loaf"
-                if (stockMap.has('Jumbo')) {
-                    const jumboData = stockMap.get('Jumbo')!;
-                    batch.update(doc(personalStockRef, jumboData.docId), { productName: 'Jumbo Loaf' });
-                    hasChanges = true;
-                }
-                 // Rename "Burger" to "Burger Loaf"
-                if (stockMap.has('Burger')) {
-                    const burgerData = stockMap.get('Burger')!;
-                    batch.update(doc(personalStockRef, burgerData.docId), { productName: 'Burger Loaf' });
-                    hasChanges = true;
-                }
+        personalStockSnapshot.forEach(stockDoc => {
+            const data = stockDoc.data();
+            switch (data.productName) {
+                case "Burger Loaf":
+                case "Burger":
+                    // Delete these entries
+                    batch.delete(stockDoc.ref);
+                    break;
+                case "Jumbo Loaf":
+                case "Jumbo":
+                    // Delete these entries
+                    batch.delete(stockDoc.ref);
+                    break;
+                case "Family Loaf":
+                    familyLoafStock += data.stock || 0;
+                    familyLoafProductId = data.productId; // store productId
+                    if (!hasFamilyLoafDoc) {
+                        hasFamilyLoafDoc = true; // keep the first one
+                    } else {
+                        batch.delete(stockDoc.ref); // delete subsequent ones
+                    }
+                    break;
             }
+        });
 
-            if (hasChanges) {
-                await batch.commit();
-                console.log(`Cleaned up stock for ${staffDoc.data().name}`);
-            }
+        // Get the correct product IDs from the main collection
+        const burgerLoafProdQuery = await getDocs(query(collection(db, 'products'), where('name', '==', 'Burger Loaf')));
+        const jumboLoafProdQuery = await getDocs(query(collection(db, 'products'), where('name', '==', 'Jumbo Loaf')));
+        
+        const burgerLoafProductId = !burgerLoafProdQuery.empty ? burgerLoafProdQuery.docs[0].id : 'prod_bread_4';
+        const jumboLoafProductId = !jumboLoafProdQuery.empty ? jumboLoafProdQuery.docs[0].id : 'prod_bread_3';
+        const familyLoafFinalProductId = !personalStockSnapshot.empty ? (personalStockSnapshot.docs.find(d => d.data().productName === 'Family Loaf')?.data().productId || 'prod_bread_1') : 'prod_bread_1';
+
+
+        // Set the final correct values
+        const burgerLoafRef = doc(personalStockRef, burgerLoafProductId);
+        batch.set(burgerLoafRef, { productId: burgerLoafProductId, productName: "Burger Loaf", stock: 4 });
+
+        const jumboLoafRef = doc(personalStockRef, jumboLoafProductId);
+        batch.set(jumboLoafRef, { productId: jumboLoafProductId, productName: "Jumbo Loaf", stock: 0 });
+
+        if (hasFamilyLoafDoc) {
+           const familyLoafRef = doc(personalStockRef, familyLoafFinalProductId);
+           batch.set(familyLoafRef, { productId: familyLoafFinalProductId, productName: 'Family Loaf', stock: 19 }, { merge: true });
         }
+        
+        await batch.commit();
 
         return { success: true };
     } catch (e) {
@@ -334,6 +328,7 @@ export async function runSpecialProductCleanup(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
+
 
 export async function consolidateDuplicateProducts(): Promise<ActionResult> {
     try {
@@ -615,11 +610,9 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         const specialProducts = [
             { ...productsData.find(p => p.id === "prod_bread_1")!, stock: 27 },  // Family Loaf
             { ...productsData.find(p => p.id === "prod_bread_2")!, stock: 62 },  // Short Loaf
-            { ...productsData.find(p => p.id === "prod_bread_3")!, stock: 0 },   // Jumbo Loaf (target)
-            { ...productsData.find(p => p.id === "prod_bread_4")!, stock: 0 },   // Burger Loaf (target)
+            { ...productsData.find(p => p.id === "prod_bread_3")!, stock: 49 },  // Jumbo Loaf
+            { ...productsData.find(p => p.id === "prod_bread_4")!, stock: 14 },  // Burger Loaf
             { ...productsData.find(p => p.id === "prod_bread_5")!, stock: 260 }, // Round bread
-            { id: "prod_bread_9", name: "Jumbo", price: 1800, stock: 49, category: 'Bread', unit: 'loaf', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'jumbo bread', costPrice: 1200, lowStockThreshold: 25, minPrice: 1700, maxPrice: 1900 },
-            { id: "prod_bread_10", name: "Burger", price: 1800, stock: 14, category: 'Bread', unit: 'pack', image: "https://placehold.co/150x150.png", 'data-ai-hint': 'burger bun', costPrice: 1100, lowStockThreshold: 50, minPrice: 1700, maxPrice: 1900 },
         ];
         await batchCommit(specialProducts, "products");
         
@@ -661,7 +654,8 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         
         const showroomStock = [
             { productId: "prod_bread_5", productName: "Round bread", quantity: 8 },
-            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 5 },
+            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 14 },
+            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 5 }, // Duplicate
             { productId: "prod_bread_8", productName: "Sandwich Bread", quantity: 6 },
             { productId: "prod_snacks_1", productName: "Meatpie", quantity: 12 },
             { productId: "prod_bread_2", productName: "Short Loaf", quantity: 3 },
@@ -676,24 +670,13 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
             { productId: "prod_drinks_12", productName: "Exotic", quantity: 3 },
             { productId: "prod_drinks_11", productName: "Aquafina water", quantity: 5 },
             { productId: "prod_drinks_4", productName: "Pepsi", quantity: 4 },
+            { productId: "prod_bread_4", productName: "Burger Loaf", quantity: 7 }, // The incorrect one
+            { productId: "prod_bread_9", productName: "Burger", quantity: 4 }, // The one to be renamed
+            { productId: "prod_bread_3", productName: "Jumbo Loaf", quantity: -1 }, // The incorrect one
+            { productId: "prod_bread_10", productName: "Jumbo", quantity: 0 }, // The one to be deleted
         ];
         
         const transferBatch = writeBatch(db);
-        const transferRef = doc(collection(db, 'transfers'));
-        
-        transferBatch.set(transferRef, {
-            from_staff_id: manager.staff_id,
-            from_staff_name: manager.name,
-            to_staff_id: mrPatrick.staff_id,
-            to_staff_name: mrPatrick.name,
-            items: showroomStock,
-            date: Timestamp.now(),
-            status: 'completed',
-            is_sales_run: false,
-            time_received: Timestamp.now(),
-            time_completed: Timestamp.now(),
-            totalRevenue: 0
-        });
         
         // Set personal stock for showroom
         for (const item of showroomStock) {
