@@ -270,44 +270,21 @@ export async function runSpecialProductCleanup(): Promise<ActionResult> {
         const personalStockSnapshot = await getDocs(personalStockRef);
         
         const batch = writeBatch(db);
-        let familyLoafStock = 0;
-        let familyLoafProductId = '';
-        let hasFamilyLoafDoc = false;
-
-        personalStockSnapshot.forEach(stockDoc => {
-            const data = stockDoc.data();
-            switch (data.productName) {
-                case "Burger Loaf":
-                case "Burger":
-                    // Delete these entries
-                    batch.delete(stockDoc.ref);
-                    break;
-                case "Jumbo Loaf":
-                case "Jumbo":
-                    // Delete these entries
-                    batch.delete(stockDoc.ref);
-                    break;
-                case "Family Loaf":
-                    familyLoafStock += data.stock || 0;
-                    familyLoafProductId = data.productId; // store productId
-                    if (!hasFamilyLoafDoc) {
-                        hasFamilyLoafDoc = true; // keep the first one
-                    } else {
-                        batch.delete(stockDoc.ref); // delete subsequent ones
-                    }
-                    break;
-            }
+        
+        // Clear all existing personal stock for this user to avoid conflicts
+        personalStockSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
         });
 
-        // Get the correct product IDs from the main collection
+        // Get correct product IDs from main products collection
         const burgerLoafProdQuery = await getDocs(query(collection(db, 'products'), where('name', '==', 'Burger Loaf')));
         const jumboLoafProdQuery = await getDocs(query(collection(db, 'products'), where('name', '==', 'Jumbo Loaf')));
-        
+        const familyLoafProdQuery = await getDocs(query(collection(db, 'products'), where('name', '==', 'Family Loaf')));
+
         const burgerLoafProductId = !burgerLoafProdQuery.empty ? burgerLoafProdQuery.docs[0].id : 'prod_bread_4';
         const jumboLoafProductId = !jumboLoafProdQuery.empty ? jumboLoafProdQuery.docs[0].id : 'prod_bread_3';
-        const familyLoafFinalProductId = !personalStockSnapshot.empty ? (personalStockSnapshot.docs.find(d => d.data().productName === 'Family Loaf')?.data().productId || 'prod_bread_1') : 'prod_bread_1';
-
-
+        const familyLoafProductId = !familyLoafProdQuery.empty ? familyLoafProdQuery.docs[0].id : 'prod_bread_1';
+        
         // Set the final correct values
         const burgerLoafRef = doc(personalStockRef, burgerLoafProductId);
         batch.set(burgerLoafRef, { productId: burgerLoafProductId, productName: "Burger Loaf", stock: 4 });
@@ -315,11 +292,10 @@ export async function runSpecialProductCleanup(): Promise<ActionResult> {
         const jumboLoafRef = doc(personalStockRef, jumboLoafProductId);
         batch.set(jumboLoafRef, { productId: jumboLoafProductId, productName: "Jumbo Loaf", stock: 0 });
 
-        if (hasFamilyLoafDoc) {
-           const familyLoafRef = doc(personalStockRef, familyLoafFinalProductId);
-           batch.set(familyLoafRef, { productId: familyLoafFinalProductId, productName: 'Family Loaf', stock: 19 }, { merge: true });
-        }
-        
+        // Merge family loaf logic (assuming initial state before this cleanup is not guaranteed)
+        const familyLoafRef = doc(personalStockRef, familyLoafProductId);
+        batch.set(familyLoafRef, { productId: familyLoafProductId, productName: 'Family Loaf', stock: 19 });
+
         await batch.commit();
 
         return { success: true };
@@ -601,93 +577,81 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
             'Mr Patrick', 'Edet Edet Nyong', 'Gabriel Developer'
         ].map(name => staffData.find(s => s.name === name)).filter(Boolean) as typeof staffData;
         
-        if (staffToSeed.length < 10) {
-            return { success: false, error: "A required staff member for the special scenario was not found in the seed data." };
+        if (staffToSeed.length === 0) {
+            return { success: false, error: "No staff members found for the special scenario." };
         }
         await batchCommit(staffToSeed, "staff");
+        await batchCommit(recipesData, "recipes");
+
         
-        // 3. Seed Products with specific stock for MAIN INVENTORY
-        const specialProducts = [
-            { ...productsData.find(p => p.id === "prod_bread_1")!, stock: 27 },  // Family Loaf
-            { ...productsData.find(p => p.id === "prod_bread_2")!, stock: 62 },  // Short Loaf
-            { ...productsData.find(p => p.id === "prod_bread_3")!, stock: 49 },  // Jumbo Loaf
-            { ...productsData.find(p => p.id === "prod_bread_4")!, stock: 14 },  // Burger Loaf
-            { ...productsData.find(p => p.id === "prod_bread_5")!, stock: 260 }, // Round bread
-        ];
+        // 3. Seed Main Inventory (Products)
+        const specialProducts = productsData.map(p => {
+             const stockMap: Record<string, number> = {
+                "prod_bread_3": 32, // Jumbo Loaf
+                "prod_bread_5": 272, // Round bread
+                "prod_bread_1": 14, // Family Loaf
+                "prod_bread_2": 46,  // Short Loaf
+            };
+            return { ...p, stock: stockMap[p.id] || p.stock };
+        });
         await batchCommit(specialProducts, "products");
         
-        // 4. Seed other supplies for the storekeeper
+        // 4. Seed Main Inventory (Ingredients)
+        const specialIngredients = ingredientsData.map(i => {
+            const stockMap: Record<string, number> = {
+                "ing_1": 75000,      // Flour
+                "ing_7": 28650,       // Butter
+                "ing_4": 1500,       // Yeast
+                "ing_2": 968400,      // Sugar
+                "ing_6": 16,          // Tin Milk
+                "ing_10": 755,       // Lux Essence
+                "ing_9": 25,        // Zeast Flavor
+                "ing_3": 18400,      // Salt
+                "ing_11": 28,        // Eggs
+                "ing_13": 0,      // Vegetable Oil
+                "ing_5": 935,       // Preservative
+                "ing_8": 6070,       // Butterscotch Flavor
+                "ing_20": 500,       // Pineapple Flavor
+                "ing_17": 0, // Condensed Milk Flavor -> Assuming 1 bottle = 0g for now
+                "ing_21": 0,       // Banana Flavor -> Assuming 1 bottle = 0g for now
+            };
+            return { ...i, stock: stockMap[i.id] || i.stock };
+        });
+         await batchCommit(specialIngredients, "ingredients");
+
+        // 5. Seed Other Supplies
         const otherSuppliesData = [
             { id: "sup_nurse_cap", name: "Nurse Cap", stock: 10, unit: "packs", costPerUnit: 500, category: 'Production' },
             { id: "sup_cotton_wool", name: "Cotton Wool", stock: 1, unit: "pack", costPerUnit: 300, category: 'Production' },
             { id: "sup_spirit", name: "Spirit", stock: 1, unit: "pack", costPerUnit: 400, category: 'Production' },
-            { id: "sup_glove", name: "Glove", stock: 3, unit: "packs", costPerUnit: 250, category: 'Production' },
+            { id: "sup_glove", name: "Glove", stock: 2, unit: "packs", costPerUnit: 250, category: 'Production' },
         ];
         await batchCommit(otherSuppliesData, "other_supplies");
 
-
-        // 5. Seed Ingredients with specific stock
-        const specialIngredients = ingredientsData.map(i => {
-            const stockMap: Record<string, number> = {
-                "ing_1": 49300,      // Flour
-                "ing_7": 5200,       // Butter
-                "ing_4": 4930,       // Yeast
-                "ing_2": 52700,      // Sugar
-                "ing_6": 2,          // Tin Milk
-                "ing_10": 695,       // Lux Essence
-                "ing_9": 870,        // Zeast Flavor
-                "ing_8": 7165,       // Butterscotch Flavor
-                "ing_5": 1010,       // Preservative
-                "ing_13": 3480,      // Vegetable Oil
-                "ing_11": 35,        // Eggs
-                "ing_3": 26000,      // Salt
-                "ing_20": 500,       // Pineapple Flavor
-                "ing_21": 500,       // Banana Flavor
-            };
-            return { ...i, stock: stockMap[i.id] || 0 };
-        });
-        await batchCommit(specialIngredients, "ingredients");
-
-        // 6. Create a completed transfer to Mr Patrick (Showroom Staff)
-        const mrPatrick = staffToSeed.find(s => s!.name === 'Mr Patrick')!;
-        const manager = staffToSeed.find(s => s!.role === 'Manager')!;
-        
-        const showroomStock = [
-            { productId: "prod_bread_5", productName: "Round bread", quantity: 8 },
-            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 14 },
-            { productId: "prod_bread_1", productName: "Family Loaf", quantity: 5 }, // Duplicate
-            { productId: "prod_bread_8", productName: "Sandwich Bread", quantity: 6 },
-            { productId: "prod_snacks_1", productName: "Meatpie", quantity: 12 },
-            { productId: "prod_bread_2", productName: "Short Loaf", quantity: 3 },
-            { productId: "prod_drinks_8", productName: "5Alive", quantity: 9 },
-            { productId: "prod_drinks_13", productName: "Beta Malt", quantity: 5 },
-            { productId: "prod_drinks_14", productName: "Hi Malt", quantity: 6 },
-            { productId: "prod_drinks_7", productName: "Nutri Choco", quantity: 7 },
-            { productId: "prod_drinks_2", productName: "Fanta", quantity: 4 },
-            { productId: "prod_drinks_1", productName: "Coke", quantity: 2 },
-            { productId: "prod_drinks_3", productName: "Sprite", quantity: 4 },
-            { productId: "prod_drinks_5", productName: "7up", quantity: 9 },
-            { productId: "prod_drinks_12", productName: "Exotic", quantity: 3 },
-            { productId: "prod_drinks_11", productName: "Aquafina water", quantity: 5 },
-            { productId: "prod_drinks_4", productName: "Pepsi", quantity: 4 },
-            { productId: "prod_bread_4", productName: "Burger Loaf", quantity: 7 }, // The incorrect one
-            { productId: "prod_bread_9", productName: "Burger", quantity: 4 }, // The one to be renamed
-            { productId: "prod_bread_3", productName: "Jumbo Loaf", quantity: -1 }, // The incorrect one
-            { productId: "prod_bread_10", productName: "Jumbo", quantity: 0 }, // The one to be deleted
-        ];
-        
-        const transferBatch = writeBatch(db);
-        
-        // Set personal stock for showroom
-        for (const item of showroomStock) {
-            const personalStockRef = doc(db, 'staff', mrPatrick.staff_id, 'personal_stock', item.productId);
-            transferBatch.set(personalStockRef, {
-                productId: item.productId,
-                productName: item.productName,
-                stock: item.quantity
-            });
+        // 6. Set Showroom Staff's personal stock
+        const mrPatrick = staffToSeed.find(s => s!.name === 'Mr Patrick');
+        if (mrPatrick) {
+             const showroomStock = [
+                { productId: "prod_bread_2", productName: "Short Loaf", stock: 5 },
+                { productId: "prod_bread_5", productName: "Round bread", stock: 16 },
+                { productId: "prod_bread_3", productName: "Jumbo Loaf", stock: 5 },
+                { productId: "prod_bread_1", productName: "Family Loaf", stock: 2 },
+                { productId: "prod_bread_8", productName: "Sandwich Bread", stock: 2 },
+                { productId: "prod_drinks_4", productName: "Pepsi", stock: 7 },
+                { productId: "prod_drinks_12", productName: "Exotic", stock: 3 },
+                { productId: "prod_drinks_8", productName: "5Alive", stock: 6 },
+                { productId: "prod_drinks_14", productName: "Hi Malt", stock: 5 },
+                { productId: "prod_drinks_13", productName: "Beta Malt", stock: 3 },
+                { productId: "prod_drinks_5", productName: "7up", stock: 9 },
+                { productId: "prod_drinks_11", productName: "Aquafina water", stock: 4 },
+            ];
+            const showroomBatch = writeBatch(db);
+            for (const item of showroomStock) {
+                const stockRef = doc(db, 'staff', mrPatrick.staff_id, 'personal_stock', item.productId);
+                showroomBatch.set(stockRef, item);
+            }
+            await showroomBatch.commit();
         }
-        await transferBatch.commit();
         
         return { success: true };
     } catch (e) {
