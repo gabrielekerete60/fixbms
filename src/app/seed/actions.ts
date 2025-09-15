@@ -267,34 +267,57 @@ export async function runSpecialProductCleanup(): Promise<ActionResult> {
 
         const showroomStaffDoc = staffSnapshot.docs[0];
         const personalStockRef = collection(db, 'staff', showroomStaffDoc.id, 'personal_stock');
-        const personalStockSnapshot = await getDocs(personalStockRef);
         
         const batch = writeBatch(db);
         
-        // Clear all existing personal stock for this user to avoid conflicts
-        personalStockSnapshot.docs.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-
-        // Get correct product IDs from main products collection
+        // Product IDs
         const burgerLoafProdQuery = await getDocs(query(collection(db, 'products'), where('name', '==', 'Burger Loaf')));
         const jumboLoafProdQuery = await getDocs(query(collection(db, 'products'), where('name', '==', 'Jumbo Loaf')));
-        const familyLoafProdQuery = await getDocs(query(collection(db, 'products'), where('name', '==', 'Family Loaf')));
-
         const burgerLoafProductId = !burgerLoafProdQuery.empty ? burgerLoafProdQuery.docs[0].id : 'prod_bread_4';
         const jumboLoafProductId = !jumboLoafProdQuery.empty ? jumboLoafProdQuery.docs[0].id : 'prod_bread_3';
-        const familyLoafProductId = !familyLoafProdQuery.empty ? familyLoafProdQuery.docs[0].id : 'prod_bread_1';
-        
+
+        // Delete Burger and Jumbo Loaf to replace them
+        const existingBurgerLoaf = await getDocs(query(personalStockRef, where('productName', '==', 'Burger Loaf')));
+        existingBurgerLoaf.forEach(doc => batch.delete(doc.ref));
+
+        const existingBurger = await getDocs(query(personalStockRef, where('productName', '==', 'Burger')));
+        existingBurger.forEach(doc => batch.delete(doc.ref));
+
+        const existingJumboLoaf = await getDocs(query(personalStockRef, where('productName', '==', 'Jumbo Loaf')));
+        existingJumboLoaf.forEach(doc => batch.delete(doc.ref));
+
+        const existingJumbo = await getDocs(query(personalStockRef, where('productName', '==', 'Jumbo')));
+        existingJumbo.forEach(doc => batch.delete(doc.ref));
+
+
         // Set the final correct values
         const burgerLoafRef = doc(personalStockRef, burgerLoafProductId);
         batch.set(burgerLoafRef, { productId: burgerLoafProductId, productName: "Burger Loaf", stock: 4 });
 
         const jumboLoafRef = doc(personalStockRef, jumboLoafProductId);
         batch.set(jumboLoafRef, { productId: jumboLoafProductId, productName: "Jumbo Loaf", stock: 0 });
+        
 
-        // Merge family loaf logic (assuming initial state before this cleanup is not guaranteed)
-        const familyLoafRef = doc(personalStockRef, familyLoafProductId);
-        batch.set(familyLoafRef, { productId: familyLoafProductId, productName: 'Family Loaf', stock: 19 });
+        // Consolidate family loaf
+        const familyLoafProdId = "prod_bread_1";
+        const familyLoafQuery1 = await getDocs(query(personalStockRef, where('productName', '==', 'Family')));
+        const familyLoafQuery2 = await getDocs(query(personalStockRef, where('productName', '==', 'Family Loaf')));
+
+        let totalFamilyStock = 0;
+        familyLoafQuery1.forEach(doc => {
+            totalFamilyStock += doc.data().stock || 0;
+            batch.delete(doc.ref);
+        });
+        familyLoafQuery2.forEach(doc => {
+            totalFamilyStock += doc.data().stock || 0;
+            batch.delete(doc.ref);
+        });
+        
+        if(totalFamilyStock > 0) {
+           const familyLoafRef = doc(personalStockRef, familyLoafProdId);
+           batch.set(familyLoafRef, { productId: familyLoafProdId, productName: 'Family Loaf', stock: 19 });
+        }
+
 
         await batch.commit();
 
@@ -592,7 +615,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
                 "prod_bread_1": 14, // Family Loaf
                 "prod_bread_2": 46,  // Short Loaf
             };
-            return { ...p, stock: stockMap[p.id] || p.stock };
+            return { ...p, stock: stockMap[p.id] || 0 };
         });
         await batchCommit(specialProducts, "products");
         
@@ -600,22 +623,22 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         const specialIngredients = ingredientsData.map(i => {
             const stockMap: Record<string, number> = {
                 "ing_1": 75000,      // Flour
-                "ing_7": 28650,       // Butter
-                "ing_4": 1500,       // Yeast
-                "ing_2": 968400,      // Sugar
-                "ing_6": 16,          // Tin Milk
+                "ing_7": 28650,       // Butter (15000 + 13650)
+                "ing_4": 1500,       // Yeast (1000 + 500)
+                "ing_2": 968400,      // Sugar (18400 + 950000)
+                "ing_6": 16,          // Tin Milk (12 + 4)
                 "ing_10": 755,       // Lux Essence
                 "ing_9": 25,        // Zeast Flavor
                 "ing_3": 18400,      // Salt
                 "ing_11": 28,        // Eggs
                 "ing_13": 0,      // Vegetable Oil
-                "ing_5": 935,       // Preservative
-                "ing_8": 6070,       // Butterscotch Flavor
+                "ing_5": 935,       // Preservative (500 + 435)
+                "ing_8": 6070,       // Butterscotch Flavor (6000 + 70)
                 "ing_20": 500,       // Pineapple Flavor
                 "ing_17": 0, // Condensed Milk Flavor -> Assuming 1 bottle = 0g for now
                 "ing_21": 0,       // Banana Flavor -> Assuming 1 bottle = 0g for now
             };
-            return { ...i, stock: stockMap[i.id] || i.stock };
+            return { ...i, stock: stockMap[i.id] || 0 };
         });
          await batchCommit(specialIngredients, "ingredients");
 
@@ -636,7 +659,7 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
                 { productId: "prod_bread_5", productName: "Round bread", stock: 16 },
                 { productId: "prod_bread_3", productName: "Jumbo Loaf", stock: 5 },
                 { productId: "prod_bread_1", productName: "Family Loaf", stock: 2 },
-                { productId: "prod_bread_8", productName: "Sandwich Bread", stock: 2 },
+                { productId: "prod_bread_8", productName: "Sandwich Bread", stock: 13 },
                 { productId: "prod_drinks_4", productName: "Pepsi", stock: 7 },
                 { productId: "prod_drinks_12", productName: "Exotic", stock: 3 },
                 { productId: "prod_drinks_8", productName: "5Alive", stock: 6 },
@@ -658,3 +681,5 @@ export async function seedSpecialScenario(): Promise<ActionResult> {
         return { success: false, error: (e as Error).message };
     }
 }
+
+    
