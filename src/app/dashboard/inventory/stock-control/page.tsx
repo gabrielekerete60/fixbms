@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -55,10 +55,10 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
-import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts, getProductsForStaff, handleReturnStock, getReturnedStockTransfers, returnUnusedIngredients } from "@/app/actions";
@@ -673,16 +673,13 @@ export default function StockControlPage() {
     try {
         const staffQuery = query(collection(db, "staff"), where("role", "!=", "Developer"));
         const staffSnapshot = await getDocs(staffQuery);
-        setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role })));
-
-        const userRole = currentUser.role;
-        const canManageStore = ['Manager', 'Supervisor', 'Storekeeper', 'Developer'].includes(userRole);
+        setStaff(staffSnapshot.docs.map(doc => ({ staff_id: doc.id, name: doc.data().name, role: doc.data().role } as StaffMember)));
         
         const productsSnapshot = await getDocs(collection(db, "products"));
         setProducts(productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
 
         
-        const isSalesStaff = ['Delivery Staff', 'Showroom Staff'].includes(userRole);
+        const isSalesStaff = ['Delivery Staff', 'Showroom Staff'].includes(currentUser.role);
         if (isSalesStaff) {
             const stockData = await getProductsForStaff(currentUser.staff_id);
             setPersonalStock(stockData.map(d => ({productId: d.productId, productName: d.name, stock: d.stock})));
@@ -1077,7 +1074,7 @@ export default function StockControlPage() {
                                             {t.is_sales_run ? <Badge variant="secondary"><Truck className="h-3 w-3 mr-1" />Sales Run</Badge> : <Badge variant="outline"><Package className="h-3 w-3 mr-1"/>Stock</Badge>}
                                             {t.is_sales_run && t.status === 'active' && (
                                                 <Button variant="outline" size="sm" asChild>
-                                                    <Link href={`/dashboard/deliveries`}><Eye className="mr-2 h-4 w-4"/>Manage</Link>
+                                                    <Link href={`/dashboard/sales-runs?runId=${t.id}`}><Eye className="mr-2 h-4 w-4"/>Manage</Link>
                                                 </Button>
                                             )}
                                          </div>
@@ -1114,7 +1111,7 @@ export default function StockControlPage() {
                                                 <TableCell className="text-right">
                                                     {t.is_sales_run && t.status === 'active' && (
                                                         <Button variant="outline" size="sm" asChild>
-                                                            <Link href={`/dashboard/deliveries`}><Eye className="mr-2 h-4 w-4"/>Manage Run</Link>
+                                                            <Link href={`/dashboard/sales-runs?runId=${t.id}`}><Eye className="mr-2 h-4 w-4"/>Manage Run</Link>
                                                         </Button>
                                                     )}
                                                 </TableCell>
@@ -1531,4 +1528,3 @@ export default function StockControlPage() {
     </div>
   );
 }
-

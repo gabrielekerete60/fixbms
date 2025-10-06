@@ -444,5 +444,3 @@ export default function DeliveriesPage() {
     
     return <DriverView user={user} />;
 }
-
-    
