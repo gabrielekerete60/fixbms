@@ -2,6 +2,8 @@
 import { getSalesRunDetails, getAllSalesRuns, SalesRun } from '@/app/actions';
 import { SalesRunDetailsPageClient } from './client';
 
+export const dynamicParams = true;
+
 type SalesRunDetailsProps = {
     params: {
         runId: string;
@@ -13,11 +15,17 @@ export async function generateStaticParams() {
     try {
         const { active, completed } = await getAllSalesRuns();
         const allRuns = [...active, ...completed];
+        if (allRuns.length === 0) {
+            // Return an empty array if no runs are found, dynamicParams = true will handle the rest.
+            return [];
+        }
         return allRuns.map((run) => ({
             runId: run.id,
         }));
     } catch (error) {
-        console.error("Failed to generate static params for sales runs:", error);
+        console.error("Failed to generate static params for sales runs, returning empty array. This is expected during build if DB is not available:", error);
+        // Return empty array on error to allow build to succeed.
+        // Pages will be generated on-demand thanks to dynamicParams = true.
         return [];
     }
 }
