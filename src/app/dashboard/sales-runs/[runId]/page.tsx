@@ -24,6 +24,9 @@ export async function generateStaticParams() {
 
 export default async function SalesRunPage({ params }: SalesRunDetailsProps) {
     const { runId } = params;
+    
+    // It's good practice to re-fetch here, even with generateStaticParams
+    // This ensures data is fresh if something changes post-build in ISR scenarios.
     const runDetails = await getSalesRunDetails(runId);
 
     if (!runDetails) {
