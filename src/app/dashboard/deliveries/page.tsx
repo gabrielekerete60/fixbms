@@ -89,7 +89,7 @@ function RunCard({ run }: { run: SalesRunType }) {
                     <div className="flex justify-between"><span>Total Collected:</span><span className="font-semibold text-green-500">{formatCurrency(run.totalCollected)}</span></div>
                     <div className="flex justify-between"><span>Total Outstanding:</span><span className="font-semibold text-destructive">{formatCurrency(run.totalOutstanding)}</span></div>
                 </div>
-                <Link href={`/dashboard/sales-runs/${run.id}`} passHref>
+                <Link href={`/dashboard/sales-runs?runId=${run.id}`} passHref>
                     <Button className="w-full">Manage Run</Button>
                 </Link>
             </CardContent>
@@ -312,7 +312,7 @@ function ManagerView({ allRuns, isLoading, user }: { allRuns: SalesRunType[], is
                             </TableHeader>
                             <TableBody>
                                 {filteredAndSortedRuns.map(run => (
-                                    <TableRow key={run.id} className="cursor-pointer hover:bg-muted" onClick={() => router.push(`/dashboard/sales-runs/${run.id}`)}>
+                                    <TableRow key={run.id} className="cursor-pointer hover:bg-muted" onClick={() => router.push(`/dashboard/sales-runs?runId=${run.id}`)}>
                                         <TableCell>{run.to_staff_name}</TableCell>
                                         <TableCell>{format(new Date(run.date), 'PPP')}</TableCell>
                                         <TableCell><Badge variant={run.status === 'active' ? 'default' : 'secondary'}>{run.status}</Badge></TableCell>
@@ -444,3 +444,5 @@ export default function DeliveriesPage() {
     
     return <DriverView user={user} />;
 }
+
+    

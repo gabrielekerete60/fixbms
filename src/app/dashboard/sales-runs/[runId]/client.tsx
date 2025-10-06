@@ -1,8 +1,8 @@
 
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getSalesRunDetails, SalesRun, getCustomersForRun, handleSellToCustomer, handleRecordDebtPaymentForRun, getOrdersForRun, handleCompleteRun, handleReturnStock, handleReportWaste, logRunExpense, getProductsForStaff, getStaffList, getProducts } from '@/app/actions';
@@ -1358,11 +1358,12 @@ function CustomerOrdersDialog({ isOpen, onOpenChange, customer, orders }: { isOp
     )
 }
 
-export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun }) {
-    const { runId } = useParams();
+function SalesRunDetailsPageClientContent() {
+    const searchParams = useSearchParams();
+    const runId = searchParams.get('runId');
     const router = useRouter();
     const { toast } = useToast();
-    const [run, setRun] = useState<SalesRun | null>(initialRun);
+    const [run, setRun] = useState<SalesRun | null>(null);
     const [orders, setOrders] = useState<CompletedOrder[]>([]);
     const [customers, setCustomers] = useState<RunCustomer[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -1938,6 +1939,14 @@ export function SalesRunDetailsPageClient({ initialRun }: { initialRun: SalesRun
             </Dialog>
         </div>
     );
+}
+
+export default function SalesRunDetailsPage() {
+    return (
+        <Suspense fallback={<div className="flex h-full w-full items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>}>
+            <SalesRunDetailsPageClientContent />
+        </Suspense>
+    )
 }
 
     
