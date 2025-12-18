@@ -41,7 +41,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RevenueChart } from '@/components/revenue-chart';
-import { checkForMissingIndexes, getDashboardStats, getStaffDashboardStats, getBakerDashboardStats, getShowroomDashboardStats } from '../actions';
+import { checkForMissingIndexes, getStaffDashboardStats, getBakerDashboardStats, getShowroomDashboardStats } from '../actions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,14 +51,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { collection, query, where, onSnapshot, Timestamp } from "firebase/firestore";
-import { db } from '@/lib/firebase';
-import { startOfMonth, format, eachDayOfInterval, subDays, startOfDay, endOfDay, endOfYear as dateFnsEndOfYear, startOfYear as dateFnsStartOfYear } from 'date-fns';
+import { db } from "@/lib/firebase";
+import { startOfMonth, format, eachDayOfInterval, subDays, startOfDay, endOfDay, endOfYear as dateFnsEndOfYear, startOfYear as dateFnsStartOfYear, endOfMonth, startOfWeek } from 'date-fns';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
+import { useLocalStorage } from '@/hooks/use-local-storage';
 
 
 type User = {
@@ -67,12 +68,20 @@ type User = {
   staff_id: string;
 };
 
+type Order = {
+    id: string;
+    total: number;
+    date: Timestamp;
+    customerId?: string;
+    customerName?: string;
+}
+
 type DashboardStats = {
     revenue: number;
     customers: number;
     sales: number;
     activeOrders: number;
-    weeklyRevenue: { day: string, revenue: number }[];
+    weeklyRevenue: { day: string; revenue: number }[];
 };
 
 type StaffDashboardStats = {
@@ -84,7 +93,7 @@ type StaffDashboardStats = {
 type BakerDashboardStats = {
     activeBatches: number;
     producedThisWeek: number;
-    weeklyProduction: { day: string, quantity: number }[];
+    weeklyProduction: { day: string; quantity: number }[];
 };
 
 type StorekeeperDashboardStats = {
@@ -129,37 +138,102 @@ function IndexWarning({ indexes }: { indexes: string[] }) {
 }
 
 function ManagementDashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats] = useState<DashboardStats>({ revenue: 0, customers: 0, sales: 0, activeOrders: 0, weeklyRevenue: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [missingIndexes, setMissingIndexes] = useState<string[]>([]);
   const [revenueFilter, setRevenueFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
-
-  const fetchDashboardData = useCallback(async (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
-    setIsLoading(true);
-    try {
-        const [indexData, dashboardStats] = await Promise.all([
-            checkForMissingIndexes(),
-            getDashboardStats(filter)
-        ]);
-        setMissingIndexes(indexData.requiredIndexes);
-        setStats(dashboardStats);
-    } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-    } finally {
-        setIsLoading(false);
-    }
-  }, []);
-
+  const [heldOrders] = useLocalStorage<any[][]>('heldOrders', []);
 
   useEffect(() => {
-    fetchDashboardData(revenueFilter);
-  }, [revenueFilter, fetchDashboardData]);
+    const ordersQuery = query(collection(db, "orders"));
 
+    const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+      const allOrders = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id,
+          date: data.date,
+        } as Order;
+      });
+
+      const now = new Date();
+      let startDate: Date;
+      let endDate: Date = endOfDay(now);
+
+      switch(revenueFilter) {
+          case 'daily':
+              startDate = startOfDay(now);
+              break;
+          case 'weekly':
+              startDate = startOfWeek(now, { weekStartsOn: 1 });
+              break;
+          case 'monthly':
+              startDate = startOfMonth(now);
+              endDate = endOfMonth(now);
+              break;
+          case 'yearly':
+              startDate = dateFnsStartOfYear(now);
+              endDate = dateFnsEndOfYear(now);
+              break;
+      }
+      
+      const filteredOrders = allOrders.filter(order => {
+        const orderDate = order.date.toDate();
+        return orderDate >= startDate && orderDate <= endDate;
+      });
+
+      const revenue = filteredOrders.reduce((sum, order) => sum + order.total, 0);
+      const sales = filteredOrders.length;
+      
+      const customerNames = new Set(filteredOrders.map(o => o.customerName?.trim().toLowerCase()).filter(Boolean));
+      const registeredCustomers = new Set(filteredOrders.filter(o => o.customerId && o.customerId !== 'walk-in').map(o => o.customerId));
+      const customers = customerNames.size + registeredCustomers.size;
+
+
+      // Calculate weekly revenue for the chart
+      const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+      const days = eachDayOfInterval({ start: weekStart, end: endOfDay(now) });
+      const weeklyRevenueData = days.map(day => ({
+        day: format(day, 'E'),
+        revenue: 0,
+      }));
+
+      allOrders.forEach(order => {
+        const orderDate = order.date.toDate();
+        if (orderDate >= weekStart) {
+          const dayStr = format(orderDate, 'E');
+          const dayData = weeklyRevenueData.find(d => d.day === dayStr);
+          if (dayData) {
+            dayData.revenue += order.total;
+          }
+        }
+      });
+      
+      setStats({
+          revenue,
+          sales,
+          customers,
+          activeOrders: heldOrders.length,
+          weeklyRevenue: weeklyRevenueData
+      });
+      setIsLoading(false);
+    });
+
+    checkForMissingIndexes().then(indexData => {
+        setMissingIndexes(indexData.requiredIndexes);
+    });
+    
+    // Cleanup listener on unmount
+    return () => unsubscribe();
+  }, [revenueFilter, heldOrders]);
+
+  
   const handleFilterChange = (filter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
     setRevenueFilter(filter);
   };
   
-  if (isLoading || !stats) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-full">
         <Loader2 className="h-16 w-16 animate-spin" />
@@ -215,6 +289,7 @@ function ManagementDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.activeOrders || 0}</div>
+             <p className="text-xs text-muted-foreground">Orders on hold in POS.</p>
           </CardContent>
         </Card>
       </div>

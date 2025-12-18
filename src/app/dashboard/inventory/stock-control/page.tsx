@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -55,10 +55,10 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
-import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, Timestamp, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { handleInitiateTransfer, handleReportWaste, getPendingTransfersForStaff, handleAcknowledgeTransfer, Transfer, getCompletedTransfersForStaff, WasteLog, getWasteLogsForStaff, getProductionTransfers, ProductionBatch, approveIngredientRequest, declineProductionBatch, getProducts, getProductsForStaff, handleReturnStock, getReturnedStockTransfers, returnUnusedIngredients } from "@/app/actions";
@@ -404,7 +404,7 @@ function ReportWasteTab({ products, user, onWasteReported }: { products: { produ
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
         setIsSubmitting(false);
-    }
+    };
     
     const getAvailableProductsForRow = (rowIndex: number) => {
         const selectedIdsInOtherRows = new Set(
@@ -1525,6 +1525,57 @@ export default function StockControlPage() {
               </Card>
           </TabsContent>
       </Tabs>
+
+      <Card>
+        <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <CardTitle>My Initiated Transfers Log</CardTitle>
+                    <CardDescription>A log of transfers you have initiated.</CardDescription>
+                </div>
+                <DateRangeFilter date={date} setDate={setDate} />
+            </div>
+        </CardHeader>
+        <CardContent>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>From</TableHead>
+                        <TableHead>To</TableHead>
+                        <TableHead>Items</TableHead>
+                        <TableHead>Status</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {isLoading ? (
+                         <TableRow>
+                            <TableCell colSpan={5} className="h-24 text-center">
+                                <Loader2 className="h-8 w-8 animate-spin"/>
+                            </TableCell>
+                        </TableRow>
+                    ) : paginatedLogs.length > 0 ? (
+                        paginatedLogs.map((transfer) => (
+                             <TableRow key={transfer.id}>
+                                <TableCell>{transfer.date ? format(new Date(transfer.date), 'PPpp') : 'N/A'}</TableCell>
+                                <TableCell>{transfer.from_staff_name}</TableCell>
+                                <TableCell>{transfer.to_staff_name}</TableCell>
+                                <TableCell>{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</TableCell>
+                                <TableCell><Badge variant={transfer.status === 'pending' ? 'secondary' : transfer.status === 'completed' || transfer.status === 'active' ? 'default' : 'destructive'}>{transfer.status}</Badge></TableCell>
+                            </TableRow>
+                        ))
+                    ) : (
+                        <TableRow>
+                            <TableCell colSpan={5} className="h-24 text-center">No stock movements recorded for this period.</TableCell>
+                        </TableRow>
+                    )}
+                </TableBody>
+            </Table>
+        </CardContent>
+        <CardFooter>
+            <PaginationControls visibleRows={visibleLogRows} setVisibleRows={setVisibleLogRows} totalRows={initiatedTransfers.length} />
+        </CardFooter>
+      </Card>
     </div>
   );
 }

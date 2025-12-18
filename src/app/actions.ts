@@ -1,9 +1,8 @@
 
-
 "use server";
 
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy, addDoc, updateDoc, Timestamp, serverTimestamp, writeBatch, increment, deleteDoc, runTransaction, setDoc } from "firebase/firestore";
-import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour, startOfYear as dateFnsStartOfYear } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfYear, eachDayOfInterval, format, subDays, endOfHour, startOfHour, startOfYear as dateFnsStartOfYear, endOfYear as dateFnsEndOfYear } from "date-fns";
 import { db } from "@/lib/firebase";
 import { randomUUID } from 'crypto';
 import speakeasy from 'speakeasy';
@@ -387,110 +386,6 @@ export async function handleInitiateTransfer(data: any, user: { staff_id: string
     } catch (error) {
         console.error("Transfer initiation error:", error);
         return { success: false, error: "Failed to initiate transfer." };
-    }
-}
-
-
-export type DashboardStats = {
-    revenue: number;
-    customers: number;
-    sales: number;
-    activeOrders: number;
-    weeklyRevenue: { day: string, revenue: number }[];
-};
-
-export async function getDashboardStats(filter: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'monthly'): Promise<DashboardStats> {
-    try {
-        const now = new Date();
-        let startOfPeriod: Date;
-        let endOfPeriod: Date = endOfDay(now);
-
-        switch (filter) {
-            case 'daily':
-                startOfPeriod = startOfDay(now);
-                break;
-            case 'weekly':
-                startOfPeriod = startOfWeek(now, { weekStartsOn: 1 });
-                break;
-            case 'monthly':
-            default:
-                startOfPeriod = startOfMonth(now);
-                break;
-            case 'yearly':
-                startOfPeriod = dateFnsStartOfYear(now);
-                endOfPeriod = dateFnsEndOfYear(now);
-                break;
-        }
-        
-        const startOfPeriodTimestamp = Timestamp.fromDate(startOfPeriod);
-        const endOfPeriodTimestamp = Timestamp.fromDate(endOfPeriod);
-
-        const ordersQuery = query(
-            collection(db, "orders"), 
-            where("date", ">=", startOfPeriodTimestamp),
-            where("date", "<=", endOfPeriodTimestamp)
-        );
-        const ordersSnapshot = await getDocs(ordersQuery);
-        
-        let revenue = 0;
-        let activeOrders = 0;
-        ordersSnapshot.forEach(orderDoc => {
-            const order = orderDoc.data();
-            if (order.total && typeof order.total === 'number') {
-                revenue += order.total;
-            }
-            if (order.status === 'Pending') {
-                activeOrders++;
-            }
-        });
-
-        const customersQuery = query(
-            collection(db, "customers"), 
-            where("joinedDate", ">=", startOfPeriodTimestamp),
-            where("joinedDate", "<=", endOfPeriodTimestamp)
-        );
-        const customersSnapshot = await getDocs(customersQuery);
-
-        const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-        const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-        const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
-
-        const weeklyRevenueData = daysInWeek.map(day => ({
-            day: format(day, 'E'),
-            revenue: 0,
-        }));
-        
-        const weeklyOrdersQuery = query(
-            collection(db, "orders"), 
-            where("date", ">=", Timestamp.fromDate(weekStart)),
-            where("date", "<=", Timestamp.fromDate(weekEnd))
-        );
-        const weeklyOrdersSnapshot = await getDocs(weeklyOrdersQuery);
-        
-        weeklyOrdersSnapshot.forEach(orderDoc => {
-            const order = orderDoc.data();
-            const orderTimestamp = order.date as Timestamp;
-            const orderDate = orderTimestamp.toDate();
-            const dayOfWeek = format(orderDate, 'E'); 
-            const index = weeklyRevenueData.findIndex(d => d.day === dayOfWeek);
-            if (index !== -1 && order.total && typeof order.total === 'number') {
-                weeklyRevenueData[index].revenue += order.total;
-            }
-        });
-        
-        return {
-            revenue,
-            customers: customersSnapshot.size,
-            sales: ordersSnapshot.size,
-            activeOrders,
-            weeklyRevenue: weeklyRevenueData,
-        };
-    } catch (error) {
-        console.error("Error fetching dashboard stats:", error);
-        return {
-            revenue: 0, customers: 0, sales: 0, activeOrders: 0,
-            weeklyRevenue: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => ({ day, revenue: 0 })),
-        };
     }
 }
 
@@ -1496,7 +1391,7 @@ export async function handleLogPayment(supplierId: string, amount: number): Prom
         // 2. Add a corresponding expense record
         const expenseRef = doc(collection(db, "indirectCosts"));
         const supplierDoc = await getDoc(supplierRef);
-        const supplierName = supplierDoc.exists() ? supplierDoc.data().name : 'Unknown Supplier';
+        const supplierName = supplierDoc.exists() ? supplierDoc.data()!.name : 'Unknown Supplier';
         batch.set(expenseRef, {
             category: "Creditor Payments",
             description: `Payment to supplier: ${supplierName}`,
@@ -1991,12 +1886,7 @@ export async function getReturnedStockTransfers(): Promise<Transfer[]> {
 
 export async function getProductionTransfers(): Promise<Transfer[]> {
   try {
-    const q = query(
-      collection(db, 'transfers'),
-      where('status', '==', 'pending'),
-      where('notes', '>=', 'Return from production batch'),
-      where('notes', '<', 'Return from production batch' + '\uf8ff')
-    );
+    const q = query(collection(db, 'transfers'), where('status', '==', 'pending'), where('notes', '>=', 'Return from production batch'), where('notes', '<=', 'Return from production batch\uf8ff'));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docSnap => {
       const data = docSnap.data();
@@ -2050,99 +1940,94 @@ export async function getCompletedTransfersForStaff(staffId: string): Promise<Tr
     }
 }
 
-export async function handleAcknowledgeTransfer(transferId: string, action: 'accept' | 'decline'): Promise<{success: boolean, error?: string}> {
+export async function handleAcknowledgeTransfer(transferId: string, action: 'accept' | 'decline'): Promise<{ success: boolean; error?: string }> {
     const transferRef = doc(db, 'transfers', transferId);
-
+    
     try {
         await runTransaction(db, async (transaction) => {
             const transferDoc = await transaction.get(transferRef);
-            if (!transferDoc.exists()) throw new Error("Transfer does not exist.");
-            
+            if (!transferDoc.exists()) {
+                throw new Error("Transfer does not exist.");
+            }
             const transfer = transferDoc.data() as Transfer;
 
+            if (transfer.status !== 'pending' && transfer.status !== 'pending_return') {
+                throw new Error("This transfer has already been processed.");
+            }
+            
             if (action === 'decline') {
                 transaction.update(transferRef, { status: 'cancelled' });
-                if (transfer.originalRunId) {
-                    const originalRunRef = doc(db, 'transfers', transfer.originalRunId);
-                    transaction.update(originalRunRef, { status: 'active' });
+                // If it's a return that's declined, revert the original run's status and stock
+                if (transfer.status === 'pending_return') {
+                    for (const item of transfer.items) {
+                        const staffStockRef = doc(db, 'staff', transfer.from_staff_id, 'personal_stock', item.productId);
+                        transaction.update(staffStockRef, { stock: increment(item.quantity) });
+                    }
+                    if (transfer.originalRunId && !['showroom-return', 'delivery-return'].includes(transfer.originalRunId)) {
+                        const originalRunRef = doc(db, 'transfers', transfer.originalRunId);
+                        transaction.update(originalRunRef, { status: 'active' });
+                    }
                 }
                 return;
             }
 
             // --- Handle Accept ---
-            if (transfer.status !== 'pending' && transfer.status !== 'pending_return') {
-                 throw new Error("This transfer has already been processed.");
-            }
-            
-            // This case handles a driver/showroom returning unsold stock to the storekeeper.
             if (transfer.status === 'pending_return') {
-                 for (const item of transfer.items) {
+                for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
+                     // First, get the product document to ensure it exists before trying to update it.
+                    const productDoc = await transaction.get(productRef);
+                    if (!productDoc.exists()) {
+                        throw new Error(`Product with ID ${item.productId} not found.`);
+                    }
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
-                if (transfer.originalRunId) {
+
+                // If it was a return from a specific sales run, mark that run as completed.
+                 if (transfer.originalRunId && !['showroom-return', 'delivery-return'].includes(transfer.originalRunId)) {
                     const originalRunRef = doc(db, 'transfers', transfer.originalRunId);
                     transaction.update(originalRunRef, { status: 'return_completed' });
                 }
-                transaction.update(transferRef, { status: 'completed' });
-            } 
-            // This case handles a baker transferring finished goods TO the storekeeper.
-            else if (transfer.notes?.startsWith('Return from production batch')) {
-                 for (const item of transfer.items) {
+                
+                transaction.update(transferRef, { status: 'completed' }); 
+
+            } else if (transfer.notes?.startsWith('Return from production batch')) {
+                // Acknowledge stock from production
+                for (const item of transfer.items) {
                     const productRef = doc(db, 'products', item.productId);
                     transaction.update(productRef, { stock: increment(item.quantity) });
                 }
-                 transaction.update(transferRef, { 
-                    status: 'completed',
-                    time_received: serverTimestamp(),
-                    time_completed: serverTimestamp() 
-                });
-            }
-            // This is the standard case: Storekeeper to Driver/Showroom
-            else { 
-                const productRefs = transfer.items.map(item => doc(db, 'products', item.productId));
-                const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
-                
-                for (let i = 0; i < transfer.items.length; i++) {
-                    const item = transfer.items[i];
-                    const productDoc = productDocs[i];
-
-                    if (!productDoc.exists() || (productDoc.data().stock || 0) < item.quantity) {
-                        throw new Error(`Not enough stock for ${item.productName} in main inventory.`);
-                    }
-
-                    transaction.update(productRefs[i], { stock: increment(-item.quantity) });
-
+                transaction.update(transferRef, { status: 'completed', time_received: serverTimestamp(), time_completed: serverTimestamp() });
+            
+            } else { 
+                // Acknowledge a standard transfer TO staff
+                for (const item of transfer.items) {
+                    // This part is now just a formality as stock is already deducted
                     const staffStockRef = doc(db, 'staff', transfer.to_staff_id, 'personal_stock', item.productId);
                     const staffStockDoc = await transaction.get(staffStockRef);
                     if (staffStockDoc.exists()) {
                         transaction.update(staffStockRef, { stock: increment(item.quantity) });
                     } else {
-                        transaction.set(staffStockRef, {
-                            productId: item.productId,
-                            productName: item.productName,
-                            stock: item.quantity,
-                        });
+                        transaction.set(staffStockRef, { productId: item.productId, productName: item.productName, stock: item.quantity });
                     }
                 }
 
                 const newStatus = transfer.is_sales_run ? 'active' : 'completed';
-                transaction.update(transferRef, { 
+                transaction.update(transferRef, {
                     status: newStatus,
                     time_received: serverTimestamp(),
-                    time_completed: transfer.is_sales_run ? null : serverTimestamp() 
+                    time_completed: transfer.is_sales_run ? null : serverTimestamp()
                 });
             }
         });
-
         return { success: true };
-
     } catch (error) {
         console.error("Error acknowledging transfer:", error);
-        const errorMessage = error instanceof Error ? error.message : "Failed to acknowledge transfer.";
-        return { success: false, error: errorMessage };
+        return { success: false, error: `Failed to ${action} transfer. ${(error as Error).message}` };
     }
 }
+
+
 
 export type ProductionBatch = {
     id: string;
@@ -2366,11 +2251,11 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
     try {
         await runTransaction(db, async (transaction) => {
             const batchRef = doc(db, 'production_batches', data.batchId);
-            const storekeeperDoc = await transaction.get(doc(db, 'staff', data.storekeeperId));
+            const batchDoc = await transaction.get(batchRef);
+            if (!batchDoc.exists()) throw new Error("Production batch not found.");
             
-            if (!storekeeperDoc.exists()) {
-                throw new Error("Target storekeeper does not exist.");
-            }
+            const storekeeperDoc = await transaction.get(doc(db, 'staff', data.storekeeperId));
+            if (!storekeeperDoc.exists()) throw new Error("Target storekeeper does not exist.");
             
             const totalProduced = data.producedItems.reduce((sum, item) => sum + item.quantity, 0);
             const totalWasted = data.wastedItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -2379,7 +2264,7 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
                 status: 'completed',
                 successfullyProduced: totalProduced,
                 wasted: totalWasted,
-                completedAt: serverTimestamp(), // Add completed timestamp
+                completedAt: serverTimestamp(),
             });
 
             if (data.producedItems.length > 0) {
@@ -2389,11 +2274,7 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
                     from_staff_name: user.name,
                     to_staff_id: data.storekeeperId,
                     to_staff_name: storekeeperDoc.data().name,
-                    items: data.producedItems.map(item => ({
-                        productId: item.productId,
-                        productName: item.productName,
-                        quantity: item.quantity
-                    })),
+                    items: data.producedItems,
                     date: serverTimestamp(),
                     status: 'pending',
                     is_sales_run: false,
@@ -2403,11 +2284,15 @@ export async function completeProductionBatch(data: CompleteBatchData, user: { s
 
             if (data.wastedItems.length > 0) {
                 for (const item of data.wastedItems) {
+                    const productDoc = await getDoc(doc(db, 'products', item.productId));
+                    const productCategory = productDoc.exists() ? productDoc.data()?.category : 'Unknown';
+                    const productName = productDoc.exists() ? productDoc.data()?.name : item.productName || 'Unknown';
+
                     const wasteLogRef = doc(collection(db, 'waste_logs'));
                     transaction.set(wasteLogRef, {
                         productId: item.productId,
-                        productName: item.productName,
-                        productCategory: 'Breads', // TODO: This should be dynamic
+                        productName,
+                        productCategory,
                         quantity: item.quantity,
                         reason: 'Production Waste',
                         notes: `From production batch ${data.batchId}`,
@@ -2719,23 +2604,21 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
 
     try {
         await runTransaction(db, async (transaction) => {
-            const stockRefs = data.items.map(item => doc(db, 'staff', data.staffId, 'personal_stock', item.productId));
-            for(const ref of stockRefs) {
-                const stockDoc = await transaction.get(ref);
-                 if (!stockDoc.exists()) {
-                    throw new Error(`Stock record not found for an item.`);
+            const stockChecks = data.items.map(async item => {
+                const stockRef = doc(db, 'staff', data.staffId, 'personal_stock', item.productId);
+                const stockDoc = await transaction.get(stockRef);
+                if (!stockDoc.exists() || (stockDoc.data()?.stock || 0) < item.quantity) {
+                    throw new Error(`Not enough stock for ${item.name}. Available: ${stockDoc.data()?.stock || 0}, trying to sell: ${item.quantity}`);
                 }
-            }
+                return { stockRef, item };
+            });
+
+            await Promise.all(stockChecks);
+
             const salesDocId = format(orderDate, 'yyyy-MM-dd');
             const salesDocRef = doc(db, 'sales', salesDocId);
-            await transaction.get(salesDocRef);
+            const salesDoc = await transaction.get(salesDocRef);
 
-            for (let i = 0; i < data.items.length; i++) {
-                const item = data.items[i];
-                const stockRef = stockRefs[i];
-                transaction.update(stockRef, { stock: increment(-item.quantity) });
-            }
-            
             const orderData = {
                 id: newOrderRef.id,
                 salesRunId: `pos-sale-${newOrderRef.id}`,
@@ -2752,23 +2635,28 @@ export async function handlePosSale(data: PosSaleData): Promise<{ success: boole
             
             transaction.set(newOrderRef, orderData);
             
+            for (const { stockRef, item } of await Promise.all(stockChecks)) {
+                transaction.update(stockRef, { stock: increment(-item.quantity) });
+            }
+            
             const paymentField = data.paymentMethod === 'Cash' ? 'cash' : (data.paymentMethod === 'POS' ? 'pos' : 'transfer');
-            const salesDoc = await getDoc(salesDocRef);
+            
             if (salesDoc.exists()) {
                 transaction.update(salesDocRef, {
-                    [paymentField]: increment(data.total),
-                    total: increment(data.total)
+                    total: increment(data.total),
+                    [paymentField]: increment(data.total)
                 });
             } else {
                 transaction.set(salesDocRef, {
                     date: Timestamp.fromDate(startOfDay(orderDate)),
                     description: `Daily Sales for ${salesDocId}`,
-                    cash: data.paymentMethod === 'Cash' ? data.total : 0,
-                    pos: data.paymentMethod === 'POS' ? data.total : 0,
-                    transfer: data.paymentMethod === 'Paystack' ? data.total : 0,
+                    cash: 0,
+                    pos: 0,
+                    transfer: 0,
                     creditSales: 0,
                     shortage: 0,
-                    total: data.total
+                    total: data.total,
+                    [paymentField]: data.total
                 });
             }
         });
@@ -3435,8 +3323,6 @@ export async function returnUnusedIngredients(
         return { success: true };
     } catch (error) {
         console.error("Error returning ingredients:", error);
-        return { success: false, error: "Failed to return ingredients." };
+        return { success: false, error: (error as Error).message };
     }
 }
-
-
